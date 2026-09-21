@@ -108,7 +108,14 @@ function timeValue(v){
  return 0
 }
 
-function tab(name,el){document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));el.classList.add('active');if(name==='store')renderStore();if(name==='online')renderOnline();if(name==='ship')renderShip()}
+function tab(name,el){
+document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+el.classList.add('active');
+sessionStorage.setItem('jiwu_current_tab',name);
+if(name==='store')renderStore();
+if(name==='online')renderOnline();
+if(name==='ship')renderShip();
+}
 function detectSalesperson(){const q=new URLSearchParams(location.search),user=q.get('user')||q.get('salesperson')||'';if(user==='花花'||user==='小法師')salesperson=user;return salesperson}
 function setSalesperson(el,v){salesperson=v;document.querySelectorAll('.salesperson button').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active')}
 
@@ -223,7 +230,13 @@ async function renderShip(){
 }
 async function updateShip(row,checked){try{await api('setShip',{row,status:checked?'已出貨':'待出貨'})}catch(e){alert(e.message)}}
 
-detectSalesperson();renderStore();
+detectSalesperson();
+
+const savedTab=sessionStorage.getItem('jiwu_current_tab')||'store';
+const navBtn=[...document.querySelectorAll('.nav button')]
+.find(x=>x.getAttribute('onclick')?.includes(`'${savedTab}'`));
+
+tab(savedTab,navBtn||document.querySelector('.nav button'));
 </script>
 </body>
 </html>
