@@ -50,8 +50,9 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 .onlineResult{min-height:0;flex:1;overflow:auto}.onlineTable{min-width:850px}
 .onlineTable th:nth-child(1){width:5%}.onlineTable th:nth-child(2){width:12%}.onlineTable th:nth-child(3){width:10%}.onlineTable th:nth-child(4){width:9%}.onlineTable th:nth-child(5){width:22%}.onlineTable th:nth-child(6){width:15%}.onlineTable th:nth-child(7){width:8%}.onlineTable th:nth-child(8){width:8%}.onlineTable th:nth-child(9){width:8%}
 
-.groupSummary{font-size:16px;font-weight:400}.groupCards{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:stretch}
-.groupCard{height:220px;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.groupSummary{font-size:16px;font-weight:400}
+.groupCards{padding:12px;display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;align-items:stretch}
+.groupCard{height:240px;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
 .groupCardCustomer{padding:10px 13px;background:#f7f7f7;border-bottom:1px solid #eee;flex-shrink:0;font-size:14px}
 .groupCardItems{flex:1;min-height:0;overflow-y:auto;padding:3px 13px}.groupCardItem{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
 .groupCardItem:last-child{border-bottom:0}.groupCardItemName{flex:1;min-width:0;word-break:break-word}.groupCardItemPrice{white-space:nowrap}
@@ -62,7 +63,8 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 html,body{overflow:hidden}.top{height:52px;font-size:20px}.page{height:calc(100dvh - 110px);padding:8px}.nav{height:58px}.nav button{font-size:14px}
 .storePage{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr)}.storeManual,.storeMain,.storeCheckout{grid-column:auto;grid-row:auto}
 .manualBox{grid-template-columns:1fr 100px}.manualBox button{grid-column:1/-1}.payment{grid-template-columns:repeat(5,1fr)}.payment button{font-size:12px;padding:7px 2px}
-.onlineToolbar{flex-wrap:wrap}.onlineToolbar input{flex-basis:100%}.groupCards{grid-template-columns:1fr}.groupCard{height:220px}
+.onlineToolbar{flex-wrap:wrap}.onlineToolbar input{flex-basis:100%}
+.groupCards{grid-template-columns:repeat(2, 1fr)}.groupCard{height:220px}
 }
 </style>
 </head>
@@ -73,16 +75,17 @@ html,body{overflow:hidden}.top{height:52px;font-size:20px}.page{height:calc(100d
 
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJrSnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
-let onlineRows=[],onlineHeaders=[],storeCart=[],payment='',salesperson='',onlineSearchText='',onlineCargo='現貨';
+let onlineRows=[],onlineHeaders=[],storeCart=[],payment='',salesperson='',onlineSearchText='',onlineCargo='現貨',isCustomerView=false;
 
 function api(action,params={}){
  return new Promise((resolve,reject)=>{
   const cb='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2),s=document.createElement('script');let finished=false;
-  const cleanup=()=>{if(finished)return;finished=true;delete window[cb];s.remove()};
+  const cleanup=()=>{if(finished)return;finished=true;delete window[cb];if(s.parentNode)s.parentNode.removeChild(s)};
   window[cb]=data=>{cleanup();if(data&&data.ok===false){reject(new Error(data.error||'GAS 錯誤'));return}resolve(data)};
   s.onerror=()=>{cleanup();reject(new Error('無法連線 GAS'))};
-  const q=new URLSearchParams({action,callback:cb,...params});s.src=API_URL+'?'+q.toString();document.body.appendChild(s);
-  setTimeout(()=>{if(!finished){cleanup();reject(new Error('GAS 連線逾時'))}},20000);
+  const q=new URLSearchParams({action,callback:cb,...params});s.src=API_URL+'?'+q.toString();
+  (document.head||document.body).appendChild(s);
+  setTimeout(()=>{if(!finished){cleanup();reject(new Error('GAS 連線逾時'))}},25000);
  })
 }
 
@@ -150,7 +153,7 @@ function addManualProduct(){const name=document.getElementById('manualName').val
 function renderCart(){
  const box=document.getElementById('storeCart');if(!box)return;
  if(!storeCart.length){box.innerHTML='<div class="empty">尚未加入商品</div>';const total=document.getElementById('storeTotal');if(total)total.textContent='$0';return}
- box.innerHTML=storeCart.map((x,i)=>`<div class="cartItem"><div class="cartName"><b>${esc(x.name)}</b><div class="cartSub">${x.manual?'手動商品':esc(x.code)}　$${money(x.price)}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">−</button><b>${x.qty}</b><button onclick="changeQty(${i},1)">＋</button><button class="btn red" style="padding:4px 8px" onclick="removeCart(${i})">×</button></div></div>`).join('');
+ box.innerHTML=storeCart.map((x,i)=>`<div class="cartItem"><div class="cartName"><b>${esc(x.name)}</b><div class="cartSub">${x.manual?'手動商品':esc(x.code)} $${money(x.price)}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">−</button><b>${x.qty}</b><button onclick="changeQty(${i},1)">＋</button><button class="btn red" style="padding:4px 8px" onclick="removeCart(${i})">×</button></div></div>`).join('');
  const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0),totalEl=document.getElementById('storeTotal');if(totalEl)totalEl.textContent='$'+money(total);calcChange()
 }
 function changeQty(i,n){storeCart[i].qty+=n;if(storeCart[i].qty<=0)storeCart.splice(i,1);renderCart()}
@@ -169,12 +172,13 @@ async function checkout(){
 }
 
 function renderOnline(){
+ isCustomerView=false;
  app.innerHTML=`<div class="onlinePage"><div class="onlineToolbar"><input id="customerSearch" placeholder="搜尋顧客名稱／團名" value="${esc(onlineSearchText)}" onkeydown="if(event.key==='Enter')searchOnline()"><button class="btn" onclick="searchOnline()">搜尋</button><select id="cargoFilter"><option value="現貨">現貨</option><option value="已訂購">已訂購</option><option value="已開單">已開單</option><option value="補貨登記">補貨登記</option><option value="受注">受注</option></select><button class="btn light" onclick="filterCargo()">篩選</button><button class="btn light" onclick="loadOnline()">重新整理</button></div><div id="onlineResult" class="onlineResult"><div class="card"><div class="loading">載入中…</div></div></div></div>`;
  const f=document.getElementById('cargoFilter');if(f)f.value=onlineCargo;loadOnline()
 }
-async function loadOnline(){try{const d=await api('online');onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter(false)}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}}
-async function searchOnline(){onlineSearchText=document.getElementById('customerSearch').value.trim();onlineCargo=document.getElementById('cargoFilter').value;try{const d=await api('online');onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter()}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}}
-function filterCargo(){onlineCargo=document.getElementById('cargoFilter').value;onlineSearchText='';document.getElementById('customerSearch').value='';applyOnlineFilter()}
+async function loadOnline(){isCustomerView=false;try{const d=await api('online');onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter(false)}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}}
+async function searchOnline(){isCustomerView=false;onlineSearchText=document.getElementById('customerSearch').value.trim();onlineCargo=document.getElementById('cargoFilter').value;try{const d=await api('online');onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter()}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}}
+function filterCargo(){isCustomerView=false;onlineCargo=document.getElementById('cargoFilter').value;onlineSearchText='';document.getElementById('customerSearch').value='';applyOnlineFilter()}
 function cargoCategory(cargo){cargo=String(cargo||'').trim();if(cargo==='補貨登記'||cargo==='SOLD OUT'||cargo==='S☹LD OUT'||cargo==='補登')return'補貨登記';if(/^\d{1,2}月$/.test(cargo))return'受注';if(cargo==='現貨')return'現貨';if(cargo==='已訂購')return'已訂購';if(cargo==='預訂')return'預訂';return cargo}
 function applyOnlineFilter(){
  let rows=[...onlineRows];
@@ -186,12 +190,28 @@ function isTruthy(v){if(v===true)return true;return['true','1','y','yes','是','
 
 function showOnlineRows(rows){
  if(!rows.length){onlineResult.innerHTML='<div class="card"><div class="empty">沒有符合的資料</div></div>';return}
- onlineResult.innerHTML=`<div class="card">${onlineSearchText?`<div class="cardHead"><span>${esc(onlineSearchText)}</span><span>${rows.length} 筆</span></div>`:''}<div class="tableWrap"><table class="onlineTable"><thead><tr><th>出貨</th><th>顧客名稱</th><th>時間</th><th>貨況</th><th>團名</th><th>名稱</th><th>售價</th><th>運費</th><th>訂金</th></tr></thead><tbody>${rows.map(x=>{const customer=getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名']),time=getOnlineData(x,['時間','購買時間']),rawCargo=getOnlineData(x,['貨況','狀態']),cargo=cargoCategory(rawCargo),group=getOnlineData(x,['團名','團組','團']),name=getOnlineData(x,['名稱','商品名稱']),price=getOnlineData(x,['售價']),shipping=getOnlineData(x,['運費']),deposit=getOnlineData(x,['訂金']);return`<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}"></td><td>${customer?`<button class="customerLink" onclick='openCustomer(${JSON.stringify(String(customer))})'>${esc(customer)}</button>`:''}</td><td>${esc(formatOnlineTime(time))}</td><td>${cargo?`<span class="tag ${cargo==='現貨'?'green':cargo==='補貨登記'?'red':'blue'}">${esc(cargo)}</span>`:''}</td><td>${group?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(group))})'>${esc(group)}</button>`:''}</td><td>${esc(name)}</td><td>${price===''?'':money(price)}</td><td>${shipping===''?'':money(shipping)}</td><td>${deposit===''?'':money(deposit)}</td></tr>`}).join('')}</tbody></table></div><div style="padding:12px"><button class="btn green" onclick="createSelectedShip()">將勾選商品產生出貨單</button></div></div>`
+ let totalSum=0;
+ rows.forEach(x=>{
+  const p=Number(getOnlineData(x,['售價'])||0);
+  totalSum+=p;
+ });
+ 
+ if(isCustomerView){
+  onlineResult.innerHTML=`<div class="card"><div class="cardHead"><span>${esc(onlineSearchText)}</span><span>${rows.length} 筆｜總金額 $${money(totalSum)}</span></div><div class="tableWrap"><table class="onlineTable"><thead><tr><th>出貨</th><th>時間</th><th>貨況</th><th>團名</th><th>名稱</th><th>售價</th><th>運費</th><th>訂金</th><th>備註</th></tr></thead><tbody>${rows.map(x=>{const time=getOnlineData(x,['時間','購買時間']),rawCargo=getOnlineData(x,['貨況','狀態']),cargo=cargoCategory(rawCargo),group=getOnlineData(x,['團名','團組','團']),name=getOnlineData(x,['名稱','商品名稱']),price=getOnlineData(x,['售價']),shipping=getOnlineData(x,['運費']),deposit=getOnlineData(x,['訂金']),note=getOnlineData(x,['備註','註記','Note']);return`<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}"></td><td>${esc(formatOnlineTime(time))}</td><td>${cargo?`<span class="tag ${cargo==='現貨'?'green':cargo==='補貨登記'?'red':'blue'}">${esc(cargo)}</span>`:''}</td><td>${group?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(group))})'>${esc(group)}</button>`:''}</td><td>${esc(name)}</td><td>${price===''?'':money(price)}</td><td>${shipping===''?'':money(shipping)}</td><td>${deposit===''?'':money(deposit)}</td><td>${esc(note)}</td></tr>`}).join('')}</tbody></table></div><div style="padding:12px"><button class="btn green" onclick="createSelectedShip()">將勾選商品產生出貨單</button></div></div>`
+ }else{
+  onlineResult.innerHTML=`<div class="card">${onlineSearchText?`<div class="cardHead"><span>${esc(onlineSearchText)}</span><span>${rows.length} 筆｜總金額 $${money(totalSum)}</span></div>`:''}<div class="tableWrap"><table class="onlineTable"><thead><tr><th>出貨</th><th>顧客名稱</th><th>時間</th><th>貨況</th><th>團名</th><th>名稱</th><th>售價</th><th>運費</th><th>訂金</th></tr></thead><tbody>${rows.map(x=>{const customer=getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名']),time=getOnlineData(x,['時間','購買時間']),rawCargo=getOnlineData(x,['貨況','狀態']),cargo=cargoCategory(rawCargo),group=getOnlineData(x,['團名','團組','團']),name=getOnlineData(x,['名稱','商品名稱']),price=getOnlineData(x,['售價']),shipping=getOnlineData(x,['運費']),deposit=getOnlineData(x,['訂金']);return`<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}"></td><td>${customer?`<button class="customerLink" onclick='openCustomer(${JSON.stringify(String(customer))})'>${esc(customer)}</button>`:''}</td><td>${esc(formatOnlineTime(time))}</td><td>${cargo?`<span class="tag ${cargo==='現貨'?'green':cargo==='補貨登記'?'red':'blue'}">${esc(cargo)}</span>`:''}</td><td>${group?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(group))})'>${esc(group)}</button>`:''}</td><td>${esc(name)}</td><td>${price===''?'':money(price)}</td><td>${shipping===''?'':money(shipping)}</td><td>${deposit===''?'':money(deposit)}</td></tr>`}).join('')}</tbody></table></div><div style="padding:12px"><button class="btn green" onclick="createSelectedShip()">將勾選商品產生出貨單</button></div></div>`
+ }
 }
 
 async function openCustomer(name){
  try{
-  const d=await api('onlineCustomer',{name});onlineRows=d.rows||[];onlineHeaders=d.headers||[];onlineSearchText=name;onlineCargo='';
+  const d=await api('onlineCustomer',{name});
+  onlineRows=(d.rows||[]).filter(x=>{
+   const cName=String(getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim();
+   return cName===String(name).trim();
+  });
+  onlineHeaders=d.headers||[];onlineSearchText=name;onlineCargo='';
+  isCustomerView=true;
   function statusRank(x){
    const cargo=cargoCategory(getOnlineData(x,['貨況','狀態'])),opened=isTruthy(getOnlineData(x,['已開單','開單'])),ordered=isTruthy(getOnlineData(x,['已訂購','購買']));
    if(cargo==='現貨'&&!opened)return 1;
@@ -208,8 +228,8 @@ async function openCustomer(name){
 async function openGroup(group){
  try{
   const d=await api('group',{group}),customers=d.customers||[];let totalAmount=0;customers.forEach(c=>(c.items||[]).forEach(item=>{totalAmount+=Number(item['售價']||0)}));
-  let html=`<div class="card"><div class="cardHead groupSummary"><span>➡️跟團${customers.length}人｜總金額$${money(totalAmount)}</span></div><div class="groupCards>`;
-  customers.forEach(c=>{const items=c.items||[];let customerTotal=0;items.forEach(item=>{customerTotal+=Number(item['售價']||0)});const firstItem=items[0]||{},time=firstItem['時間']||firstItem['購買時間']||'';html+=`<div class="groupCard"><div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div><div class="groupCardItems">${items.map(item=>`<div class="groupCardItem"><div class="groupCardItemName">${esc(item['名稱']||item['商品名稱']||'')}</div><div class="groupCardItemPrice">$${money(item['售價']||0)}</div></div>`).join('')}</div><div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div></div>`});
+  let html=`<div class="card"><div class="cardHead groupSummary"><span>跟團${customers.length}人｜總金額$${money(totalAmount)}</span></div><div class="groupCards">`;
+  customers.forEach(c=>{const items=c.items||[];let customerTotal=0;items.forEach(item=>{customerTotal+=Number(item['售價']||0)});const firstItem=items[0]||{},time=firstItem['時間']||firstItem['購買時間']||'';html+=`<div class="groupCard"><div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div><div class="groupCardItems">${items.map(item=>`<div class="groupCardItem"><div class="groupCardItemName">${esc(item['名稱']\vert{}\vert{}item['商品名稱']\vert{}\vert{}'')}</div><div class="groupCardItemPrice">$${money(item['售價']||0)}</div></div>`).join('')}</div><div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div></div>`});
   html+=`</div></div>`;onlineResult.innerHTML=html
  }catch(e){alert(e.message)}
 }
@@ -222,10 +242,10 @@ async function createSelectedShip(){
 async function renderShip(){
  app.innerHTML=`<div class="shipPage"><div class="toolbar" style="margin-bottom:10px"><button class="btn light" onclick="renderShip()">重新整理</button></div><div id="shipResult"><div class="card"><div class="loading">載入中…</div></div></div></div>`;
  try{
-  const d=await api('ship');if(!d.rows.length){shipResult.innerHTML='<div class="card empty">目前沒有出貨單</div>';return}
+  const d=await api('ship');if(!d.rows||!d.rows.length){shipResult.innerHTML='<div class="card empty">目前沒有出貨單</div>';return}
   const ci=findHeader(d.headers,['顧客名稱','客戶名稱','客人名稱','姓名']),bi=findHeader(d.headers,['出貨批次']),si=findHeader(d.headers,['出貨狀態']),ni=findHeader(d.headers,['名稱','商品名稱']),codei=findHeader(d.headers,['貨號','商品貨號','SN']),pi=findHeader(d.headers,['售價']),ti=findHeader(d.headers,['團名']),timei=findHeader(d.headers,['時間','購買時間']),groups={};
   d.rows.forEach(x=>{const batch=x.data[bi]||'',customer=x.data[ci]||'未填姓名',key=batch+'__'+customer;if(!groups[key])groups[key]={batch,customer,items:[]};groups[key].items.push(x)});
-  shipResult.innerHTML=Object.values(groups).map(g=>`<div class="card" style="margin-bottom:10px"><div class="cardHead"><div>${esc(g.customer)}</div><div>${esc(g.batch)}</div></div>${g.items.map(x=>`<div class="shipItem"><input class="check" type="checkbox" ${x.data[si]==='已出貨'?'checked':''} onchange="updateShip(${x.row},this.checked)"><div style="flex:1"><b>${esc(x.data[ni]||'')}</b><div style="font-size:12px;color:#999;margin-top:3px">${esc(x.data[codei]||'')}　${esc(x.data[ti]||'')}　${esc(formatOnlineTime(x.data[timei]||''))}</div></div><b>$${money(x.data[pi]||0)}</b></div>`).join('')}</div>`).join('')
+  shipResult.innerHTML=Object.values(groups).map(g=>`<div class="card" style="margin-bottom:10px"><div class="cardHead"><div>${esc(g.customer)}</div><div>${esc(g.batch)}</div></div>${g.items.map(x=>`<div class="shipItem"><input class="check" type="checkbox" ${x.data[si]==='已出貨'?'checked':''} onchange="updateShip(${x.row},this.checked)"><div style="flex:1"><b>${esc(x.data[ni]||'')}</b><div style="font-size:12px;color:#999;margin-top:3px">${esc(x.data[codei]\vert{}\vert{}'')}${esc(x.data[ti]||'')} ${esc(formatOnlineTime(x.data[timei]\vert{}\vert{}''))}</div></div><b>$${money(x.data[pi]||0)}</b></div>`).join('')}</div>`).join('')
  }catch(e){shipResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}
 }
 async function updateShip(row,checked){try{await api('setShip',{row,status:checked?'已出貨':'待出貨'})}catch(e){alert(e.message)}}
