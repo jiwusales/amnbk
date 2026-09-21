@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>代購訂單管理</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5eee6;color:#55483e;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.top{height:64px;background:#e8d7c5;display:flex;align-items:center;padding:0 24px;font-size:22px;font-weight:700}
+.nav{height:58px;background:#fff;display:flex;border-bottom:1px solid #e2d5c9}
+.nav button{flex:1;border:0;background:none;color:#8a7768;font-weight:700;font-size:16px}
+.nav button.active{color:#765c48;background:#f7efe7;border-bottom:3px solid #b99b80}
+.page{padding:20px;max-width:1600px;margin:auto}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+input,select{border:1px solid #d9c8b8;background:#fffaf6;border-radius:10px;padding:10px 12px;outline:none}
+input:focus,select:focus{border-color:#b99b80}
+.btn{border:0;border-radius:10px;padding:10px 16px;background:#9f8067;color:white;font-weight:700}
+.btn.light{background:#e6d8ca;color:#685648}
+.btn.green{background:#829b7c}
+.btn.red{background:#b87870}
+.card{background:#fffdfb;border:1px solid #eadfd5;border-radius:16px;box-shadow:0 3px 12px #8b735115;overflow:hidden;margin-bottom:16px}
+.cardHead{padding:14px 18px;background:#f8f1eb;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.tableWrap{overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th{background:#f3e8de;color:#766355;position:sticky;top:0;z-index:1}
+th,td{padding:10px 12px;border-bottom:1px solid #eee4db;text-align:left;white-space:nowrap}
+tr:hover td{background:#fff8f2}
+.tag{display:inline-block;padding:4px 9px;border-radius:999px;background:#eadbcb;color:#745d4b;font-size:13px}
+.tag.green{background:#dce9d9;color:#577052}
+.tag.red{background:#f1d7d4;color:#95534e}
+.tag.blue{background:#dce8eb;color:#58757b}
+.check{width:18px;height:18px;accent-color:#9f8067}
+.empty{text-align:center;padding:40px;color:#a69486}
+.customerBox{display:grid;grid-template-columns:280px 1fr;gap:16px}
+.customerList{max-height:650px;overflow:auto}
+.customerItem{padding:12px;border-bottom:1px solid #eee3da;cursor:pointer}
+.customerItem:hover,.customerItem.active{background:#f7eee6}
+.total{font-size:24px;font-weight:800}
+.storeGrid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+.cartItem{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #eee3da}
+.qty{display:flex;align-items:center;gap:7px}
+.qty button{width:28px;height:28px;border:0;border-radius:7px;background:#e7d8ca}
+.payment{display:flex;gap:8px;flex-wrap:wrap}
+.payment button{border:1px solid #d9c8b8;background:#fff;border-radius:9px;padding:8px 14px}
+.payment button.active{background:#9f8067;color:#fff}
+.shipGroup{margin-bottom:18px}
+.shipCustomer{padding:14px 18px;background:#f6ede5;font-weight:800}
+.shipItem{padding:12px 18px;border-top:1px solid #eee3da;display:flex;gap:15px;align-items:center}
+@media(max-width:800px){
+.page{padding:10px}
+.customerBox,.storeGrid{grid-template-columns:1fr}
+.top{padding:0 14px}
+}
+</style>
+</head>
+
+<body>
+<div class="top">代購訂單管理</div>
+
+<div class="nav">
+<button class="active" onclick="tab('store',this)">店面</button>
+<button onclick="tab('online',this)">線上</button>
+<button onclick="tab('ship',this)">出貨</button>
+</div>
+
+<div id="app" class="page"></div>
+
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJrSnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
+
+let onlineRows=[];
+let onlineHeaders=[];
+let storeCart=[];
+let currentCustomer='';
+let payment='';
+
+function api(action,params={}){
+  return new Promise((resolve,reject)=>{
+    const cb='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const s=document.createElement('script');
+
+    window[cb]=data=>{
+      delete window[cb];
+      s.remove();
+      data&&data.ok===false?reject(new Error(data.error||'錯誤')):resolve(data);
+    };
+
+    s.onerror=()=>{
+      delete window[cb];
+      s.remove();
+      reject(new Error('無法連線 GAS'));
+    };
+
+    const q=new URLSearchParams({action,callback:cb,...params});
+    s.src=API_URL+'?'+q;
+    document.body.appendChild(s);
+  });
+}
+
+function tab(name,el){
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+
+  if(name==='store')renderStore();
+  if(name==='online')renderOnline();
+  if(name==='ship')renderShip();
+}
+
+function esc(v){
+  return String(v??'')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+
+function money(v){
+  return Number(v||0).toLocaleString();
+}
+
+function findHeader(headers,names){
+  for(const n of names){
+    const i=headers.indexOf(n);
+    if(i>=0)return headers[i];
+  }
+  return null;
+}
+
+function getData(row,names){
+  const h=findHeader(onlineHeaders,names);
+  return h?row.data[h]:'';
+}
+
+function renderOnline(){
+  app.innerHTML=`
+  <div class="toolbar">
+    <input id="customerSearch" placeholder="輸入客戶名字">
+    <button class="btn" onclick="searchCustomer()">搜尋客戶</button>
+    <select id="cargoFilter">
+      <option value="">全部貨況</option>
+      <option>未訂購</option>
+      <option>現貨未出貨</option>
+      <option>現貨</option>
+      <option>在路上</option>
+      <option>受注</option>
+      <option>預訂</option>
+      <option>補貨登記</option>
+    </select>
+    <button class="btn light" onclick="filterCargo()">查看貨況</button>
+    <button class="btn light" onclick="loadOnline()">重新整理</button>
+  </div>
+
+  <div id="onlineResult"></div>
+  `;
+
+  loadOnline();
+}
+
+async function loadOnline(){
+  try{
+    const d=await api('online');
+    onlineRows=d.rows;
+    onlineHeaders=d.headers;
+    showOnlineRows(onlineRows);
+  }catch(e){alert(e.message)}
+}
+
+function showOnlineRows(rows){
+  if(!rows.length){
+    onlineResult.innerHTML='<div class="card empty">沒有資料</div>';
+    return;
+  }
+
+  const cols=['顧客名稱','購買時間','團名','貨號','名稱','售價','運費','訂金','後五碼','貨況'];
+
+  onlineResult.innerHTML=`
+  <div class="card">
+    <div class="cardHead">
+      <span>線上訂單</span>
+      <span>${rows.length} 筆</span>
+    </div>
+    <div class="tableWrap">
+    <table>
+      <thead><tr>
+        <th>出貨</th>
+        ${cols.map(x=>`<th>${x}</th>`).join('')}
+        <th>團名操作</th>
+      </tr></thead>
+      <tbody>
+      ${rows.map(x=>`
+        <tr>
+          <td><input class="check shipCheck" type="checkbox" value="${x.row}"></td>
+          ${cols.map(c=>{
+            let v=x.data[c]??'';
+            if(c==='團名'&&v){
+              return `<td><button class="btn light" onclick='openGroup(${JSON.stringify(String(v))})'>${esc(v)}</button></td>`;
+            }
+            if(c==='貨況'){
+              return `<td><span class="tag ${v==='現貨'?'green':v==='補貨登記'?'red':'blue'}">${esc(v)}</span></td>`;
+            }
+            if(c==='售價'||c==='運費'||c==='訂金'){
+              return `<td>${v===''?'':money(v)}</td>`;
+            }
+            return `<td>${esc(v)}</td>`;
+          }).join('')}
+          <td><button class="btn green" onclick="singleShip(${x.row})">出貨</button></td>
+        </tr>
+      `).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn green" onclick="createSelectedShip()">將勾選商品產生出貨單</button>
+  </div>
+  `;
+}
+
+async function searchCustomer(){
+  const name=document.getElementById('customerSearch').value.trim();
+  if(!name)return alert('請輸入客戶名字');
+
+  try{
+    const d=await api('onlineCustomer',{name});
+    onlineRows=d.rows;
+    onlineHeaders=d.headers;
+    showOnlineRows(d.rows);
+  }catch(e){alert(e.message)}
+}
+
+async function filterCargo(){
+  const cargo=document.getElementById('cargoFilter').value;
+  if(!cargo)return loadOnline();
+
+  try{
+    const d=await api('onlineCargo',{cargo});
+    onlineRows=d.rows;
+    onlineHeaders=d.headers;
+    showOnlineRows(d.rows);
+  }catch(e){alert(e.message)}
+}
+
+async function openGroup(group){
+  try{
+    const d=await api('group',{group});
+    let html=`<div class="card">
+      <div class="cardHead">${esc(group)} <span>${d.customers.length} 位客戶</span></div>`;
+
+    d.customers.forEach(c=>{
+      html+=`
+      <div class="shipGroup">
+        <div class="shipCustomer">${esc(c.name)}</div>
+        ${c.items.map(item=>`
+          <div class="shipItem">
+            <span>${esc(item['名稱']||item['商品名稱']||'')}</span>
+            <span class="tag">${esc(item['貨號']||item['商品貨號']||'')}</span>
+            <span>${money(item['售價']||0)}</span>
+          </div>
+        `).join('')}
+      </div>`;
+    });
+
+    html+='</div>';
+    onlineResult.innerHTML=html;
+  }catch(e){alert(e.message)}
+}
+
+async function createSelectedShip(){
+  const rows=[...document.querySelectorAll('.shipCheck:checked')].map(x=>x.value);
+  if(!rows.length)return alert('請先勾選要出貨的商品');
+
+  try{
+    const d=await api('createShip',{rows:JSON.stringify(rows)});
+    alert('已產生出貨單：'+d.batch);
+    loadOnline();
+  }catch(e){alert(e.message)}
+}
+
+async function singleShip(row){
+  try{
+    const d=await api('createShip',{rows:JSON.stringify([row])});
+    alert('已產生出貨單：'+d.batch);
+    loadOnline();
+  }catch(e){alert(e.message)}
+}
+
+function renderStore(){
+  app.innerHTML=`
+  <div class="storeGrid">
+    <div class="card">
+      <div class="cardHead">店面掃碼</div>
+      <div style="padding:18px">
+        <div class="toolbar">
+          <input id="barcode" autofocus placeholder="掃描或輸入貨號" style="flex:1">
+          <button class="btn" onclick="scan()">加入商品</button>
+        </div>
+        <div id="storeCart"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHead">結帳</div>
+      <div style="padding:20px">
+        <div style="color:#8f7b6c">總金額</div>
+        <div class="total" id="storeTotal">$0</div>
+
+        <div style="margin-top:20px">
+          <input id="received" type="number" placeholder="收到金額（可不填）" style="width:100%">
+        </div>
+
+        <div style="margin-top:15px">
+          <div style="color:#8f7b6c;margin-bottom:7px">付款方式</div>
+          <div class="payment">
+            <button onclick="setPayment(this,'現金')">現金</button>
+            <button onclick="setPayment(this,'LINE Pay')">LINE Pay</button>
+            <button onclick="setPayment(this,'轉帳')">轉帳</button>
+            <button onclick="setPayment(this,'其他')">其他</button>
+          </div>
+        </div>
+
+        <div style="margin-top:20px">
+          <input id="storeCustomer" placeholder="客戶名稱（可不填）" style="width:100%">
+        </div>
+
+        <div style="margin-top:20px">
+          <button class="btn green" style="width:100%;height:48px" onclick="checkout()">結帳完成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.getElementById('barcode').addEventListener('keydown',e=>{
+    if(e.key==='Enter')scan();
+  });
+
+  renderCart();
+}
+
+async function scan(){
+  const input=document.getElementById('barcode');
+  const code=input.value.trim();
+  if(!code)return;
+
+  try{
+    const d=await api('storeProduct',{code});
+
+    if(!d.ok){
+      alert(d.error||'找不到商品');
+      input.select();
+      return;
+    }
+
+    const old=storeCart.find(x=>x.code===d.product.code);
+
+    if(old)old.qty++;
+    else storeCart.push({...d.product,qty:1});
+
+    input.value='';
+    input.focus();
+    renderCart();
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+function renderCart(){
+  const box=document.getElementById('storeCart');
+  if(!box)return;
+
+  if(!storeCart.length){
+    box.innerHTML='<div class="empty">尚未加入商品</div>';
+    document.getElementById('storeTotal').textContent='$0';
+    return;
+  }
+
+  box.innerHTML=storeCart.map((x,i)=>`
+    <div class="cartItem">
+      <div>
+        <b>${esc(x.name)}</b>
+        <div style="font-size:13px;color:#99877a">${esc(x.code)}　$${money(x.price)}</div>
+      </div>
+      <div class="qty">
+        <button onclick="changeQty(${i},-1)">−</button>
+        <b>${x.qty}</b>
+        <button onclick="changeQty(${i},1)">＋</button>
+        <button class="btn red" style="padding:5px 9px" onclick="removeCart(${i})">刪</button>
+      </div>
+    </div>
+  `).join('');
+
+  const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0);
+  document.getElementById('storeTotal').textContent='$'+money(total);
+
+  const received=document.getElementById('received');
+  if(received)received.oninput=calcChange;
+}
+
+function changeQty(i,n){
+  storeCart[i].qty+=n;
+  if(storeCart[i].qty<=0)storeCart.splice(i,1);
+  renderCart();
+}
+
+function removeCart(i){
+  storeCart.splice(i,1);
+  renderCart();
+}
+
+function calcChange(){
+  const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0);
+  const received=Number(document.getElementById('received').value||0);
+  const change=received-total;
+
+  let el=document.getElementById('changeText');
+  if(!el){
+    el=document.createElement('div');
+    el.id='changeText';
+    el.style='margin-top:15px;font-size:18px;font-weight:700';
+    document.querySelector('.payment').parentElement.after(el);
+  }
+
+  if(document.getElementById('received').value===''){
+    el.textContent='';
+    return;
+  }
+
+  el.textContent=change>=0?'找零：$'+money(change):'尚差：$'+money(Math.abs(change));
+}
+
+function setPayment(el,v){
+  payment=v;
+  document.querySelectorAll('.payment button').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function checkout(){
+  if(!storeCart.length)return alert('沒有商品');
+
+  const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0);
+  const receivedInput=document.getElementById('received').value;
+  const received=receivedInput===''?'':Number(receivedInput);
+  const change=received===''?'':received-total;
+
+  if(received!==''&&change<0){
+    if(!confirm('收到金額不足，仍要結帳嗎？'))return;
+  }
+
+  try{
+    await api('storeCheckout',{
+      items:JSON.stringify(storeCart.map(x=>({code:x.code,qty:x.qty}))),
+      total,
+      received,
+      change,
+      payment,
+      customer:document.getElementById('storeCustomer').value.trim()
+    });
+
+    alert('結帳完成');
+
+    storeCart=[];
+    payment='';
+    renderStore();
+    document.getElementById('barcode').focus();
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+async function renderShip(){
+  app.innerHTML=`
+    <div class="toolbar">
+      <button class="btn light" onclick="renderShip()">重新整理</button>
+    </div>
+    <div id="shipResult"></div>
+  `;
+
+  try{
+    const d=await api('ship');
+
+    if(!d.rows.length){
+      shipResult.innerHTML='<div class="card empty">目前沒有出貨單</div>';
+      return;
+    }
+
+    const ci=findHeader(d.headers,['顧客名稱','客戶名稱']);
+    const bi=findHeader(d.headers,['出貨批次']);
+    const si=findHeader(d.headers,['出貨狀態']);
+    const ni=findHeader(d.headers,['名稱','商品名稱']);
+    const codei=findHeader(d.headers,['貨號','商品貨號']);
+    const pi=findHeader(d.headers,['售價']);
+    const ti=findHeader(d.headers,['團名']);
+    const timei=findHeader(d.headers,['購買時間']);
+
+    const groups={};
+
+    d.rows.forEach(x=>{
+      const batch=x.data[bi]||'';
+      const customer=x.data[ci]||'未填姓名';
+      const key=batch+'__'+customer;
+
+      if(!groups[key])groups[key]={
+        batch,
+        customer,
+        items:[]
+      };
+
+      groups[key].items.push(x);
+    });
+
+    shipResult.innerHTML=Object.values(groups).map(g=>`
+      <div class="card">
+        <div class="cardHead">
+          <div>${esc(g.customer)}</div>
+          <div>${esc(g.batch)}</div>
+        </div>
+
+        ${g.items.map(x=>`
+          <div class="shipItem">
+            <input class="check" type="checkbox"
+              ${x.data[si]==='已出貨'?'checked':''}
+              onchange="updateShip(${x.row},this.checked)">
+            <div style="flex:1">
+              <b>${esc(x.data[ni]||'')}</b>
+              <div style="font-size:13px;color:#988678">
+                ${esc(x.data[codei]||'')}
+               　${esc(x.data[ti]||'')}
+               　${esc(x.data[timei]||'')}
+              </div>
+            </div>
+            <b>$${money(x.data[pi]||0)}</b>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+
+  }catch(e){
+    shipResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>';
+  }
+}
+
+async function updateShip(row,checked){
+  try{
+    await api('setShip',{
+      row,
+      status:checked?'已出貨':'待出貨'
+    });
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+renderStore();
+</script>
+</body>
+</html>
