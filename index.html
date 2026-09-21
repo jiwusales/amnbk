@@ -250,27 +250,65 @@ return `<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}">
 
 /* 顧客 */
 async function openCustomer(name){
-try{
-const d=await api('online');
-onlineHeaders=d.headers||[];
-const key=String(name||'').trim().toLowerCase();
-onlineRows=(d.rows||[]).filter(x=>String(getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim().toLowerCase()===key);
-if(!onlineRows.length)onlineRows=(d.rows||[]).filter(x=>String(getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim().toLowerCase().includes(key));
-onlineSearchText=name;onlineCargo='';
-const statusRank=x=>{
-const cargo=cargoCategory(getOnlineData(x,['貨況','狀態'])),ordered=isTruthy(getOnlineData(x,['已訂購','購買'])),opened=isTruthy(getOnlineData(x,['已開單','開單']));
-if(cargo==='現貨'&&!opened)return 1;
-if(ordered)return 2;
-if(opened)return 3;
-return 4;
-};
-onlineRows.sort((a,b)=>{
-const sr=statusRank(a)-statusRank(b);
-if(sr)return sr;
-return timeValue(getOnlineData(a,['時間','購買時間']))-timeValue(getOnlineData(b,['時間','購買時間']));
-});
-showOnlineRows(onlineRows);
-}catch(e){alert(e.message)}
+ try{
+  const d=await api('online');
+  onlineHeaders=d.headers||[];
+
+  const allRows=d.rows||[];
+  const key=String(name||'').trim().toLowerCase();
+
+  onlineRows=allRows.filter(x=>{
+   const customer=String(
+    getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||''
+   ).trim().toLowerCase();
+   return customer===key;
+  });
+
+  if(!onlineRows.length){
+   onlineRows=allRows.filter(x=>{
+    const customer=String(
+     getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||''
+    ).trim().toLowerCase();
+    return customer.includes(key);
+   });
+  }
+
+  onlineSearchText=name;
+  onlineCargo='';
+
+  const statusRank=x=>{
+   const cargo=cargoCategory(
+    getOnlineData(x,['貨況','狀態'])
+   );
+   const ordered=isTruthy(
+    getOnlineData(x,['已訂購','購買'])
+   );
+   const opened=isTruthy(
+    getOnlineData(x,['已開單','開單'])
+   );
+
+   if(cargo==='現貨'&&!opened)return 1;
+   if(ordered)return 2;
+   if(opened)return 3;
+   return 4;
+  };
+
+  onlineRows.sort((a,b)=>{
+   const sr=statusRank(a)-statusRank(b);
+   if(sr)return sr;
+
+   return timeValue(
+    getOnlineData(a,['時間','購買時間'])
+   )-timeValue(
+    getOnlineData(b,['時間','購買時間'])
+   );
+  });
+
+  showOnlineRows(onlineRows);
+
+ }catch(e){
+  alert(e.message);
+ }
 }
 
 /* 團名 */
