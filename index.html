@@ -251,25 +251,21 @@ return `<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}">
 /* 顧客 */
 async function openCustomer(name){
  try{
-  const d=await api('online');
-  onlineHeaders=d.headers||[];
-
-  const allRows=d.rows||[];
   const key=String(name||'').trim().toLowerCase();
 
-  onlineRows=allRows.filter(x=>{
+  let rows=(onlineRows||[]).filter(x=>{
    const customer=String(
     getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||''
    ).trim().toLowerCase();
    return customer===key;
   });
 
-  if(!onlineRows.length){
-   onlineRows=allRows.filter(x=>{
+  if(!rows.length){
+   rows=(onlineRows||[]).filter(x=>{
     const customer=String(
      getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||''
     ).trim().toLowerCase();
-    return customer.includes(key);
+   return customer.includes(key);
    });
   }
 
@@ -293,18 +289,20 @@ async function openCustomer(name){
    return 4;
   };
 
-  onlineRows.sort((a,b)=>{
+  rows.sort((a,b)=>{
    const sr=statusRank(a)-statusRank(b);
    if(sr)return sr;
 
    return timeValue(
     getOnlineData(a,['時間','購買時間'])
-   )-timeValue(
+   )-
+   timeValue(
     getOnlineData(b,['時間','購買時間'])
    );
   });
 
-  showOnlineRows(onlineRows);
+  onlineRows=rows;
+  showOnlineRows(rows);
 
  }catch(e){
   alert(e.message);
