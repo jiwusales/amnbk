@@ -55,12 +55,15 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 .onlineTable{min-width:850px}.onlineTable th:nth-child(1){width:5%}.onlineTable th:nth-child(2){width:12%}.onlineTable th:nth-child(3){width:10%}.onlineTable th:nth-child(4){width:9%}.onlineTable th:nth-child(5){width:22%}.onlineTable th:nth-child(6){width:15%}.onlineTable th:nth-child(7){width:8%}.onlineTable th:nth-child(8){width:8%}.onlineTable th:nth-child(9){width:8%}
 
 /* 團名商品卡 */
-.groupSummary{font-size:16px;font-weight:400}.groupCards{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:stretch}
-.groupCard{height:220px;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.groupSummary{font-size:16px;font-weight:400}
+.groupCards{padding:12px;display:flex;flex-wrap:wrap;align-items:stretch;gap:12px}
+.groupCard{height:220px;width:max-content;min-width:165px;max-width:50%;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
 .groupCardCustomer{padding:10px 13px;background:#f7f7f7;border-bottom:1px solid #eee;flex-shrink:0;font-size:14px}
 .groupCardItems{flex:1;min-height:0;overflow-y:auto;padding:3px 13px}
-.groupCardItem{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
-.groupCardItem:last-child{border-bottom:0}.groupCardItemName{flex:1;min-width:0;word-break:break-word}.groupCardItemPrice{white-space:nowrap}
+.groupCardItem{display:flex;justify-content:flex-start;align-items:flex-start;gap:0;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.groupCardItem:last-child{border-bottom:0}
+.groupCardItemName{min-width:0;word-break:break-word}
+.groupCardItemPrice{white-space:nowrap;margin-left:10px}
 .groupCardBottom{padding:9px 13px;border-top:1px solid #eee;display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#888;flex-shrink:0}
 .groupCardBottom strong{color:#555;font-size:13px}
 
@@ -72,7 +75,7 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 html,body{overflow:hidden}.top{height:52px;font-size:20px}.page{height:calc(100dvh - 110px);padding:8px}.nav{height:58px}.nav button{font-size:14px}
 .storePage{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr)}.storeManual,.storeMain,.storeCheckout{grid-column:auto;grid-row:auto}.manualBox{grid-template-columns:1fr 100px}.manualBox button{grid-column:1/-1}
 .payment{grid-template-columns:repeat(5,1fr)}.payment button{font-size:12px;padding:7px 2px}.onlineToolbar{flex-wrap:wrap}.onlineToolbar input{flex-basis:100%}
-.groupCards{grid-template-columns:1fr}.groupCard{height:220px}
+.groupCards{display:flex;flex-direction:column}.groupCard{width:100%;max-width:100%;height:220px}
 }
 </style>
 </head>
@@ -248,8 +251,12 @@ return `<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}">
 /* 顧客 */
 async function openCustomer(name){
 try{
-const d=await api('onlineCustomer',{name});
-onlineRows=d.rows||[];onlineHeaders=d.headers||[];onlineSearchText=name;onlineCargo='';
+const d=await api('online');
+onlineHeaders=d.headers||[];
+const key=String(name||'').trim().toLowerCase();
+onlineRows=(d.rows||[]).filter(x=>String(getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim().toLowerCase()===key);
+if(!onlineRows.length)onlineRows=(d.rows||[]).filter(x=>String(getOnlineData(x,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim().toLowerCase().includes(key));
+onlineSearchText=name;onlineCargo='';
 const statusRank=x=>{
 const cargo=cargoCategory(getOnlineData(x,['貨況','狀態'])),ordered=isTruthy(getOnlineData(x,['已訂購','購買'])),opened=isTruthy(getOnlineData(x,['已開單','開單']));
 if(cargo==='現貨'&&!opened)return 1;
@@ -257,7 +264,11 @@ if(ordered)return 2;
 if(opened)return 3;
 return 4;
 };
-onlineRows.sort((a,b)=>{const sr=statusRank(a)-statusRank(b);if(sr)return sr;return timeValue(getOnlineData(a,['時間','購買時間']))-timeValue(getOnlineData(b,['時間','購買時間']))});
+onlineRows.sort((a,b)=>{
+const sr=statusRank(a)-statusRank(b);
+if(sr)return sr;
+return timeValue(getOnlineData(a,['時間','購買時間']))-timeValue(getOnlineData(b,['時間','購買時間']));
+});
 showOnlineRows(onlineRows);
 }catch(e){alert(e.message)}
 }
@@ -268,22 +279,13 @@ try{
 const d=await api('group',{group}),customers=d.customers||[];
 let totalAmount=0;
 customers.forEach(c=>(c.items||[]).forEach(item=>{totalAmount+=Number(item['售價']||0)}));
-let html=`
-<div class="card">
-<div class="cardHead groupSummary"><span>➡️跟團${customers.length}人｜總金額$${money(totalAmount)}</span></div>
-<div class="groupCards">`;
+let html=`<div class="card"><div class="cardHead groupSummary"><span>➡️跟團${customers.length}人｜總金額$${money(totalAmount)}</span></div><div class="groupCards">`;
 customers.forEach(c=>{
 const items=c.items||[];
 let customerTotal=0;
 items.forEach(item=>{customerTotal+=Number(item['售價']||0)});
 const firstItem=items[0]||{},time=firstItem['時間']||firstItem['購買時間']||'';
-html+=`
-<div class="groupCard">
-<div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div>
-<div class="groupCardItems">${items.map(item=>`
-<div class="groupCardItem"><div class="groupCardItemName">${esc(item['名稱']||item['商品名稱']||'')}</div><div class="groupCardItemPrice">$${money(item['售價']||0)}</div></div>`).join('')}</div>
-<div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div>
-</div>`;
+html+=`<div class="groupCard"><div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div><div class="groupCardItems">${items.map(item=>`<div class="groupCardItem"><div class="groupCardItemName">${esc(item['名稱']||item['商品名稱']||'')}</div><div class="groupCardItemPrice">$${money(item['售價']||0)}</div></div>`).join('')}</div><div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div></div>`;
 });
 html+='</div></div>';onlineResult.innerHTML=html;
 }catch(e){alert(e.message)}
