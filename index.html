@@ -12,9 +12,9 @@
 
 :root{
   --bg:#f3f3f3;
-  --card:#ffffff;
+  --card:#fff;
   --soft:#f7f7f7;
-  --soft2:#eeeeee;
+  --soft2:#eee;
   --border:#e2e2e2;
   --text:#555;
   --muted:#999;
@@ -53,6 +53,17 @@ button{
   cursor:pointer;
 }
 
+input[type=number]{
+  appearance:textfield;
+  -moz-appearance:textfield;
+}
+
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
+
 .top{
   height:58px;
   background:#fff;
@@ -89,8 +100,7 @@ button{
 .nav button.active{
   color:var(--main);
   background:#f7f7f7;
-  box-shadow:
-    inset 0 3px 0 var(--main);
+  box-shadow:inset 0 3px 0 var(--main);
 }
 
 .page{
@@ -127,7 +137,7 @@ select:focus{
   border-radius:9px;
   padding:9px 14px;
   background:var(--main);
-  color:white;
+  color:#fff;
   font-weight:700;
 }
 
@@ -257,24 +267,29 @@ tr:hover td{
   height:100%;
   display:grid;
   grid-template-columns:minmax(0,1.5fr) minmax(320px,.75fr);
-  grid-template-rows:auto minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr);
   gap:12px;
 }
 
 .storeManual{
-  grid-column:1/-1;
+  grid-column:1;
+  grid-row:1;
 }
 
 .storeMain{
   min-height:0;
   display:flex;
   flex-direction:column;
+  grid-column:1;
+  grid-row:2;
 }
 
 .storeCheckout{
   min-height:0;
   display:flex;
   flex-direction:column;
+  grid-column:2;
+  grid-row:1/3;
 }
 
 .storeMainBody{
@@ -494,6 +509,17 @@ tr:hover td{
 
   .storeManual{
     grid-column:auto;
+    grid-row:auto;
+  }
+
+  .storeMain{
+    grid-column:auto;
+    grid-row:auto;
+  }
+
+  .storeCheckout{
+    grid-column:auto;
+    grid-row:auto;
   }
 
   .manualBox{
@@ -531,17 +557,26 @@ tr:hover td{
 </div>
 
 <div class="nav">
-  <button class="active" onclick="tab('store',this)">
+
+  <button
+    class="active"
+    onclick="tab('store',this)"
+  >
     店面
   </button>
 
-  <button onclick="tab('online',this)">
+  <button
+    onclick="tab('online',this)"
+  >
     線上
   </button>
 
-  <button onclick="tab('ship',this)">
+  <button
+    onclick="tab('ship',this)"
+  >
     出貨
   </button>
+
 </div>
 
 <div id="app" class="page"></div>
@@ -560,7 +595,7 @@ let payment='';
 let salesperson='';
 
 let onlineSearchText='';
-let onlineCargo='';
+let onlineCargo='現貨';
 
 
 /* =========================
@@ -588,13 +623,17 @@ function api(action,params={}){
       s.remove();
 
       if(data&&data.ok===false){
+
         reject(
           new Error(
             data.error||'錯誤'
           )
         );
+
       }else{
+
         resolve(data);
+
       }
     };
 
@@ -608,6 +647,7 @@ function api(action,params={}){
           '無法連線 GAS'
         )
       );
+
     };
 
     const q=
@@ -623,7 +663,9 @@ function api(action,params={}){
       q.toString();
 
     document.body.appendChild(s);
+
   });
+
 }
 
 
@@ -645,6 +687,7 @@ function money(v){
 
   return Number(v||0)
     .toLocaleString();
+
 }
 
 function findHeader(headers,names){
@@ -657,6 +700,7 @@ function findHeader(headers,names){
     if(i>=0){
       return headers[i];
     }
+
   }
 
   return null;
@@ -673,6 +717,80 @@ function getOnlineData(row,names){
   return h
     ?row.data[h]
     :'';
+
+}
+
+function formatOnlineTime(v){
+
+  if(!v) return '';
+
+  if(v instanceof Date){
+
+    return String(
+      v.getMonth()+1
+    ).padStart(2,'0')+
+    '/' +
+    String(
+      v.getDate()
+    ).padStart(2,'0')+
+    ' '+
+    String(
+      v.getHours()
+    ).padStart(2,'0')+
+    ':'+
+    String(
+      v.getMinutes()
+    ).padStart(2,'0');
+
+  }
+
+  const s=
+    String(v).trim();
+
+  const m=
+    s.match(
+      /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})/
+    );
+
+  if(m){
+
+    return(
+      String(m[2]).padStart(2,'0')+
+      '/' +
+      String(m[3]).padStart(2,'0')+
+      ' '+
+      String(m[4]).padStart(2,'0')+
+      ':'+
+      String(m[5]).padStart(2,'0')
+    );
+
+  }
+
+  const m2=
+    s.match(
+      /(\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/
+    );
+
+  if(m2){
+
+    return(
+      String(m2[1]).padStart(2,'0')+
+      '/' +
+      String(m2[2]).padStart(2,'0')+
+      (
+        m2[3]
+        ?' '+
+          String(m2[3]).padStart(2,'0')+
+          ':'+
+          String(m2[4]).padStart(2,'0')
+        :''
+      )
+    );
+
+  }
+
+  return s;
+
 }
 
 function tab(name,el){
@@ -696,6 +814,7 @@ function tab(name,el){
   if(name==='ship'){
     renderShip();
   }
+
 }
 
 
@@ -740,6 +859,7 @@ function setSalesperson(el,v){
   if(el){
     el.classList.add('active');
   }
+
 }
 
 
@@ -791,7 +911,7 @@ function renderStore(){
 
         <div class="cardHead">
 
-          <span>店面掃碼</span>
+          <span>商品清單</span>
 
           <span style="color:#999;font-size:13px">
             ${storeCart.length} 項
@@ -1013,7 +1133,9 @@ function renderStore(){
     );
 
   renderCart();
+
 }
+
 
 async function scan(){
 
@@ -1048,13 +1170,14 @@ async function scan(){
       input.select();
 
       return;
+
     }
 
-    // GAS 如果有辨識到人，自動選取
     if(
       d.salesperson==='花花'||
       d.salesperson==='小法師'
     ){
+
       salesperson=
         d.salesperson;
 
@@ -1063,12 +1186,15 @@ async function scan(){
           '.salesperson button'
         )
         .forEach(x=>{
+
           x.classList.toggle(
             'active',
             x.textContent.trim()===
             salesperson
           );
+
         });
+
     }
 
     const old=
@@ -1089,6 +1215,7 @@ async function scan(){
         qty:1,
         manual:false
       });
+
     }
 
     input.value='';
@@ -1099,8 +1226,11 @@ async function scan(){
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
+
 
 function addManualProduct(){
 
@@ -1118,15 +1248,19 @@ function addManualProduct(){
     );
 
   if(!name){
+
     return alert(
       '請輸入商品名稱'
     );
+
   }
 
   if(price<0){
+
     return alert(
       '金額不能小於 0'
     );
+
   }
 
   storeCart.push({
@@ -1146,7 +1280,9 @@ function addManualProduct(){
     .value='';
 
   renderCart();
+
 }
+
 
 function renderCart(){
 
@@ -1172,6 +1308,7 @@ function renderCart(){
     }
 
     return;
+
   }
 
   box.innerHTML=
@@ -1191,7 +1328,7 @@ function renderCart(){
               : esc(x.code)
             }
 
-           　$${money(x.price)}
+            　$${money(x.price)}
 
           </div>
 
@@ -1243,30 +1380,40 @@ function renderCart(){
     );
 
   if(totalEl){
+
     totalEl.textContent=
       '$'+money(total);
+
   }
 
   calcChange();
+
 }
+
 
 function changeQty(i,n){
 
   storeCart[i].qty+=n;
 
   if(storeCart[i].qty<=0){
+
     storeCart.splice(i,1);
+
   }
 
   renderCart();
+
 }
+
 
 function removeCart(i){
 
   storeCart.splice(i,1);
 
   renderCart();
+
 }
+
 
 function calcChange(){
 
@@ -1299,6 +1446,7 @@ function calcChange(){
     el.textContent='';
 
     return;
+
   }
 
   const received=
@@ -1313,7 +1461,9 @@ function calcChange(){
     :'尚差：$'+money(
       Math.abs(change)
     );
+
 }
+
 
 function setPayment(el,v){
 
@@ -1357,27 +1507,36 @@ function setPayment(el,v){
       'none';
 
     input.value='';
+
   }
+
 }
+
 
 async function checkout(){
 
   if(!storeCart.length){
+
     return alert(
       '沒有商品'
     );
+
   }
 
   if(!salesperson){
+
     return alert(
       '請選擇銷售員'
     );
+
   }
 
   if(!payment){
+
     return alert(
       '請選擇付款方式'
     );
+
   }
 
   const total=
@@ -1429,6 +1588,7 @@ async function checkout(){
       return alert(
         '請輸入 5 碼後五碼'
       );
+
     }
 
     paymentValue=
@@ -1445,6 +1605,7 @@ async function checkout(){
         )
         .value
         .trim();
+
   }
 
   if(
@@ -1455,8 +1616,11 @@ async function checkout(){
     if(!confirm(
       '收到金額不足，仍要結帳嗎？'
     )){
+
       return;
+
     }
+
   }
 
   try{
@@ -1465,19 +1629,21 @@ async function checkout(){
       await api(
         'storeCheckout',
         {
-          items:JSON.stringify(
-            storeCart.map(x=>({
-              code:x.code||'',
-              name:x.name||'',
-              price:Number(
-                x.price||0
-              ),
-              qty:Number(
-                x.qty||1
-              ),
-              manual:!!x.manual
-            }))
-          ),
+
+          items:
+            JSON.stringify(
+              storeCart.map(x=>({
+                code:x.code||'',
+                name:x.name||'',
+                price:Number(
+                  x.price||0
+                ),
+                qty:Number(
+                  x.qty||1
+                ),
+                manual:!!x.manual
+              }))
+            ),
 
           total,
           received,
@@ -1485,6 +1651,7 @@ async function checkout(){
           payment:paymentValue,
           note,
           salesperson
+
         }
       );
 
@@ -1500,6 +1667,7 @@ async function checkout(){
     renderStore();
 
     setTimeout(()=>{
+
       const input=
         document.getElementById(
           'barcode'
@@ -1508,12 +1676,15 @@ async function checkout(){
       if(input){
         input.focus();
       }
+
     },50);
 
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
 
 
@@ -1548,16 +1719,16 @@ function renderOnline(){
 
         <select id="cargoFilter">
 
-          <option value="">
-            全部
-          </option>
-
           <option value="現貨">
             現貨
           </option>
 
           <option value="已訂購">
             已訂購
+          </option>
+
+          <option value="已開單">
+            已開單
           </option>
 
           <option value="補貨登記">
@@ -1593,9 +1764,11 @@ function renderOnline(){
       >
 
         <div class="card">
+
           <div class="loading">
             載入中…
           </div>
+
         </div>
 
       </div>
@@ -1614,9 +1787,69 @@ function renderOnline(){
   }
 
   loadOnline();
+
 }
 
+
 async function loadOnline(){
+
+  try{
+
+    /*
+      預設使用後端篩選。
+      不再把整張「線上銷售」全部抓下來。
+    */
+
+    const cargo=
+      onlineCargo||'現貨';
+
+    const d=
+      await api(
+        'onlineCargo',
+        {cargo}
+      );
+
+    onlineRows=
+      d.rows||[];
+
+    onlineHeaders=
+      d.headers||[];
+
+    applyOnlineFilter(false);
+
+  }catch(e){
+
+    onlineResult.innerHTML=
+      '<div class="card empty">'+
+      esc(e.message)+
+      '</div>';
+
+  }
+
+}
+
+
+async function searchOnline(){
+
+  onlineSearchText=
+    document
+      .getElementById(
+        'customerSearch'
+      )
+      .value
+      .trim();
+
+  onlineCargo=
+    document
+      .getElementById(
+        'cargoFilter'
+      )
+      .value;
+
+  /*
+    搜尋時才抓全部資料，
+    避免首頁一開始載入大量資料。
+  */
 
   try{
 
@@ -1637,46 +1870,39 @@ async function loadOnline(){
       '<div class="card empty">'+
       esc(e.message)+
       '</div>';
+
   }
+
 }
 
-function searchOnline(){
+
+async function filterCargo(){
+
+  onlineCargo=
+    document
+      .getElementById(
+        'cargoFilter'
+      )
+      .value;
 
   onlineSearchText=
-    document
-      .getElementById(
-        'customerSearch'
-      )
-      .value
-      .trim();
+    '';
 
-  onlineCargo=
-    document
-      .getElementById(
-        'cargoFilter'
-      )
-      .value;
+  document
+    .getElementById(
+      'customerSearch'
+    )
+    .value='';
 
-  applyOnlineFilter();
+  await loadOnline();
+
 }
 
-function filterCargo(){
-
-  onlineCargo=
-    document
-      .getElementById(
-        'cargoFilter'
-      )
-      .value;
-
-  applyOnlineFilter();
-}
 
 function cargoCategory(cargo){
 
-  cargo=String(
-    cargo||''
-  ).trim();
+  cargo=
+    String(cargo||'').trim();
 
   if(
     cargo==='補貨登記'||
@@ -1684,25 +1910,35 @@ function cargoCategory(cargo){
     cargo==='S☹LD OUT'||
     cargo==='補登'
   ){
+
     return '補貨登記';
+
   }
 
   if(/^\d{1,2}月$/.test(cargo)){
+
     return '受注';
+
   }
 
   if(cargo==='現貨'){
+
     return '現貨';
+
   }
 
   if(cargo==='已訂購'){
+
     return '已訂購';
+
   }
 
   return cargo;
+
 }
 
-function applyOnlineFilter(){
+
+function applyOnlineFilter(localOnly=true){
 
   let rows=
     [...onlineRows];
@@ -1738,7 +1974,9 @@ function applyOnlineFilter(){
           customer.includes(key)||
           group.includes(key)
         );
+
       });
+
   }
 
   if(onlineCargo){
@@ -1752,54 +1990,75 @@ function applyOnlineFilter(){
               x,
               ['貨況','狀態']
             )||''
-          );
+          ).trim();
 
         const category=
           cargoCategory(
             rawCargo
           );
 
+        const ordered=
+          getOnlineData(
+            x,
+            ['已訂購','購買']
+          );
+
+        const opened=
+          getOnlineData(
+            x,
+            ['已開單','開單']
+          );
+
         if(
           onlineCargo==='現貨'
         ){
-
-          const opened=
-            getOnlineData(
-              x,
-              ['已開單','開單']
-            );
 
           return(
             category==='現貨'&&
             !isTruthy(opened)
           );
+
         }
 
         if(
           onlineCargo==='已訂購'
         ){
 
-          const ordered=
-            getOnlineData(
-              x,
-              ['已訂購','購買']
-            );
+          return isTruthy(ordered);
 
-          return(
-            isTruthy(ordered)||
-            category==='已訂購'
+        }
+
+        if(
+          onlineCargo==='已開單'
+        ){
+
+          return isTruthy(opened);
+
+        }
+
+        if(
+          onlineCargo==='受注'
+        ){
+
+          return /^\d{1,2}月$/.test(
+            rawCargo
           );
+
         }
 
         return(
           category===
           onlineCargo
         );
+
       });
+
   }
 
   showOnlineRows(rows);
+
 }
+
 
 function isTruthy(v){
 
@@ -1822,7 +2081,9 @@ function isTruthy(v){
       .trim()
       .toLowerCase()
   );
+
 }
+
 
 function showOnlineRows(rows){
 
@@ -1831,14 +2092,17 @@ function showOnlineRows(rows){
     onlineResult.innerHTML=`
 
       <div class="card">
+
         <div class="empty">
           沒有符合的資料
         </div>
+
       </div>
 
     `;
 
     return;
+
   }
 
   onlineResult.innerHTML=`
@@ -1848,6 +2112,7 @@ function showOnlineRows(rows){
       ${
         onlineSearchText
         ?`
+
           <div class="cardHead">
 
             <span>
@@ -1859,6 +2124,7 @@ function showOnlineRows(rows){
             </span>
 
           </div>
+
         `
         :''
       }
@@ -1979,7 +2245,9 @@ function showOnlineRows(rows){
 
 
                     <td>
-                      ${esc(time)}
+                      ${esc(
+                        formatOnlineTime(time)
+                      )}
                     </td>
 
 
@@ -2037,9 +2305,11 @@ function showOnlineRows(rows){
                       ${price===''?'':money(price)}
                     </td>
 
+
                     <td>
                       ${shipping===''?'':money(shipping)}
                     </td>
+
 
                     <td>
                       ${deposit===''?'':money(deposit)}
@@ -2048,6 +2318,7 @@ function showOnlineRows(rows){
                   </tr>
 
                 `;
+
               }).join('')
             }
 
@@ -2070,8 +2341,11 @@ function showOnlineRows(rows){
       </div>
 
     </div>
+
   `;
+
 }
+
 
 async function openCustomer(name){
 
@@ -2101,8 +2375,11 @@ async function openCustomer(name){
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
+
 
 async function openGroup(group){
 
@@ -2129,6 +2406,7 @@ async function openGroup(group){
           </span>
 
         </div>
+
     `;
 
     d.customers.forEach(c=>{
@@ -2186,9 +2464,11 @@ async function openGroup(group){
 
                     　
                     ${esc(
-                      item['時間']||
-                      item['購買時間']||
-                      ''
+                      formatOnlineTime(
+                        item['時間']||
+                        item['購買時間']||
+                        ''
+                      )
                     )}
 
                   </div>
@@ -2207,7 +2487,9 @@ async function openGroup(group){
           }
 
         </div>
+
       `;
+
     });
 
     html+='</div>';
@@ -2218,8 +2500,11 @@ async function openGroup(group){
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
+
 
 async function createSelectedShip(){
 
@@ -2234,6 +2519,7 @@ async function createSelectedShip(){
     return alert(
       '請先勾選要出貨的商品'
     );
+
   }
 
   try{
@@ -2257,7 +2543,9 @@ async function createSelectedShip(){
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
 
 
@@ -2289,14 +2577,17 @@ async function renderShip(){
       <div id="shipResult">
 
         <div class="card">
+
           <div class="loading">
             載入中…
           </div>
+
         </div>
 
       </div>
 
     </div>
+
   `;
 
   try{
@@ -2312,6 +2603,7 @@ async function renderShip(){
         '</div>';
 
       return;
+
     }
 
     const ci=
@@ -2385,17 +2677,21 @@ async function renderShip(){
           customer,
           items:[]
         };
+
       }
 
       groups[key].items.push(x);
+
     });
 
     shipResult.innerHTML=
       Object.values(groups)
       .map(g=>`
 
-        <div class="card"
-             style="margin-bottom:10px">
+        <div
+          class="card"
+          style="margin-bottom:10px"
+        >
 
           <div class="cardHead">
 
@@ -2459,7 +2755,9 @@ async function renderShip(){
 
                     　
                     ${esc(
-                      x.data[timei]||''
+                      formatOnlineTime(
+                        x.data[timei]||''
+                      )
                     )}
 
                   </div>
@@ -2488,8 +2786,11 @@ async function renderShip(){
       '<div class="card empty">'+
       esc(e.message)+
       '</div>';
+
   }
+
 }
+
 
 async function updateShip(
   row,
@@ -2512,7 +2813,9 @@ async function updateShip(
   }catch(e){
 
     alert(e.message);
+
   }
+
 }
 
 
