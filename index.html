@@ -4,2829 +4,316 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>JIWU吉物販售</title>
-
 <style>
-*{
-  box-sizing:border-box;
-}
-
-:root{
-  --bg:#f3f3f3;
-  --card:#fff;
-  --soft:#f7f7f7;
-  --soft2:#eee;
-  --border:#e2e2e2;
-  --text:#555;
-  --muted:#999;
-  --main:#786956;
-  --main2:#8d7c68;
-  --green:#8fa98b;
-  --red:#c9827d;
-  --blue:#8ca7b2;
-}
-
-html,
-body{
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-}
-
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Noto Sans TC",
-    sans-serif;
-}
-
-button,
-input,
-select{
-  font:inherit;
-}
-
-button{
-  cursor:pointer;
-}
-
-input[type=number]{
-  appearance:textfield;
-  -moz-appearance:textfield;
-}
-
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button{
-  -webkit-appearance:none;
-  margin:0;
-}
-
-.top{
-  height:58px;
-  background:#fff;
-  border-bottom:1px solid var(--border);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:23px;
-  font-weight:800;
-  color:#655c54;
-}
-
-.nav{
-  position:fixed;
-  left:0;
-  right:0;
-  bottom:0;
-  height:62px;
-  background:rgba(255,255,255,.97);
-  display:flex;
-  border-top:1px solid var(--border);
-  z-index:1000;
-}
-
-.nav button{
-  flex:1;
-  border:0;
-  background:none;
-  color:#999;
-  font-weight:700;
-  font-size:16px;
-}
-
-.nav button.active{
-  color:var(--main);
-  background:#f7f7f7;
-  box-shadow:inset 0 3px 0 var(--main);
-}
-
-.page{
-  width:100%;
-  max-width:1700px;
-  height:calc(100dvh - 120px);
-  margin:auto;
-  padding:14px;
-}
-
-.toolbar{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-}
-
-input,
-select{
-  border:1px solid #ddd;
-  background:#fff;
-  color:var(--text);
-  border-radius:9px;
-  padding:9px 11px;
-  outline:none;
-}
-
-input:focus,
-select:focus{
-  border-color:#aaa;
-}
-
-.btn{
-  border:0;
-  border-radius:9px;
-  padding:9px 14px;
-  background:var(--main);
-  color:#fff;
-  font-weight:700;
-}
-
-.btn.light{
-  background:#e9e9e9;
-  color:#666;
-}
-
-.btn.green{
-  background:var(--green);
-}
-
-.btn.red{
-  background:var(--red);
-}
-
-.card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:13px;
-  box-shadow:0 2px 9px rgba(0,0,0,.035);
-  overflow:hidden;
-}
-
-.cardHead{
-  min-height:46px;
-  padding:11px 15px;
-  background:#f8f8f8;
-  border-bottom:1px solid var(--border);
-  font-weight:700;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-.empty,
-.loading{
-  text-align:center;
-  padding:30px;
-  color:#aaa;
-}
-
-.total{
-  font-size:25px;
-  font-weight:800;
-}
-
-.tag{
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:6px;
-  background:#eee;
-  color:#666;
-  font-size:12px;
-  font-weight:700;
-}
-
-.tag.green{
-  background:#e0e9dd;
-  color:#62745d;
-}
-
-.tag.red{
-  background:#f2dddd;
-  color:#9a625d;
-}
-
-.tag.blue{
-  background:#e1e9ed;
-  color:#627983;
-}
-
-.check{
-  width:17px;
-  height:17px;
-  accent-color:var(--main);
-}
-
-.customerLink,
-.groupLink{
-  border:0;
-  background:none;
-  padding:0;
-  color:#756453;
-  font-weight:700;
-  text-decoration:underline;
-  text-underline-offset:3px;
-}
-
-.tableWrap{
-  width:100%;
-  overflow:auto;
-}
-
-table{
-  border-collapse:collapse;
-  width:100%;
-  table-layout:fixed;
-}
-
-th,
-td{
-  padding:8px 7px;
-  border-bottom:1px solid #eee;
-  text-align:left;
-  vertical-align:middle;
-  word-break:break-word;
-  overflow-wrap:anywhere;
-}
-
-th{
-  background:#f5f5f5;
-  color:#777;
-  font-weight:700;
-}
-
-tr:hover td{
-  background:#fafafa;
-}
-
-
-/* =========================
-   店面
-========================= */
-
-.storePage{
-  height:100%;
-  display:grid;
-  grid-template-columns:minmax(0,1.5fr) minmax(320px,.75fr);
-  grid-template-rows:minmax(0,1fr) minmax(0,1fr);
-  gap:12px;
-}
-
-.storeManual{
-  grid-column:1;
-  grid-row:1;
-}
-
-.storeMain{
-  min-height:0;
-  display:flex;
-  flex-direction:column;
-  grid-column:1;
-  grid-row:2;
-}
-
-.storeCheckout{
-  min-height:0;
-  display:flex;
-  flex-direction:column;
-  grid-column:2;
-  grid-row:1/3;
-}
-
-.storeMainBody{
-  padding:12px;
-  min-height:0;
-  display:flex;
-  flex-direction:column;
-}
-
-.storeSearch{
-  display:flex;
-  gap:8px;
-  flex-shrink:0;
-}
-
-.storeSearch input{
-  flex:1;
-  min-width:0;
-}
-
-.cart{
-  min-height:0;
-  overflow-y:auto;
-  margin-top:8px;
-  padding-right:3px;
-}
-
-.cartItem{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:9px 2px;
-  border-bottom:1px solid #eee;
-}
-
-.cartName{
-  flex:1;
-  min-width:0;
-}
-
-.cartSub{
-  color:#999;
-  font-size:12px;
-  margin-top:3px;
-}
-
-.qty{
-  display:flex;
-  align-items:center;
-  gap:5px;
-  flex-shrink:0;
-}
-
-.qty button{
-  width:28px;
-  height:28px;
-  border:0;
-  border-radius:6px;
-  background:#eee;
-  color:#666;
-}
-
-.manualBox{
-  display:grid;
-  grid-template-columns:1fr 130px auto;
-  gap:8px;
-  padding:10px;
-}
-
-.checkoutBody{
-  padding:14px;
-  min-height:0;
-  overflow:auto;
-}
-
-.salesperson{
-  display:flex;
-  gap:7px;
-}
-
-.salesperson button{
-  flex:1;
-  border:1px solid #ddd;
-  background:#fff;
-  color:#777;
-  border-radius:8px;
-  padding:8px;
-}
-
-.salesperson button.active{
-  background:var(--main);
-  color:#fff;
-  border-color:var(--main);
-}
-
-.payment{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:6px;
-}
-
-.payment button{
-  border:1px solid #ddd;
-  background:#fff;
-  color:#666;
-  border-radius:8px;
-  padding:8px 4px;
-}
-
-.payment button.active{
-  background:var(--main);
-  color:#fff;
-  border-color:var(--main);
-}
-
-.changeText{
-  margin-top:10px;
-  font-size:16px;
-  font-weight:700;
-}
-
-
-/* =========================
-   線上
-========================= */
-
-.onlinePage{
-  height:100%;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-.onlineToolbar{
-  flex-shrink:0;
-  display:flex;
-  gap:8px;
-}
-
-.onlineToolbar input{
-  flex:1;
-  min-width:0;
-}
-
-.onlineResult{
-  min-height:0;
-  flex:1;
-  overflow:auto;
-}
-
-.onlineTable{
-  min-width:850px;
-}
-
-.onlineTable th:nth-child(1){width:5%}
-.onlineTable th:nth-child(2){width:12%}
-.onlineTable th:nth-child(3){width:10%}
-.onlineTable th:nth-child(4){width:9%}
-.onlineTable th:nth-child(5){width:22%}
-.onlineTable th:nth-child(6){width:15%}
-.onlineTable th:nth-child(7){width:8%}
-.onlineTable th:nth-child(8){width:8%}
-.onlineTable th:nth-child(9){width:8%}
-
-
-/* =========================
-   出貨
-========================= */
-
-.shipPage{
-  height:100%;
-  overflow:auto;
-}
-
-.shipItem{
-  padding:10px 15px;
-  border-top:1px solid #eee;
-  display:flex;
-  gap:12px;
-  align-items:center;
-}
-
-
-/* =========================
-   手機
-========================= */
-
+*{box-sizing:border-box}
+:root{--bg:#f3f3f3;--card:#fff;--soft:#f7f7f7;--soft2:#eee;--border:#e2e2e2;--text:#555;--muted:#999;--main:#786956;--main2:#8d7c68;--green:#8fa98b;--red:#c9827d;--blue:#8ca7b2}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+button,input,select{font:inherit}button{cursor:pointer}
+input[type=number]{appearance:textfield;-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.top{height:58px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;color:#655c54}
+.nav{position:fixed;left:0;right:0;bottom:0;height:62px;background:rgba(255,255,255,.97);display:flex;border-top:1px solid var(--border);z-index:1000}
+.nav button{flex:1;border:0;background:none;color:#999;font-weight:700;font-size:16px}
+.nav button.active{color:var(--main);background:#f7f7f7;box-shadow:inset 0 3px 0 var(--main)}
+.page{width:100%;max-width:1700px;height:calc(100dvh - 120px);margin:auto;padding:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+input,select{border:1px solid #ddd;background:#fff;color:var(--text);border-radius:9px;padding:9px 11px;outline:none}
+input:focus,select:focus{border-color:#aaa}
+.btn{border:0;border-radius:9px;padding:9px 14px;background:var(--main);color:#fff;font-weight:700}
+.btn.light{background:#e9e9e9;color:#666}.btn.green{background:var(--green)}.btn.red{background:var(--red)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:13px;box-shadow:0 2px 9px rgba(0,0,0,.035);overflow:hidden}
+.cardHead{min-height:46px;padding:11px 15px;background:#f8f8f8;border-bottom:1px solid var(--border);font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.empty,.loading{text-align:center;padding:30px;color:#aaa}.total{font-size:25px;font-weight:800}
+.tag{display:inline-block;padding:4px 8px;border-radius:6px;background:#eee;color:#666;font-size:12px;font-weight:700}
+.tag.green{background:#e0e9dd;color:#62745d}.tag.red{background:#f2dddd;color:#9a625d}.tag.blue{background:#e1e9ed;color:#627983}
+.check{width:17px;height:17px;accent-color:var(--main)}
+.customerLink,.groupLink{border:0;background:none;padding:0;color:#756453;font-weight:400;text-decoration:none;text-align:left}
+.customerLink{font-size:13px}.groupLink{font-size:14px}
+.onlineTable td:nth-child(2){text-align:left}
+.tableWrap{width:100%;overflow:auto}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{padding:8px 7px;border-bottom:1px solid #eee;text-align:left;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere}
+th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
+
+/* 店面 */
+.storePage{height:100%;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.75fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.storeManual{grid-column:1;grid-row:1}.storeMain{min-height:0;display:flex;flex-direction:column;grid-column:1;grid-row:2}.storeCheckout{min-height:0;display:flex;flex-direction:column;grid-column:2;grid-row:1/3}
+.storeMainBody{padding:12px;min-height:0;display:flex;flex-direction:column}.storeSearch{display:flex;gap:8px;flex-shrink:0}.storeSearch input{flex:1;min-width:0}
+.cart{min-height:0;overflow-y:auto;margin-top:8px;padding-right:3px}
+.cartItem{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid #eee}
+.cartName{flex:1;min-width:0}.cartSub{color:#999;font-size:12px;margin-top:3px}
+.qty{display:flex;align-items:center;gap:5px;flex-shrink:0}.qty button{width:28px;height:28px;border:0;border-radius:6px;background:#eee;color:#666}
+.manualBox{display:grid;grid-template-columns:1fr 130px auto;gap:8px;padding:10px}
+.checkoutBody{padding:14px;min-height:0;overflow:auto}.salesperson{display:flex;gap:7px}.salesperson button{flex:1;border:1px solid #ddd;background:#fff;color:#777;border-radius:8px;padding:8px}
+.salesperson button.active{background:var(--main);color:#fff;border-color:var(--main)}
+.payment{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.payment button{border:1px solid #ddd;background:#fff;color:#666;border-radius:8px;padding:8px 4px}.payment button.active{background:var(--main);color:#fff;border-color:var(--main)}
+.changeText{margin-top:10px;font-size:16px;font-weight:700}
+
+/* 線上 */
+.onlinePage{height:100%;display:flex;flex-direction:column;gap:10px}.onlineToolbar{flex-shrink:0;display:flex;gap:8px}.onlineToolbar input{flex:1;min-width:0}.onlineResult{min-height:0;flex:1;overflow:auto}
+.onlineTable{min-width:850px}.onlineTable th:nth-child(1){width:5%}.onlineTable th:nth-child(2){width:12%}.onlineTable th:nth-child(3){width:10%}.onlineTable th:nth-child(4){width:9%}.onlineTable th:nth-child(5){width:22%}.onlineTable th:nth-child(6){width:15%}.onlineTable th:nth-child(7){width:8%}.onlineTable th:nth-child(8){width:8%}.onlineTable th:nth-child(9){width:8%}
+
+/* 團名商品卡 */
+.groupSummary{font-size:16px;font-weight:400}.groupCards{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:stretch}
+.groupCard{height:220px;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.groupCardCustomer{padding:10px 13px;background:#f7f7f7;border-bottom:1px solid #eee;flex-shrink:0;font-size:14px}
+.groupCardItems{flex:1;min-height:0;overflow-y:auto;padding:3px 13px}
+.groupCardItem{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.groupCardItem:last-child{border-bottom:0}.groupCardItemName{flex:1;min-width:0;word-break:break-word}.groupCardItemPrice{white-space:nowrap}
+.groupCardBottom{padding:9px 13px;border-top:1px solid #eee;display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#888;flex-shrink:0}
+.groupCardBottom strong{color:#555;font-size:13px}
+
+/* 出貨 */
+.shipPage{height:100%;overflow:auto}.shipItem{padding:10px 15px;border-top:1px solid #eee;display:flex;gap:12px;align-items:center}
+
+/* 手機 */
 @media(max-width:850px){
-
-  html,
-  body{
-    overflow:hidden;
-  }
-
-  .top{
-    height:52px;
-    font-size:20px;
-  }
-
-  .page{
-    height:calc(100dvh - 110px);
-    padding:8px;
-  }
-
-  .nav{
-    height:58px;
-  }
-
-  .nav button{
-    font-size:14px;
-  }
-
-  .storePage{
-    grid-template-columns:1fr;
-    grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr);
-  }
-
-  .storeManual{
-    grid-column:auto;
-    grid-row:auto;
-  }
-
-  .storeMain{
-    grid-column:auto;
-    grid-row:auto;
-  }
-
-  .storeCheckout{
-    grid-column:auto;
-    grid-row:auto;
-  }
-
-  .manualBox{
-    grid-template-columns:1fr 100px;
-  }
-
-  .manualBox button{
-    grid-column:1/-1;
-  }
-
-  .payment{
-    grid-template-columns:repeat(5,1fr);
-  }
-
-  .payment button{
-    font-size:12px;
-    padding:7px 2px;
-  }
-
-  .onlineToolbar{
-    flex-wrap:wrap;
-  }
-
-  .onlineToolbar input{
-    flex-basis:100%;
-  }
+html,body{overflow:hidden}.top{height:52px;font-size:20px}.page{height:calc(100dvh - 110px);padding:8px}.nav{height:58px}.nav button{font-size:14px}
+.storePage{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr)}.storeManual,.storeMain,.storeCheckout{grid-column:auto;grid-row:auto}.manualBox{grid-template-columns:1fr 100px}.manualBox button{grid-column:1/-1}
+.payment{grid-template-columns:repeat(5,1fr)}.payment button{font-size:12px;padding:7px 2px}.onlineToolbar{flex-wrap:wrap}.onlineToolbar input{flex-basis:100%}
+.groupCards{grid-template-columns:1fr}.groupCard{height:220px}
 }
 </style>
 </head>
-
 <body>
-
-<div class="top">
-  JIWU吉物販售
-</div>
-
-<div class="nav">
-
-  <button
-    class="active"
-    onclick="tab('store',this)"
-  >
-    店面
-  </button>
-
-  <button
-    onclick="tab('online',this)"
-  >
-    線上
-  </button>
-
-  <button
-    onclick="tab('ship',this)"
-  >
-    出貨
-  </button>
-
-</div>
-
+<div class="top">JIWU吉物販售</div>
+<div class="nav"><button class="active" onclick="tab('store',this)">店面</button><button onclick="tab('online',this)">線上</button><button onclick="tab('ship',this)">出貨</button></div>
 <div id="app" class="page"></div>
-
 <script>
+const API_URL='https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJrSnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
+let onlineRows=[],onlineHeaders=[],storeCart=[],payment='',salesperson='',onlineSearchText='',onlineCargo='現貨';
 
-const API_URL=
-'https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJrSnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
-
-let onlineRows=[];
-let onlineHeaders=[];
-
-let storeCart=[];
-
-let payment='';
-let salesperson='';
-
-let onlineSearchText='';
-let onlineCargo='現貨';
-
-
-/* =========================
-   API
-========================= */
-
-function api(action,params={}){
-
-  return new Promise((resolve,reject)=>{
-
-    const cb=
-      'cb_'+
-      Date.now()+
-      '_'+
-      Math.random()
-        .toString(36)
-        .slice(2);
-
-    const s=
-      document.createElement('script');
-
-    window[cb]=data=>{
-
-      delete window[cb];
-      s.remove();
-
-      if(data&&data.ok===false){
-
-        reject(
-          new Error(
-            data.error||'錯誤'
-          )
-        );
-
-      }else{
-
-        resolve(data);
-
-      }
-    };
-
-    s.onerror=()=>{
-
-      delete window[cb];
-      s.remove();
-
-      reject(
-        new Error(
-          '無法連線 GAS'
-        )
-      );
-
-    };
-
-    const q=
-      new URLSearchParams({
-        action,
-        callback:cb,
-        ...params
-      });
-
-    s.src=
-      API_URL+
-      '?'+
-      q.toString();
-
-    document.body.appendChild(s);
-
-  });
-
-}
-
-
-/* =========================
-   共用
-========================= */
-
-function esc(v){
-
-  return String(v??'')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#39;");
-}
-
-function money(v){
-
-  return Number(v||0)
-    .toLocaleString();
-
-}
-
-function findHeader(headers,names){
-
-  for(const n of names){
-
-    const i=
-      headers.indexOf(n);
-
-    if(i>=0){
-      return headers[i];
-    }
-
-  }
-
-  return null;
-}
-
-function getOnlineData(row,names){
-
-  const h=
-    findHeader(
-      onlineHeaders,
-      names
-    );
-
-  return h
-    ?row.data[h]
-    :'';
-
-}
-
+function api(action,params={}){return new Promise((resolve,reject)=>{const cb='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2),s=document.createElement('script');window[cb]=data=>{delete window[cb];s.remove();if(data&&data.ok===false)reject(new Error(data.error||'錯誤'));else resolve(data)};s.onerror=()=>{delete window[cb];s.remove();reject(new Error('無法連線 GAS'))};const q=new URLSearchParams({action,callback:cb,...params});s.src=API_URL+'?'+q.toString();document.body.appendChild(s)})}
+function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;")}
+function money(v){return Number(v||0).toLocaleString()}
+function findHeader(headers,names){for(const n of names){const i=headers.indexOf(n);if(i>=0)return headers[i]}return null}
+function getOnlineData(row,names){const h=findHeader(onlineHeaders,names);return h?row.data[h]:''}
 function formatOnlineTime(v){
-
-  if(!v) return '';
-
-  if(v instanceof Date){
-
-    return String(
-      v.getMonth()+1
-    ).padStart(2,'0')+
-    '/' +
-    String(
-      v.getDate()
-    ).padStart(2,'0')+
-    ' '+
-    String(
-      v.getHours()
-    ).padStart(2,'0')+
-    ':'+
-    String(
-      v.getMinutes()
-    ).padStart(2,'0');
-
-  }
-
-  const s=
-    String(v).trim();
-
-  const m=
-    s.match(
-      /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})/
-    );
-
-  if(m){
-
-    return(
-      String(m[2]).padStart(2,'0')+
-      '/' +
-      String(m[3]).padStart(2,'0')+
-      ' '+
-      String(m[4]).padStart(2,'0')+
-      ':'+
-      String(m[5]).padStart(2,'0')
-    );
-
-  }
-
-  const m2=
-    s.match(
-      /(\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/
-    );
-
-  if(m2){
-
-    return(
-      String(m2[1]).padStart(2,'0')+
-      '/' +
-      String(m2[2]).padStart(2,'0')+
-      (
-        m2[3]
-        ?' '+
-          String(m2[3]).padStart(2,'0')+
-          ':'+
-          String(m2[4]).padStart(2,'0')
-        :''
-      )
-    );
-
-  }
-
-  return s;
-
+if(!v)return '';
+if(v instanceof Date)return String(v.getMonth()+1).padStart(2,'0')+'/'+String(v.getDate()).padStart(2,'0')+' '+String(v.getHours()).padStart(2,'0')+':'+String(v.getMinutes()).padStart(2,'0');
+const s=String(v).trim(),m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})/);
+if(m)return String(m[2]).padStart(2,'0')+'/'+String(m[3]).padStart(2,'0')+' '+String(m[4]).padStart(2,'0')+':'+String(m[5]).padStart(2,'0');
+const m2=s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
+if(m2)return String(m2[1]).padStart(2,'0')+'/'+String(m2[2]).padStart(2,'0')+(m2[3]?' '+String(m2[3]).padStart(2,'0')+':'+String(m2[4]).padStart(2,'0'):'');
+return s;
 }
-
-function tab(name,el){
-
-  document
-    .querySelectorAll('.nav button')
-    .forEach(x=>
-      x.classList.remove('active')
-    );
-
-  el.classList.add('active');
-
-  if(name==='store'){
-    renderStore();
-  }
-
-  if(name==='online'){
-    renderOnline();
-  }
-
-  if(name==='ship'){
-    renderShip();
-  }
-
+function timeValue(v){
+if(!v)return 0;
+if(v instanceof Date)return v.getTime();
+const s=String(v).trim();
+const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+if(m)return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0)).getTime();
+const m2=s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
+if(m2)return new Date(2000,+m2[1]-1,+m2[2],+(m2[3]||0),+(m2[4]||0)).getTime();
+return 0;
 }
+function tab(name,el){document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));el.classList.add('active');if(name==='store')renderStore();if(name==='online')renderOnline();if(name==='ship')renderShip()}
 
+/* 店面：銷售員 */
+function detectSalesperson(){const q=new URLSearchParams(location.search),user=q.get('user')||q.get('salesperson')||'';if(user==='花花'||user==='小法師')salesperson=user;return salesperson}
+function setSalesperson(el,v){salesperson=v;document.querySelectorAll('.salesperson button').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active')}
 
-/* =========================
-   店面：銷售員
-========================= */
-
-function detectSalesperson(){
-
-  const q=
-    new URLSearchParams(
-      location.search
-    );
-
-  const user=
-    q.get('user')||
-    q.get('salesperson')||
-    '';
-
-  if(
-    user==='花花'||
-    user==='小法師'
-  ){
-    salesperson=user;
-  }
-
-  return salesperson;
-}
-
-function setSalesperson(el,v){
-
-  salesperson=v;
-
-  document
-    .querySelectorAll(
-      '.salesperson button'
-    )
-    .forEach(x=>
-      x.classList.remove('active')
-    );
-
-  if(el){
-    el.classList.add('active');
-  }
-
-}
-
-
-/* =========================
-   店面
-========================= */
-
+/* 店面 */
 function renderStore(){
-
-  detectSalesperson();
-
-  app.innerHTML=`
-
-    <div class="storePage">
-
-      <div class="card storeManual">
-
-        <div class="cardHead">
-          <span>手動新增商品</span>
-        </div>
-
-        <div class="manualBox">
-
-          <input
-            id="manualName"
-            placeholder="商品名稱"
-          >
-
-          <input
-            id="manualPrice"
-            type="number"
-            min="0"
-            placeholder="金額"
-          >
-
-          <button
-            class="btn"
-            onclick="addManualProduct()"
-          >
-            加入
-          </button>
-
-        </div>
-
-      </div>
-
-
-      <div class="card storeMain">
-
-        <div class="cardHead">
-
-          <span>商品清單</span>
-
-          <span style="color:#999;font-size:13px">
-            ${storeCart.length} 項
-          </span>
-
-        </div>
-
-        <div class="storeMainBody">
-
-          <div class="storeSearch">
-
-            <input
-              id="barcode"
-              autofocus
-              placeholder="掃描或輸入貨號"
-            >
-
-            <button
-              class="btn"
-              onclick="scan()"
-            >
-              加入
-            </button>
-
-          </div>
-
-          <div
-            id="storeCart"
-            class="cart"
-          ></div>
-
-        </div>
-
-      </div>
-
-
-      <div class="card storeCheckout">
-
-        <div class="cardHead">
-          <span>結帳</span>
-        </div>
-
-        <div class="checkoutBody">
-
-          <div style="color:#999;font-size:13px">
-            總金額
-          </div>
-
-          <div
-            class="total"
-            id="storeTotal"
-          >
-            $0
-          </div>
-
-
-          <div style="margin-top:12px">
-
-            <div
-              style="
-                color:#999;
-                font-size:13px;
-                margin-bottom:6px
-              "
-            >
-              銷售員
-            </div>
-
-            <div class="salesperson">
-
-              <button
-                class="${salesperson==='花花'?'active':''}"
-                onclick="setSalesperson(this,'花花')"
-              >
-                花花
-              </button>
-
-              <button
-                class="${salesperson==='小法師'?'active':''}"
-                onclick="setSalesperson(this,'小法師')"
-              >
-                小法師
-              </button>
-
-            </div>
-
-          </div>
-
-
-          <div style="margin-top:12px">
-
-            <input
-              id="received"
-              type="number"
-              placeholder="收到金額（可不填）"
-              style="width:100%"
-            >
-
-          </div>
-
-
-          <div style="margin-top:12px">
-
-            <div
-              style="
-                color:#999;
-                font-size:13px;
-                margin-bottom:6px
-              "
-            >
-              付款方式
-            </div>
-
-            <div class="payment">
-
-              <button
-                onclick="setPayment(this,'現金')"
-              >
-                現金
-              </button>
-
-              <button
-                onclick="setPayment(this,'中信')"
-              >
-                中信
-              </button>
-
-              <button
-                onclick="setPayment(this,'LB')"
-              >
-                LB
-              </button>
-
-              <button
-                onclick="setPayment(this,'LP')"
-              >
-                LP
-              </button>
-
-              <button
-                onclick="setPayment(this,'ipass')"
-              >
-                ipass
-              </button>
-
-            </div>
-
-          </div>
-
-
-          <div
-            id="last5Box"
-            style="display:none;margin-top:10px"
-          >
-
-            <input
-              id="last5"
-              inputmode="numeric"
-              maxlength="5"
-              placeholder="輸入後五碼"
-              style="width:100%"
-            >
-
-          </div>
-
-
-          <div style="margin-top:10px">
-
-            <input
-              id="storeNote"
-              placeholder="備註"
-              style="width:100%"
-            >
-
-          </div>
-
-
-          <div
-            id="changeText"
-            class="changeText"
-          ></div>
-
-
-          <button
-            class="btn green"
-            style="
-              width:100%;
-              height:44px;
-              margin-top:12px
-            "
-            onclick="checkout()"
-          >
-            結帳完成
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-
-  document
-    .getElementById('barcode')
-    .addEventListener(
-      'keydown',
-      e=>{
-        if(e.key==='Enter'){
-          scan();
-        }
-      }
-    );
-
-  document
-    .getElementById('received')
-    .addEventListener(
-      'input',
-      calcChange
-    );
-
-  renderCart();
-
+detectSalesperson();
+app.innerHTML=`
+<div class="storePage">
+<div class="card storeManual"><div class="cardHead"><span>手動新增商品</span></div><div class="manualBox"><input id="manualName" placeholder="商品名稱"><input id="manualPrice" type="number" min="0" placeholder="金額"><button class="btn" onclick="addManualProduct()">加入</button></div></div>
+<div class="card storeMain"><div class="cardHead"><span>商品清單</span><span style="color:#999;font-size:13px">${storeCart.length} 項</span></div><div class="storeMainBody"><div class="storeSearch"><input id="barcode" autofocus placeholder="掃描或輸入貨號"><button class="btn" onclick="scan()">加入</button></div><div id="storeCart" class="cart"></div></div></div>
+<div class="card storeCheckout"><div class="cardHead"><span>結帳</span></div><div class="checkoutBody">
+<div style="color:#999;font-size:13px">總金額</div><div class="total" id="storeTotal">$0</div>
+<div style="margin-top:12px"><div style="color:#999;font-size:13px;margin-bottom:6px">銷售員</div><div class="salesperson"><button class="${salesperson==='花花'?'active':''}" onclick="setSalesperson(this,'花花')">花花</button><button class="${salesperson==='小法師'?'active':''}" onclick="setSalesperson(this,'小法師')">小法師</button></div></div>
+<div style="margin-top:12px"><input id="received" type="number" placeholder="收到金額（可不填）" style="width:100%"></div>
+<div style="margin-top:12px"><div style="color:#999;font-size:13px;margin-bottom:6px">付款方式</div><div class="payment"><button onclick="setPayment(this,'現金')">現金</button><button onclick="setPayment(this,'中信')">中信</button><button onclick="setPayment(this,'LB')">LB</button><button onclick="setPayment(this,'LP')">LP</button><button onclick="setPayment(this,'ipass')">ipass</button></div></div>
+<div id="last5Box" style="display:none;margin-top:10px"><input id="last5" inputmode="numeric" maxlength="5" placeholder="輸入後五碼" style="width:100%"></div>
+<div style="margin-top:10px"><input id="storeNote" placeholder="備註" style="width:100%"></div><div id="changeText" class="changeText"></div>
+<button class="btn green" style="width:100%;height:44px;margin-top:12px" onclick="checkout()">結帳完成</button>
+</div></div></div>`;
+document.getElementById('barcode').addEventListener('keydown',e=>{if(e.key==='Enter')scan()});
+document.getElementById('received').addEventListener('input',calcChange);renderCart();
 }
-
-
 async function scan(){
-
-  const input=
-    document.getElementById(
-      'barcode'
-    );
-
-  const code=
-    input.value.trim();
-
-  if(!code) return;
-
-  try{
-
-    const d=
-      await api(
-        'storeProduct',
-        {
-          code,
-          salesperson
-        }
-      );
-
-    if(!d.ok){
-
-      alert(
-        d.error||
-        '找不到商品'
-      );
-
-      input.select();
-
-      return;
-
-    }
-
-    if(
-      d.salesperson==='花花'||
-      d.salesperson==='小法師'
-    ){
-
-      salesperson=
-        d.salesperson;
-
-      document
-        .querySelectorAll(
-          '.salesperson button'
-        )
-        .forEach(x=>{
-
-          x.classList.toggle(
-            'active',
-            x.textContent.trim()===
-            salesperson
-          );
-
-        });
-
-    }
-
-    const old=
-      storeCart.find(
-        x=>
-          x.code===d.product.code &&
-          !x.manual
-      );
-
-    if(old){
-
-      old.qty++;
-
-    }else{
-
-      storeCart.push({
-        ...d.product,
-        qty:1,
-        manual:false
-      });
-
-    }
-
-    input.value='';
-    input.focus();
-
-    renderCart();
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
+const input=document.getElementById('barcode'),code=input.value.trim();if(!code)return;
+try{
+const d=await api('storeProduct',{code,salesperson});if(!d.ok){alert(d.error||'找不到商品');input.select();return}
+if(d.salesperson==='花花'||d.salesperson==='小法師'){salesperson=d.salesperson;document.querySelectorAll('.salesperson button').forEach(x=>x.classList.toggle('active',x.textContent.trim()===salesperson))}
+const old=storeCart.find(x=>x.code===d.product.code&&!x.manual);if(old)old.qty++;else storeCart.push({...d.product,qty:1,manual:false});input.value='';input.focus();renderCart();
+}catch(e){alert(e.message)}
 }
-
-
 function addManualProduct(){
-
-  const name=
-    document
-      .getElementById('manualName')
-      .value
-      .trim();
-
-  const price=
-    Number(
-      document
-        .getElementById('manualPrice')
-        .value||0
-    );
-
-  if(!name){
-
-    return alert(
-      '請輸入商品名稱'
-    );
-
-  }
-
-  if(price<0){
-
-    return alert(
-      '金額不能小於 0'
-    );
-
-  }
-
-  storeCart.push({
-    code:'',
-    name,
-    price,
-    qty:1,
-    manual:true
-  });
-
-  document
-    .getElementById('manualName')
-    .value='';
-
-  document
-    .getElementById('manualPrice')
-    .value='';
-
-  renderCart();
-
+const name=document.getElementById('manualName').value.trim(),price=Number(document.getElementById('manualPrice').value||0);
+if(!name)return alert('請輸入商品名稱');if(price<0)return alert('金額不能小於 0');
+storeCart.push({code:'',name,price,qty:1,manual:true});document.getElementById('manualName').value='';document.getElementById('manualPrice').value='';renderCart();
 }
-
-
 function renderCart(){
-
-  const box=
-    document.getElementById(
-      'storeCart'
-    );
-
-  if(!box) return;
-
-  if(!storeCart.length){
-
-    box.innerHTML=
-      '<div class="empty">尚未加入商品</div>';
-
-    const total=
-      document.getElementById(
-        'storeTotal'
-      );
-
-    if(total){
-      total.textContent='$0';
-    }
-
-    return;
-
-  }
-
-  box.innerHTML=
-    storeCart.map((x,i)=>`
-
-      <div class="cartItem">
-
-        <div class="cartName">
-
-          <b>${esc(x.name)}</b>
-
-          <div class="cartSub">
-
-            ${
-              x.manual
-              ? '手動商品'
-              : esc(x.code)
-            }
-
-            　$${money(x.price)}
-
-          </div>
-
-        </div>
-
-
-        <div class="qty">
-
-          <button
-            onclick="changeQty(${i},-1)"
-          >
-            −
-          </button>
-
-          <b>${x.qty}</b>
-
-          <button
-            onclick="changeQty(${i},1)"
-          >
-            ＋
-          </button>
-
-          <button
-            class="btn red"
-            style="padding:4px 8px"
-            onclick="removeCart(${i})"
-          >
-            ×
-          </button>
-
-        </div>
-
-      </div>
-
-    `).join('');
-
-  const total=
-    storeCart.reduce(
-      (s,x)=>
-        s+
-        x.price*
-        x.qty,
-      0
-    );
-
-  const totalEl=
-    document.getElementById(
-      'storeTotal'
-    );
-
-  if(totalEl){
-
-    totalEl.textContent=
-      '$'+money(total);
-
-  }
-
-  calcChange();
-
+const box=document.getElementById('storeCart');if(!box)return;
+if(!storeCart.length){box.innerHTML='<div class="empty">尚未加入商品</div>';const total=document.getElementById('storeTotal');if(total)total.textContent='$0';return}
+box.innerHTML=storeCart.map((x,i)=>`
+<div class="cartItem"><div class="cartName"><b>${esc(x.name)}</b><div class="cartSub">${x.manual?'手動商品':esc(x.code)}　$${money(x.price)}</div></div>
+<div class="qty"><button onclick="changeQty(${i},-1)">−</button><b>${x.qty}</b><button onclick="changeQty(${i},1)">＋</button><button class="btn red" style="padding:4px 8px" onclick="removeCart(${i})">×</button></div></div>`).join('');
+const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0),totalEl=document.getElementById('storeTotal');if(totalEl)totalEl.textContent='$'+money(total);calcChange();
 }
-
-
-function changeQty(i,n){
-
-  storeCart[i].qty+=n;
-
-  if(storeCart[i].qty<=0){
-
-    storeCart.splice(i,1);
-
-  }
-
-  renderCart();
-
-}
-
-
-function removeCart(i){
-
-  storeCart.splice(i,1);
-
-  renderCart();
-
-}
-
-
+function changeQty(i,n){storeCart[i].qty+=n;if(storeCart[i].qty<=0)storeCart.splice(i,1);renderCart()}
+function removeCart(i){storeCart.splice(i,1);renderCart()}
 function calcChange(){
-
-  const total=
-    storeCart.reduce(
-      (s,x)=>
-        s+
-        x.price*
-        x.qty,
-      0
-    );
-
-  const receivedEl=
-    document.getElementById(
-      'received'
-    );
-
-  const el=
-    document.getElementById(
-      'changeText'
-    );
-
-  if(!receivedEl||!el) return;
-
-  const value=
-    receivedEl.value;
-
-  if(value===''){
-
-    el.textContent='';
-
-    return;
-
-  }
-
-  const received=
-    Number(value);
-
-  const change=
-    received-total;
-
-  el.textContent=
-    change>=0
-    ?'找零：$'+money(change)
-    :'尚差：$'+money(
-      Math.abs(change)
-    );
-
+const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0),receivedEl=document.getElementById('received'),el=document.getElementById('changeText');if(!receivedEl||!el)return;
+const value=receivedEl.value;if(value===''){el.textContent='';return}const change=Number(value)-total;el.textContent=change>=0?'找零：$'+money(change):'尚差：$'+money(Math.abs(change));
 }
-
-
 function setPayment(el,v){
-
-  payment=v;
-
-  document
-    .querySelectorAll(
-      '.payment button'
-    )
-    .forEach(x=>
-      x.classList.remove(
-        'active'
-      )
-    );
-
-  el.classList.add('active');
-
-  const box=
-    document.getElementById(
-      'last5Box'
-    );
-
-  const input=
-    document.getElementById(
-      'last5'
-    );
-
-  if(
-    v==='中信'||
-    v==='LB'
-  ){
-
-    box.style.display=
-      'block';
-
-    input.focus();
-
-  }else{
-
-    box.style.display=
-      'none';
-
-    input.value='';
-
-  }
-
+payment=v;document.querySelectorAll('.payment button').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+const box=document.getElementById('last5Box'),input=document.getElementById('last5');
+if(v==='中信'||v==='LB'){box.style.display='block';input.focus()}else{box.style.display='none';input.value=''}
 }
-
-
 async function checkout(){
-
-  if(!storeCart.length){
-
-    return alert(
-      '沒有商品'
-    );
-
-  }
-
-  if(!salesperson){
-
-    return alert(
-      '請選擇銷售員'
-    );
-
-  }
-
-  if(!payment){
-
-    return alert(
-      '請選擇付款方式'
-    );
-
-  }
-
-  const total=
-    storeCart.reduce(
-      (s,x)=>
-        s+
-        x.price*
-        x.qty,
-      0
-    );
-
-  const receivedInput=
-    document
-      .getElementById(
-        'received'
-      )
-      .value;
-
-  const received=
-    receivedInput===''
-    ?''
-    :Number(receivedInput);
-
-  const change=
-    received===''
-    ?''
-    :received-total;
-
-  let paymentValue=
-    payment;
-
-  let note='';
-
-  if(
-    payment==='中信'||
-    payment==='LB'
-  ){
-
-    const last5=
-      document
-        .getElementById(
-          'last5'
-        )
-        .value
-        .trim();
-
-    if(!/^\d{5}$/.test(last5)){
-
-      return alert(
-        '請輸入 5 碼後五碼'
-      );
-
-    }
-
-    paymentValue=
-      payment==='中信'
-      ?'中信'+last5
-      :'LB '+last5;
-
-  }else{
-
-    note=
-      document
-        .getElementById(
-          'storeNote'
-        )
-        .value
-        .trim();
-
-  }
-
-  if(
-    received!==''&&
-    change<0
-  ){
-
-    if(!confirm(
-      '收到金額不足，仍要結帳嗎？'
-    )){
-
-      return;
-
-    }
-
-  }
-
-  try{
-
-    const d=
-      await api(
-        'storeCheckout',
-        {
-
-          items:
-            JSON.stringify(
-              storeCart.map(x=>({
-                code:x.code||'',
-                name:x.name||'',
-                price:Number(
-                  x.price||0
-                ),
-                qty:Number(
-                  x.qty||1
-                ),
-                manual:!!x.manual
-              }))
-            ),
-
-          total,
-          received,
-          change,
-          payment:paymentValue,
-          note,
-          salesperson
-
-        }
-      );
-
-    alert(
-      '結帳完成'+
-      '\n銷售員：'+
-      (d.salesperson||salesperson)
-    );
-
-    storeCart=[];
-    payment='';
-
-    renderStore();
-
-    setTimeout(()=>{
-
-      const input=
-        document.getElementById(
-          'barcode'
-        );
-
-      if(input){
-        input.focus();
-      }
-
-    },50);
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
+if(!storeCart.length)return alert('沒有商品');if(!salesperson)return alert('請選擇銷售員');if(!payment)return alert('請選擇付款方式');
+const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0),receivedInput=document.getElementById('received').value,received=receivedInput===''?'':Number(receivedInput),change=received===''?'':received-total;
+let paymentValue=payment,note='';
+if(payment==='中信'||payment==='LB'){const last5=document.getElementById('last5').value.trim();if(!/^\d{5}$/.test(last5))return alert('請輸入 5 碼後五碼');paymentValue=payment==='中信'?'中信'+last5:'LB '+last5}else note=document.getElementById('storeNote').value.trim();
+if(received!==''&&change<0&&!confirm('收到金額不足，仍要結帳嗎？'))return;
+try{
+const d=await api('storeCheckout',{items:JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual}))),total,received,change,payment:paymentValue,note,salesperson});
+alert('結帳完成\n銷售員：'+(d.salesperson||salesperson));storeCart=[];payment='';renderStore();setTimeout(()=>{const input=document.getElementById('barcode');if(input)input.focus()},50);
+}catch(e){alert(e.message)}
 }
 
-
-/* =========================
-   線上
-========================= */
-
+/* 線上 */
 function renderOnline(){
-
-  app.innerHTML=`
-
-    <div class="onlinePage">
-
-      <div class="onlineToolbar">
-
-        <input
-          id="customerSearch"
-          placeholder="搜尋顧客名稱／團名"
-          value="${esc(onlineSearchText)}"
-          onkeydown="
-            if(event.key==='Enter')
-              searchOnline()
-          "
-        >
-
-        <button
-          class="btn"
-          onclick="searchOnline()"
-        >
-          搜尋
-        </button>
-
-        <select id="cargoFilter">
-
-          <option value="現貨">
-            現貨
-          </option>
-
-          <option value="已訂購">
-            已訂購
-          </option>
-
-          <option value="已開單">
-            已開單
-          </option>
-
-          <option value="補貨登記">
-            補貨登記
-          </option>
-
-          <option value="受注">
-            受注
-          </option>
-
-        </select>
-
-        <button
-          class="btn light"
-          onclick="filterCargo()"
-        >
-          篩選
-        </button>
-
-        <button
-          class="btn light"
-          onclick="loadOnline()"
-        >
-          重新整理
-        </button>
-
-      </div>
-
-
-      <div
-        id="onlineResult"
-        class="onlineResult"
-      >
-
-        <div class="card">
-
-          <div class="loading">
-            載入中…
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-
-  const f=
-    document.getElementById(
-      'cargoFilter'
-    );
-
-  if(f){
-    f.value=
-      onlineCargo;
-  }
-
-  loadOnline();
-
+app.innerHTML=`
+<div class="onlinePage">
+<div class="onlineToolbar"><input id="customerSearch" placeholder="搜尋顧客名稱／團名" value="${esc(onlineSearchText)}" onkeydown="if(event.key==='Enter')searchOnline()"><button class="btn" onclick="searchOnline()">搜尋</button>
+<select id="cargoFilter"><option value="現貨">現貨</option><option value="已訂購">已訂購</option><option value="已開單">已開單</option><option value="補貨登記">補貨登記</option><option value="受注">受注</option></select>
+<button class="btn light" onclick="filterCargo()">篩選</button><button class="btn light" onclick="loadOnline()">重新整理</button></div>
+<div id="onlineResult" class="onlineResult"><div class="card"><div class="loading">載入中…</div></div></div>
+</div>`;
+const f=document.getElementById('cargoFilter');if(f)f.value=onlineCargo;loadOnline();
 }
-
-
 async function loadOnline(){
-
-  try{
-
-    /*
-      預設使用後端篩選。
-      不再把整張「線上銷售」全部抓下來。
-    */
-
-    const cargo=
-      onlineCargo||'現貨';
-
-    const d=
-      await api(
-        'onlineCargo',
-        {cargo}
-      );
-
-    onlineRows=
-      d.rows||[];
-
-    onlineHeaders=
-      d.headers||[];
-
-    applyOnlineFilter(false);
-
-  }catch(e){
-
-    onlineResult.innerHTML=
-      '<div class="card empty">'+
-      esc(e.message)+
-      '</div>';
-
-  }
-
+try{
+const cargo=onlineCargo||'現貨',d=await api('onlineCargo',{cargo});onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter(false);
+}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}
 }
-
-
 async function searchOnline(){
-
-  onlineSearchText=
-    document
-      .getElementById(
-        'customerSearch'
-      )
-      .value
-      .trim();
-
-  onlineCargo=
-    document
-      .getElementById(
-        'cargoFilter'
-      )
-      .value;
-
-  /*
-    搜尋時才抓全部資料，
-    避免首頁一開始載入大量資料。
-  */
-
-  try{
-
-    const d=
-      await api('online');
-
-    onlineRows=
-      d.rows||[];
-
-    onlineHeaders=
-      d.headers||[];
-
-    applyOnlineFilter();
-
-  }catch(e){
-
-    onlineResult.innerHTML=
-      '<div class="card empty">'+
-      esc(e.message)+
-      '</div>';
-
-  }
-
+onlineSearchText=document.getElementById('customerSearch').value.trim();onlineCargo=document.getElementById('cargoFilter').value;
+try{const d=await api('online');onlineRows=d.rows||[];onlineHeaders=d.headers||[];applyOnlineFilter()}catch(e){onlineResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}
 }
-
-
 async function filterCargo(){
-
-  onlineCargo=
-    document
-      .getElementById(
-        'cargoFilter'
-      )
-      .value;
-
-  onlineSearchText=
-    '';
-
-  document
-    .getElementById(
-      'customerSearch'
-    )
-    .value='';
-
-  await loadOnline();
-
+onlineCargo=document.getElementById('cargoFilter').value;onlineSearchText='';document.getElementById('customerSearch').value='';await loadOnline();
 }
-
-
 function cargoCategory(cargo){
-
-  cargo=
-    String(cargo||'').trim();
-
-  if(
-    cargo==='補貨登記'||
-    cargo==='SOLD OUT'||
-    cargo==='S☹LD OUT'||
-    cargo==='補登'
-  ){
-
-    return '補貨登記';
-
-  }
-
-  if(/^\d{1,2}月$/.test(cargo)){
-
-    return '受注';
-
-  }
-
-  if(cargo==='現貨'){
-
-    return '現貨';
-
-  }
-
-  if(cargo==='已訂購'){
-
-    return '已訂購';
-
-  }
-
-  return cargo;
-
+cargo=String(cargo||'').trim();
+if(cargo==='補貨登記'||cargo==='SOLD OUT'||cargo==='S☹LD OUT'||cargo==='補登')return '補貨登記';
+if(/^\d{1,2}月$/.test(cargo))return '受注';
+if(cargo==='現貨')return '現貨';if(cargo==='已訂購')return '已訂購';return cargo;
 }
-
-
-function applyOnlineFilter(localOnly=true){
-
-  let rows=
-    [...onlineRows];
-
-  if(onlineSearchText){
-
-    const key=
-      onlineSearchText
-        .toLowerCase();
-
-    rows=
-      rows.filter(x=>{
-
-        const customer=
-          String(
-            getOnlineData(
-              x,
-              ['顧客名稱','客戶名稱']
-            )||''
-          )
-          .toLowerCase();
-
-        const group=
-          String(
-            getOnlineData(
-              x,
-              ['團名','團組','團']
-            )||''
-          )
-          .toLowerCase();
-
-        return(
-          customer.includes(key)||
-          group.includes(key)
-        );
-
-      });
-
-  }
-
-  if(onlineCargo){
-
-    rows=
-      rows.filter(x=>{
-
-        const rawCargo=
-          String(
-            getOnlineData(
-              x,
-              ['貨況','狀態']
-            )||''
-          ).trim();
-
-        const category=
-          cargoCategory(
-            rawCargo
-          );
-
-        const ordered=
-          getOnlineData(
-            x,
-            ['已訂購','購買']
-          );
-
-        const opened=
-          getOnlineData(
-            x,
-            ['已開單','開單']
-          );
-
-        if(
-          onlineCargo==='現貨'
-        ){
-
-          return(
-            category==='現貨'&&
-            !isTruthy(opened)
-          );
-
-        }
-
-        if(
-          onlineCargo==='已訂購'
-        ){
-
-          return isTruthy(ordered);
-
-        }
-
-        if(
-          onlineCargo==='已開單'
-        ){
-
-          return isTruthy(opened);
-
-        }
-
-        if(
-          onlineCargo==='受注'
-        ){
-
-          return /^\d{1,2}月$/.test(
-            rawCargo
-          );
-
-        }
-
-        return(
-          category===
-          onlineCargo
-        );
-
-      });
-
-  }
-
-  showOnlineRows(rows);
-
+function applyOnlineFilter(){
+let rows=[...onlineRows];
+if(onlineSearchText){
+const key=onlineSearchText.toLowerCase();
+rows=rows.filter(x=>{const customer=String(getOnlineData(x,['顧客名稱','客戶名稱'])||'').toLowerCase(),group=String(getOnlineData(x,['團名','團組','團'])||'').toLowerCase();return customer.includes(key)||group.includes(key)});
 }
-
-
-function isTruthy(v){
-
-  if(v===true){
-    return true;
-  }
-
-  return[
-    'true',
-    '1',
-    'y',
-    'yes',
-    '是',
-    '已',
-    '已訂購',
-    '已開單',
-    '已出貨'
-  ].includes(
-    String(v??'')
-      .trim()
-      .toLowerCase()
-  );
-
+if(onlineCargo){
+rows=rows.filter(x=>{
+const rawCargo=String(getOnlineData(x,['貨況','狀態'])||'').trim(),category=cargoCategory(rawCargo),ordered=getOnlineData(x,['已訂購','購買']),opened=getOnlineData(x,['已開單','開單']);
+if(onlineCargo==='現貨')return category==='現貨'&&!isTruthy(opened);
+if(onlineCargo==='已訂購')return isTruthy(ordered);
+if(onlineCargo==='已開單')return isTruthy(opened);
+if(onlineCargo==='受注')return /^\d{1,2}月$/.test(rawCargo);
+return category===onlineCargo;
+});
 }
-
+showOnlineRows(rows);
+}
+function isTruthy(v){if(v===true)return true;return ['true','1','y','yes','是','已','已訂購','已開單','已出貨'].includes(String(v??'').trim().toLowerCase())}
 
 function showOnlineRows(rows){
-
-  if(!rows.length){
-
-    onlineResult.innerHTML=`
-
-      <div class="card">
-
-        <div class="empty">
-          沒有符合的資料
-        </div>
-
-      </div>
-
-    `;
-
-    return;
-
-  }
-
-  onlineResult.innerHTML=`
-
-    <div class="card">
-
-      ${
-        onlineSearchText
-        ?`
-
-          <div class="cardHead">
-
-            <span>
-              ${esc(onlineSearchText)}
-            </span>
-
-            <span>
-              ${rows.length} 筆
-            </span>
-
-          </div>
-
-        `
-        :''
-      }
-
-      <div class="tableWrap">
-
-        <table class="onlineTable">
-
-          <thead>
-
-            <tr>
-
-              <th>出貨</th>
-              <th>顧客名稱</th>
-              <th>時間</th>
-              <th>貨況</th>
-              <th>團名</th>
-              <th>名稱</th>
-              <th>售價</th>
-              <th>運費</th>
-              <th>訂金</th>
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            ${
-              rows.map(x=>{
-
-                const customer=
-                  getOnlineData(
-                    x,
-                    ['顧客名稱','客戶名稱']
-                  );
-
-                const time=
-                  getOnlineData(
-                    x,
-                    ['時間','購買時間']
-                  );
-
-                const rawCargo=
-                  getOnlineData(
-                    x,
-                    ['貨況','狀態']
-                  );
-
-                const cargo=
-                  cargoCategory(
-                    rawCargo
-                  );
-
-                const group=
-                  getOnlineData(
-                    x,
-                    ['團名','團組','團']
-                  );
-
-                const name=
-                  getOnlineData(
-                    x,
-                    ['名稱','商品名稱']
-                  );
-
-                const price=
-                  getOnlineData(
-                    x,
-                    ['售價']
-                  );
-
-                const shipping=
-                  getOnlineData(
-                    x,
-                    ['運費']
-                  );
-
-                const deposit=
-                  getOnlineData(
-                    x,
-                    ['訂金']
-                  );
-
-                return`
-
-                  <tr>
-
-                    <td>
-
-                      <input
-                        class="check shipCheck"
-                        type="checkbox"
-                        value="${x.row}"
-                      >
-
-                    </td>
-
-
-                    <td>
-
-                      ${
-                        customer
-                        ?`
-
-                          <button
-                            class="customerLink"
-                            onclick='openCustomer(${JSON.stringify(String(customer))})'
-                          >
-                            ${esc(customer)}
-                          </button>
-
-                        `
-                        :''
-                      }
-
-                    </td>
-
-
-                    <td>
-                      ${esc(
-                        formatOnlineTime(time)
-                      )}
-                    </td>
-
-
-                    <td>
-
-                      ${
-                        cargo
-                        ?`
-
-                          <span class="tag ${
-                            cargo==='現貨'
-                            ?'green'
-                            :cargo==='補貨登記'
-                            ?'red'
-                            :'blue'
-                          }">
-
-                            ${esc(cargo)}
-
-                          </span>
-
-                        `
-                        :''
-                      }
-
-                    </td>
-
-
-                    <td>
-
-                      ${
-                        group
-                        ?`
-
-                          <button
-                            class="groupLink"
-                            onclick='openGroup(${JSON.stringify(String(group))})'
-                          >
-                            ${esc(group)}
-                          </button>
-
-                        `
-                        :''
-                      }
-
-                    </td>
-
-
-                    <td>
-                      ${esc(name)}
-                    </td>
-
-
-                    <td>
-                      ${price===''?'':money(price)}
-                    </td>
-
-
-                    <td>
-                      ${shipping===''?'':money(shipping)}
-                    </td>
-
-
-                    <td>
-                      ${deposit===''?'':money(deposit)}
-                    </td>
-
-                  </tr>
-
-                `;
-
-              }).join('')
-            }
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-
-      <div style="padding:12px">
-
-        <button
-          class="btn green"
-          onclick="createSelectedShip()"
-        >
-          將勾選商品產生出貨單
-        </button>
-
-      </div>
-
-    </div>
-
-  `;
-
+if(!rows.length){onlineResult.innerHTML='<div class="card"><div class="empty">沒有符合的資料</div></div>';return}
+onlineResult.innerHTML=`
+<div class="card">
+${onlineSearchText?`<div class="cardHead"><span>${esc(onlineSearchText)}</span><span>${rows.length} 筆</span></div>`:''}
+<div class="tableWrap"><table class="onlineTable"><thead><tr><th>出貨</th><th>顧客名稱</th><th>時間</th><th>貨況</th><th>團名</th><th>名稱</th><th>售價</th><th>運費</th><th>訂金</th></tr></thead>
+<tbody>${rows.map(x=>{
+const customer=getOnlineData(x,['顧客名稱','客戶名稱']),time=getOnlineData(x,['時間','購買時間']),rawCargo=getOnlineData(x,['貨況','狀態']),cargo=cargoCategory(rawCargo),group=getOnlineData(x,['團名','團組','團']),name=getOnlineData(x,['名稱','商品名稱']),price=getOnlineData(x,['售價']),shipping=getOnlineData(x,['運費']),deposit=getOnlineData(x,['訂金']);
+return `<tr><td><input class="check shipCheck" type="checkbox" value="${x.row}"></td>
+<td>${customer?`<button class="customerLink" onclick='openCustomer(${JSON.stringify(String(customer))})'>${esc(customer)}</button>`:''}</td>
+<td>${esc(formatOnlineTime(time))}</td>
+<td>${cargo?`<span class="tag ${cargo==='現貨'?'green':cargo==='補貨登記'?'red':'blue'}">${esc(cargo)}</span>`:''}</td>
+<td>${group?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(group))})'>${esc(group)}</button>`:''}</td>
+<td>${esc(name)}</td><td>${price===''?'':money(price)}</td><td>${shipping===''?'':money(shipping)}</td><td>${deposit===''?'':money(deposit)}</td></tr>`;
+}).join('')}</tbody></table></div>
+<div style="padding:12px"><button class="btn green" onclick="createSelectedShip()">將勾選商品產生出貨單</button></div>
+</div>`;
 }
 
-
+/* 顧客 */
 async function openCustomer(name){
-
-  try{
-
-    const d=
-      await api(
-        'onlineCustomer',
-        {name}
-      );
-
-    onlineRows=
-      d.rows||[];
-
-    onlineHeaders=
-      d.headers||[];
-
-    onlineSearchText=
-      name;
-
-    onlineCargo='';
-
-    showOnlineRows(
-      onlineRows
-    );
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
+try{
+const d=await api('onlineCustomer',{name});
+onlineRows=d.rows||[];onlineHeaders=d.headers||[];onlineSearchText=name;onlineCargo='';
+const statusRank=x=>{
+const cargo=cargoCategory(getOnlineData(x,['貨況','狀態'])),ordered=isTruthy(getOnlineData(x,['已訂購','購買'])),opened=isTruthy(getOnlineData(x,['已開單','開單']));
+if(cargo==='現貨'&&!opened)return 1;
+if(ordered)return 2;
+if(opened)return 3;
+return 4;
+};
+onlineRows.sort((a,b)=>{const sr=statusRank(a)-statusRank(b);if(sr)return sr;return timeValue(getOnlineData(a,['時間','購買時間']))-timeValue(getOnlineData(b,['時間','購買時間']))});
+showOnlineRows(onlineRows);
+}catch(e){alert(e.message)}
 }
 
-
+/* 團名 */
 async function openGroup(group){
-
-  try{
-
-    const d=
-      await api(
-        'group',
-        {group}
-      );
-
-    let html=`
-
-      <div class="card">
-
-        <div class="cardHead">
-
-          <span>
-            ${esc(group)}
-          </span>
-
-          <span>
-            ${d.customers.length} 位客戶
-          </span>
-
-        </div>
-
-    `;
-
-    d.customers.forEach(c=>{
-
-      html+=`
-
-        <div>
-
-          <div
-            style="
-              padding:10px 15px;
-              background:#f7f7f7;
-              font-weight:800
-            "
-          >
-
-            <button
-              class="customerLink"
-              onclick='openCustomer(${JSON.stringify(String(c.name))})'
-            >
-              ${esc(c.name)}
-            </button>
-
-          </div>
-
-
-          ${
-            c.items.map(item=>`
-
-              <div class="shipItem">
-
-                <div style="flex:1">
-
-                  <b>
-                    ${esc(
-                      item['名稱']||
-                      item['商品名稱']||
-                      ''
-                    )}
-                  </b>
-
-                  <div
-                    style="
-                      font-size:12px;
-                      color:#999;
-                      margin-top:3px
-                    "
-                  >
-
-                    ${esc(
-                      cargoCategory(
-                        item['貨況']||''
-                      )
-                    )}
-
-                    　
-                    ${esc(
-                      formatOnlineTime(
-                        item['時間']||
-                        item['購買時間']||
-                        ''
-                      )
-                    )}
-
-                  </div>
-
-                </div>
-
-                <b>
-                  $${money(
-                    item['售價']||0
-                  )}
-                </b>
-
-              </div>
-
-            `).join('')
-          }
-
-        </div>
-
-      `;
-
-    });
-
-    html+='</div>';
-
-    onlineResult.innerHTML=
-      html;
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
+try{
+const d=await api('group',{group}),customers=d.customers||[];
+let totalAmount=0;
+customers.forEach(c=>(c.items||[]).forEach(item=>{totalAmount+=Number(item['售價']||0)}));
+let html=`
+<div class="card">
+<div class="cardHead groupSummary"><span>➡️跟團${customers.length}人｜總金額$${money(totalAmount)}</span></div>
+<div class="groupCards">`;
+customers.forEach(c=>{
+const items=c.items||[];
+let customerTotal=0;
+items.forEach(item=>{customerTotal+=Number(item['售價']||0)});
+const firstItem=items[0]||{},time=firstItem['時間']||firstItem['購買時間']||'';
+html+=`
+<div class="groupCard">
+<div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div>
+<div class="groupCardItems">${items.map(item=>`
+<div class="groupCardItem"><div class="groupCardItemName">${esc(item['名稱']||item['商品名稱']||'')}</div><div class="groupCardItemPrice">$${money(item['售價']||0)}</div></div>`).join('')}</div>
+<div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div>
+</div>`;
+});
+html+='</div></div>';onlineResult.innerHTML=html;
+}catch(e){alert(e.message)}
 }
-
 
 async function createSelectedShip(){
-
-  const rows=[
-    ...document.querySelectorAll(
-      '.shipCheck:checked'
-    )
-  ].map(x=>x.value);
-
-  if(!rows.length){
-
-    return alert(
-      '請先勾選要出貨的商品'
-    );
-
-  }
-
-  try{
-
-    const d=
-      await api(
-        'createShip',
-        {
-          rows:
-            JSON.stringify(rows)
-        }
-      );
-
-    alert(
-      '已產生出貨單：'+
-      d.batch
-    );
-
-    loadOnline();
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
+const rows=[...document.querySelectorAll('.shipCheck:checked')].map(x=>x.value);if(!rows.length)return alert('請先勾選要出貨的商品');
+try{const d=await api('createShip',{rows:JSON.stringify(rows)});alert('已產生出貨單：'+d.batch);loadOnline()}catch(e){alert(e.message)}
 }
 
-
-/* =========================
-   出貨
-========================= */
-
+/* 出貨 */
 async function renderShip(){
-
-  app.innerHTML=`
-
-    <div class="shipPage">
-
-      <div
-        class="toolbar"
-        style="margin-bottom:10px"
-      >
-
-        <button
-          class="btn light"
-          onclick="renderShip()"
-        >
-          重新整理
-        </button>
-
-      </div>
-
-
-      <div id="shipResult">
-
-        <div class="card">
-
-          <div class="loading">
-            載入中…
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  `;
-
-  try{
-
-    const d=
-      await api('ship');
-
-    if(!d.rows.length){
-
-      shipResult.innerHTML=
-        '<div class="card empty">'+
-        '目前沒有出貨單'+
-        '</div>';
-
-      return;
-
-    }
-
-    const ci=
-      findHeader(
-        d.headers,
-        ['顧客名稱','客戶名稱']
-      );
-
-    const bi=
-      findHeader(
-        d.headers,
-        ['出貨批次']
-      );
-
-    const si=
-      findHeader(
-        d.headers,
-        ['出貨狀態']
-      );
-
-    const ni=
-      findHeader(
-        d.headers,
-        ['名稱','商品名稱']
-      );
-
-    const codei=
-      findHeader(
-        d.headers,
-        ['貨號','商品貨號']
-      );
-
-    const pi=
-      findHeader(
-        d.headers,
-        ['售價']
-      );
-
-    const ti=
-      findHeader(
-        d.headers,
-        ['團名']
-      );
-
-    const timei=
-      findHeader(
-        d.headers,
-        ['時間','購買時間']
-      );
-
-    const groups={};
-
-    d.rows.forEach(x=>{
-
-      const batch=
-        x.data[bi]||'';
-
-      const customer=
-        x.data[ci]||
-        '未填姓名';
-
-      const key=
-        batch+
-        '__'+
-        customer;
-
-      if(!groups[key]){
-
-        groups[key]={
-          batch,
-          customer,
-          items:[]
-        };
-
-      }
-
-      groups[key].items.push(x);
-
-    });
-
-    shipResult.innerHTML=
-      Object.values(groups)
-      .map(g=>`
-
-        <div
-          class="card"
-          style="margin-bottom:10px"
-        >
-
-          <div class="cardHead">
-
-            <div>
-              ${esc(g.customer)}
-            </div>
-
-            <div>
-              ${esc(g.batch)}
-            </div>
-
-          </div>
-
-
-          ${
-            g.items.map(x=>`
-
-              <div class="shipItem">
-
-                <input
-                  class="check"
-                  type="checkbox"
-                  ${
-                    x.data[si]==='已出貨'
-                    ?'checked'
-                    :''
-                  }
-                  onchange="
-                    updateShip(
-                      ${x.row},
-                      this.checked
-                    )
-                  "
-                >
-
-
-                <div style="flex:1">
-
-                  <b>
-                    ${esc(
-                      x.data[ni]||''
-                    )}
-                  </b>
-
-                  <div
-                    style="
-                      font-size:12px;
-                      color:#999;
-                      margin-top:3px
-                    "
-                  >
-
-                    ${esc(
-                      x.data[codei]||''
-                    )}
-
-                    　
-                    ${esc(
-                      x.data[ti]||''
-                    )}
-
-                    　
-                    ${esc(
-                      formatOnlineTime(
-                        x.data[timei]||''
-                      )
-                    )}
-
-                  </div>
-
-                </div>
-
-
-                <b>
-                  $${money(
-                    x.data[pi]||0
-                  )}
-                </b>
-
-              </div>
-
-            `).join('')
-          }
-
-        </div>
-
-      `).join('');
-
-  }catch(e){
-
-    shipResult.innerHTML=
-      '<div class="card empty">'+
-      esc(e.message)+
-      '</div>';
-
-  }
-
+app.innerHTML=`
+<div class="shipPage"><div class="toolbar" style="margin-bottom:10px"><button class="btn light" onclick="renderShip()">重新整理</button></div>
+<div id="shipResult"><div class="card"><div class="loading">載入中…</div></div></div></div>`;
+try{
+const d=await api('ship');if(!d.rows.length){shipResult.innerHTML='<div class="card empty">目前沒有出貨單</div>';return}
+const ci=findHeader(d.headers,['顧客名稱','客戶名稱']),bi=findHeader(d.headers,['出貨批次']),si=findHeader(d.headers,['出貨狀態']),ni=findHeader(d.headers,['名稱','商品名稱']),codei=findHeader(d.headers,['貨號','商品貨號']),pi=findHeader(d.headers,['售價']),ti=findHeader(d.headers,['團名']),timei=findHeader(d.headers,['時間','購買時間']),groups={};
+d.rows.forEach(x=>{const batch=x.data[bi]||'',customer=x.data[ci]||'未填姓名',key=batch+'__'+customer;if(!groups[key])groups[key]={batch,customer,items:[]};groups[key].items.push(x)});
+shipResult.innerHTML=Object.values(groups).map(g=>`
+<div class="card" style="margin-bottom:10px"><div class="cardHead"><div>${esc(g.customer)}</div><div>${esc(g.batch)}</div></div>
+${g.items.map(x=>`
+<div class="shipItem"><input class="check" type="checkbox" ${x.data[si]==='已出貨'?'checked':''} onchange="updateShip(${x.row},this.checked)">
+<div style="flex:1"><b>${esc(x.data[ni]||'')}</b><div style="font-size:12px;color:#999;margin-top:3px">${esc(x.data[codei]||'')}　${esc(x.data[ti]||'')}　${esc(formatOnlineTime(x.data[timei]||''))}</div></div><b>$${money(x.data[pi]||0)}</b></div>`).join('')}</div>`).join('');
+}catch(e){shipResult.innerHTML='<div class="card empty">'+esc(e.message)+'</div>'}
 }
+async function updateShip(row,checked){try{await api('setShip',{row,status:checked?'已出貨':'待出貨'})}catch(e){alert(e.message)}}
 
-
-async function updateShip(
-  row,
-  checked
-){
-
-  try{
-
-    await api(
-      'setShip',
-      {
-        row,
-        status:
-          checked
-          ?'已出貨'
-          :'待出貨'
-      }
-    );
-
-  }catch(e){
-
-    alert(e.message);
-
-  }
-
-}
-
-
-/* =========================
-   啟動
-========================= */
-
-detectSalesperson();
-renderStore();
-
+/* 啟動 */
+detectSalesperson();renderStore();
 </script>
-
 </body>
 </html>
