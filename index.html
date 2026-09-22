@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -345,6 +346,13 @@ font-weight:700
 .checkoutActions{margin-top:12px}
 .checkoutActions .btn.green{width:100%;height:44px}
 .acButton{display:none}
+.checkoutQuick{
+display:flex;
+gap:7px;
+align-items:stretch
+}
+.checkoutQuick input{min-width:0;flex:1}
+.checkoutQuick .salesperson{flex:1;min-width:0}
 /* 線上 */
 .onlinePage{
 height:100%;
@@ -386,7 +394,7 @@ font-weight:400
 .groupCards{
 padding:12px;
 display:grid;
-grid-template-columns:repeat(5,1fr);
+grid-template-columns:repeat(4,1fr);
 gap:12px;
 align-items:stretch
 }
@@ -405,7 +413,11 @@ padding:10px 13px;
 background:#f7f7f7;
 border-bottom:1px solid #eee;
 flex-shrink:0;
-font-size:14px
+font-size:14px;
+display:flex;
+justify-content:space-between;
+gap:8px;
+align-items:center
 }
 .groupCardItems{
 flex:1;
@@ -416,11 +428,14 @@ padding:3px 13px
 .groupCardItem{
 display:flex;
 justify-content:space-between;
+align-items:center;
 gap:10px;
 padding:7px 0;
 border-bottom:1px solid #f0f0f0;
 font-size:13px
 }
+.groupCardItem.opened{background:#f1f1f1}
+.groupCardItem .check{flex-shrink:0}
 .groupCardItem:last-child{
 border-bottom:0
 }
@@ -446,6 +461,42 @@ flex-shrink:0
 color:#555;
 font-size:13px
 }
+.groupCardMeta{
+padding:7px 13px;
+border-top:1px solid #eee;
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:8px;
+font-size:12px;
+color:#777;
+flex-shrink:0
+}
+.groupCardMeta input{
+width:66px;
+padding:4px 6px;
+border-radius:6px;
+font-size:12px;
+text-align:center
+}
+.groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
+.orderPayment{
+width:62px;
+padding:4px 3px;
+border-radius:6px;
+font-size:12px
+}
+.shipFab{
+position:fixed;
+right:18px;
+bottom:76px;
+z-index:900;
+min-width:78px;
+height:48px;
+border-radius:24px;
+box-shadow:0 5px 14px rgba(0,0,0,.22)
+}
+.cargoTag{color:#fff!important}
 /* 出貨 */
 .shipPage{
 height:100%;
@@ -514,7 +565,8 @@ font-size:14px
 }
 .storePage{
 grid-template-columns:1fr;
-grid-template-rows:auto minmax(300px,1fr) auto;
+grid-template-rows:auto minmax(210px,1fr) auto;
+gap:8px;
 overflow:hidden
 }
 .storeManual,
@@ -526,8 +578,8 @@ grid-row:auto
 .storeManual .cardHead,
 .storeMain .cardHead,
 .storeCheckout .cardHead{display:none}
-.storeMain{min-height:300px}
-.storeMainBody{min-height:300px;padding:8px}
+.storeMain{min-height:210px}
+.storeMainBody{min-height:210px;padding:8px}
 .cart{flex:1;min-height:0;overflow-y:auto}
 .manualBox{
 grid-template-columns:minmax(0,1fr) 85px 58px;
@@ -568,6 +620,14 @@ grid-template-columns:repeat(5,1fr)
 font-size:12px;
 padding:7px 2px
 }
+.checkoutBody{padding:8px;overflow:visible}
+.storeCheckout [style*="margin-top:12px"]{margin-top:8px!important}
+.checkoutQuick{
+display:grid;
+grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)
+}
+.checkoutQuick .salesperson{gap:5px}
+.salesperson button{padding:8px 3px}
 .onlineToolbar{
 flex-wrap:wrap
 }
@@ -575,76 +635,74 @@ flex-wrap:wrap
 flex-basis:100%
 }
 .groupCards{
-grid-template-columns:repeat(2,1fr)
+grid-template-columns:1fr
 }
 .groupCard{
-height:220px
+height:275px
 }
+.shipFab{right:14px;bottom:68px}
 table.onlineTable{
 min-width:0!important;
 table-layout:fixed!important
 }
 .onlineTable th,
 .onlineTable td{
-padding:6px 4px!important;
-font-size:12px!important;
-white-space:normal!important
+padding:5px 2px!important;
+font-size:11px!important;
+white-space:normal!important;
+text-align:center!important;
+line-height:1.35
 }
-/* 顧客名稱縮短 */
+/* 所有欄位預留至少兩個中文字的寬度；後五碼可容三字。 */
 .onlineTable th:nth-child(1),
 .onlineTable td:nth-child(1){
-width:8%!important
+width:30px!important
 }
 .onlineTable th:nth-child(2),
 .onlineTable td:nth-child(2){
-width:17%!important
+width:36px!important
 }
 /* 時間 */
 .onlineTable th:nth-child(3),
 .onlineTable td:nth-child(3){
-width:9%!important;
-white-space:nowrap!important
+width:40px!important;
+font-size:9px!important
 }
 /* 貨況 */
 .onlineTable th:nth-child(4),
 .onlineTable td:nth-child(4){
-width:11%!important
+width:30px!important
 }
-/* 團名加寬 */
 .onlineTable th:nth-child(5),
 .onlineTable td:nth-child(5){
-width:21%!important
+width:36px!important
 }
-/* 名稱加寬 */
 .onlineTable th:nth-child(6),
 .onlineTable td:nth-child(6){
-width:22%!important
+width:36px!important
 }
-/* 售價 */
 .onlineTable th:nth-child(7),
 .onlineTable td:nth-child(7){
-width:8%!important
+width:30px!important
 }
-/* 運費 */
 .onlineTable th:nth-child(8),
 .onlineTable td:nth-child(8){
-width:8%!important
+width:30px!important
 }
-/* 訂金 */
 .onlineTable th:nth-child(9),
 .onlineTable td:nth-child(9){
-width:8%!important
+width:30px!important
 }
-/* 後五碼 */
 .onlineTable th:nth-child(10),
 .onlineTable td:nth-child(10){
-width:10%!important
+width:42px!important
 }
 .onlineTable td:nth-child(5),
 .onlineTable td:nth-child(6){
 word-break:break-word!important;
 white-space:normal!important
 }
+.onlineTable .tag{padding:3px 5px;font-size:11px}
 .shipItem{
 padding:9px 8px;
 gap:7px;
@@ -688,7 +746,8 @@ const retryable=[
 'online',
 'onlineCustomer',
 'group',
-'ship'
+'ship',
+'saveOnlinePayment'
 ].includes(action);
 return new Promise((resolve,reject)=>{
 let attempt=0;
@@ -1014,17 +1073,13 @@ app.innerHTML=`
 <div class="card storeCheckout">
 <div class="cardHead"><span>結帳</span></div>
 <div class="checkoutBody">
-<div style="color:#999;font-size:13px">總金額</div>
 <div class="total" id="storeTotal">$0</div>
-<div style="margin-top:12px">
-<div style="color:#999;font-size:13px;margin-bottom:6px">銷售員</div>
+<div class="checkoutQuick" style="margin-top:8px">
+<input id="received" type="number" placeholder="收到金額（可不填）">
 <div class="salesperson">
 <button class="${salesperson==='花花'?'active':''}" onclick="setSalesperson(this,'花花')">花花</button>
 <button class="${salesperson==='小法師'?'active':''}" onclick="setSalesperson(this,'小法師')">小法師</button>
 </div>
-</div>
-<div style="margin-top:12px">
-<input id="received" type="number" placeholder="收到金額（可不填）" style="width:100%">
 </div>
 <div style="margin-top:12px">
 <div style="color:#999;font-size:13px;margin-bottom:6px">付款方式</div>
@@ -1365,6 +1420,57 @@ if(cargo==='已訂購')return '已訂購';
 if(cargo==='預訂')return '預訂';
 return cargo
 }
+function getOrderStatus(row){
+return String(getOnlineData(row,['狀態','訂購狀態','已訂購','購買'])||'').trim()
+}
+function isOpenedRow(row){
+const status=getOrderStatus(row);
+const opened=getOnlineData(row,['已開單','開單']);
+return status==='已開單'||isTruthy(opened)
+}
+function cargoDisplay(row){
+const raw=String(getOnlineData(row,['貨況'])||'').trim();
+const status=getOrderStatus(row);
+const category=cargoCategory(raw);
+if(category==='預訂'){
+return isTruthy(status)||status==='已訂購'
+?{text:'訂',color:'#FBB550'}
+:{text:'未',color:'#E78790'}
+}
+if(/^\d{1,2}月$/.test(raw))return {text:raw,color:'#85C2D0'};
+if(category==='補貨登記')return {text:'補',color:'#7E88A0'};
+if(category==='現貨')return {text:'現',color:'#DABBD8'};
+return {text:raw,color:'#8ca7b2'}
+}
+function getPaymentMethod(row){
+const direct=String(
+getOnlineData(row,['付款方式','支付方式','付款','收款方式'])||''
+).trim();
+if(direct)return direct;
+const last5=String(getLast5(row)||'').trim();
+if(last5.startsWith('中信'))return '中信';
+if(last5.toUpperCase().startsWith('LB'))return 'LB';
+if(last5.toUpperCase()==='LP')return 'LP';
+if(last5.toLowerCase()==='ipass')return 'ipass';
+return ''
+}
+function needsLast5(rows){
+return rows.some(row=>{
+const method=getPaymentMethod(row).toUpperCase();
+return method.includes('中信')||method==='LB'
+})
+}
+function normalizePayment(v){
+const value=String(v||'').trim().toLowerCase();
+if(value==='中信')return '中信';
+if(value==='lb')return 'LB';
+if(value==='lp')return 'LP';
+if(value==='ipass')return 'ipass';
+return ''
+}
+function paymentLast5Value(v){
+return String(v||'').replace(/\D/g,'').slice(-5)
+}
 function applyOnlineFilter(){
 let rows=[...onlineRows];
 if(onlineSearchText){
@@ -1393,9 +1499,15 @@ x,
 ]
 )||''
 ).toLowerCase();
+const time=String(
+getOnlineData(x,['時間','購買時間'])||''
+);
+const dateKey=time.replace(/\D/g,'');
+const searchDate=key.replace(/\D/g,'');
 return(
 customer.includes(key)||
-group.includes(key)
+group.includes(key)||
+(searchDate.length>=3&&dateKey.includes(searchDate))
 );
 });
 }
@@ -1516,6 +1628,8 @@ if(!rows.length){
 res.innerHTML='<div class="empty">沒有符合的資料</div>';
 return
 }
+showOrderCards(rows,onlineSearchText||'線上訂單');
+return;
 let totalSum=0;
 rows.forEach(x=>{
 const p=
@@ -1578,6 +1692,7 @@ x,
 ]
 );
 const cargo=cargoCategory(rawCargo);
+const cargoText=cargoLabel(rawCargo);
 const group=getGroupName(x);
 const name=
 getOnlineData(
@@ -1641,7 +1756,7 @@ cargo==='現貨'
 ?'red'
 :'blue'
 }">
-${esc(cargo)}
+${esc(cargoText)}
 </span>`
 :''
 }
@@ -1690,16 +1805,87 @@ onclick="createSelectedShip()">
 `;
 }
 /* =========================================================
-   顧客：直接使用已載入資料
+   訂單卡：同一顧客、同一時間下單的商品合併成一張卡
 ========================================================= */
+function showOrderCards(rows,summary){
+const res=document.getElementById('onlineResult');
+if(!res)return;
+if(!rows.length){
+res.innerHTML='<div class="empty">沒有符合的資料</div>';
+return
+}
+const orders=new Map();
+rows.forEach(row=>{
+const customer=String(getCustomerName(row)||'未填姓名').trim();
+const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
+const key=customer+'\u0000'+time;
+if(!orders.has(key))orders.set(key,{customer,time,items:[]});
+orders.get(key).items.push(row);
+});
+let totalAmount=0;
+orders.forEach(order=>order.items.forEach(row=>{
+totalAmount+=Number(getOnlineData(row,['售價','價格'])||0);
+}));
+let html=`
+<div class="card">
+<div class="cardHead groupSummary">
+<span>${esc(summary)}｜${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
+</div>
+<div class="groupCards">
+`;
+orders.forEach(order=>{
+let orderTotal=0;
+order.items.forEach(row=>{
+orderTotal+=Number(getOnlineData(row,['售價','價格'])||0);
+});
+const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
+const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
+const payment=normalizePayment(getPaymentMethod(order.items[0]));
+const showLast5=payment==='中信'||payment==='LB';
+const orderRows=order.items.map(row=>row.row).join(',');
+html+=`
+<div class="groupCard">
+<div class="groupCardCustomer">
+<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
+${esc(order.customer)}
+</button>
+<strong class="groupCardTotal">總金額 $${money(orderTotal)}</strong>
+</div>
+<div class="groupCardItems">
+${order.items.map(row=>`
+<div class="groupCardItem ${isOpenedRow(row)?'opened':''}">
+<input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
+<span class="tag cargoTag" style="background:${esc(cargoDisplay(row).color)}">${esc(cargoDisplay(row).text)}</span>
+<span class="groupCardItemName">${esc(String(getGroupName(row)||'').trim()?String(getGroupName(row)||'').trim()+'｜':'')}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
+<span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span>
+</div>
+`).join('')}
+</div>
+<div class="groupCardMeta" data-rows="${esc(orderRows)}">
+<span>${esc(formatOnlineTime(order.time))}</span>
+<select class="orderPayment" onchange="handleOrderPaymentChange(this)">
+<option value="">付款方式</option>
+<option value="中信" ${payment==='中信'?'selected':''}>中信</option>
+<option value="LB" ${payment==='LB'?'selected':''}>LB</option>
+<option value="LP" ${payment==='LP'?'selected':''}>LP</option>
+<option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
+</select>
+<span class="orderLast5" style="display:${showLast5?'inline':'none'}">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" placeholder="後五碼" onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+<span>訂金 <input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" value="${deposit===''?'':esc(String(deposit).replace(/[^\d]/g,''))}" placeholder="訂金" onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+</div>
+</div>
+`;
+});
+html+=`
+</div>
+<button class="btn green shipFab" onclick="createSelectedShip()">出貨ㄛ</button>
+</div>`;
+res.innerHTML=html;
+}
+/* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
 function openCustomer(name){
 const target=String(name).trim();
-onlineRows=
-onlineRows.filter(x=>
-String(
-getCustomerName(x)||''
-).trim()===target
-);
+const rows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===target);
 onlineSearchText=target;
 onlineCargo='';
 isCustomerView=true;
@@ -1708,124 +1894,47 @@ const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 const input=document.getElementById('customerSearch');
 if(input)input.value=target;
-showOnlineRows(onlineRows)
+showOrderCards(rows,target)
 }
-/* =========================================================
-   團名：直接使用已載入資料
-========================================================= */
+/* 點擊團名後，同一團內仍依顧客與下單時間各自成卡。 */
 function openGroup(group){
 const target=String(group).trim();
-const rows=
-onlineRows.filter(x=>
-String(
-getGroupName(x)||''
-).trim()===target
-);
-const customers={};
-rows.forEach(x=>{
-const name=getCustomerName(x)||'未填姓名';
-if(!customers[name]){
-customers[name]=[];
-}
-customers[name].push(x.data);
-});
-const list=
-Object.keys(customers).map(name=>({
-name,
-items:customers[name]
-}));
-let totalAmount=0;
-list.forEach(c=>{
-(c.items||[]).forEach(item=>{
-totalAmount+=Number(
-item['售價']||
-item['價格']||
-0
-);
-});
-});
-let html=`
-<div class="card">
-<div class="cardHead groupSummary">
-<span>
-跟團${list.length}人｜
-總金額$${money(totalAmount)}
-</span>
-</div>
-<div class="groupCards">
-`;
-list.forEach(c=>{
-const items=c.items||[];
-let customerTotal=0;
-items.forEach(item=>{
-customerTotal+=Number(
-item['售價']||
-item['價格']||
-0
-);
-});
-const firstItem=items[0]||{};
-const time=
-firstItem['時間']||
-firstItem['購買時間']||
-'';
-html+=`
-<div class="groupCard">
-<div class="groupCardCustomer">
-<button
-class="customerLink"
-onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>
-${esc(c.name||'')}
-</button>
-</div>
-<div class="groupCardItems">
-${items.map(
-item=>
-`
-<div class="groupCardItem">
-<span class="groupCardItemName">
-${esc(
-item['名稱']||
-item['商品名稱']||
-''
-)}
-</span>
-<span class="groupCardItemPrice">
-$${money(
-item['售價']||
-item['價格']||
-0
-)}
-</span>
-</div>
-`
-).join('')}
-</div>
-<div class="groupCardBottom">
-<span>
-${esc(formatOnlineTime(time))}
-</span>
-<strong>
-總金額 $${money(customerTotal)}
-</strong>
-</div>
-</div>
-`;
-});
-html+=`
-</div>
-</div>
-`;
-const res=document.getElementById('onlineResult');
-if(res)res.innerHTML=html;
-isGroupView=true;
-isCustomerView=false;
+const rows=onlineRows.filter(row=>String(getGroupName(row)||'').trim()===target);
 onlineSearchText=target;
 onlineCargo='';
+isGroupView=true;
+isCustomerView=false;
 const input=document.getElementById('customerSearch');
 if(input)input.value=target;
 const f=document.getElementById('cargoFilter');
 if(f)f.value='';
+showOrderCards(rows,target)
+}
+function handleOrderPaymentChange(select){
+const meta=select.closest('.groupCardMeta');
+const needsCode=['中信','LB'].includes(select.value);
+const codeBox=meta.querySelector('.orderLast5');
+if(codeBox)codeBox.style.display=needsCode?'inline':'none';
+saveOrderPayment(meta)
+}
+async function saveOrderPayment(meta){
+if(!meta)return;
+const payment=meta.querySelector('.orderPayment').value;
+if(!payment)return;
+const rows=(meta.dataset.rows||'')
+.split(',')
+.map(Number)
+.filter(Boolean);
+try{
+await api('saveOnlinePayment',{
+rows:JSON.stringify(rows),
+payment,
+last5:meta.querySelector('.orderLast5Input')?.value||'',
+deposit:meta.querySelector('.orderDepositInput')?.value||''
+});
+}catch(e){
+alert('付款資料儲存失敗：'+e.message)
+}
 }
 /* =========================================================
    出貨
