@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -65,13 +64,20 @@ display:flex;
 border-top:1px solid var(--border);
 z-index:1000
 }
-.nav button{
+.nav button,
+.nav a{
 flex:1;
 border:0;
 background:none;
 color:#999;
 font-weight:700;
 font-size:16px
+}
+.nav a{
+display:flex;
+align-items:center;
+justify-content:center;
+text-decoration:none
 }
 .nav button.active{
 color:var(--main);
@@ -626,7 +632,8 @@ padding:8px
 .nav{
 height:50px
 }
-.nav button{
+.nav button,
+.nav a{
 font-size:13px
 }
 .storePage{
@@ -793,6 +800,7 @@ font-size:13px
 <body>
 <div class="top">JIWU吉物販售</div>
 <div class="nav">
+<button id="btn-buy" onclick="tab('buy',this)">敗家</button>
 <button id="btn-store" class="active" onclick="tab('store',this)">店面</button>
 <button id="btn-online" onclick="tab('online',this)">線上</button>
 <button id="btn-ship" onclick="tab('ship',this)">出貨</button>
@@ -1008,6 +1016,9 @@ sessionStorage.setItem(
 'jiwu_current_tab',
 name
 );
+if(name==='buy'){
+document.getElementById('app').innerHTML='<iframe title="敗家" src="https://jiwusales.github.io/wkbuyit/index.html" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>';
+}
 if(name==='store'){
 renderStore();
 }
