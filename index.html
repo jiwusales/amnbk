@@ -22,6 +22,7 @@ input,select{border:1px solid #ddd;background:#fff;color:var(--text);border-radi
 input:focus,select:focus{border-color:#aaa}
 .btn{border:0;border-radius:9px;padding:9px 14px;background:var(--main);color:#fff;font-weight:700}
 .btn.light{background:#e9e9e9;color:#666}.btn.green{background:var(--green)}.btn.red{background:var(--red)}
+.mobileShortcut{display:none}
 .card{background:var(--card);border:1px solid var(--border);border-radius:13px;box-shadow:0 2px 9px rgba(0,0,0,.035);overflow:hidden}
 .cardHead{min-height:46px;padding:11px 15px;background:#f8f8f8;border-bottom:1px solid var(--border);font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .empty,.loading{text-align:center;padding:30px;color:#aaa}.total{font-size:25px;font-weight:800}
@@ -36,7 +37,6 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 .storePage{height:100%;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.75fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .storeManual{grid-column:1;grid-row:1}.storeMain{min-height:0;display:flex;flex-direction:column;grid-column:1;grid-row:2}.storeCheckout{min-height:0;display:flex;flex-direction:column;grid-column:2;grid-row:1/3}
 .storeMainBody{padding:12px;min-height:0;display:flex;flex-direction:column}.storeSearch{display:flex;gap:6px;flex-shrink:0}.storeSearch input{flex:1;min-width:0}
-.mobile-shortcuts{display:none}
 .cart{min-height:0;overflow-y:auto;margin-top:8px;padding-right:3px}.cartItem{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid #eee}
 .cartName{flex:1;min-width:0}.cartSub{color:#999;font-size:12px;margin-top:3px}.qty{display:flex;align-items:center;gap:5px;flex-shrink:0}
 .qty button{width:28px;height:28px;border:0;border-radius:6px;background:#eee;color:#666}
@@ -48,8 +48,7 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 .onlinePage{height:100%;display:flex;flex-direction:column;gap:10px}.onlineToolbar{flex-shrink:0;display:flex;gap:8px}.onlineToolbar input{flex:1;min-width:0}
 .onlineResult{min-height:0;flex:1;overflow:auto}.onlineTable{min-width:850px}
 .onlineTable th:nth-child(1){width:5%}.onlineTable th:nth-child(2){width:12%}.onlineTable th:nth-child(3){width:10%}.onlineTable th:nth-child(4){width:9%}.onlineTable th:nth-child(5){width:22%}.onlineTable th:nth-child(6){width:15%}.onlineTable th:nth-child(7){width:8%}.onlineTable th:nth-child(8){width:8%}.onlineTable th:nth-child(9){width:8%}
-.groupSummary{font-size:16px;font-weight:400}
-.groupCards{padding:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:stretch}
+.groupSummary{font-size:16px;font-weight:400}.groupCards{padding:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:stretch}
 .groupCard{height:240px;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
 .groupCardCustomer{padding:10px 13px;background:#f7f7f7;border-bottom:1px solid #eee;flex-shrink:0;font-size:14px}
 .groupCardItems{flex:1;min-height:0;overflow-y:auto;padding:3px 13px}.groupCardItem{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
@@ -58,10 +57,11 @@ th{background:#f5f5f5;color:#777;font-weight:700}tr:hover td{background:#fafafa}
 .shipPage{height:100%;overflow:auto}.shipItem{padding:10px 15px;border-top:1px solid #eee;display:flex;gap:12px;align-items:center}
 @media(max-width:850px){
 html,body{overflow:hidden}.top{height:52px;font-size:20px}.page{height:calc(100dvh - 110px);padding:8px}.nav{height:58px}.nav button{font-size:14px}
-.storePage{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr)}.storeManual,.storeMain,.storeCheckout{grid-column:auto;grid-row:auto}
-.manualBox{grid-template-columns:1fr 100px}.manualBox button{grid-column:1/-1}.payment{grid-template-columns:repeat(5,1fr)}.payment button{font-size:12px;padding:7px 2px}
-.storeSearch{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px}.storeSearch input{width:100%;min-width:0}.storeSearch>.btn{padding:9px 10px}
-.mobile-shortcuts{display:contents}
+.storePage{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,.8fr)}
+.storeManual,.storeMain,.storeCheckout{grid-column:auto;grid-row:auto}
+.manualBox{grid-template-columns:1fr 100px}.manualBox button{grid-column:1/-1}
+.storeSearch{flex-wrap:wrap}.storeSearch input{flex:1 1 100%;width:100%}.storeSearch>.btn{flex:1;min-width:0}.mobileShortcut{display:inline-block}
+.payment{grid-template-columns:repeat(5,1fr)}.payment button{font-size:12px;padding:7px 2px}
 .onlineToolbar{flex-wrap:wrap}.onlineToolbar input{flex-basis:100%}
 .groupCards{grid-template-columns:repeat(2,1fr)}.groupCard{height:220px}
 table.onlineTable{min-width:0!important;table-layout:auto!important}
@@ -81,21 +81,39 @@ table.onlineTable{min-width:0!important;table-layout:auto!important}
 </div>
 <div id="app" class="page"></div>
 <script>
-const API_URL='https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJrSnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbwO8Ei2br6r4DPiwkjZdIecnNwJr5pnJRHUj847y9abvVQ8-VoThPdL4ZKDLPZXiaWqX/exec';
 let onlineRows=[],onlineHeaders=[],storeCart=[],payment='',salesperson='',onlineSearchText='',onlineCargo='現貨',isCustomerView=false;
 
-function api(action,params={},retry=0){
+function api(action,params={}){
+const retryable=[‘storeProduct’,‘online’,‘onlineCustomer’,‘group’,‘ship’].includes(action);
 return new Promise((resolve,reject)=>{
-const cb=‘cb_’+Date.now()+’_’+Math.random().toString(36).slice(2),s=document.createElement(‘script’);let finished=false;
-const cleanup=()=>{if(finished)return;finished=true;delete window[cb];if(s.parentNode)s.parentNode.removeChild(s)};
-const fail=msg=>{cleanup();if(retry<2){setTimeout(()=>api(action,params,retry+1).then(resolve).catch(reject),700)}else reject(new Error(msg))};
-window[cb]=data=>{cleanup();if(data&&data.ok===false){if(retry<2){setTimeout(()=>api(action,params,retry+1).then(resolve).catch(reject),700)}else reject(new Error(data.error||‘GAS 錯誤’));return}resolve(data)};
-s.onerror=()=>fail(‘無法連線 GAS’);
+let attempt=0,done=false;
+const run=()=>{
+attempt++;
+const cb=‘cb_’+Date.now()+’_’+Math.random().toString(36).slice(2),s=document.createElement(‘script’);
+let timer=null;
+const cleanup=()=>{if(timer)clearTimeout(timer);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s)};
+window[cb]=data=>{
+if(done)return;
+done=true;cleanup();
+if(data&&data.ok===false){reject(new Error(data.error||‘GAS 錯誤’));return}
+resolve(data)
+};
+s.onerror=()=>{
+cleanup();
+if(retryable&&attempt<2){setTimeout(run,300);return}
+if(!done){done=true;reject(new Error(‘無法連線 GAS’))}
+};
 const q=new URLSearchParams({action,callback:cb,_t:Date.now(),…params});
-s.src=API_URL+’?’+q.toString();
-s.async=true;
+s.src=API_URL+’?’+q.toString();s.async=true;
 (document.head||document.body).appendChild(s);
-setTimeout(()=>{if(!finished)fail(‘無法連線 GAS’)},12000)
+timer=setTimeout(()=>{
+cleanup();
+if(retryable&&attempt<2){setTimeout(run,300);return}
+if(!done){done=true;reject(new Error(‘GAS 連線逾時’))}
+},15000);
+};
+run()
 })
 }
 
@@ -159,7 +177,8 @@ if(el)el.classList.add(‘active’)
 }
 
 function runShortcut(name){
-window.location.href=‘shortcuts://run-shortcut?name=’+encodeURIComponent(name)
+if(window.innerWidth>850)return;
+location.href=‘shortcuts://run-shortcut?name=’+encodeURIComponent(name)
 }
 
 function renderStore(){
@@ -168,7 +187,7 @@ const app=document.getElementById(‘app’);
 app.innerHTML=`
 
  <div class="card storeManual"><div class="cardHead"><span>手動新增商品</span></div><div class="manualBox"><input id="manualName" placeholder="商品名稱"><input id="manualPrice" type="number" min="0" placeholder="金額"><button class="btn" onclick="addManualProduct()">加入</button></div></div>
- <div class="card storeMain"><div class="cardHead"><span>商品清單</span><span style="color:#999;font-size:13px">${storeCart.length} 項</span></div><div class="storeMainBody"><div class="storeSearch"><input id="barcode" autofocus placeholder="掃描或輸入貨號"><button class="btn" onclick="scan()">加入</button><button class="btn light mobile-shortcuts" onclick="runShortcut('吉物花花')">花花</button><button class="btn light mobile-shortcuts" onclick="runShortcut('吉物小法師')">小法師</button></div><div id="storeCart" class="cart"></div></div></div>
+ <div class="card storeMain"><div class="cardHead"><span>商品清單</span><span style="color:#999;font-size:13px">${storeCart.length} 項</span></div><div class="storeMainBody"><div class="storeSearch"><input id="barcode" autofocus placeholder="掃描或輸入貨號"><button class="btn" onclick="scan()">加入</button><button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')">花花</button><button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師')">小法師</button></div><div id="storeCart" class="cart"></div></div></div>
  <div class="card storeCheckout"><div class="cardHead"><span>結帳</span></div><div class="checkoutBody">
  <div style="color:#999;font-size:13px">總金額</div><div class="total" id="storeTotal">$0</div>
  <div style="margin-top:12px"><div style="color:#999;font-size:13px;margin-bottom:6px">銷售員</div><div class="salesperson"><button class="${salesperson==='花花'?'active':''}" onclick="setSalesperson(this,'花花')">花花</button><button class="${salesperson==='小法師'?'active':''}" onclick="setSalesperson(this,'小法師')">小法師</button></div></div>
@@ -178,10 +197,8 @@ app.innerHTML=`
  <div style="margin-top:10px"><input id="storeNote" placeholder="備註" style="width:100%"></div><div id="changeText" class="changeText"></div>
  <button class="btn green" style="width:100%;height:44px;margin-top:12px" onclick="checkout()">結帳完成</button>
  </div></div></div>`;
- const barcode=document.getElementById('barcode');
- if(barcode)barcode.addEventListener('keydown',e=>{if(e.key==='Enter')scan()});
- const received=document.getElementById('received');
- if(received)received.addEventListener('input',calcChange);
+ document.getElementById('barcode').addEventListener('keydown',e=>{if(e.key==='Enter')scan()});
+ document.getElementById('received').addEventListener('input',calcChange);
  renderCart()
 }
 
@@ -190,12 +207,11 @@ const input=document.getElementById(‘barcode’),code=input.value.trim();
 if(!code)return;
 try{
 const d=await api(‘storeProduct’,{code,salesperson});
-if(!d||!d.ok){alert(d&&d.error||‘找不到商品’);input.select();return}
+if(!d.ok){alert(d.error||‘找不到商品’);input.select();return}
 if(d.salesperson===‘花花’||d.salesperson===‘小法師’){
 salesperson=d.salesperson;
 document.querySelectorAll(’.salesperson button’).forEach(x=>x.classList.toggle(‘active’,x.textContent.trim()===salesperson))
 }
-if(!d.product){alert(‘找不到商品’);input.select();return}
 const old=storeCart.find(x=>x.code===d.product.code&&!x.manual);
 if(old)old.qty++;else storeCart.push({…d.product,qty:1,manual:false});
 input.value=’’;input.focus();renderCart()
