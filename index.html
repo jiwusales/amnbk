@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -478,6 +479,8 @@ border-radius:6px;
 font-size:12px;
 text-align:center
 }
+.orderLast5{white-space:nowrap}
+.orderLast5 input:disabled{background:#f2f2f2;color:#aaa}
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
 .orderPayment{
 width:62px;
@@ -495,6 +498,18 @@ height:48px;
 border-radius:24px;
 box-shadow:0 5px 14px rgba(0,0,0,.22)
 }
+.shipFabMobile{display:none}
+.onlineIconButton{
+width:42px;
+min-width:42px;
+padding:0;
+background-repeat:no-repeat!important;
+background-position:center!important;
+background-size:contain!important;
+color:transparent!important
+}
+.onlineSearchButton{background-image:url('https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260922204834_37d0f4ff.png')!important}
+.onlineRefreshButton{background-image:url('https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260922204703_5dd34c41.png')!important}
 .cargoTag{color:#fff!important}
 /* 出貨 */
 .shipPage{
@@ -628,18 +643,24 @@ grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)
 .checkoutQuick .salesperson{gap:5px}
 .salesperson button{padding:8px 3px}
 .onlineToolbar{
-flex-wrap:wrap
+flex-wrap:nowrap;
+gap:5px
 }
 .onlineToolbar input{
-flex-basis:100%
+flex:1 1 0;
+min-width:0
 }
+.onlineToolbar select{width:72px;min-width:72px;padding:8px 3px}
 .groupCards{
 grid-template-columns:1fr
 }
 .groupCard{
-height:275px
+height:auto;
+max-height:275px
 }
 .shipFab{right:14px;bottom:68px}
+.shipFabDesktop{display:none}
+.shipFabMobile{display:inline}
 table.onlineTable{
 min-width:0!important;
 table-layout:fixed!important
@@ -1338,16 +1359,16 @@ app.innerHTML=`
 <div class="onlinePage">
 <div class="onlineToolbar">
 <input id="customerSearch" placeholder="搜尋顧客名稱／團名／月份（例如 9月）">
-<button class="btn" onclick="searchOnline()">搜尋</button>
+<button class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="現貨">現貨</option>
-<option value="">全部</option>
 <option value="已訂購">已訂購</option>
-<option value="已開單">已開單</option>
-<option value="補貨登記">補貨登記</option>
 <option value="受注">受注</option>
+<option value="補貨登記">補登</option>
+<option value="">全部</option>
+<option value="已開單">已開單</option>
 </select>
-<button class="btn light" onclick="loadOnline(true)">重新整理</button>
+<button class="btn light onlineIconButton onlineRefreshButton" onclick="loadOnline(true)" aria-label="重新整理">重新整理</button>
 </div>
 <div id="onlineResult" class="onlineResult">
 ${onlineRows.length?'':'<div class="card"><div class="loading">載入中…</div></div>'}
@@ -1882,6 +1903,11 @@ const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
 const payment=normalizePayment(getPaymentMethod(order.items[0]))||'中信';
 const acceptsLast5=payment==='中信'||payment==='LB';
 const orderRows=order.items.map(row=>row.row).join(',');
+const paymentCommitted=last5!=='';
+const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
+const depositMarkup=deposit===''?
+'<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
+:'訂金 $'+money(deposit);
 html+=`
 <div class="groupCard">
 <div class="groupCardCustomer">
@@ -1902,21 +1928,26 @@ ${order.items.map(row=>`
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}">
 <span>${esc(formatOnlineTime(order.time))}</span>
-<span class="orderLast5">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" placeholder="後五碼" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+${openedWithoutPayment?'':paymentCommitted?`
+<span class="orderLast5">${esc(last5)}</span>
+<span class="orderDeposit">${depositMarkup}</span>
+`:`
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
 <option value="中信" ${payment==='中信'?'selected':''}>中信</option>
 <option value="LB" ${payment==='LB'?'selected':''}>LB</option>
 <option value="LP" ${payment==='LP'?'selected':''}>LP</option>
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
-<span class="orderDeposit">訂金 ${deposit===''?'<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="訂金" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">':'$'+money(deposit)}</span>
+<span class="orderLast5"><input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+<span class="orderDeposit">${depositMarkup}</span>
+`}
 </div>
 </div>
 `;
 });
 html+=`
 </div>
-<button class="btn green shipFab" onclick="createSelectedShip()">出貨ㄛ</button>
+<button class="btn green shipFab" onclick="createSelectedShip()"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
 </div>`;
 res.innerHTML=html;
 }
@@ -1953,12 +1984,14 @@ const meta=select.closest('.groupCardMeta');
 const needsCode=['中信','LB'].includes(select.value);
 const input=meta.querySelector('.orderLast5Input');
 if(input)input.disabled=!needsCode;
-saveOrderPayment(meta)
+if(!needsCode)saveOrderPayment(meta)
 }
 async function saveOrderPayment(meta){
 if(!meta)return;
 const payment=meta.querySelector('.orderPayment').value;
 if(!payment)return;
+const last5=meta.querySelector('.orderLast5Input')?.value.trim()||'';
+if(['中信','LB'].includes(payment)&&!last5)return;
 const rows=(meta.dataset.rows||'')
 .split(',')
 .map(Number)
@@ -1967,7 +2000,7 @@ try{
 await api('saveOnlinePayment',{
 rows:JSON.stringify(rows),
 payment,
-last5:['中信','LB'].includes(payment)?(meta.querySelector('.orderLast5Input')?.value||''):'',
+last5:['中信','LB'].includes(payment)?last5:'',
 deposit:meta.querySelector('.orderDepositInput')?.value||''
 });
 }catch(e){
