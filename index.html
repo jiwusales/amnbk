@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -735,6 +734,9 @@ let payment='';
 let salesperson='';
 let onlineSearchText='';
 let onlineCargo='現貨';
+let onlineLoadedAt=0;
+let onlineLoadPromise=null;
+const ONLINE_CACHE_MS=5*60*1000;
 let isCustomerView=false;
 let isGroupView=false;
 /* =========================================================
@@ -1335,9 +1337,9 @@ const app=document.getElementById('app');
 app.innerHTML=`
 <div class="onlinePage">
 <div class="onlineToolbar">
-<input id="customerSearch" placeholder="搜尋顧客名稱／團名">
+<input id="customerSearch" placeholder="搜尋顧客名稱／團名／月份（例如 9月）">
 <button class="btn" onclick="searchOnline()">搜尋</button>
-<select id="cargoFilter">
+<select id="cargoFilter" onchange="filterCargo()">
 <option value="現貨">現貨</option>
 <option value="">全部</option>
 <option value="已訂購">已訂購</option>
@@ -1345,13 +1347,10 @@ app.innerHTML=`
 <option value="補貨登記">補貨登記</option>
 <option value="受注">受注</option>
 </select>
-<button class="btn light" onclick="filterCargo()">篩選</button>
-<button class="btn light" onclick="loadOnline()">重新整理</button>
+<button class="btn light" onclick="loadOnline(true)">重新整理</button>
 </div>
 <div id="onlineResult" class="onlineResult">
-<div class="card">
-<div class="loading">載入中…</div>
-</div>
+${onlineRows.length?'':'<div class="card"><div class="loading">載入中…</div></div>'}
 </div>
 </div>
 `;
@@ -1362,21 +1361,39 @@ f.value=onlineCargo;
 input.addEventListener('keydown',e=>{
 if(e.key==='Enter')searchOnline();
 });
-loadOnline()
+if(onlineRows.length){
+applyOnlineFilter();
+loadOnline(false,true);
+}else{
+loadOnline();
 }
-async function loadOnline(){
+}
+async function loadOnline(force=false,background=false){
 isCustomerView=false;
 isGroupView=false;
 try{
-const d=await api('online');
+if(!force&&onlineRows.length&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
+applyOnlineFilter();
+return
+}
+if(!force&&onlineLoadPromise){
+await onlineLoadPromise;
+applyOnlineFilter();
+return
+}
+onlineLoadPromise=api('online');
+const d=await onlineLoadPromise;
 onlineRows=d.rows||[];
 onlineHeaders=d.headers||[];
-applyOnlineFilter(false);
+onlineLoadedAt=Date.now();
+applyOnlineFilter();
 }catch(e){
 const res=document.getElementById('onlineResult');
-if(res){
+if(res&&!background&&!onlineRows.length){
 res.innerHTML=`<div class="empty">${esc(e.message)}</div>`;
 }
+}finally{
+onlineLoadPromise=null;
 }
 }
 async function searchOnline(){
@@ -1437,7 +1454,9 @@ return isTruthy(status)||status==='已訂購'
 ?{text:'訂',color:'#FBB550'}
 :{text:'未',color:'#E78790'}
 }
-if(/^\d{1,2}月$/.test(raw))return {text:raw,color:'#85C2D0'};
+if(/^\d{1,2}月$/.test(raw)){
+return {text:raw.replace('月','').padStart(2,'0'),color:'#85C2D0'}
+}
 if(category==='補貨登記')return {text:'補',color:'#7E88A0'};
 if(category==='現貨')return {text:'現',color:'#DABBD8'};
 return {text:raw,color:'#8ca7b2'}
@@ -1471,10 +1490,27 @@ return ''
 function paymentLast5Value(v){
 return String(v||'').replace(/\D/g,'').slice(-5)
 }
+function onlineMonthNumber(v){
+const s=String(v||'').trim();
+let m=s.match(/^\d{4}[-\/](\d{1,2})[-\/]/);
+if(m)return Number(m[1]);
+m=s.match(/^(\d{1,2})[-\/](\d{1,2})/);
+if(m)return Number(m[1]);
+const d=new Date(s);
+return Number.isNaN(d.getTime())?0:d.getMonth()+1
+}
+function onlineSummaryTitle(){
+if(onlineCargo==='現貨')return '可出貨';
+if(onlineCargo)return onlineCargo;
+if(onlineSearchText)return onlineSearchText;
+return '全部'
+}
 function applyOnlineFilter(){
 let rows=[...onlineRows];
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
+const monthMatch=key.match(/^(\d{1,2})月$/);
+const wantedMonth=monthMatch?Number(monthMatch[1]):0;
 rows=rows.filter(x=>{
 const customer=
 String(
@@ -1502,6 +1538,9 @@ x,
 const time=String(
 getOnlineData(x,['時間','購買時間'])||''
 );
+if(wantedMonth){
+return onlineMonthNumber(time)===wantedMonth;
+}
 const dateKey=time.replace(/\D/g,'');
 const searchDate=key.replace(/\D/g,'');
 return(
@@ -1628,7 +1667,7 @@ if(!rows.length){
 res.innerHTML='<div class="empty">沒有符合的資料</div>';
 return
 }
-showOrderCards(rows,onlineSearchText||'線上訂單');
+showOrderCards(rows,onlineSummaryTitle());
 return;
 let totalSum=0;
 rows.forEach(x=>{
@@ -1829,7 +1868,7 @@ totalAmount+=Number(getOnlineData(row,['售價','價格'])||0);
 let html=`
 <div class="card">
 <div class="cardHead groupSummary">
-<span>${esc(summary)}｜${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
+<span>${esc(summary||'可出貨')}｜${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
 </div>
 <div class="groupCards">
 `;
@@ -1840,8 +1879,8 @@ orderTotal+=Number(getOnlineData(row,['售價','價格'])||0);
 });
 const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
 const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
-const payment=normalizePayment(getPaymentMethod(order.items[0]));
-const showLast5=payment==='中信'||payment==='LB';
+const payment=normalizePayment(getPaymentMethod(order.items[0]))||'中信';
+const acceptsLast5=payment==='中信'||payment==='LB';
 const orderRows=order.items.map(row=>row.row).join(',');
 html+=`
 <div class="groupCard">
@@ -1863,15 +1902,14 @@ ${order.items.map(row=>`
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}">
 <span>${esc(formatOnlineTime(order.time))}</span>
+<span class="orderLast5">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" placeholder="後五碼" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
-<option value="">付款方式</option>
 <option value="中信" ${payment==='中信'?'selected':''}>中信</option>
 <option value="LB" ${payment==='LB'?'selected':''}>LB</option>
 <option value="LP" ${payment==='LP'?'selected':''}>LP</option>
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
-<span class="orderLast5" style="display:${showLast5?'inline':'none'}">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" placeholder="後五碼" onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
-<span>訂金 <input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" value="${deposit===''?'':esc(String(deposit).replace(/[^\d]/g,''))}" placeholder="訂金" onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+<span class="orderDeposit">訂金 ${deposit===''?'<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="訂金" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">':'$'+money(deposit)}</span>
 </div>
 </div>
 `;
@@ -1913,8 +1951,8 @@ showOrderCards(rows,target)
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
 const needsCode=['中信','LB'].includes(select.value);
-const codeBox=meta.querySelector('.orderLast5');
-if(codeBox)codeBox.style.display=needsCode?'inline':'none';
+const input=meta.querySelector('.orderLast5Input');
+if(input)input.disabled=!needsCode;
 saveOrderPayment(meta)
 }
 async function saveOrderPayment(meta){
@@ -1929,7 +1967,7 @@ try{
 await api('saveOnlinePayment',{
 rows:JSON.stringify(rows),
 payment,
-last5:meta.querySelector('.orderLast5Input')?.value||'',
+last5:['中信','LB'].includes(payment)?(meta.querySelector('.orderLast5Input')?.value||''):'',
 deposit:meta.querySelector('.orderDepositInput')?.value||''
 });
 }catch(e){
@@ -2359,6 +2397,9 @@ tab(
 savedTab,
 targetBtn
 );
+if(savedTab!=='online'){
+setTimeout(()=>loadOnline(false,true),0);
+}
 </script>
 </body>
 </html>
