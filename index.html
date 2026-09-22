@@ -293,6 +293,10 @@ border-radius:6px;
 background:#eee;
 color:#666
 }
+.qty .removeCartButton{
+background:#E78790!important;
+color:#fff!important
+}
 .manualBox{
 display:grid;
 grid-template-columns:1fr 130px auto;
@@ -365,6 +369,9 @@ flex-shrink:0;
 display:flex;
 gap:8px
 }
+.onlineToolbar input,
+.onlineToolbar select,
+.onlineToolbar button{height:44px}
 .onlineToolbar input{
 flex:1;
 min-width:0
@@ -415,10 +422,11 @@ border-bottom:1px solid #eee;
 flex-shrink:0;
 font-size:14px;
 display:flex;
-justify-content:space-between;
+justify-content:flex-start;
 gap:8px;
 align-items:center
 }
+.groupCardCustomer .groupCardTotal{margin-left:auto}
 .groupCardItems{
 flex:1;
 min-height:0;
@@ -483,7 +491,22 @@ text-align:center
 .orderLast5{white-space:nowrap}
 .orderLast5 input:disabled{background:#f2f2f2;color:#aaa}
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
-.faceToFaceTag{padding:2px 5px;font-size:10px;background:#f3e0c0;color:#8a6730}
+.faceToFaceTag{
+border:0;
+padding:2px 5px;
+font-size:10px;
+background:transparent;
+color:#555
+}
+.faceToFaceTag.active{background:#FAB460;color:#fff;border-radius:5px}
+.faceToggle{
+border:0;
+background:transparent;
+color:#8a6730;
+padding:2px 4px;
+font-size:11px
+}
+.faceToggle.active{background:#FAB460;color:#fff;border-radius:5px}
 .orderPayment{
 width:62px;
 padding:4px 3px;
@@ -507,7 +530,7 @@ min-width:42px;
 padding:0;
 background-repeat:no-repeat!important;
 background-position:center!important;
-background-size:80%!important;
+background-size:50%!important;
 color:transparent!important
 }
 .onlineSearchButton{background-image:url('https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260922205838_23cab617.png')!important}
@@ -597,14 +620,14 @@ height:52px;
 font-size:20px
 }
 .page{
-height:calc(100dvh - 110px);
+height:calc(100dvh - 102px);
 padding:8px
 }
 .nav{
-height:58px
+height:50px
 }
 .nav button{
-font-size:14px
+font-size:13px
 }
 .storePage{
 grid-template-columns:1fr;
@@ -795,11 +818,13 @@ let isGroupView=false;
 function api(action,params={}){
 const retryable=[
 'storeProduct',
+'storeActiveSalesperson',
 'online',
 'onlineCustomer',
 'group',
 'ship',
-'saveOnlinePayment'
+'saveOnlinePayment',
+'setOnlineFaceToFace'
 ].includes(action);
 return new Promise((resolve,reject)=>{
 let attempt=0;
@@ -1059,9 +1084,7 @@ function startStoreCartSync(){
 stopStoreCartSync();
 storeCartSyncTimer=setInterval(()=>{
 const current=sessionStorage.getItem('jiwu_current_tab');
-if(current==='store'&&salesperson){
-loadStoreCart();
-}
+if(current==='store')syncActiveStoreSalesperson();
 },1500);
 }
 function stopStoreCartSync(){
@@ -1085,6 +1108,21 @@ salesperson=user;
 localStorage.setItem('jiwu_salesperson',user);
 }
 return salesperson;
+}
+async function syncActiveStoreSalesperson(){
+try{
+const d=await api('storeActiveSalesperson');
+const active=d.salesperson||'';
+if(active&&(active!==salesperson)){
+salesperson=active;
+localStorage.setItem('jiwu_salesperson',salesperson);
+renderStore();
+return
+}
+if(salesperson)loadStoreCart();
+}catch(e){
+console.error('讀取目前銷售員失敗',e)
+}
 }
 async function setSalesperson(el,v){
 salesperson=v;
@@ -1169,10 +1207,9 @@ if(e.key==='Enter')scan()
 });
 document.getElementById('received').addEventListener('input',calcChange);
 renderCart();
-if(salesperson){
-loadStoreCart();
+if(salesperson)loadStoreCart();
 startStoreCartSync();
-}
+syncActiveStoreSalesperson();
 }
 async function scan(){
 const input=document.getElementById('barcode');
@@ -1248,7 +1285,7 @@ $${money(x.price)}
 <button onclick="changeQty(${i},-1)">−</button>
 <b>${x.qty}</b>
 <button onclick="changeQty(${i},1)">＋</button>
-<button class="btn red" style="padding:4px 8px" onclick="removeCart(${i})">×</button>
+<button class="btn removeCartButton" style="padding:4px 8px" onclick="removeCart(${i})">×</button>
 </div>
 </div>
 `).join('');
@@ -1938,7 +1975,8 @@ orderTotal+=numberValue(getOnlineData(row,['售價','價格']));
 });
 const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
 const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
-const payment=normalizePayment(getPaymentMethod(order.items[0]))||'中信';
+const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
+const payment=storedPayment==='面交'?'中信':(storedPayment||'中信');
 const acceptsLast5=payment==='中信'||payment==='LB';
 const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
@@ -1950,10 +1988,15 @@ const depositMarkup=deposit===''?
 html+=`
 <div class="groupCard">
 <div class="groupCardCustomer">
+${isCustomerView?`
+<span>${esc(formatOnlineTime(order.time))}</span>
+<button class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
+`:`
 <button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${esc(order.customer)}
 </button>
-${faceToFace?'<span class="tag faceToFaceTag">面交</span>':''}
+<button class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
+`}
 <strong class="groupCardTotal">總金額 $${money(orderTotal)}</strong>
 </div>
 <div class="groupCardItems">
@@ -1977,7 +2020,6 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <option value="LB" ${payment==='LB'?'selected':''}>LB</option>
 <option value="LP" ${payment==='LP'?'selected':''}>LP</option>
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
-<option value="面交" ${payment==='面交'?'selected':''}>面交</option>
 </select>
 <span class="orderLast5">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
@@ -2019,6 +2061,18 @@ if(input)input.value=target;
 const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 showOrderCards(rows,target)
+}
+async function toggleFaceToFace(button,rows){
+const faceToFace=!button.classList.contains('active');
+try{
+await api('setOnlineFaceToFace',{
+rows:JSON.stringify(rows),
+enabled:faceToFace?'true':'false'
+});
+button.classList.toggle('active',faceToFace);
+}catch(e){
+alert('面交設定失敗：'+e.message)
+}
 }
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
