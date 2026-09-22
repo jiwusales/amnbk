@@ -166,7 +166,8 @@ function renderStore(){
  const app=document.getElementById('app');
  app.innerHTML=`<div class="storePage">
  <div class="card storeManual"><div class="cardHead"><span>手動新增商品</span></div><div class="manualBox"><input id="manualName" placeholder="商品名稱"><input id="manualPrice" type="number" min="0" placeholder="金額"><button class="btn" onclick="addManualProduct()">加入</button></div></div>
- <div class="card storeMain"><div class="cardHead"><span>商品清單</span><span style="color:#999;font-size:13px">${storeCart.length} 項</span></div><div class="storeMainBody"><div class="storeSearch"><input id="barcode" autofocus placeholder="掃描或輸入貨號"><button class="btn" onclick="scan()">加入</button><button class="btn light" onclick="runShortcut('掃碼輸入')">花花</button><button class="btn light" onclick="runShortcut('掃碼輸入（相片庫）')">小法師</button></div><div id="storeCart" class="cart"></div></div></div>
+ <div class="card storeMain"><div class="cardHead"><span>商品清單</span><span style="color:#999;font-size:13px">${storeCart.length} 項</span></div><div class="storeMainBody"><div class="storeSearch"><input id="barcode" autofocus placeholder="掃描或輸入貨號"><button class="btn" onclick="scan()">加入</button><button class="btn light" onclick="runShortcut('吉物花花')">花花</button>
+<button class="btn light" onclick="runShortcut('吉物小法師')">小法師</button></div><div id="storeCart" class="cart"></div></div></div>
  <div class="card storeCheckout"><div class="cardHead"><span>結帳</span></div><div class="checkoutBody">
  <div style="color:#999;font-size:13px">總金額</div><div class="total" id="storeTotal">$0</div>
  <div style="margin-top:12px"><div style="color:#999;font-size:13px;margin-bottom:6px">銷售員</div><div class="salesperson"><button class="${salesperson==='花花'?'active':''}" onclick="setSalesperson(this,'花花')">花花</button><button class="${salesperson==='小法師'?'active':''}" onclick="setSalesperson(this,'小法師')">小法師</button></div></div>
