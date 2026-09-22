@@ -421,7 +421,7 @@ const items=c.items||[];
 let customerTotal=0;
 items.forEach(item=>{customerTotal+=Number(item['售價']||0)});
 const firstItem=items[0]||{},time=firstItem['時間']||firstItem['購買時間']||'';
-html+=`<div class="groupCard"><div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div><div class="groupCardItems">${items.map(item=>`<div class="groupCardItem"><span class="groupCardItemName">${esc(item['名稱']\vert{}\vert{}item['商品名稱']\vert{}\vert{}'')}</span><span class="groupCardItemPrice">$${money(item['售價']||0)}</span></div>`).join('')}</div><div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div></div>`;
+html+=`<div class="groupCard"><div class="groupCardCustomer"><button class="customerLink" onclick='openCustomer(${JSON.stringify(String(c.name||''))})'>${esc(c.name||'')}</button></div><div class="groupCardItems">${items.map(item=>`<div class="groupCardItem"><span class="groupCardItemName">${esc(item['名稱']||item['商品名稱']||'')}</span><span class="groupCardItemPrice">$${money(item['售價']||0)}</span></div>`).join('')}</div><div class="groupCardBottom"><span>${esc(formatOnlineTime(time))}</span><strong>總金額 $${money(customerTotal)}</strong></div></div>`;
 });
 html+=`</div></div>`;
 const res=document.getElementById('onlineResult');
@@ -455,7 +455,7 @@ const batch=x.data[bi]||'',customer=x.data[ci]||'未填姓名',key=batch+'__'+cu
 if(!groups[key])groups[key]={batch,customer,items:[]};
 groups[key].items.push(x)
 });
-if(res)res.innerHTML=Object.values(groups).map(g=>`<div class="card" style="margin-bottom:10px"><div class="cardHead"><div>${esc(g.customer)}</div><div>${esc(g.batch)}</div></div>${g.items.map(x=>`<div class="shipItem"><input class="check" type="checkbox" ${x.data[si]==='已出貨'?'checked':''} onchange="updateShip(${x.row},this.checked)"><span>${esc(x.data[ni]||'')}</span><span>${esc(x.data[codei]\vert{}\vert{}'')}</span><span>${esc(x.data[ti]||'')}</span><span>${esc(formatOnlineTime(x.data[timei]\vert{}\vert{}''))}</span><span>$${money(x.data[pi]||0)}</span></div>`).join('')}</div>`).join('')
+if(res)res.innerHTML=Object.values(groups).map(g=>`<div class="card" style="margin-bottom:10px"><div class="cardHead"><div>${esc(g.customer)}</div><div>${esc(g.batch)}</div></div>${g.items.map(x=>`<div class="shipItem"><input class="check" type="checkbox" ${x.data[si]==='已出貨'?'checked':''} onchange="updateShip(${x.row},this.checked)"><span>${esc(x.data[ni]||'')}</span><span>${esc(x.data[codei]||'')}</span><span>${esc(x.data[ti]||'')}</span><span>${esc(formatOnlineTime(x.data[timei]||''))}</span><span>$${money(x.data[pi]||0)}</span></div>`).join('')}</div>`).join('');
 }catch(e){
 const res=document.getElementById('shipResult');
 if(res)res.innerHTML=`<div class="empty">${esc(e.message)}</div>`
