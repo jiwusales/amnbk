@@ -509,6 +509,7 @@ text-align:center
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
 .faceToFaceTag{
 border:0;
+.faceToFaceTag,.faceToggle{
 border:1px dashed #CBC3BC;
 border-radius:5px;
 padding:2px 5px;
@@ -518,13 +519,16 @@ color:#555
 color:#CBC3BC
 }
 .faceToFaceTag.active{background:#FAB460;color:#fff;border-radius:5px}
-.faceToFaceTag.active{background:#f6f4f2;color:#CBC3BC;border:1px dashed #CBC3BC;border-radius:5px}
 .faceToggle{
 border:0;
 background:transparent;
 color:#8a6730;
 padding:2px 4px;
 font-size:11px
+.faceToFaceTag.active,.faceToggle.active{
+background:#FDD365;
+color:#fff;
+border-color:#FDD365
 }
 .faceToggle.active{background:#FAB460;color:#fff;border-radius:5px}
 .orderPayment{
@@ -541,6 +545,8 @@ z-index:900;
 min-width:78px;
 height:48px;
 border-radius:24px;
+touch-action:none;
+user-select:none;
 box-shadow:0 5px 14px rgba(0,0,0,.22)
 }
 .shipFabMobile{display:none}
@@ -1198,7 +1204,7 @@ app.innerHTML=`
 <button class="btn" onclick="scan()">加入</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')">花花</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')">小法師</button>
-<button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">➕</span></button>
+<button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">＋</span></button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')" aria-label="花花" title="花花">✿</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')" aria-label="小法師" title="小法師">★</button>
 </div>
@@ -1860,6 +1866,7 @@ ${title}
 <th>運費</th>
 <th>訂金</th>
 <th>後五碼</th>
+<th aria-label="後五碼"></th>
 </tr>
 </thead>
 <tbody>
@@ -2037,6 +2044,7 @@ const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
 const faceToFace=order.items.some(row=>getPaymentMethod(row)==='面交');
+const faceToFace=order.items.some(isFaceToFace);
 const depositMarkup=deposit===''?
 '<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
 :'$'+money(deposit);
@@ -2046,11 +2054,13 @@ html+=`
 ${isCustomerView?`
 <span>${esc(formatOnlineTime(order.time))}</span>
 <button class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
+<button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
 <button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${esc(order.customer)}
 </button>
 <button class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
+<button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `}
 <strong class="groupCardTotal">總金額 $${money(orderTotal)}</strong>
 </div>
@@ -2068,6 +2078,7 @@ ${order.items.map(row=>`
 <span>${esc(formatOnlineTime(order.time))}</span>
 ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5">後五碼 ${esc(last5)}</span>
+<span class="orderLast5">${esc(last5)}</span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
 `:`
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
@@ -2077,6 +2088,7 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
 <span class="orderLast5">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
+<span class="orderLast5"><input class="orderLast5Input" aria-label="匯款後五碼" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
 `}
 </div>
@@ -2086,9 +2098,67 @@ ${openedWithoutPayment?'':paymentCommitted?`
 html+=`
 </div>
 <button class="btn green shipFab" onclick="createSelectedShip()"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
+<button class="btn green shipFab" aria-label="寶寶回家，拖曳可移動位置"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
 </div>`;
 res.innerHTML=html;
+syncFaceButtons();
+initShipFab();
 }
+let shipFabPosition=null;
+try{shipFabPosition=JSON.parse(sessionStorage.getItem('jiwu_ship_fab_position')||'null');}catch(_){}
+function placeShipFab(button,side,y){
+const gap=12;
+const maxX=Math.max(gap,window.innerWidth-button.offsetWidth-gap);
+const maxY=Math.max(gap,window.innerHeight-button.offsetHeight-gap);
+const top=Math.max(gap,Math.min(Number.isFinite(y)?y:maxY,maxY));
+button.style.right='auto';button.style.bottom='auto';
+button.style.left=(side==='left'?gap:maxX)+'px';
+button.style.top=top+'px';
+shipFabPosition={side:side==='left'?'left':'right',y:top};
+try{sessionStorage.setItem('jiwu_ship_fab_position',JSON.stringify(shipFabPosition));}catch(_){}
+}
+function initShipFab(){
+const button=document.querySelector('.shipFab');
+if(!button)return;
+if(shipFabPosition)placeShipFab(button,shipFabPosition.side,shipFabPosition.y);
+let drag=null,suppressClickUntil=0;
+button.addEventListener('pointerdown',e=>{
+if(!e.isPrimary||e.button!==0)return;
+const rect=button.getBoundingClientRect();
+drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:rect.left,top:rect.top,moved:false};
+button.setPointerCapture(e.pointerId);
+});
+button.addEventListener('pointermove',e=>{
+if(!drag||e.pointerId!==drag.id)return;
+const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+if(Math.hypot(dx,dy)>6)drag.moved=true;
+if(!drag.moved)return;
+button.style.right='auto';button.style.bottom='auto';
+button.style.left=Math.max(0,Math.min(drag.left+dx,window.innerWidth-button.offsetWidth))+'px';
+button.style.top=Math.max(0,Math.min(drag.top+dy,window.innerHeight-button.offsetHeight))+'px';
+});
+const finish=e=>{
+if(!drag||e.pointerId!==drag.id)return;
+if(drag.moved){
+suppressClickUntil=Date.now()+500;
+const rect=button.getBoundingClientRect();
+placeShipFab(button,rect.left+rect.width/2<window.innerWidth/2?'left':'right',rect.top);
+}
+if(e.type==='pointercancel')suppressClickUntil=Date.now()+500;
+drag=null;
+if(button.hasPointerCapture(e.pointerId))button.releasePointerCapture(e.pointerId);
+};
+button.addEventListener('pointerup',finish);
+button.addEventListener('pointercancel',finish);
+button.addEventListener('click',e=>{
+if(Date.now()<suppressClickUntil){e.preventDefault();return;}
+createSelectedShip();
+});
+}
+window.addEventListener('resize',()=>{
+const button=document.querySelector('.shipFab');
+if(button&&shipFabPosition)placeShipFab(button,shipFabPosition.side,shipFabPosition.y);
+});
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
 function openCustomer(name){
 const target=String(name).trim();
@@ -2117,16 +2187,53 @@ const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 showOrderCards(rows,target)
 }
+const pendingFaceRows=new Map();
+function isFaceToFace(row){
+if(pendingFaceRows.has(Number(row.row)))return pendingFaceRows.get(Number(row.row));
+const note=String(getOnlineData(row,['備註','備註欄'])||'');
+return findHeader(onlineHeaders,['備註','備註欄'])?note.includes('面交'):getPaymentMethod(row)==='面交';
+}
+function syncFaceButtons(){
+document.querySelectorAll('[data-face-rows]').forEach(button=>{
+const ids=button.dataset.faceRows.split(',').map(Number);
+const items=onlineRows.filter(row=>ids.includes(Number(row.row)));
+button.classList.toggle('active',items.some(isFaceToFace));
+button.disabled=ids.some(id=>pendingFaceRows.has(id));
+button.setAttribute('aria-pressed',String(button.classList.contains('active')));
+});
+}
 async function toggleFaceToFace(button,rows){
+rows=rows.map(Number);
+if(rows.some(row=>pendingFaceRows.has(row)))return;
 const faceToFace=!button.classList.contains('active');
+const enabled=!button.classList.contains('active');
+rows.forEach(row=>pendingFaceRows.set(row,enabled));
+button.classList.toggle('active',enabled);
+button.disabled=true;
+syncFaceButtons();
 try{
 await api('setOnlineFaceToFace',{
 rows:JSON.stringify(rows),
 enabled:faceToFace?'true':'false'
+rows:JSON.stringify(rows),enabled:enabled?'true':'false'
 });
 button.classList.toggle('active',faceToFace);
+const noteHeader=findHeader(onlineHeaders,['備註','備註欄']);
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{
+if(noteHeader){
+const current=String(row.data[noteHeader]||'').trim();
+row.data[noteHeader]=enabled
+?(current.includes('面交')?current:(current?current+'｜面交':'面交'))
+:current.replace(/(^|｜)面交(?=｜|$)/,'').replace(/^｜|｜$/g,'');
+}
+});
 }catch(e){
 alert('面交設定失敗：'+e.message)
+alert('面交設定失敗，已還原：'+e.message);
+}finally{
+rows.forEach(row=>pendingFaceRows.delete(row));
+button.disabled=false;
+syncFaceButtons();
 }
 }
 function handleOrderPaymentChange(select){
