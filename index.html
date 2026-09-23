@@ -227,7 +227,7 @@ background:#fafafa
 height:100%;
 display:grid;
 grid-template-columns:minmax(0,1.5fr) minmax(320px,.75fr);
-grid-template-rows:minmax(0,1fr) minmax(0,1fr);
+grid-template-rows:auto minmax(0,1fr);
 gap:12px
 }
 .storeManual{
@@ -666,7 +666,14 @@ overflow:hidden
 }
 .top{
 height:52px;
-font-size:20px
+font-size:20px;
+justify-content:flex-start;
+padding-left:12px
+}
+.top>span{
+font-size:clamp(14px,4vw,18px);
+max-width:calc(100% - 86px);
+white-space:nowrap
 }
 .page{
 height:calc(100dvh - 102px);
@@ -853,7 +860,7 @@ font-size:13px
 </head>
 <body>
 <div class="top">
-<span>JIWU吉物販售</span>
+<span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
 <button class="btn green topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
 <button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip(true)" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
@@ -1105,6 +1112,10 @@ let cartPendingWrites=0;
 let cartWriteQueue=Promise.resolve();
 let cartUnsaved=false;
 let activeSalespersonLoading=false;
+let cartOperationBusy=false;
+function cartContentsKey(items){
+return JSON.stringify(items.map(x=>({code:String(x.code||''),name:String(x.name||''),price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual})));
+}
 /*
  * 從 GAS 取得共用購物車
  */
@@ -1114,7 +1125,7 @@ storeCart=[];
 renderCart();
 return;
 }
-if(storeCartLoading||cartPendingWrites||cartUnsaved)return;
+if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 const requestUser=salesperson;
 const requestRevision=cartRevision;
 storeCartLoading=true;
@@ -1123,13 +1134,17 @@ const d=await api(
 'storeCart',
 {salesperson:requestUser}
 );
-if(requestUser!==salesperson||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved)return;
-storeCart=Array.isArray(d.cart)?d.cart:[];
+if(requestUser!==salesperson||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
+const nextCart=Array.isArray(d.cart)?d.cart:[];
+if(cartContentsKey(nextCart)!==cartContentsKey(storeCart)){
+storeCart=nextCart;
 renderCart();
+}
 }catch(e){
 console.error('讀取購物車失敗',e);
 }finally{
 storeCartLoading=false;
+if(requestUser!==salesperson&&salesperson)loadStoreCart();
 }
 }
 /*
@@ -1171,6 +1186,8 @@ storeCartSyncTimer=null;
    店面
 ========================================================= */
 function detectSalesperson(){
+// 網址與儲存偏好只作為初始選擇，不能覆蓋本次已選銷售員。
+if(salesperson==='花花'||salesperson==='小法師')return salesperson;
 const q=new URLSearchParams(location.search);
 const user=
 q.get('user')||
@@ -1184,29 +1201,33 @@ localStorage.setItem('jiwu_salesperson',user);
 return salesperson;
 }
 async function syncActiveStoreSalesperson(){
-if(activeSalespersonLoading||cartPendingWrites||cartUnsaved)return;
+if(activeSalespersonLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 activeSalespersonLoading=true;
 const revision=cartRevision;
-const user=salesperson;
 try{
+// 已選銷售員時只同步他的購物車；其他裝置掃描不切換本機帳號。
+if(!salesperson){
 const d=await api('storeActiveSalesperson');
-if(revision!==cartRevision||user!==salesperson||cartPendingWrites||cartUnsaved)return;
+if(revision!==cartRevision||salesperson||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 const active=d.salesperson||'';
-if(active&&(active!==salesperson)){
+if(active==='花花'||active==='小法師'){
 salesperson=active;
+cartRevision++;
+storeCart=[];
 localStorage.setItem('jiwu_salesperson',salesperson);
 renderStore();
-return
 }
-if(salesperson)loadStoreCart();
-}catch(e){
-console.error('讀取目前銷售員失敗',e)
-}finally{activeSalespersonLoading=false;}
+}
+if(salesperson)await loadStoreCart();
+}catch(e){console.error('讀取購物車失敗',e);}
+finally{activeSalespersonLoading=false;}
 }
 async function setSalesperson(el,v){
-if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再切換銷售員');return;}
+if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再切換銷售員');return;}
 cartRevision++;
 salesperson=v;
+storeCart=[];
+renderCart();
 document
 .querySelectorAll('.salesperson button')
 .forEach(x=>x.classList.remove('active'));
@@ -1215,9 +1236,13 @@ localStorage.setItem('jiwu_salesperson',salesperson);
 await loadStoreCart();
 startStoreCartSync();
 }
-function runShortcut(name){
+async function runShortcut(name){
 if(window.innerWidth>850)return;
-location.href='shortcuts://run-shortcut?name='+encodeURIComponent(name)
+if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再開啟掃描');return;}
+const user=name==='吉物花花'?'花花':'小法師';
+await setSalesperson(null,user);
+document.querySelectorAll('.salesperson button').forEach(button=>button.classList.toggle('active',button.textContent.trim()===user));
+location.href='shortcuts://run-shortcut?name='+encodeURIComponent(name);
 }
 function renderStore(){
 detectSalesperson();
@@ -1295,7 +1320,7 @@ startStoreCartSync();
 syncActiveStoreSalesperson();
 }
 async function scan(){
-if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再加入商品');return;}
+if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再加入商品');return;}
 const input=document.getElementById('barcode');
 const code=input.value.trim();
 if(!code){
@@ -1306,6 +1331,8 @@ if(!salesperson){
 alert('請先選擇銷售員');
 return;
 }
+cartOperationBusy=true;
+cartRevision++;
 try{
 const d=await api('storeScan',{
 barcode:code,
@@ -1318,9 +1345,10 @@ renderCart();
 }catch(e){
 alert(e.message);
 input.focus();
-}
+}finally{cartOperationBusy=false;cartRevision++;}
 }
 async function addManualProduct(){
+if(cartOperationBusy){alert('正在處理購物車，請稍候');return;}
 if(!salesperson){
 alert('請先選擇銷售員');
 return;
@@ -1380,6 +1408,7 @@ if(totalEl)totalEl.textContent='$'+money(total);
 calcChange()
 }
 async function changeQty(i,n){
+if(cartOperationBusy)return;
 if(!storeCart[i])return;
 storeCart[i].qty+=n;
 if(storeCart[i].qty<=0)storeCart.splice(i,1);
@@ -1387,6 +1416,7 @@ renderCart();
 await saveStoreCart();
 }
 async function removeCart(i){
+if(cartOperationBusy)return;
 storeCart.splice(i,1);
 renderCart();
 await saveStoreCart();
@@ -1422,9 +1452,11 @@ input.value='';
 }
 }
 async function clearStoreCart(){
-if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再清空');return;}
+if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再清空');return;}
 if(!storeCart.length)return;
 if(!confirm('確定清空全部商品？'))return;
+cartOperationBusy=true;
+cartRevision++;
 try{
 if(salesperson)await api('storeCartClear',{salesperson});
 storeCart=[];
@@ -1432,10 +1464,10 @@ payment='';
 renderStore();
 }catch(e){
 alert(e.message)
-}
+}finally{cartOperationBusy=false;cartRevision++;}
 }
 async function checkout(){
-if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
+if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再結帳');return;}
 if(!storeCart.length){
 alert('沒有商品');
 return
@@ -1470,6 +1502,8 @@ note=document.getElementById('storeNote').value.trim();
 if(received!==''&&change<0&&!confirm('收到金額不足，仍要結帳嗎？')){
 return
 }
+cartOperationBusy=true;
+cartRevision++;
 try{
 const d=await api(
 'storeCheckout',
@@ -1505,7 +1539,7 @@ if(input)input.focus();
 },50);
 }catch(e){
 alert(e.message)
-}
+}finally{cartOperationBusy=false;cartRevision++;}
 }
 /* =========================================================
    線上
