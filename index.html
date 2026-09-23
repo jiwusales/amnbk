@@ -349,8 +349,18 @@ background:var(--main);
 color:#fff;
 border-color:var(--main)
 }
+.checkoutTotalRow{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:12px;
+min-height:32px
+}
+.checkoutTotalRow .total{min-width:0}
 .changeText{
-margin-top:10px;
+margin-top:0;
+text-align:right;
+white-space:nowrap;
 font-size:16px;
 font-weight:700
 }
@@ -517,9 +527,9 @@ background:transparent;
 color:#CBC3BC
 }
 .faceToFaceTag.active,.faceToggle.active{
-background:#b1d8b7;
+background:var(--green);
 color:#fff;
-border-color:#b1d8b7
+border-color:var(--green)
 }
 .orderPayment{
 width:62px;
@@ -527,20 +537,6 @@ padding:4px 3px;
 border-radius:6px;
 font-size:12px
 }
-.shipFab{
-display:none;
-position:fixed;
-right:18px;
-bottom:76px;
-z-index:900;
-min-width:78px;
-height:48px;
-border-radius:24px;
-touch-action:none;
-user-select:none;
-box-shadow:0 5px 14px rgba(0,0,0,.22)
-}
-.shipFabMobile{display:none}
 .onlineIconButton{
 width:42px;
 min-width:42px;
@@ -760,10 +756,12 @@ grid-template-columns:1fr
 height:auto;
 max-height:275px
 }
-.shipFab{display:block;right:14px;bottom:68px}
-body[data-page="online"] .topHomeButton{display:none}
-.shipFabDesktop{display:none}
-.shipFabMobile{display:inline}
+.topActions .topHomeButton{
+height:24px;
+font-size:12px;
+line-height:20px;
+padding:2px 8px
+}
 table.onlineTable{
 min-width:0!important;
 table-layout:fixed!important
@@ -1231,7 +1229,10 @@ app.innerHTML=`
 <div class="card storeCheckout">
 <div class="cardHead"><span>結帳</span></div>
 <div class="checkoutBody">
+<div class="checkoutTotalRow">
 <div class="total" id="storeTotal">$0</div>
+<div id="changeText" class="changeText" aria-live="polite"></div>
+</div>
 <div class="checkoutQuick" style="margin-top:8px">
 <input id="received" type="number" placeholder="收到金額（可不填）">
 <div class="salesperson">
@@ -1255,7 +1256,6 @@ app.innerHTML=`
 <div style="margin-top:10px">
 <input id="storeNote" placeholder="備註" style="width:100%">
 </div>
-<div id="changeText" class="changeText"></div>
 <div class="checkoutActions">
 <button class="btn green" onclick="checkout()">結帳</button>
 <button class="btn acButton" onclick="clearStoreCart()">AC</button>
@@ -2108,67 +2108,11 @@ ${openedWithoutPayment?'':paymentCommitted?`
 });
 html+=`
 </div>
-<button class="btn green shipFab" aria-label="寶寶回家，拖曳可移動位置"><span class="shipFabDesktop">寶寶回家</span><span class="shipFabMobile">寶寶回家</span></button>
+
 </div>`;
 res.innerHTML=html;
 syncFaceButtons();
-initShipFab();
 }
-let shipFabPosition=null;
-try{shipFabPosition=JSON.parse(sessionStorage.getItem('jiwu_ship_fab_position')||'null');}catch(_){}
-function placeShipFab(button,side,y){
-const gap=12;
-const maxX=Math.max(gap,window.innerWidth-button.offsetWidth-gap);
-const maxY=Math.max(gap,window.innerHeight-button.offsetHeight-gap);
-const top=Math.max(gap,Math.min(Number.isFinite(y)?y:maxY,maxY));
-button.style.right='auto';button.style.bottom='auto';
-button.style.left=(side==='left'?gap:maxX)+'px';
-button.style.top=top+'px';
-shipFabPosition={side:side==='left'?'left':'right',y:top};
-try{sessionStorage.setItem('jiwu_ship_fab_position',JSON.stringify(shipFabPosition));}catch(_){}
-}
-function initShipFab(){
-const button=document.querySelector('.shipFab');
-if(!button)return;
-if(shipFabPosition)placeShipFab(button,shipFabPosition.side,shipFabPosition.y);
-let drag=null,suppressClickUntil=0;
-button.addEventListener('pointerdown',e=>{
-if(!e.isPrimary||e.button!==0)return;
-const rect=button.getBoundingClientRect();
-drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:rect.left,top:rect.top,moved:false};
-button.setPointerCapture(e.pointerId);
-});
-button.addEventListener('pointermove',e=>{
-if(!drag||e.pointerId!==drag.id)return;
-const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
-if(Math.hypot(dx,dy)>6)drag.moved=true;
-if(!drag.moved)return;
-button.style.right='auto';button.style.bottom='auto';
-button.style.left=Math.max(0,Math.min(drag.left+dx,window.innerWidth-button.offsetWidth))+'px';
-button.style.top=Math.max(0,Math.min(drag.top+dy,window.innerHeight-button.offsetHeight))+'px';
-});
-const finish=e=>{
-if(!drag||e.pointerId!==drag.id)return;
-if(drag.moved){
-suppressClickUntil=Date.now()+500;
-const rect=button.getBoundingClientRect();
-placeShipFab(button,rect.left+rect.width/2<window.innerWidth/2?'left':'right',rect.top);
-}
-if(e.type==='pointercancel')suppressClickUntil=Date.now()+500;
-drag=null;
-if(button.hasPointerCapture(e.pointerId))button.releasePointerCapture(e.pointerId);
-};
-button.addEventListener('pointerup',finish);
-button.addEventListener('pointercancel',finish);
-button.addEventListener('click',e=>{
-if(Date.now()<suppressClickUntil){e.preventDefault();return;}
-createSelectedShip();
-});
-}
-window.addEventListener('resize',()=>{
-const button=document.querySelector('.shipFab');
-if(button&&shipFabPosition)placeShipFab(button,shipFabPosition.side,shipFabPosition.y);
-});
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
 function openCustomer(name){
 const target=String(name).trim();
