@@ -573,7 +573,18 @@ align-items:center
 }
 .shipCardHead{gap:8px;justify-content:flex-start;flex-wrap:wrap}
 .shipCardHead strong{margin-right:auto}
-.shipCopyButton{padding:6px 9px;font-size:12px}
+.shipCopyButton{
+width:1.2em;height:1.2em;min-width:1.2em;padding:0;
+font-size:inherit;line-height:1;flex-shrink:0;border-radius:0;
+background:transparent!important
+}
+.shipCopyButton img{display:block;width:100%;height:100%;object-fit:contain}
+.shipPacked,.shipPacked .cardHead,.shipPacked .shipItem,.shipPacked .shipCardTotals{
+background:#ededed
+}
+.shipPacked .shipProductName,.shipPacked .shipProductPrice,.shipPacked .shipCardTotals strong{color:#999}
+.shipCompleteButton{padding:4px 10px;font-size:12px}
+.shipCompleteButton[aria-pressed="true"]{background:#b9b9b9}
 .shipOrderDate{width:48px;flex-shrink:0;color:#777}
 .shipProductName{flex:1;min-width:0}
 .shipProductPrice{white-space:nowrap}
@@ -699,7 +710,7 @@ grid-template-columns:4fr 1fr;
 gap:7px
 }
 .checkoutActions .btn.green,
-.checkoutActions .acButton{width:100%;height:44px}
+.checkoutActions .acButton{width:100%;height:34px;padding:4px 10px}
 .acButton{
 display:block;
 background:#E78790!important
@@ -733,6 +744,7 @@ font-size:12px;
 padding:7px 2px
 }
 .checkoutBody{padding:8px;overflow:visible}
+.checkoutActions{margin-top:8px}
 .storeCheckout [style*="margin-top:12px"]{margin-top:8px!important}
 .checkoutQuick{
 display:grid;
@@ -2290,10 +2302,7 @@ d.headers,
 '姓名'
 ]
 );
-const si=findHeader(
-d.headers,
-['出貨狀態']
-);
+const packedHeader=findHeader(d.headers,['已包貨']);
 const ni=findHeader(
 d.headers,
 [
@@ -2353,6 +2362,7 @@ Object
 const customer=
 g[0].data[ci]||
 '未填姓名';
+const packed=!!packedHeader&&g.every(x=>isTruthy(x.data[packedHeader]));
 const orderTotal=g.reduce((sum,x)=>sum+numberValue(x.data[pi]),0);
 const depositTotal=g.reduce((sum,x)=>sum+numberValue(x.data[di]),0);
 const shippingSeen=new Set();
@@ -2368,21 +2378,17 @@ const now=new Date();
 const shipDate=String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0');
 return `
 <div
-class="card"
+class="card shipOrderCard ${packed?'shipPacked':''}"
+data-rows="${g.map(x=>x.row).join(',')}"
 style="margin-bottom:10px">
 <div class="cardHead shipCardHead">
-<button class="btn light shipCopyButton" onclick="copyShipText()">出貨文複製</button>
+<button class="btn light shipCopyButton" onclick="copyShipText(this)" aria-label="複製整筆訂單出貨文" title="複製出貨文"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260923191208_45eb9f40.png" alt=""></button>
 <strong>${esc(customer)}</strong>
 <span>出貨日期 ${esc(shipDate)}</span>
 <span>${g.length} 件</span>
 </div>
 ${g.map(x=>`
 <div class="shipItem" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
-<input
-class="shipRecordCheck check"
-type="checkbox"
-data-row="${x.row}"
-onchange="updateShipSelection()">
 <span class="shipOrderDate">
 ${esc(formatOnlineTime(x.data[ti]||''))}
 </span>
@@ -2399,6 +2405,7 @@ $${money(x.data[pi]||0)}
 ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 <span>訂金 $${money(depositTotal)}</span>
 <strong>尾款 $${money(balance)}</strong>
+<button class="btn green shipCompleteButton" onclick="toggleShipPacked(this)" aria-pressed="${packed}">${packed?'已完成':'完成'}</button>
 </div>
 </div>
 `;
@@ -2417,168 +2424,41 @@ ${esc(e.message)}
 /* =========================================================
    出貨選擇統計
 ========================================================= */
-function updateShipSelection(){
-/* 每張出貨卡已直接顯示金額；勾選只供複製出貨文使用。 */
-return;
-const checked=
-[
-...document
-.querySelectorAll(
-'.shipRecordCheck:checked'
-)
-];
-const area=
-document.getElementById(
-'shipSelectedArea'
-);
-if(!area)return;
-if(!checked.length){
-area.innerHTML='';
-return
+/* 複製目前這張訂單卡內的全部商品，不依賴勾選狀態。 */
+async function copyShipText(button){
+const card=button.closest('.shipOrderCard');
+if(!card)return;
+const customer=card.querySelector('.shipCardHead strong').textContent.trim();
+const names=[...card.querySelectorAll('.shipItem')].map(item=>item.dataset.name||'');
+const text=customer+'：'+names.join('+');
+try{
+if(navigator.clipboard&&navigator.clipboard.writeText){
+try{await navigator.clipboard.writeText(text);alert('出貨文已複製');return;}catch(_){}
 }
-let total=0;
-let deposit=0;
-const items=[];
-checked.forEach(ch=>{
-const item=ch.closest('.shipItem');
-if(!item)return;
-const spans=
-item.querySelectorAll('span');
-const name=
-spans[0]
-?spans[0].textContent.trim()
-:'';
-const priceText=
-spans[3]
-?spans[3].textContent
-:'';
-const depositText=
-spans[4]
-?spans[4].textContent
-:'';
-const price=
-Number(
-priceText
-.replace(/[^\d.-]/g,'')
-)||0;
-const dep=
-Number(
-depositText
-.replace(/[^\d.-]/g,'')
-)||0;
-total+=price;
-deposit+=dep;
-items.push({
-name,
-price,
-deposit
-});
-});
-const balance=
-Math.max(
-0,
-total-deposit
-);
-area.innerHTML=`
-<div class="card shipSummary">
-<div class="cardHead">
-<span>
-已選 ${items.length} 件
-</span>
-<button
-class="btn"
-onclick="copyShipText()">
-複製出貨文
-</button>
-</div>
-<div class="shipSelected">
-${items.map(x=>`
-<div class="shipSelectedRow">
-<span class="shipSelectedName">
-${esc(x.name)}
-</span>
-<span class="shipSelectedPrice">
-$${money(x.price)}
-</span>
-</div>
-`).join('')}
-</div>
-<div class="shipTotalBox">
-<div class="shipTotalLine">
-<span>總金額</span>
-<strong>$${money(total)}</strong>
-</div>
-<div class="shipTotalLine">
-<span>已付訂金</span>
-<strong>-$${money(deposit)}</strong>
-</div>
-<div class="shipTotalLine shipBalance">
-<span>尾款</span>
-<strong>$${money(balance)}</strong>
-</div>
-</div>
-</div>
-`;
-}
-/* =========================================================
-   出貨文
-========================================================= */
-function copyShipText(){
-const checked=
-[
-...document
-.querySelectorAll(
-'.shipRecordCheck:checked'
-)
-];
-if(!checked.length){
-alert('請先勾選商品');
-return
-}
-const groups={};
-checked.forEach(ch=>{
-const item=ch.closest('.shipItem');
-if(!item)return;
-const card=
-item.closest('.card');
-const head=
-card
-?card.querySelector('.cardHead')
-:null;
-let customer='';
-if(head){
-customer=head.querySelector('strong')?.textContent.trim()||'';
-}
-const name=item.dataset.name||'';
-if(!groups[customer]){
-groups[customer]=[];
-}
-groups[customer].push(name);
-});
-const text=
-Object.keys(groups)
-.map(customer=>
-customer+
-'：'+
-groups[customer].join('+')+
-'。'
-)
-.join('\n');
-navigator.clipboard
-.writeText(text)
-.then(()=>{
+const ta=document.createElement('textarea');
+ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+document.body.appendChild(ta);ta.select();
+let copied=false;
+try{copied=document.execCommand('copy');}finally{ta.remove();}
+if(!copied)throw new Error('瀏覽器未允許複製');
 alert('出貨文已複製');
-})
-.catch(()=>{
-const ta=
-document.createElement('textarea');
-ta.value=text;
-document.body.appendChild(ta);
-ta.select();
-document.execCommand('copy');
-ta.remove();
-alert('出貨文已複製');
-});
+}catch(e){alert('複製失敗：'+e.message);}
+}
+async function toggleShipPacked(button){
+if(button.disabled)return;
+const card=button.closest('.shipOrderCard');
+const previous=card.classList.contains('shipPacked');
+const packed=!previous;
+const update=value=>{
+card.classList.toggle('shipPacked',value);
+button.setAttribute('aria-pressed',String(value));
+button.textContent=value?'已完成':'完成';
+};
+button.disabled=true;update(packed);
+try{
+await api('setShipPacked',{rows:JSON.stringify(card.dataset.rows.split(',').map(Number)),packed:String(packed)});
+}catch(e){update(previous);alert('包貨狀態儲存失敗，已還原：'+e.message);}
+finally{button.disabled=false;}
 }
 /* =========================================================
    出貨狀態
