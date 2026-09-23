@@ -1897,7 +1897,8 @@ if(category==='受注'||/^\d{1,2}月$/.test(cargo))return '受注';
 if(category==='預訂'||category==='已訂購'||isOrderPurchased(row))return '預訂';
 return '現貨';
 });
-// 混合狀態訂單放在尚未到貨的區域，避免被歸到現貨。
+// 面交訂單只要含現貨，整筆訂單就放在現貨區。
+if(categories.includes('現貨'))return '現貨';
 if(categories.includes('補貨登記'))return '補貨登記';
 if(categories.includes('受注'))return '受注';
 if(categories.includes('預訂'))return '預訂';
@@ -2053,51 +2054,29 @@ group.includes(key)||
 });
 }
 if(onlineCargo){
-rows=rows.filter(x=>{
-const rawCargo=
-String(
-getOnlineData(
-x,
-[
-'貨況',
-'狀態'
-]
-)||''
-).trim();
-const category=cargoCategory(rawCargo);
-const ordered=
-getOnlineData(
-x,
-[
-'已訂購',
-'購買'
-]
-);
-const opened=
-getOnlineData(
-x,
-[
-'已開單',
-'開單'
-]
-);
-if(onlineCargo==='現貨'){
-return(
-category==='現貨'&&
-!isTruthy(opened)
-);
-}
-if(onlineCargo==='已訂購'){
-return isTruthy(ordered);
-}
-if(onlineCargo==='已開單'){
-return isTruthy(opened);
-}
-if(onlineCargo==='受注'){
-return /^\d{1,2}月$/.test(rawCargo);
-}
-return category===onlineCargo;
+// 貨況篩選以整筆訂單判斷，混合貨況商品不會被切成另一張卡。
+const orderGroups=new Map();
+onlineRows.forEach(row=>{
+const customer=String(getCustomerName(row)||'未填姓名').trim();
+const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
+const mergeKey=String(row.orderMergeKey||row.depositMergeKey||'');
+const key=mergeKey?'order:'+mergeKey:customer+'\u0000'+time;
+if(!orderGroups.has(key))orderGroups.set(key,[]);
+orderGroups.get(key).push(row);
 });
+const includedRows=new Set();
+orderGroups.forEach(items=>{
+const section=faceToFaceOrderSection({items});
+let include=false;
+if(onlineCargo==='現貨')include=section==='現貨'&&items.every(row=>!isOpenedRow(row));
+else if(onlineCargo==='已訂購')include=section==='預訂';
+else if(onlineCargo==='受注')include=section==='受注';
+else if(onlineCargo==='補貨登記')include=section==='補貨登記';
+else if(onlineCargo==='已開單')include=items.some(isOpenedRow);
+else include=items.some(row=>cargoCategory(getOnlineData(row,['貨況','狀態']))===onlineCargo);
+if(include)items.forEach(row=>includedRows.add(Number(row.row)));
+});
+rows=rows.filter(row=>includedRows.has(Number(row.row)));
 }
 showOnlineRows(rows)
 }
