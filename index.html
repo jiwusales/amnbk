@@ -372,6 +372,7 @@ align-items:stretch
 }
 .checkoutQuick input{min-width:0;flex:1}
 .checkoutQuick .salesperson{flex:1;min-width:0}
+.storeAddIcon{display:none}
 /* 線上 */
 .onlinePage{
 height:100%;
@@ -508,12 +509,16 @@ text-align:center
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
 .faceToFaceTag{
 border:0;
+border:1px dashed #CBC3BC;
+border-radius:5px;
 padding:2px 5px;
 font-size:10px;
 background:transparent;
 color:#555
+color:#CBC3BC
 }
 .faceToFaceTag.active{background:#FAB460;color:#fff;border-radius:5px}
+.faceToFaceTag.active{background:#f6f4f2;color:#CBC3BC;border:1px dashed #CBC3BC;border-radius:5px}
 .faceToggle{
 border:0;
 background:transparent;
@@ -683,15 +688,26 @@ background:#E78790!important
 }
 .storeSearch{
 flex-wrap:wrap
+display:grid;
+grid-template-columns:minmax(0,3fr) repeat(3,minmax(0,1fr));
+gap:6px;
+align-items:stretch
 }
 .storeSearch input{
 flex:1 1 100%;
+min-width:0;
 width:100%
 }
 .storeSearch>.btn{
 flex:1;
 min-width:0
+min-width:0;
+width:100%;
+padding:10px 0;
+font-size:18px
 }
+.storeSearch .storeAddText{display:none}
+.storeSearch .storeAddIcon{display:inline}
 .mobileShortcut{
 display:inline-block
 }
@@ -1182,6 +1198,9 @@ app.innerHTML=`
 <button class="btn" onclick="scan()">加入</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')">花花</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')">小法師</button>
+<button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">➕</span></button>
+<button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')" aria-label="花花" title="花花">✿</button>
+<button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')" aria-label="小法師" title="小法師">★</button>
 </div>
 <div id="storeCart" class="cart"></div>
 </div>
