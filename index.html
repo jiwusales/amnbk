@@ -425,6 +425,12 @@ min-width:900px
 font-size:16px;
 font-weight:400
 }
+.faceOrderHead{background:var(--green);color:#fff}
+.faceOrderSection{margin-bottom:12px}
+.faceOrderHead.faceStockHead{background:#D9C0FA}
+.faceOrderHead.facePreorderHead{background:#FDD365}
+.faceOrderHead.faceCargoHead{background:#9BB4A8}
+.faceOrderHead.faceRestockHead{background:#7E88A0}
 .groupCards{
 padding:12px;
 display:grid;
@@ -482,6 +488,7 @@ word-break:break-word
 .groupCardItemPrice{
 white-space:nowrap
 }
+.orderItemDate{white-space:nowrap}
 .groupCardBottom{
 padding:9px 13px;
 border-top:1px solid #eee;
@@ -507,9 +514,18 @@ font-size:12px;
 color:#777;
 flex-shrink:0
 }
+.groupCardMeta{container-type:inline-size;container-name:orderMeta}
+.orderDeposit{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.orderDepositLabel{white-space:nowrap}
+.orderDepositInput::placeholder{color:transparent}
+@container orderMeta (max-width:520px){
+.orderDeposit.hasDepositInput .orderDepositLabel{display:none}
+.orderDeposit.hasDepositInput .orderDepositInput::placeholder{color:#999;opacity:1}
+}
 .groupCardMeta>*:first-child{margin-right:auto}
+.orderMetaDate.isHidden{display:none}
 .reconcileButton{padding:4px 9px;font-size:12px;white-space:nowrap}
-.reconcileButton.isDone{background:var(--green);color:#fff}
+.reconcileButton.isDone{background:#FFBCD5;color:#fff}
 .groupCardMeta input{
 width:66px;
 padding:4px 6px;
@@ -642,7 +658,8 @@ right:12px;
 top:50%;
 transform:translateY(-50%);
 display:flex;
-align-items:center
+align-items:center;
+gap:6px
 }
 .topActions .btn{
 height:26px;
@@ -652,9 +669,11 @@ font-size:13px;
 line-height:20px;
 border-radius:6px
 }
-.topHomeButton,.topRefreshButton,.topStoreToggle{display:none}
+.topHomeButton,.topFaceButton,.topRefreshButton,.topStoreToggle{display:none}
+.topHomeButton{background:#E78790!important;color:#fff!important}
+.topFaceButton{background:var(--green)!important;color:#fff!important}
 body[data-page="store"] .topStoreToggle{display:block}
-body[data-page="online"] .topHomeButton{display:inline-flex;align-items:center}
+body[data-page="online"] .topHomeButton,body[data-page="online"] .topFaceButton{display:inline-flex;align-items:center}
 body[data-page="ship"] .topRefreshButton{display:block}
 .topActions .topRefreshButton{
 width:26px;
@@ -735,6 +754,7 @@ font-size:clamp(14px,4vw,18px);
 max-width:calc(100% - 86px);
 white-space:nowrap
 }
+body[data-page="online"] .top>span{max-width:calc(100% - 190px)}
 .page{
 height:calc(100dvh - 102px);
 padding:8px
@@ -956,7 +976,8 @@ body[data-page="store"] .topStoreToggle{display:none}
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
-<button class="btn green topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
+<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button>
+<button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
 <button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip(true)" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
 </div>
 </div>
@@ -983,6 +1004,7 @@ const pendingRestockRows=new Set();
 const ONLINE_CACHE_MS=5*60*1000;
 let isCustomerView=false;
 let isGroupView=false;
+let isFaceToFaceView=false;
 /* =========================================================
    API
 ========================================================= */
@@ -1195,6 +1217,7 @@ if(name==='store'){
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 }
 if(name==='online'){
+isFaceToFaceView=false;
 /*
  * 每次點擊「線上」
  * 都回到預設頁面
@@ -1797,7 +1820,7 @@ const request=(async()=>{
   if(revision!==onlineMutationRevision||pendingRestockRows.size)return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
-    ?(d.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))}))
+    ?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),depositMergeKey:(d.mergeKeys||[])[i]||''}))
     :(d.rows||[]);
   onlineRows=rows;
   onlineHeaders=headers;
@@ -1823,9 +1846,21 @@ if(res&&!background){
 }
 }
 }
+async function showFaceToFaceView(){
+isCustomerView=false;
+isGroupView=false;
+isFaceToFaceView=true;
+onlineSearchText='';
+onlineCargo='';
+const search=document.getElementById('customerSearch');if(search)search.value='';
+const cargo=document.getElementById('cargoFilter');if(cargo)cargo.value='';
+if(!onlineLoadedAt)await loadOnline();
+applyOnlineFilter();
+}
 async function searchOnline(){
 isCustomerView=false;
 isGroupView=false;
+isFaceToFaceView=false;
 onlineSearchText=
 document
 .getElementById('customerSearch')
@@ -1846,11 +1881,40 @@ applyOnlineFilter()
 function filterCargo(){
 isCustomerView=false;
 isGroupView=false;
+isFaceToFaceView=false;
 onlineCargo=document.getElementById('cargoFilter').value;
 onlineSearchText='';
 const input=document.getElementById('customerSearch');
 if(input)input.value='';
 applyOnlineFilter()
+}
+function faceToFaceOrderSection(order){
+const categories=order.items.map(row=>{
+const cargo=String(getOnlineData(row,['貨況','狀態'])||'').trim();
+const category=cargoCategory(cargo);
+if(category==='補貨登記')return '補貨登記';
+if(category==='受注'||/^\d{1,2}月$/.test(cargo))return '受注';
+if(category==='預訂'||category==='已訂購'||isOrderPurchased(row))return '預訂';
+return '現貨';
+});
+// 混合狀態訂單放在尚未到貨的區域，避免被歸到現貨。
+if(categories.includes('補貨登記'))return '補貨登記';
+if(categories.includes('受注'))return '受注';
+if(categories.includes('預訂'))return '預訂';
+return '現貨';
+}
+function isOrderPurchased(row){
+const value=getOnlineData(row,['已訂購','購買','訂購']);
+return isTruthy(value)||getOrderStatus(row)==='已訂購';
+}
+function faceToFaceOrderIsOrdered(order){
+return order.items.every(row=>{
+const cargo=String(getOnlineData(row,['貨況','狀態'])||'').trim();
+return cargoCategory(cargo)==='已訂購'||isOrderPurchased(row);
+});
+}
+function orderNewestTime(order){
+return Math.max(0,...order.items.map(row=>timeValue(getOnlineData(row,['時間','購買時間']))));
 }
 function cargoCategory(cargo){
 cargo=String(cargo||'').trim();
@@ -1932,6 +1996,7 @@ const d=new Date(s);
 return Number.isNaN(d.getTime())?0:d.getMonth()+1
 }
 function onlineSummaryTitle(){
+if(isFaceToFaceView)return '要面交';
 if(onlineCargo==='現貨')return '待出貨';
 if(onlineCargo)return onlineCargo;
 if(onlineSearchText)return onlineSearchText;
@@ -1939,6 +2004,7 @@ return '全部'
 }
 function applyOnlineFilter(){
 let rows=[...onlineRows];
+if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
 const monthMatch=key.match(/^(\d{1,2})月$/);
@@ -2321,26 +2387,37 @@ const orders=new Map();
 normalRows.forEach(row=>{
 const customer=String(getCustomerName(row)||'未填姓名').trim();
 const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
-const key=customer+'\u0000'+time;
-if(!orders.has(key))orders.set(key,{customer,time,items:[]});
+const depositMergeKey=String(row.depositMergeKey||'');
+const key=depositMergeKey
+  ?customer+'\u0000deposit:'+depositMergeKey
+  :customer+'\u0000'+time;
+if(!orders.has(key))orders.set(key,{customer,time,items:[],depositMergeKey});
 orders.get(key).items.push(row);
 });
 let totalAmount=0;
 rows.forEach(row=>{totalAmount+=numberValue(getOnlineData(row,['售價','價格']));});
-let html=`
+let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
 <span class="orderSummaryLabel">${esc(summary||'待出貨')}</span><span class="orderSummaryStats">${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
 </div>
 <div class="groupCards">
 `;
-orders.forEach(order=>{
+let faceToFaceHtml='';
+let faceToFaceCount=0;
+const faceSectionCards={'現貨':[],'預訂':[],'受注':[],'補貨登記':[]};
+const ordersToRender=[...orders.values()];
+if(isFaceToFaceView)ordersToRender.sort((a,b)=>Number(faceToFaceOrderIsOrdered(a))-Number(faceToFaceOrderIsOrdered(b))||orderNewestTime(a)-orderNewestTime(b));
+ordersToRender.forEach(order=>{
 let orderTotal=0;
 order.items.forEach(row=>{
 orderTotal+=numberValue(getOnlineData(row,['售價','價格']));
 });
 const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
 const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
+const last5Display=String(last5).trim()==='現金'?'💰':last5;
+const orderDates=new Set(order.items.map(row=>formatOnlineTime(getOnlineData(row,['時間','購買時間']))).filter(Boolean));
+const showItemDates=!!order.depositMergeKey&&orderDates.size>1;
 const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
 const payment=storedPayment==='面交'?'中信':(storedPayment||'中信');
 const acceptsLast5=payment==='中信'||payment==='LB';
@@ -2350,13 +2427,13 @@ const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&de
 const faceToFace=order.items.some(isFaceToFace);
 const reconciled=order.items.every(row=>isTruthy(getOnlineData(row,['對帳','已對帳'])));
 const depositMarkup=deposit===''?
-'<input class="orderDepositInput" data-money-input type="text" inputmode="decimal" oninput="normalizeMoneyInput(this)" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
+'<input class="orderDepositInput" data-money-input type="text" inputmode="decimal" placeholder="訂金" oninput="normalizeMoneyInput(this)" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
 :'$'+money(deposit);
-html+=`
+const orderCard=`
 <div class="groupCard">
 <div class="groupCardCustomer">
 ${singleCustomerView?`
-<span>${esc(formatOnlineTime(order.time))}</span>
+<span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
 <button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
@@ -2369,18 +2446,18 @@ ${esc(order.customer)}
 <div class="groupCardItems">
 ${order.items.map(row=>`
 <div class="groupCardItem ${isOpenedRow(row)?'opened':''}">
-<input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
+<input class="check shipCheck" type="checkbox" value="${esc(row.row)}" ${isFaceToFaceView?'onchange="markFaceToFacePicked(this)"':''}>
 <span class="tag cargoTag" style="background:${esc(cargoDisplay(row).color)}">${esc(cargoDisplay(row).text)}</span>
-<span class="groupCardItemName">${esc(String(getGroupName(row)||'').trim()?String(getGroupName(row)||'').trim()+'｜':'')}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
+<span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${esc(String(getGroupName(row)||'').trim()?String(getGroupName(row)||'').trim()+'｜':'')}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
 <span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span>
 </div>
 `).join('')}
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}" data-payment="${esc(payment)}" data-last5="${esc(last5)}">
-<span>${esc(formatOnlineTime(order.time))}</span>
+<span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>
 ${openedWithoutPayment?'':paymentCommitted?`
-<span class="orderLast5">${esc(last5)}</span>
-<span class="orderDeposit">訂金 ${depositMarkup}</span>
+<span class="orderLast5">${esc(last5Display)}</span>
+<span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
 `:`
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
 <option value="中信" ${payment==='中信'?'selected':''}>中信</option>
@@ -2389,22 +2466,35 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
 <span class="orderLast5"><input class="orderLast5Input" aria-label="匯款後五碼" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
-<span class="orderDeposit">訂金 ${depositMarkup}</span>
+<span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
 `}
-<button type="button" class="btn light reconcileButton ${reconciled?'isDone':''}" ${reconciled?'disabled':''} onclick="markOnlineReconciled(this)">${reconciled?'完成':'對帳'}</button>
+<button type="button" class="btn light reconcileButton ${reconciled?'isDone':''}" onclick="toggleOnlineReconciled(this)">${reconciled?'完成':'對帳'}</button>
 </div>
 </div>
 `;
+if(faceToFace){
+faceToFaceCount++;
+if(isFaceToFaceView)faceSectionCards[faceToFaceOrderSection(order)].push(orderCard);
+else faceToFaceHtml+=orderCard;
+}else html+=orderCard;
 });
-html+=`
-</div>
-${restockRows.length?renderRestockSection(restockRows):''}
-</div>`;
+if(!isFaceToFaceView)html+='</div></div>';
+if(isFaceToFaceView){
+['現貨','預訂','受注','補貨登記'].forEach(section=>{
+const cards=faceSectionCards[section];
+const headClass=section==='現貨'?'faceStockHead':section==='預訂'?'facePreorderHead':section==='受注'?'faceCargoHead':'faceRestockHead';
+html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead ${headClass}"><span>${section}區</span><span>${cards.length} 筆訂單</span></div><div class="groupCards">${cards.length?cards.join(''):'<div class="empty">目前沒有面交訂單</div>'}</div></div>`;
+});
+}else if(faceToFaceCount){
+html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead"><span>要面交</span><span>${faceToFaceCount} 筆訂單</span></div><div class="groupCards">${faceToFaceHtml}</div></div>`;
+}
+html+=`${restockRows.length?renderRestockSection(restockRows):''}`;
 res.innerHTML=html;
 syncFaceButtons();
 }
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
 function openCustomer(name){
+isFaceToFaceView=false;
 const target=String(name).trim();
 const rows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===target);
 onlineSearchText=target;
@@ -2419,6 +2509,7 @@ showOrderCards(rows,target)
 }
 /* 點擊團名後，同一團內仍依顧客與下單時間各自成卡。 */
 function openGroup(group){
+isFaceToFaceView=false;
 const target=String(group).trim();
 const rows=onlineRows.filter(row=>String(getGroupName(row)||'').trim()===target);
 onlineSearchText=target;
@@ -2446,7 +2537,24 @@ button.disabled=ids.some(id=>pendingFaceRows.has(id));
 button.setAttribute('aria-pressed',String(button.classList.contains('active')));
 });
 }
+async function markFaceToFacePicked(input){
+if(!input||!input.checked)return;
+const sheetRow=Number(input.value);
+if(!Number.isInteger(sheetRow)||sheetRow<2)return;
+input.disabled=true;
+try{
+await api('setOnlineOpened',{rows:JSON.stringify([sheetRow])});
+const header=findHeader(onlineHeaders,['已開單','開單']);
+const row=onlineRows.find(item=>Number(item.row)===sheetRow);
+if(row&&header)row.data[header]=true;
+if(isFaceToFaceView)applyOnlineFilter();
+}catch(e){
+input.checked=false;
+alert('取貨狀態更新失敗：'+e.message);
+}finally{if(input.isConnected)input.disabled=false;}
+}
 async function toggleFaceToFace(button,rows){
+const visibleRows=[...document.querySelectorAll('.shipCheck')].map(input=>Number(input.value));
 rows=rows.map(Number);
 if(rows.some(row=>pendingFaceRows.has(row)))return;
 const enabled=!button.classList.contains('active');
@@ -2472,29 +2580,36 @@ alert('面交設定失敗，已還原：'+e.message);
 }finally{
 rows.forEach(row=>pendingFaceRows.delete(row));
 button.disabled=false;
-syncFaceButtons();
+if(isFaceToFaceView)applyOnlineFilter();
+else if(visibleRows.length){
+const visible=new Set(visibleRows);
+showOrderCards(onlineRows.filter(row=>visible.has(Number(row.row))),onlineSummaryTitle());
+}else syncFaceButtons();
 }
 }
 const pendingReconcileRows=new Set();
-async function markOnlineReconciled(button){
+async function toggleOnlineReconciled(button){
 const meta=button.closest('.groupCardMeta');
 if(!meta||button.disabled)return;
 const rows=(meta.dataset.rows||'').split(',').map(Number).filter(row=>row>=2);
 if(!rows.length||rows.some(row=>pendingReconcileRows.has(row)))return;
+const enabled=!button.classList.contains('isDone');
 rows.forEach(row=>pendingReconcileRows.add(row));
 button.disabled=true;
-button.textContent='完成';
-button.classList.add('isDone');
+button.textContent=enabled?'完成':'對帳';
+button.classList.toggle('isDone',enabled);
 try{
-await api('setOnlineReconciled',{rows:JSON.stringify(rows)});
+await api('setOnlineReconciled',{rows:JSON.stringify(rows),enabled:enabled?'true':'false'});
 const header=findHeader(onlineHeaders,['對帳','已對帳']);
-onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(header)row.data[header]=true;});
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(header)row.data[header]=enabled;});
 }catch(e){
-button.textContent='對帳';
-button.classList.remove('isDone');
+button.textContent=enabled?'對帳':'完成';
+button.classList.toggle('isDone',!enabled);
+alert('對帳狀態更新失敗：'+e.message);
+}finally{
 button.disabled=false;
-alert('對帳更新失敗：'+e.message);
-}finally{rows.forEach(row=>pendingReconcileRows.delete(row));}
+rows.forEach(row=>pendingReconcileRows.delete(row));
+}
 }
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
