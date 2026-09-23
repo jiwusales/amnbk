@@ -14,8 +14,8 @@
 --border:#e2e2e2;
 --text:#555;
 --muted:#999;
---main:#786956;
---main2:#8d7c68;
+--main:#A68C73;
+--main2:#A68C73;
 --green:#8fa98b;
 --red:#c9827d;
 --blue:#8ca7b2
@@ -52,7 +52,7 @@ align-items:center;
 justify-content:center;
 font-size:23px;
 font-weight:800;
-color:#655c54
+color:#555
 }
 .nav{
 position:fixed;
@@ -82,7 +82,7 @@ text-decoration:none
 }
 .nav button.active{
 color:var(--main);
-background:#f7f7f7;
+background:transparent;
 box-shadow:inset 0 3px 0 var(--main)
 }
 .page{
@@ -186,7 +186,7 @@ accent-color:var(--main)
 border:0;
 background:none;
 padding:0;
-color:#756453;
+color:#A68C73;
 font-weight:400;
 text-decoration:none;
 text-align:left
@@ -508,6 +508,8 @@ color:#777;
 flex-shrink:0
 }
 .groupCardMeta>*:first-child{margin-right:auto}
+.reconcileButton{padding:4px 9px;font-size:12px;white-space:nowrap}
+.reconcileButton.isDone{background:var(--green);color:#fff}
 .groupCardMeta input{
 width:66px;
 padding:4px 6px;
@@ -704,12 +706,19 @@ background-size:75%!important
 .salesCards .salesDayCard{height:100%;min-height:0;max-height:none}
 .salesDayCard .groupCardCustomer{flex-wrap:wrap;gap:5px 8px}
 .salesOther{font-size:11px;color:#999;font-weight:400}
+.rainToggle{border:0;background:transparent;padding:0;margin-left:4px;font-size:19px;line-height:1;color:#E1DCE0;cursor:pointer}
+.rainToggle[aria-pressed="true"]{color:#556890}
+.shipDateCount{margin-left:auto;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.shipDateCount i{font-style:normal;color:#aaa}
 .salesPurchase{border-bottom:1px solid #ddd;padding:0}
 .salesPurchase .salesDetailRow{display:flex;gap:10px;padding:3px 0;min-height:24px;line-height:18px;border:0;align-items:center}
-.salesPurchase .salesDetailRow>b{color:var(--text);white-space:nowrap}
+.salesPurchase .salesDetailRow>b{color:var(--text);white-space:nowrap;font-weight:400}
 .salesFooter .salesCash{color:#F8C043!important}
 .salesProductCode{margin-left:8px;font-size:12px;color:#999;font-weight:400;overflow-wrap:anywhere}
-.salesPurchaseInfo{display:flex;flex-wrap:wrap;gap:8px;color:#999;font-size:12px;padding:0 0 9px}
+.salesPurchaseInfo{display:flex;flex-wrap:wrap;gap:8px;color:#999;font-size:12px;padding:0 0 9px;font-weight:700}
+.salesPurchaseInfo .salesCodeCTBC{color:#88CDB2}
+.salesPurchaseInfo .salesCodeLB{color:#8ECEE2}
+.salesPurchaseInfo.salesBankCTBC{gap:0}
 /* 手機 */
 @media(max-width:850px){
 html,body{
@@ -1291,6 +1300,15 @@ function runShortcut(){
 if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再開啟掃描');return;}
 location.href='shortcuts://run-shortcut?name='+encodeURIComponent(STORE_SCAN_SHORTCUT);
 }
+function toHalfWidthDigits(value){return String(value==null?'':value).replace(/[０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0));}
+function normalizeMoneyInput(input){
+if(!input)return '';
+const start=input.selectionStart;
+const before=input.value;
+const value=toHalfWidthDigits(before).replace(/[．。]/g,'.').replace(/[－−]/g,'-');
+if(value!==before){input.value=value;if(start!=null)input.setSelectionRange(start+(value.length-before.length),start+(value.length-before.length));}
+return value;
+}
 function renderStore(){
 if(!isDesktopStore()&&storeView==='sales'){renderStoreSales();return;}
 document.getElementById('storeViewToggle').textContent='結帳';
@@ -1304,8 +1322,8 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <div class="cardHead"><span>手動新增商品</span></div>
 <div class="manualBox">
 <input id="manualName" placeholder="商品名稱">
-<input id="manualPrice" type="number" min="0" placeholder="金額">
-<button class="btn" onclick="addManualProduct()">加入</button>
+<input id="manualPrice" type="text" inputmode="decimal" data-money-input placeholder="金額">
+<button class="btn" onclick="addManualProduct()">＋</button>
 </div>
 </div>
 <div class="card storeMain">
@@ -1316,7 +1334,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <div class="storeMainBody">
 <div class="storeSearch">
 <input id="barcode" autofocus placeholder="掃描或輸入貨號">
-<button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">＋</span></button>
+<button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span aria-hidden="true">＋</span></button>
 <button class="btn light storeScanShortcut" onclick="runShortcut()" aria-label="開啟掃描捷徑" title="開啟掃描捷徑"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260923205456_a3fd27c9.png" alt=""></button>
 </div>
 <div id="storeCart" class="cart"></div>
@@ -1330,7 +1348,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <div id="changeText" class="changeText" aria-live="polite"></div>
 </div>
 <div class="checkoutQuick" style="margin-top:8px">
-<input id="received" type="number" placeholder="收到金額（可不填）">
+<input id="received" type="text" inputmode="decimal" data-money-input placeholder="收到金額（可不填）">
 
 </div>
 <div style="margin-top:12px">
@@ -1361,7 +1379,9 @@ ${desktop?'</section><section id="storeSalesPane" aria-label="店面銷售"></se
 document.getElementById('barcode').addEventListener('keydown',e=>{
 if(e.key==='Enter')scan()
 });
-document.getElementById('received').addEventListener('input',calcChange);
+document.getElementById('received').addEventListener('input',event=>{normalizeMoneyInput(event.currentTarget);calcChange();});
+document.getElementById('manualPrice').addEventListener('input',event=>normalizeMoneyInput(event.currentTarget));
+document.getElementById('last5').addEventListener('input',event=>{const input=event.currentTarget;const start=input.selectionStart;const value=toHalfWidthDigits(input.value);if(value!==input.value){input.value=value;if(start!=null)input.setSelectionRange(start,start);}});
 renderCart();
 if(salesperson)loadStoreCart();
 startStoreCartSync();
@@ -1374,13 +1394,27 @@ if(cartOperationBusy||cartPendingWrites||cartUnsaved){alert('請先等購物車�
 storeView=storeView==='checkout'?'sales':'checkout';
 if(storeView==='sales'){stopStoreCartSync();renderStoreSales();}else renderStore();
 }
+function refreshStoreSalesToday(){
+// 強制略過 30 秒快取，並在回應後以伺服器的今天日期為準。
+storeSalesDate=null;
+storeSalesLoadedAt=0;
+return renderStoreSales(true);
+}
+function rainDayKey(date){return 'JIWU_STORE_RAIN_'+date;}
+function isRainyDay(date){try{return localStorage.getItem(rainDayKey(date))==='1';}catch(_){return false;}}
+function toggleRainDay(date){
+const rainy=!isRainyDay(date);
+try{if(rainy)localStorage.setItem(rainDayKey(date),'1');else localStorage.removeItem(rainDayKey(date));}catch(_){}
+const button=document.querySelector('.rainToggle[data-rain-date="'+date+'"]');
+if(button)button.setAttribute('aria-pressed',String(rainy));
+}
 async function renderStoreSales(force=false){
 if(force)storeSalesDate=null;
 if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷售';
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
-<div class="storeSalesToolbar"><input id="storeSalesDate" type="text" inputmode="numeric" maxlength="4" placeholder="日期／月份，例如 0911、09" aria-label="查詢日期或月份" oninput="storeSalesDate=this.value;drawStoreSales()"><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">全</button><button class="btn light onlineIconButton onlineRefreshButton" onclick="renderStoreSales(true)" aria-label="重新整理銷售資料">重新整理</button></div>
+<div class="storeSalesToolbar"><input id="storeSalesDate" type="text" inputmode="numeric" maxlength="4" placeholder="日期／月份，例如 0911、09" aria-label="查詢日期或月份" oninput="storeSalesDate=this.value;drawStoreSales()"><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">全</button><button class="btn light onlineIconButton onlineRefreshButton" onclick="refreshStoreSalesToday()" aria-label="重新整理銷售資料">重新整理</button></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div></div>`;
 if(storeSalesData)drawStoreSales();
 if(!force&&storeSalesData&&Date.now()-storeSalesLoadedAt<30000)return;
@@ -1398,53 +1432,30 @@ if(result&&!storeSalesData)result.innerHTML='<div class="empty">'+esc(e.message)
 else if(result)alert('更新失敗，保留上次資料：'+e.message);
 }
 }
-async function updateSalesAfterCheckout(){
+async function updateSalesAfterCheckout(delta){
+// 先用結帳 API 已回傳的新增列即時更新畫面，避免再等全表查詢。
 storeSalesLoadedAt=0;
+if(delta&&delta.items&&delta.items.length){
+if(storeSalesData){
+let day=storeSalesData.days.find(item=>item.date===delta.date);
+if(!day){day={date:delta.date,total:0,cash:0,transfer:0,other:0,items:[]};storeSalesData.days.push(day);}
+const known=new Set(day.items.map(item=>item.row));
+delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);day.total+=item.amount;if(item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
+if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
+}else if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){
+renderStoreSales(true);
+}
+}
+// 背景完整同步其他裝置的新資料；失敗時保留已即時顯示的結帳明細。
+setTimeout(async()=>{
 try{
-// 等舊的讀取完成，再取結帳後的資料，避免舊回應蓋回新增紀錄。
-if(storeSalesPromise){try{await storeSalesPromise;}catch(_){} }
+if(storeSalesPromise)await storeSalesPromise;
 const data=await api('storeSales');
 storeSalesData=data;storeSalesLoadedAt=Date.now();
-const result=document.getElementById('storeSalesResult');
-if(!result)return;
-const draft=document.createElement('div');
-drawStoreSales(draft);
-const grid=result.querySelector('.salesCards');
-const nextGrid=draft.querySelector('.salesCards');
-if(!grid||!nextGrid){
-// 尚無可見訂單卡時，直接顯示新的內容，不重建結帳區。
-result.replaceChildren(...draft.childNodes);return;
-}
-const existing=new Map([...grid.querySelectorAll('[data-sales-date]')].map(card=>[card.dataset.salesDate,card]));
-[...nextGrid.children].forEach(nextCard=>{
-const date=nextCard.dataset.salesDate;
-const card=existing.get(date);
-if(!card){
-const following=[...grid.children].find(item=>item.dataset.salesDate>date);
-grid.insertBefore(nextCard,following||null);return;
-}
-const list=card.querySelector('.salesDayItems');
-const nextList=nextCard.querySelector('.salesDayItems');
-const oldPurchases=new Map([...list.querySelectorAll('[data-sale-key]')].map(item=>[item.dataset.saleKey,item]));
-const additions=[...nextList.querySelectorAll('[data-sale-key]')];
-if(additions.length)list.querySelector('.empty')?.remove();
-additions.forEach((purchase,index)=>{
-if(oldPurchases.has(purchase.dataset.saleKey))return;
-const following=additions.slice(index+1).map(item=>oldPurchases.get(item.dataset.saleKey)).find(Boolean);
-list.insertBefore(purchase,following||null);
-});
-// 保留卡片、既有商品節點與捲動位置，只更新件數與底部統計。
-card.querySelector('.salesCount').textContent=nextCard.querySelector('.salesCount').textContent;
-card.querySelector('.salesFooter').innerHTML=nextCard.querySelector('.salesFooter').innerHTML;
-const other=card.querySelector('.salesOther');
-const nextOther=nextCard.querySelector('.salesOther');
-if(other&&nextOther)other.textContent=nextOther.textContent;
-else if(other)other.remove();
-else if(nextOther)card.querySelector('.groupCardCustomer strong').after(nextOther);
-});
-}catch(e){
-alert('結帳已完成，但銷售明細暫時更新失敗，請按銷售區重新整理。'+e.message);
-}
+if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
+if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
+}catch(_){/* 結帳已完成，保留即時資料並讓使用者可手動重新整理 */}
+},0);
 }
 function renderSalesPurchase(items){
 const payment=String(items.find(item=>item.payment)?.payment||'').trim();
@@ -1452,7 +1463,10 @@ const bank=payment.match(/^(中信|LB)/i);
 const cash=payment==='💰'||payment==='現金';
 const method=bank?(bank[1].toUpperCase()==='LB'?'LB':'中信'):(payment||'未填付款方式');
 const code=bank?(payment.match(/(\d{5})\s*$/)?.[1]||''):'';
-return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>`<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><strong>${esc(item.name||'未填商品名稱')}</strong>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}</div><b>$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>`).join('')}${cash?'':`<div class="salesPurchaseInfo"><span>${esc(method)}</span>${code?`<span>${esc(code)}</span>`:''}</div>`}</div>`;
+const codeClass=bank?(bank[1].toUpperCase()==='LB'?'salesCodeLB':'salesCodeCTBC'):'';
+const paymentClass=codeClass;
+const paymentInfoClass=bank?(bank[1].toUpperCase()==='LB'?'salesBankLB':'salesBankCTBC'):'';
+return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>`<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><strong>${esc(item.name||'未填商品名稱')}</strong>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}</div><b>$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>`).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><span class="${paymentClass}">${esc(method)}</span>${code?`<span class="${codeClass}">${esc(code)}</span>`:''}</div>`}</div>`;
 }
 function drawStoreSales(target=null){
 const result=target||document.getElementById('storeSalesResult');
@@ -1482,7 +1496,7 @@ if(!orders.has(key))orders.set(key,[]);
 orders.get(key).push(item);
 });
 return `<div class="groupCard salesDayCard" data-sales-date="${esc(day.date)}">
-<div class="groupCardCustomer"><strong>${esc(day.date.slice(5).replace('-','/'))}</strong>${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${day.items.length} 筆商品</span></div>
+<div class="groupCardCustomer"><strong>${esc(day.date.slice(5).replace('-','/'))}</strong><button type="button" class="rainToggle" data-rain-date="${esc(day.date)}" aria-label="切換${esc(day.date)}下雨標記" aria-pressed="${isRainyDay(day.date)}" onclick="toggleRainDay('${esc(day.date)}')">⛆</button>${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${day.items.length} 筆商品</span></div>
 <div class="groupCardItems salesDayItems">${orders.size?[...orders.values()].map(renderSalesPurchase).join(''):'<div class="empty">當日尚無銷售紀錄</div>'}</div>
 <div class="groupCardMeta salesFooter"><div class="salesDayTotals"><span>總金額 <b>$${money(day.total)}</b></span><span>現金 <b class="salesCash">$${money(day.cash)}</b></span><span>轉帳 <b>$${money(day.transfer)}</b></span></div></div>
 </div>`;
@@ -1523,7 +1537,7 @@ alert('請先選擇銷售員');
 return;
 }
 const name=document.getElementById('manualName').value.trim();
-const price=Number(document.getElementById('manualPrice').value||0);
+const price=Number(normalizeMoneyInput(document.getElementById('manualPrice'))||0);
 if(!name){
 alert('請輸入商品名稱');
 return;
@@ -1653,13 +1667,15 @@ alert('請選擇付款方式');
 return
 }
 const total=storeCart.reduce((s,x)=>s+x.price*x.qty,0);
-const receivedInput=document.getElementById('received').value;
+const receivedInput=normalizeMoneyInput(document.getElementById('received'));
 const received=receivedInput===''?'':Number(receivedInput);
 const change=received===''?'':received-total;
 let paymentValue=payment;
 let note='';
 if(payment==='中信'||payment==='LB'){
-const last5=document.getElementById('last5').value.trim();
+const last5Input=document.getElementById('last5');
+last5Input.value=toHalfWidthDigits(last5Input.value);
+const last5=last5Input.value.trim();
 if(!/^\d{5}$/.test(last5)){
 alert('請輸入 5 碼後五碼');
 return
@@ -1710,7 +1726,7 @@ if(last5Box)last5Box.style.display='none';
 document.querySelectorAll('.payment button').forEach(button=>button.classList.remove('active'));
 renderCart();
 // 已確認結帳成功；右側只加入新增紀錄，更新失敗不重送結帳。
-await updateSalesAfterCheckout();
+updateSalesAfterCheckout(d.salesDelta);
 const input=document.getElementById('barcode');
 if(input)input.focus();
 }catch(e){
@@ -1730,7 +1746,7 @@ const app=document.getElementById('app');
 app.innerHTML=`
 <div class="onlinePage">
 <div class="onlineToolbar">
-<input id="customerSearch" placeholder="搜尋顧客名稱／團名／月份（例如 9月）">
+<input id="customerSearch" placeholder="搜尋顧客名稱／團名／月份／後五碼">
 <button class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="現貨">現貨</option>
@@ -1959,10 +1975,14 @@ return onlineMonthNumber(time)===wantedMonth;
 }
 const dateKey=time.replace(/\D/g,'');
 const searchDate=key.replace(/\D/g,'');
+const last5Source=String(getLast5(x)||getPaymentMethod(x)||'');
+const last5=toHalfWidthDigits(last5Source).replace(/\D/g,'');
+const searchDigits=toHalfWidthDigits(onlineSearchText).replace(/\D/g,'');
 return(
 customer.includes(key)||
 group.includes(key)||
-(searchDate.length>=3&&dateKey.includes(searchDate))
+(searchDate.length>=3&&dateKey.includes(searchDate))||
+(searchDigits.length>0&&last5.includes(searchDigits))
 );
 });
 }
@@ -2328,8 +2348,9 @@ const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
 const faceToFace=order.items.some(isFaceToFace);
+const reconciled=order.items.every(row=>isTruthy(getOnlineData(row,['對帳','已對帳'])));
 const depositMarkup=deposit===''?
-'<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
+'<input class="orderDepositInput" data-money-input type="text" inputmode="decimal" oninput="normalizeMoneyInput(this)" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
 :'$'+money(deposit);
 html+=`
 <div class="groupCard">
@@ -2370,6 +2391,7 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5"><input class="orderLast5Input" aria-label="匯款後五碼" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
 `}
+<button type="button" class="btn light reconcileButton ${reconciled?'isDone':''}" ${reconciled?'disabled':''} onclick="markOnlineReconciled(this)">${reconciled?'完成':'對帳'}</button>
 </div>
 </div>
 `;
@@ -2452,6 +2474,27 @@ rows.forEach(row=>pendingFaceRows.delete(row));
 button.disabled=false;
 syncFaceButtons();
 }
+}
+const pendingReconcileRows=new Set();
+async function markOnlineReconciled(button){
+const meta=button.closest('.groupCardMeta');
+if(!meta||button.disabled)return;
+const rows=(meta.dataset.rows||'').split(',').map(Number).filter(row=>row>=2);
+if(!rows.length||rows.some(row=>pendingReconcileRows.has(row)))return;
+rows.forEach(row=>pendingReconcileRows.add(row));
+button.disabled=true;
+button.textContent='完成';
+button.classList.add('isDone');
+try{
+await api('setOnlineReconciled',{rows:JSON.stringify(rows)});
+const header=findHeader(onlineHeaders,['對帳','已對帳']);
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(header)row.data[header]=true;});
+}catch(e){
+button.textContent='對帳';
+button.classList.remove('isDone');
+button.disabled=false;
+alert('對帳更新失敗：'+e.message);
+}finally{rows.forEach(row=>pendingReconcileRows.delete(row));}
 }
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
@@ -2659,8 +2702,7 @@ style="margin-bottom:10px">
 <div class="cardHead shipCardHead">
 <button class="btn light shipCopyButton" onclick="copyShipText(this)" aria-label="複製整筆訂單出貨文" title="複製出貨文"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260923191208_45eb9f40.png" alt=""></button>
 <strong>${esc(customer)}</strong>
-<span>出貨日期 ${esc(shipDate)}</span>
-<span>${g.length} 件</span>
+<span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
 </div>
 ${g.map(x=>`
 <div class="shipItem" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
