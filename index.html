@@ -1820,7 +1820,7 @@ const request=(async()=>{
   if(revision!==onlineMutationRevision||pendingRestockRows.size)return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
-    ?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),depositMergeKey:(d.mergeKeys||[])[i]||''}))
+    ?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
     :(d.rows||[]);
   onlineRows=rows;
   onlineHeaders=headers;
@@ -2381,19 +2381,27 @@ return
 }
 const customerNames=new Set(rows.map(row=>String(getCustomerName(row)||'未填姓名').trim()));
 const singleCustomerView=isCustomerView&&customerNames.size===1;
-const restockRows=singleCustomerView?rows.filter(isRestockRow):[];
-const normalRows=singleCustomerView?rows.filter(row=>!isRestockRow(row)):rows;
+const normalRows=rows;
 const orders=new Map();
 normalRows.forEach(row=>{
 const customer=String(getCustomerName(row)||'未填姓名').trim();
 const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
-const depositMergeKey=String(row.depositMergeKey||'');
+const depositMergeKey=String(row.orderMergeKey||row.depositMergeKey||'');
 const key=depositMergeKey
-  ?customer+'\u0000deposit:'+depositMergeKey
+  ?'order:'+depositMergeKey
   :customer+'\u0000'+time;
 if(!orders.has(key))orders.set(key,{customer,time,items:[],depositMergeKey});
 orders.get(key).items.push(row);
 });
+const restockRows=[];
+if(singleCustomerView){
+  for(const [key,order] of orders){
+    if(order.items.every(isRestockRow)){
+      restockRows.push(...order.items);
+      orders.delete(key);
+    }
+  }
+}
 let totalAmount=0;
 rows.forEach(row=>{totalAmount+=numberValue(getOnlineData(row,['售價','價格']));});
 let html=isFaceToFaceView?'':`
