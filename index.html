@@ -507,30 +507,19 @@ text-align:center
 .orderLast5{white-space:nowrap}
 .orderLast5 input:disabled{background:#f2f2f2;color:#aaa}
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
-.faceToFaceTag{
-border:0;
 .faceToFaceTag,.faceToggle{
 border:1px dashed #CBC3BC;
 border-radius:5px;
 padding:2px 5px;
 font-size:10px;
 background:transparent;
-color:#555
 color:#CBC3BC
 }
-.faceToFaceTag.active{background:#FAB460;color:#fff;border-radius:5px}
-.faceToggle{
-border:0;
-background:transparent;
-color:#8a6730;
-padding:2px 4px;
-font-size:11px
 .faceToFaceTag.active,.faceToggle.active{
 background:#FDD365;
 color:#fff;
 border-color:#FDD365
 }
-.faceToggle.active{background:#FAB460;color:#fff;border-radius:5px}
 .orderPayment{
 width:62px;
 padding:4px 3px;
@@ -693,20 +682,16 @@ display:block;
 background:#E78790!important
 }
 .storeSearch{
-flex-wrap:wrap
 display:grid;
 grid-template-columns:minmax(0,3fr) repeat(3,minmax(0,1fr));
 gap:6px;
 align-items:stretch
 }
 .storeSearch input{
-flex:1 1 100%;
 min-width:0;
 width:100%
 }
 .storeSearch>.btn{
-flex:1;
-min-width:0
 min-width:0;
 width:100%;
 padding:10px 0;
@@ -1201,9 +1186,6 @@ app.innerHTML=`
 <div class="storeMainBody">
 <div class="storeSearch">
 <input id="barcode" autofocus placeholder="掃描或輸入貨號">
-<button class="btn" onclick="scan()">加入</button>
-<button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')">花花</button>
-<button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')">小法師</button>
 <button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">＋</span></button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')" aria-label="花花" title="花花">✿</button>
 <button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')" aria-label="小法師" title="小法師">★</button>
@@ -1865,7 +1847,6 @@ ${title}
 <th>售價</th>
 <th>運費</th>
 <th>訂金</th>
-<th>後五碼</th>
 <th aria-label="後五碼"></th>
 </tr>
 </thead>
@@ -2043,7 +2024,6 @@ const acceptsLast5=payment==='中信'||payment==='LB';
 const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
-const faceToFace=order.items.some(row=>getPaymentMethod(row)==='面交');
 const faceToFace=order.items.some(isFaceToFace);
 const depositMarkup=deposit===''?
 '<input class="orderDepositInput" type="text" inputmode="numeric" pattern="[0-9]*" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
@@ -2053,13 +2033,11 @@ html+=`
 <div class="groupCardCustomer">
 ${isCustomerView?`
 <span>${esc(formatOnlineTime(order.time))}</span>
-<button class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
 <button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${esc(order.customer)}
 </button>
-<button class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 <button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `}
 <strong class="groupCardTotal">總金額 $${money(orderTotal)}</strong>
@@ -2077,7 +2055,6 @@ ${order.items.map(row=>`
 <div class="groupCardMeta" data-rows="${esc(orderRows)}" data-payment="${esc(payment)}" data-last5="${esc(last5)}">
 <span>${esc(formatOnlineTime(order.time))}</span>
 ${openedWithoutPayment?'':paymentCommitted?`
-<span class="orderLast5">後五碼 ${esc(last5)}</span>
 <span class="orderLast5">${esc(last5)}</span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
 `:`
@@ -2087,7 +2064,6 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <option value="LP" ${payment==='LP'?'selected':''}>LP</option>
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
-<span class="orderLast5">後五碼 <input class="orderLast5Input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <span class="orderLast5"><input class="orderLast5Input" aria-label="匯款後五碼" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
 <span class="orderDeposit">訂金 ${depositMarkup}</span>
 `}
@@ -2097,7 +2073,6 @@ ${openedWithoutPayment?'':paymentCommitted?`
 });
 html+=`
 </div>
-<button class="btn green shipFab" onclick="createSelectedShip()"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
 <button class="btn green shipFab" aria-label="寶寶回家，拖曳可移動位置"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
 </div>`;
 res.innerHTML=html;
@@ -2205,7 +2180,6 @@ button.setAttribute('aria-pressed',String(button.classList.contains('active')));
 async function toggleFaceToFace(button,rows){
 rows=rows.map(Number);
 if(rows.some(row=>pendingFaceRows.has(row)))return;
-const faceToFace=!button.classList.contains('active');
 const enabled=!button.classList.contains('active');
 rows.forEach(row=>pendingFaceRows.set(row,enabled));
 button.classList.toggle('active',enabled);
@@ -2213,11 +2187,8 @@ button.disabled=true;
 syncFaceButtons();
 try{
 await api('setOnlineFaceToFace',{
-rows:JSON.stringify(rows),
-enabled:faceToFace?'true':'false'
 rows:JSON.stringify(rows),enabled:enabled?'true':'false'
 });
-button.classList.toggle('active',faceToFace);
 const noteHeader=findHeader(onlineHeaders,['備註','備註欄']);
 onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{
 if(noteHeader){
@@ -2228,7 +2199,6 @@ row.data[noteHeader]=enabled
 }
 });
 }catch(e){
-alert('面交設定失敗：'+e.message)
 alert('面交設定失敗，已還原：'+e.message);
 }finally{
 rows.forEach(row=>pendingFaceRows.delete(row));
