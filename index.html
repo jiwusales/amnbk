@@ -43,6 +43,7 @@ input[type=number]::-webkit-inner-spin-button{
 margin:0
 }
 .top{
+position:relative;
 height:58px;
 background:#fff;
 border-bottom:1px solid var(--border);
@@ -516,9 +517,9 @@ background:transparent;
 color:#CBC3BC
 }
 .faceToFaceTag.active,.faceToggle.active{
-background:#FDD365;
+background:#b1d8b7;
 color:#fff;
-border-color:#FDD365
+border-color:#b1d8b7
 }
 .orderPayment{
 width:62px;
@@ -527,6 +528,7 @@ border-radius:6px;
 font-size:12px
 }
 .shipFab{
+display:none;
 position:fixed;
 right:18px;
 bottom:76px;
@@ -624,6 +626,31 @@ padding:3px 0
 font-size:20px;
 font-weight:800;
 margin-top:5px
+}
+.topActions{
+position:absolute;
+right:12px;
+top:50%;
+transform:translateY(-50%);
+display:flex;
+align-items:center
+}
+.topActions .btn{
+height:26px;
+min-height:0;
+padding:2px 9px;
+font-size:13px;
+line-height:20px;
+border-radius:6px
+}
+.topHomeButton,.topRefreshButton{display:none}
+body[data-page="online"] .topHomeButton{display:inline-flex;align-items:center}
+body[data-page="ship"] .topRefreshButton{display:block}
+.topActions .topRefreshButton{
+width:26px;
+min-width:26px;
+padding:0;
+background-size:75%!important
 }
 /* 手機 */
 @media(max-width:850px){
@@ -733,7 +760,8 @@ grid-template-columns:1fr
 height:auto;
 max-height:275px
 }
-.shipFab{right:14px;bottom:68px}
+.shipFab{display:block;right:14px;bottom:68px}
+body[data-page="online"] .topHomeButton{display:none}
 .shipFabDesktop{display:none}
 .shipFabMobile{display:inline}
 table.onlineTable{
@@ -814,7 +842,13 @@ font-size:13px
 </style>
 </head>
 <body>
-<div class="top">JIWU吉物販售</div>
+<div class="top">
+<span>JIWU吉物販售</span>
+<div class="topActions">
+<button class="btn green topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
+<button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip()" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
+</div>
+</div>
 <div class="nav">
 <button id="btn-buy" onclick="tab('buy',this)">敗家</button>
 <button id="btn-store" class="active" onclick="tab('store',this)">店面</button>
@@ -1024,6 +1058,7 @@ return 0
    TAB
 ========================================================= */
 function tab(name,el){
+document.body.dataset.page=name;
 document
 .querySelectorAll('.nav button')
 .forEach(x=>x.classList.remove('active'));
@@ -2073,7 +2108,7 @@ ${openedWithoutPayment?'':paymentCommitted?`
 });
 html+=`
 </div>
-<button class="btn green shipFab" aria-label="寶寶回家，拖曳可移動位置"><span class="shipFabDesktop">出貨ㄛ</span><span class="shipFabMobile">寶寶回家</span></button>
+<button class="btn green shipFab" aria-label="寶寶回家，拖曳可移動位置"><span class="shipFabDesktop">寶寶回家</span><span class="shipFabMobile">寶寶回家</span></button>
 </div>`;
 res.innerHTML=html;
 syncFaceButtons();
@@ -2279,15 +2314,6 @@ async function renderShip(){
 const app=document.getElementById('app');
 app.innerHTML=`
 <div class="shipPage">
-<div
-class="toolbar"
-style="margin-bottom:10px">
-<button
-class="btn light"
-onclick="renderShip()">
-重新整理
-</button>
-</div>
 <div id="shipSelectedArea">
 </div>
 <div id="shipResult">
