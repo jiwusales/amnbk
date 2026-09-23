@@ -300,7 +300,6 @@ border-radius:6px;
 background:#eee;
 color:#666
 }
-.qty .removeCartButton{
 .cartItem .removeCartButton{
 background:#E78790!important;
 color:#fff!important
@@ -651,7 +650,6 @@ font-size:13px;
 line-height:20px;
 border-radius:6px
 }
-.topHomeButton,.topRefreshButton{display:none}
 .topHomeButton,.topRefreshButton,.topStoreToggle{display:none}
 body[data-page="store"] .topStoreToggle{display:block}
 body[data-page="online"] .topHomeButton{display:inline-flex;align-items:center}
@@ -777,7 +775,6 @@ background:#E78790!important
 }
 .storeSearch{
 display:grid;
-grid-template-columns:minmax(0,3fr) repeat(3,minmax(0,1fr));
 grid-template-columns:minmax(0,3fr) repeat(2,minmax(0,1fr));
 gap:6px;
 align-items:stretch
@@ -809,7 +806,6 @@ padding:7px 2px
 .storeCheckout [style*="margin-top:12px"]{margin-top:8px!important}
 .checkoutQuick{
 display:grid;
-grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)
 grid-template-columns:minmax(0,1fr)
 }
 .checkoutQuick .salesperson{gap:5px}
@@ -968,7 +964,6 @@ let onlineRows=[];
 let onlineHeaders=[];
 let storeCart=[];
 let payment='';
-let salesperson='';
 let salesperson='shared';
 let onlineSearchText='';
 let onlineCargo='現貨';
@@ -1188,7 +1183,6 @@ if(name==='buy'){
 document.getElementById('app').innerHTML='<iframe title="敗家" src="https://jiwusales.github.io/wkbuyit/index.html" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>';
 }
 if(name==='store'){
-renderStore();
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 }
 if(name==='online'){
@@ -1274,7 +1268,6 @@ function startStoreCartSync(){
 stopStoreCartSync();
 storeCartSyncTimer=setInterval(()=>{
 const current=sessionStorage.getItem('jiwu_current_tab');
-if(current==='store')syncActiveStoreSalesperson();
 if(current==='store'&&(isDesktopStore()||storeView==='checkout'))syncActiveStoreSalesperson();
 },1500);
 }
@@ -1287,68 +1280,15 @@ storeCartSyncTimer=null;
 /* =========================================================
    店面
 ========================================================= */
-function detectSalesperson(){
-// 網址與儲存偏好只作為初始選擇，不能覆蓋本次已選銷售員。
-if(salesperson==='花花'||salesperson==='小法師')return salesperson;
-const q=new URLSearchParams(location.search);
-const user=
-q.get('user')||
-q.get('salesperson')||
-localStorage.getItem('jiwu_salesperson')||
-'';
-if(user==='花花'||user==='小法師'){
-salesperson=user;
-localStorage.setItem('jiwu_salesperson',user);
-}
-return salesperson;
-}
 function detectSalesperson(){return salesperson;}
 async function syncActiveStoreSalesperson(){
 if(activeSalespersonLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 activeSalespersonLoading=true;
-const revision=cartRevision;
-try{
-// 已選銷售員時只同步他的購物車；其他裝置掃描不切換本機帳號。
-if(!salesperson){
-const d=await api('storeActiveSalesperson');
-if(revision!==cartRevision||salesperson||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
-const active=d.salesperson||'';
-if(active==='花花'||active==='小法師'){
-salesperson=active;
-cartRevision++;
-storeCart=[];
-localStorage.setItem('jiwu_salesperson',salesperson);
-renderStore();
 try{await loadStoreCart();}finally{activeSalespersonLoading=false;}
 }
-}
-if(salesperson)await loadStoreCart();
-}catch(e){console.error('讀取購物車失敗',e);}
-finally{activeSalespersonLoading=false;}
-}
-async function setSalesperson(el,v){
-if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再切換銷售員');return;}
-cartRevision++;
-salesperson=v;
-storeCart=[];
-renderCart();
-document
-.querySelectorAll('.salesperson button')
-.forEach(x=>x.classList.remove('active'));
-if(el)el.classList.add('active');
-localStorage.setItem('jiwu_salesperson',salesperson);
-await loadStoreCart();
-startStoreCartSync();
-}
-async function runShortcut(name){
-if(window.innerWidth>850)return;
 const STORE_SCAN_SHORTCUT='吉物2.0';
 function runShortcut(){
 if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再開啟掃描');return;}
-const user=name==='吉物花花'?'花花':'小法師';
-await setSalesperson(null,user);
-document.querySelectorAll('.salesperson button').forEach(button=>button.classList.toggle('active',button.textContent.trim()===user));
-location.href='shortcuts://run-shortcut?name='+encodeURIComponent(name);
 location.href='shortcuts://run-shortcut?name='+encodeURIComponent(STORE_SCAN_SHORTCUT);
 }
 function renderStore(){
@@ -1377,8 +1317,6 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <div class="storeSearch">
 <input id="barcode" autofocus placeholder="掃描或輸入貨號">
 <button class="btn" onclick="scan()" aria-label="加入商品" title="加入商品"><span class="storeAddText">加入</span><span class="storeAddIcon" aria-hidden="true">＋</span></button>
-<button class="btn light mobileShortcut" onclick="runShortcut('吉物花花')" aria-label="花花" title="花花">✿</button>
-<button class="btn light mobileShortcut" onclick="runShortcut('吉物小法師2.0')" aria-label="小法師" title="小法師">★</button>
 <button class="btn light storeScanShortcut" onclick="runShortcut()" aria-label="開啟掃描捷徑" title="開啟掃描捷徑"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260923205456_a3fd27c9.png" alt=""></button>
 </div>
 <div id="storeCart" class="cart"></div>
@@ -1393,10 +1331,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 </div>
 <div class="checkoutQuick" style="margin-top:8px">
 <input id="received" type="number" placeholder="收到金額（可不填）">
-<div class="salesperson">
-<button class="${salesperson==='花花'?'active':''}" onclick="setSalesperson(this,'花花')">花花</button>
-<button class="${salesperson==='小法師'?'active':''}" onclick="setSalesperson(this,'小法師')">小法師</button>
-</div>
+
 </div>
 <div style="margin-top:12px">
 <div style="color:#999;font-size:13px;margin-bottom:6px">付款方式</div>
@@ -1585,7 +1520,7 @@ $${money(x.price)}
 <button onclick="changeQty(${i},-1)">−</button>
 <b>${x.qty}</b>
 <button onclick="changeQty(${i},1)">＋</button>
-<button class="btn removeCartButton" style="padding:4px 8px" onclick="removeCart(${i})">×</button>
+
 </div>
 </div>
 `).join('');
@@ -1713,8 +1648,6 @@ salesperson
 }
 );
 alert(
-'結帳完成\n銷售員：'+
-(d.salesperson||salesperson)
 '結帳完成'
 );
 storeCart=[];
@@ -1926,7 +1859,6 @@ const d=new Date(s);
 return Number.isNaN(d.getTime())?0:d.getMonth()+1
 }
 function onlineSummaryTitle(){
-if(onlineCargo==='現貨')return '可出貨';
 if(onlineCargo==='現貨')return '待出貨';
 if(onlineCargo)return onlineCargo;
 if(onlineSearchText)return onlineSearchText;
@@ -2309,7 +2241,6 @@ const singleCustomerView=isCustomerView&&customerNames.size===1;
 const restockRows=singleCustomerView?rows.filter(isRestockRow):[];
 const normalRows=singleCustomerView?rows.filter(row=>!isRestockRow(row)):rows;
 const orders=new Map();
-rows.forEach(row=>{
 normalRows.forEach(row=>{
 const customer=String(getCustomerName(row)||'未填姓名').trim();
 const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
@@ -2318,14 +2249,9 @@ if(!orders.has(key))orders.set(key,{customer,time,items:[]});
 orders.get(key).items.push(row);
 });
 let totalAmount=0;
-orders.forEach(order=>order.items.forEach(row=>{
-totalAmount+=numberValue(getOnlineData(row,['售價','價格']));
-}));
 rows.forEach(row=>{totalAmount+=numberValue(getOnlineData(row,['售價','價格']));});
 let html=`
 <div class="card">
-<div class="cardHead groupSummary">
-<span>${esc(summary||'可出貨')}｜${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
 <span class="orderSummaryLabel">${esc(summary||'待出貨')}</span><span class="orderSummaryStats">${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
 </div>
@@ -2351,7 +2277,6 @@ const depositMarkup=deposit===''?
 html+=`
 <div class="groupCard">
 <div class="groupCardCustomer">
-${isCustomerView?`
 ${singleCustomerView?`
 <span>${esc(formatOnlineTime(order.time))}</span>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
