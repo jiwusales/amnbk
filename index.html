@@ -1463,7 +1463,7 @@ app.innerHTML=`
 <button class="btn light onlineIconButton onlineRefreshButton" onclick="loadOnline(true)" aria-label="重新整理">重新整理</button>
 </div>
 <div id="onlineResult" class="onlineResult">
-${onlineRows.length?'':'<div class="card"><div class="loading">載入中…</div></div>'}
+${onlineLoadedAt?'':'<div class="card"><div class="loading">載入中…</div></div>'}
 </div>
 </div>
 `;
@@ -1474,7 +1474,7 @@ f.value=onlineCargo;
 input.addEventListener('keydown',e=>{
 if(e.key==='Enter')searchOnline();
 });
-if(onlineRows.length){
+if(onlineLoadedAt){
 applyOnlineFilter();
 loadOnline(false,true);
 }else{
@@ -1482,31 +1482,47 @@ loadOnline();
 }
 }
 async function loadOnline(force=false,background=false){
-isCustomerView=false;
-isGroupView=false;
 try{
-if(!force&&onlineRows.length&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
-applyOnlineFilter();
-return
+// 手動重新整理等待既有請求結束，確保舊回應不會蓋掉新資料。
+if(onlineLoadPromise){
+  if(force){
+    try{await onlineLoadPromise;}catch(_){}
+    return loadOnline(true,background);
+  }
+  await onlineLoadPromise;
+  return;
 }
-if(!force&&onlineLoadPromise){
-await onlineLoadPromise;
-applyOnlineFilter();
-return
+if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
+  return;
 }
-onlineLoadPromise=api('online');
-const d=await onlineLoadPromise;
-onlineRows=d.rows||[];
-onlineHeaders=d.headers||[];
-onlineLoadedAt=Date.now();
-applyOnlineFilter();
+const request=(async()=>{
+  const d=await api('online',{compact:'1',fresh:force?'1':'0'});
+  const headers=d.headers||[];
+  const rows=d.format==='online-matrix-v1'
+    ?(d.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))}))
+    :(d.rows||[]);
+  onlineRows=rows;
+  onlineHeaders=headers;
+  onlineLoadedAt=Date.now();
+  if(document.getElementById('onlineResult')){
+    isCustomerView=false;
+    isGroupView=false;
+    applyOnlineFilter();
+  }
+})();
+onlineLoadPromise=request;
+try{await request;}finally{
+  if(onlineLoadPromise===request)onlineLoadPromise=null;
+}
 }catch(e){
 const res=document.getElementById('onlineResult');
-if(res&&!background&&!onlineRows.length){
-res.innerHTML=`<div class="empty">${esc(e.message)}</div>`;
+if(res&&!background){
+  if(!onlineLoadedAt){
+    res.innerHTML=`<div class="empty">${esc(e.message)}</div>`;
+  }else{
+    alert('更新失敗，目前保留上次資料：'+e.message);
+  }
 }
-}finally{
-onlineLoadPromise=null;
 }
 }
 async function searchOnline(){
