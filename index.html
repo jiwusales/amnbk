@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JIWU吉物販售</title>
+<title>JIWU吉物躺著賺後台</title>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -856,7 +856,7 @@ font-size:13px
 <span>JIWU吉物販售</span>
 <div class="topActions">
 <button class="btn green topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
-<button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip()" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
+<button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip(true)" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
 </div>
 </div>
 <div class="nav">
@@ -1100,6 +1100,11 @@ renderShip();
 }
 let storeCartSyncTimer=null;
 let storeCartLoading=false;
+let cartRevision=0;
+let cartPendingWrites=0;
+let cartWriteQueue=Promise.resolve();
+let cartUnsaved=false;
+let activeSalespersonLoading=false;
 /*
  * 從 GAS 取得共用購物車
  */
@@ -1109,13 +1114,16 @@ storeCart=[];
 renderCart();
 return;
 }
-if(storeCartLoading)return;
+if(storeCartLoading||cartPendingWrites||cartUnsaved)return;
+const requestUser=salesperson;
+const requestRevision=cartRevision;
 storeCartLoading=true;
 try{
 const d=await api(
 'storeCart',
-{salesperson}
+{salesperson:requestUser}
 );
+if(requestUser!==salesperson||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved)return;
 storeCart=Array.isArray(d.cart)?d.cart:[];
 renderCart();
 }catch(e){
@@ -1129,25 +1137,19 @@ storeCartLoading=false;
  */
 async function saveStoreCart(){
 if(!salesperson)return;
+const user=salesperson;
+const revision=++cartRevision;
+const items=JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual})));
+cartPendingWrites++;
+cartUnsaved=true;
+const request=cartWriteQueue.then(()=>api('storeCartSet',{salesperson:user,items}));
+cartWriteQueue=request.catch(()=>{});
 try{
-await api(
-'storeCartSet',
-{
-salesperson,
-items:JSON.stringify(
-storeCart.map(x=>({
-code:x.code||'',
-name:x.name||'',
-price:Number(x.price||0),
-qty:Number(x.qty||1),
-manual:!!x.manual
-}))
-)
-}
-);
+await request;
+if(revision===cartRevision)cartUnsaved=false;
 }catch(e){
-console.error('儲存購物車失敗',e);
-}
+alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
+}finally{cartPendingWrites--;}
 }
 /*
  * 自動同步
@@ -1182,8 +1184,13 @@ localStorage.setItem('jiwu_salesperson',user);
 return salesperson;
 }
 async function syncActiveStoreSalesperson(){
+if(activeSalespersonLoading||cartPendingWrites||cartUnsaved)return;
+activeSalespersonLoading=true;
+const revision=cartRevision;
+const user=salesperson;
 try{
 const d=await api('storeActiveSalesperson');
+if(revision!==cartRevision||user!==salesperson||cartPendingWrites||cartUnsaved)return;
 const active=d.salesperson||'';
 if(active&&(active!==salesperson)){
 salesperson=active;
@@ -1194,9 +1201,11 @@ return
 if(salesperson)loadStoreCart();
 }catch(e){
 console.error('讀取目前銷售員失敗',e)
-}
+}finally{activeSalespersonLoading=false;}
 }
 async function setSalesperson(el,v){
+if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再切換銷售員');return;}
+cartRevision++;
 salesperson=v;
 document
 .querySelectorAll('.salesperson button')
@@ -1286,6 +1295,7 @@ startStoreCartSync();
 syncActiveStoreSalesperson();
 }
 async function scan(){
+if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再加入商品');return;}
 const input=document.getElementById('barcode');
 const code=input.value.trim();
 if(!code){
@@ -1344,6 +1354,7 @@ if(!storeCart.length){
 box.innerHTML='<div class="empty">尚未加入商品</div>';
 const total=document.getElementById('storeTotal');
 if(total)total.textContent='$0';
+calcChange();
 return
 }
 box.innerHTML=storeCart.map((x,i)=>`
@@ -1411,6 +1422,7 @@ input.value='';
 }
 }
 async function clearStoreCart(){
+if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再清空');return;}
 if(!storeCart.length)return;
 if(!confirm('確定清空全部商品？'))return;
 try{
@@ -1423,6 +1435,7 @@ alert(e.message)
 }
 }
 async function checkout(){
+if(cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
 if(!storeCart.length){
 alert('沒有商品');
 return
@@ -2253,6 +2266,7 @@ alert(
 (d.count||rows.length)+
 ' 筆'
 );
+shipDataCache=null;shipLoadedAt=0;shipRevision++;
 tab('ship',document.getElementById('btn-ship'));
 }catch(e){
 alert(e.message)
@@ -2266,23 +2280,41 @@ names
 return h?row.data[h]:''
 }
 let shipHeadersCache=[];
-async function renderShip(){
+let shipDataCache=null;
+let shipLoadedAt=0;
+let shipLoadPromise=null;
+let shipRevision=0;
+let shipPendingWrites=0;
+const SHIP_HIDE_MS=60*60*1000;
+function shipRowExpired(row,now=Date.now()){
+const time=Date.parse(row.data['包貨完成時間']||'');
+return isTruthy(row.data['已包貨'])&&Number.isFinite(time)&&now-time>=SHIP_HIDE_MS;
+}
+async function renderShip(force=false){
+if(shipPendingWrites)return;
 const app=document.getElementById('app');
-app.innerHTML=`
-<div class="shipPage">
-<div id="shipSelectedArea">
-</div>
-<div id="shipResult">
-<div class="card">
-<div class="loading">
-載入中…
-</div>
-</div>
-</div>
-</div>
-`;
+if(!document.getElementById('shipResult'))app.innerHTML='<div class="shipPage"><div id="shipResult"><div class="card"><div class="loading">載入中…</div></div></div></div>';
+if(shipDataCache)drawShip(shipDataCache);
+if(!force&&shipDataCache&&Date.now()-shipLoadedAt<30000)return;
+if(shipLoadPromise)return shipLoadPromise;
+const revision=shipRevision;
+const request=(async()=>{
 try{
 const d=await api('ship');
+if(revision!==shipRevision)return;
+shipDataCache=d;shipLoadedAt=Date.now();
+if(document.body.dataset.page==='ship')drawShip(d);
+}catch(e){
+const res=document.getElementById('shipResult');
+if(res&&!shipDataCache)res.innerHTML='<div class="empty">'+esc(e.message)+'</div>';
+else if(force)alert('更新失敗，目前保留上次資料：'+e.message);
+}
+})();
+shipLoadPromise=request;
+try{await request;}finally{if(shipLoadPromise===request)shipLoadPromise=null;}
+}
+function drawShip(source){
+const d={...source,rows:(source.rows||[]).filter(row=>!shipRowExpired(row))};
 shipHeadersCache=
 d.headers||[];
 const res=document.getElementById('shipResult');
@@ -2411,16 +2443,13 @@ ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 `;
 }).join('');
 }
-}catch(e){
-const res=document.getElementById('shipResult');
-if(res){
-res.innerHTML=
-`<div class="empty">
-${esc(e.message)}
-</div>`;
 }
+setInterval(()=>{
+if(document.body.dataset.page==='ship'&&shipDataCache&&!shipPendingWrites){
+const visible=[...document.querySelectorAll('.shipOrderCard')].flatMap(card=>card.dataset.rows.split(',').map(Number));
+if(shipDataCache.rows.some(row=>visible.includes(Number(row.row))&&shipRowExpired(row)))drawShip(shipDataCache);
 }
-}
+},1000);
 /* =========================================================
    出貨選擇統計
 ========================================================= */
@@ -2455,10 +2484,19 @@ button.setAttribute('aria-pressed',String(value));
 button.textContent=value?'已完成':'完成';
 };
 button.disabled=true;update(packed);
+shipRevision++;shipPendingWrites++;
 try{
-await api('setShipPacked',{rows:JSON.stringify(card.dataset.rows.split(',').map(Number)),packed:String(packed)});
+const ids=card.dataset.rows.split(',').map(Number);
+const result=await api('setShipPacked',{rows:JSON.stringify(ids),packed:String(packed)});
+if(shipDataCache){
+shipDataCache.rows.filter(row=>ids.includes(Number(row.row))).forEach(row=>{
+row.data['已包貨']=packed;row.data['包貨完成時間']=result.completedAt||'';
+});
+if(!shipDataCache.headers.includes('已包貨'))shipDataCache.headers.push('已包貨');
+}
+shipLoadedAt=0;
 }catch(e){update(previous);alert('包貨狀態儲存失敗，已還原：'+e.message);}
-finally{button.disabled=false;}
+finally{button.disabled=false;shipPendingWrites--;}
 }
 /* =========================================================
    出貨狀態
