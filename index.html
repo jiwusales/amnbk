@@ -1311,7 +1311,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <div class="card storeMain">
 <div class="cardHead">
 <span>商品清單</span>
-<span style="color:#999;font-size:13px">${storeCart.length} 項</span>
+<span id="storeCartCount" style="color:#999;font-size:13px">${storeCart.length} 項</span>
 </div>
 <div class="storeMainBody">
 <div class="storeSearch">
@@ -1350,7 +1350,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <input id="storeNote" placeholder="備註" style="width:100%">
 </div>
 <div class="checkoutActions">
-<button class="btn green" onclick="checkout()">結帳</button>
+<button id="storeCheckoutButton" class="btn green" onclick="checkout()">結帳</button>
 <button class="btn acButton" onclick="clearStoreCart()">AC</button>
 </div>
 </div>
@@ -1398,16 +1398,64 @@ if(result&&!storeSalesData)result.innerHTML='<div class="empty">'+esc(e.message)
 else if(result)alert('更新失敗，保留上次資料：'+e.message);
 }
 }
+async function updateSalesAfterCheckout(){
+storeSalesLoadedAt=0;
+try{
+// 等舊的讀取完成，再取結帳後的資料，避免舊回應蓋回新增紀錄。
+if(storeSalesPromise){try{await storeSalesPromise;}catch(_){} }
+const data=await api('storeSales');
+storeSalesData=data;storeSalesLoadedAt=Date.now();
+const result=document.getElementById('storeSalesResult');
+if(!result)return;
+const draft=document.createElement('div');
+drawStoreSales(draft);
+const grid=result.querySelector('.salesCards');
+const nextGrid=draft.querySelector('.salesCards');
+if(!grid||!nextGrid){
+// 尚無可見訂單卡時，直接顯示新的內容，不重建結帳區。
+result.replaceChildren(...draft.childNodes);return;
+}
+const existing=new Map([...grid.querySelectorAll('[data-sales-date]')].map(card=>[card.dataset.salesDate,card]));
+[...nextGrid.children].forEach(nextCard=>{
+const date=nextCard.dataset.salesDate;
+const card=existing.get(date);
+if(!card){
+const following=[...grid.children].find(item=>item.dataset.salesDate>date);
+grid.insertBefore(nextCard,following||null);return;
+}
+const list=card.querySelector('.salesDayItems');
+const nextList=nextCard.querySelector('.salesDayItems');
+const oldPurchases=new Map([...list.querySelectorAll('[data-sale-key]')].map(item=>[item.dataset.saleKey,item]));
+const additions=[...nextList.querySelectorAll('[data-sale-key]')];
+if(additions.length)list.querySelector('.empty')?.remove();
+additions.forEach((purchase,index)=>{
+if(oldPurchases.has(purchase.dataset.saleKey))return;
+const following=additions.slice(index+1).map(item=>oldPurchases.get(item.dataset.saleKey)).find(Boolean);
+list.insertBefore(purchase,following||null);
+});
+// 保留卡片、既有商品節點與捲動位置，只更新件數與底部統計。
+card.querySelector('.salesCount').textContent=nextCard.querySelector('.salesCount').textContent;
+card.querySelector('.salesFooter').innerHTML=nextCard.querySelector('.salesFooter').innerHTML;
+const other=card.querySelector('.salesOther');
+const nextOther=nextCard.querySelector('.salesOther');
+if(other&&nextOther)other.textContent=nextOther.textContent;
+else if(other)other.remove();
+else if(nextOther)card.querySelector('.groupCardCustomer strong').after(nextOther);
+});
+}catch(e){
+alert('結帳已完成，但銷售明細暫時更新失敗，請按銷售區重新整理。'+e.message);
+}
+}
 function renderSalesPurchase(items){
 const payment=String(items.find(item=>item.payment)?.payment||'').trim();
 const bank=payment.match(/^(中信|LB)/i);
 const cash=payment==='💰'||payment==='現金';
 const method=bank?(bank[1].toUpperCase()==='LB'?'LB':'中信'):(payment||'未填付款方式');
 const code=bank?(payment.match(/(\d{5})\s*$/)?.[1]||''):'';
-return `<div class="salesPurchase">${items.map(item=>`<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><strong>${esc(item.name||'未填商品名稱')}</strong>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}</div><b>$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>`).join('')}${cash?'':`<div class="salesPurchaseInfo"><span>${esc(method)}</span>${code?`<span>${esc(code)}</span>`:''}</div>`}</div>`;
+return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>`<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><strong>${esc(item.name||'未填商品名稱')}</strong>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}</div><b>$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>`).join('')}${cash?'':`<div class="salesPurchaseInfo"><span>${esc(method)}</span>${code?`<span>${esc(code)}</span>`:''}</div>`}</div>`;
 }
-function drawStoreSales(){
-const result=document.getElementById('storeSalesResult');
+function drawStoreSales(target=null){
+const result=target||document.getElementById('storeSalesResult');
 if(!result||!storeSalesData)return;
 if(storeSalesDate===null)storeSalesDate=storeSalesData.today.slice(5).replace('-','');
 const input=document.getElementById('storeSalesDate');
@@ -1433,7 +1481,7 @@ const key=item.orderId||'row-'+item.row;
 if(!orders.has(key))orders.set(key,[]);
 orders.get(key).push(item);
 });
-return `<div class="groupCard salesDayCard">
+return `<div class="groupCard salesDayCard" data-sales-date="${esc(day.date)}">
 <div class="groupCardCustomer"><strong>${esc(day.date.slice(5).replace('-','/'))}</strong>${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${day.items.length} 筆商品</span></div>
 <div class="groupCardItems salesDayItems">${orders.size?[...orders.values()].map(renderSalesPurchase).join(''):'<div class="empty">當日尚無銷售紀錄</div>'}</div>
 <div class="groupCardMeta salesFooter"><div class="salesDayTotals"><span>總金額 <b>$${money(day.total)}</b></span><span>現金 <b class="salesCash">$${money(day.cash)}</b></span><span>轉帳 <b>$${money(day.transfer)}</b></span></div></div>
@@ -1497,6 +1545,8 @@ renderCart();
 await saveStoreCart();
 }
 function renderCart(){
+const count=document.getElementById('storeCartCount');
+if(count)count.textContent=storeCart.length+' 項';
 const box=document.getElementById('storeCart');
 if(!box)return;
 if(!storeCart.length){
@@ -1626,6 +1676,8 @@ return
 }
 cartOperationBusy=true;
 cartRevision++;
+const checkoutButton=document.getElementById('storeCheckoutButton');
+if(checkoutButton){checkoutButton.disabled=true;checkoutButton.textContent='記錄中⋯';}
 try{
 const d=await api(
 'storeCheckout',
@@ -1652,16 +1704,21 @@ alert(
 );
 storeCart=[];
 payment='';
-storeSalesData=null;storeSalesLoadedAt=0;
-await loadStoreCart();
-renderStore();
-setTimeout(()=>{
+['received','last5','storeNote','barcode'].forEach(id=>{const input=document.getElementById(id);if(input)input.value='';});
+const last5Box=document.getElementById('last5Box');
+if(last5Box)last5Box.style.display='none';
+document.querySelectorAll('.payment button').forEach(button=>button.classList.remove('active'));
+renderCart();
+// 已確認結帳成功；右側只加入新增紀錄，更新失敗不重送結帳。
+await updateSalesAfterCheckout();
 const input=document.getElementById('barcode');
 if(input)input.focus();
-},50);
 }catch(e){
 alert(e.message)
-}finally{cartOperationBusy=false;cartRevision++;}
+}finally{
+cartOperationBusy=false;cartRevision++;
+if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結帳';}
+}
 }
 /* =========================================================
    線上
