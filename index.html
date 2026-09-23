@@ -744,6 +744,32 @@ background-size:75%!important
 .salesPurchaseInfo .salesCodeCTBC{color:#88CDB2}
 .salesPurchaseInfo .salesCodeLB{color:#8ECEE2}
 .salesPurchaseInfo.salesBankCTBC{gap:0}
+.inventoryPage{height:100%;min-height:0;display:flex;flex-direction:column;gap:12px}
+.inventoryCategory{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0}
+.inventoryCategoryButton{border:0;border-radius:9px;background:#e9e9e9;color:#666;padding:9px 14px;font-weight:700;white-space:nowrap}
+.inventoryCategoryButton.active{background:var(--main);color:#fff}
+.inventoryTools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inventorySearch{display:flex;gap:8px;flex:1;min-width:min(100%,280px)}
+.inventorySearch input{flex:1;min-width:0}
+.inventoryStatusSelect{min-width:130px}
+.inventorySearchButton{flex:0 0 42px;height:42px}
+.inventoryGrid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));align-content:start;gap:7px;padding:2px}
+.inventoryCard{height:140px;position:relative;overflow:hidden;border:1.5px solid #F2A000;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;min-width:0;padding:5px 5px 4px}
+.inventoryImageWrap{width:100%;height:78px;flex:0 0 78px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.inventoryProductImage{max-width:90%;max-height:90%;width:auto;height:auto;object-fit:contain}
+.inventoryImage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#fff;color:#aaa}
+.inventoryAddMark{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:#dedede;color:white;font-size:16px;font-weight:600;line-height:17px;text-align:center}
+.inventoryImagePlaceholder{font-size:42px}
+.inventoryInfo{width:100%;min-height:0;padding:0 3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;text-align:center}
+.inventoryName{width:100%;font-size:10px;font-weight:600;line-height:1.2;height:24px;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.inventoryPrices{display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;line-height:14px}
+.inventoryOriginal{color:#999;text-decoration:line-through;font-size:9px}
+.inventoryPriceDivider{color:#bbb;font-size:9px}
+.inventorySale{color:#F2A000;font-size:10px;font-weight:700}
+.inventoryStockLine{width:100%;display:flex;justify-content:center;gap:6px;color:#888;font-size:8px;line-height:11px;white-space:nowrap}
+.inventoryStockLine b{color:#555}
+.inventoryNoImage{height:100%;width:100%;display:grid;place-items:center;color:#ddd;font-size:30px}
+@media(max-width:520px){.inventoryPage{gap:8px}.inventoryCategory{gap:6px}.inventoryCategoryButton{padding:8px 10px;font-size:13px}.inventoryGrid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}.inventoryCard{height:140px}.inventoryName{font-size:10px}.inventorySale{font-size:10px}}
 /* 手機 */
 @media(max-width:850px){
 html,body{
@@ -989,6 +1015,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 </div>
 <div class="nav">
 <button id="btn-buy" onclick="tab('buy',this)">敗家</button>
+<button id="btn-inventory" onclick="tab('inventory',this)">庫存</button>
 <button id="btn-store" class="active" onclick="tab('store',this)">店面</button>
 <button id="btn-online" onclick="tab('online',this)">線上</button>
 <button id="btn-ship" onclick="tab('ship',this)">出貨</button>
@@ -998,6 +1025,13 @@ body[data-page="store"] .topStoreToggle{display:none}
 const API_URL='https://script.google.com/macros/s/AKfycbydO3PzBMzM-kkYqhq-sJOsp6eJOKhpR2PJYV9_NvyfzIBMn6n4il8Mz4_iQj2EWgg5/exec';
 let onlineRows=[];
 let onlineHeaders=[];
+let inventoryRows=[];
+let inventoryHeaders=[];
+let inventoryLoaded=false;
+let inventoryCategory='全部';
+let inventoryCategoryValues=[];
+let inventorySearch='';
+let inventoryStatus='全部';
 let storeCart=[];
 let payment='';
 let salesperson='shared';
@@ -1017,6 +1051,7 @@ let isFaceToFaceView=false;
 function api(action,params={}){
 const retryable=[
 'storeProduct',
+'inventory',
 'storeActiveSalesperson',
 'online',
 'onlineCustomer',
@@ -1222,6 +1257,7 @@ document.getElementById('app').innerHTML='<iframe title="敗家" src="https://ji
 if(name==='store'){
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 }
+if(name==='inventory')renderInventory();
 if(name==='online'){
 isFaceToFaceView=false;
 /*
@@ -1314,6 +1350,77 @@ if(storeCartSyncTimer){
 clearInterval(storeCartSyncTimer);
 storeCartSyncTimer=null;
 }
+}
+function inventoryHeaderIndex(names){
+const keys=names.map(x=>String(x).normalize('NFKC').replace(/[\s_　-]/g,'').toLowerCase());
+return inventoryHeaders.findIndex(h=>keys.includes(String(h||'').normalize('NFKC').replace(/[\s_　-]/g,'').toLowerCase()));
+}
+function inventoryValue(item,names,preferDisplay=true){
+const i=inventoryHeaderIndex(names);if(i<0)return '';
+const display=item.display&&item.display[i];
+return preferDisplay&&display!==''&&display!=null?display:(item.values?item.values[i]:'');
+}
+function inventoryImageUrl(item){
+if(item.image&&/^https?:\/\//i.test(String(item.image)))return String(item.image);
+const i=inventoryHeaderIndex(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片','photo','image','img']);
+let value=i>=0?String(item.display?.[i]||item.values?.[i]||'').trim():'';
+let formula=i>=0?String(item.formulas?.[i]||''):'';
+if(!value){const match=formula.match(/(?:IMAGE|HYPERLINK)\s*\(\s*["']([^"']+)/i);if(match)value=match[1];}
+if(/^https?:\/\//i.test(value))return value;
+return '';
+}
+function inventoryQty(item,names){const value=inventoryValue(item,names,false);const n=Number(String(value??'').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0;}
+function inventoryItemStatus(item){
+const label=String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||'').trim();
+if(/缺貨/.test(label))return '缺貨';
+if(/無庫存|售完|完售/.test(label))return '無庫存';
+if(/有庫存|現貨/.test(label))return '有庫存';
+const shortage=String(inventoryValue(item,['缺貨','是否缺貨'])||'').trim().toLowerCase();
+if(['true','1','y','yes','是','✓','☑'].includes(shortage))return '缺貨';
+const qty=inventoryQty(item,['庫存','總庫存','數量']);return qty>0?'有庫存':'無庫存';
+}
+function selectInventoryCategory(index){inventoryCategory=index===0?'全部':(inventoryCategoryValues[index-1]||'全部');renderInventoryContent();}
+async function loadInventory(force=false){
+if(inventoryLoaded&&!force)return;
+const grid=document.getElementById('inventoryGrid');if(grid)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
+try{const data=await api('inventory');inventoryRows=data.rows||[];inventoryHeaders=data.headers||[];inventoryLoaded=true;renderInventoryContent();}
+catch(e){if(grid)grid.innerHTML=`<div class="empty">載入失敗：${esc(e.message)}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
+}
+function renderInventory(){
+const app=document.getElementById('app');
+app.innerHTML=`<div class="inventoryPage"><div id="inventoryCategories" class="inventoryCategory"></div><div class="inventoryTools"><form class="inventorySearch" onsubmit="event.preventDefault();inventorySearch=document.getElementById('inventorySearch').value.trim();renderInventoryContent()"><input id="inventorySearch" placeholder="輸入商品名稱或貨號" value="${esc(inventorySearch)}"><button class="btn onlineIconButton onlineSearchButton inventorySearchButton" type="submit" aria-label="搜尋" title="搜尋">搜尋</button></form><select id="inventoryStatus" class="inventoryStatusSelect" aria-label="庫存狀態" onchange="inventoryStatus=this.value;renderInventoryContent()"><option value="有庫存">有庫存</option><option value="無庫存">無庫存</option><option value="缺貨">缺貨</option><option value="全部">全部</option></select></div><div id="inventoryGrid" class="inventoryGrid"><div class="loading">載入商品庫存中…</div></div></div>`;
+const statusSelect=document.getElementById('inventoryStatus');if(statusSelect)statusSelect.value=inventoryStatus;
+if(inventoryLoaded){renderInventoryContent();loadInventory(true);}else loadInventory();
+}
+function renderInventoryContent(){
+const grid=document.getElementById('inventoryGrid');if(!grid)return;
+const categoryIndex=inventoryHeaderIndex(['IP分類','IP類別','IP','分類','類別']);
+let currentCategory='';
+const categoryByRow=inventoryRows.map(item=>{const value=String(categoryIndex>=0?(item.display?.[categoryIndex]||item.values?.[categoryIndex]||''):'').trim();if(value)currentCategory=value;return currentCategory;});
+inventoryCategoryValues=[...new Set(categoryByRow.filter(Boolean))];
+if(inventoryCategory!=='全部'&&!inventoryCategoryValues.includes(inventoryCategory))inventoryCategory='全部';
+const categoryBar=document.getElementById('inventoryCategories');
+if(categoryBar)categoryBar.innerHTML=['全部',...inventoryCategoryValues].map((value,index)=>`<button type="button" class="inventoryCategoryButton ${inventoryCategory===value?'active':''}" onclick="selectInventoryCategory(${index})">${esc(value)}</button>`).join('');
+const statusSelect=document.getElementById('inventoryStatus');if(statusSelect)statusSelect.value=inventoryStatus;
+const search=inventorySearch.normalize('NFKC').toLowerCase();
+const rows=inventoryRows.filter((item,index)=>{
+const cat=categoryByRow[index];
+const name=String(inventoryValue(item,['名稱','商品名稱','品名','商品'])||'');
+const code=String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||'');
+const status=inventoryItemStatus(item);
+return !!name.trim()&&(inventoryCategory==='全部'||cat===inventoryCategory)&&(!search||(name+' '+code).normalize('NFKC').toLowerCase().includes(search))&&(inventoryStatus==='全部'||status===inventoryStatus);
+});
+if(!rows.length){grid.innerHTML='<div class="empty">沒有符合條件的商品</div>';return;}
+grid.innerHTML=rows.map(item=>{
+const name=inventoryValue(item,['名稱','商品名稱','品名','商品'])||'';
+const original=inventoryValue(item,['原價','定價','原售價','牌價']);
+const sale=inventoryValue(item,['售價','價格','銷售價']);
+const stock=inventoryValue(item,['庫存','總庫存','數量']);
+const store=inventoryValue(item,['店面','店面庫存','店鋪庫存']);
+const img=inventoryImageUrl(item);
+const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;inventoryImage&quot;><div class=&quot;inventoryNoImage&quot;>▧</div></div>'">`:'<div class="inventoryImage"><div class="inventoryNoImage">▧</div></div>';
+return `<article class="inventoryCard"><span class="inventoryAddMark" aria-hidden="true">＋</span><div class="inventoryImageWrap">${image}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div><div class="inventoryPrices"><span class="inventoryOriginal">${original!==''?'$'+money(original):'—'}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">${sale!==''?'$'+money(sale):'—'}</span></div><div class="inventoryStockLine"><span>庫存 <b>${esc(stock==null?'':stock)}</b></span><span>店面 <b>${esc(store==null?'':store)}</b></span></div></div></article>`;
+}).join('');
 }
 /* =========================================================
    店面
