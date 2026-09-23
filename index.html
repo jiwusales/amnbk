@@ -438,6 +438,7 @@ grid-template-columns:repeat(4,1fr);
 gap:12px;
 align-items:stretch
 }
+.orderCards,.onlineResult .orderCards{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
 .groupCard{
 height:240px;
 min-width:0;
@@ -507,6 +508,8 @@ font-size:13px
 padding:7px 13px;
 border-top:1px solid #eee;
 display:flex;
+flex-wrap:nowrap;
+white-space:nowrap;
 justify-content:flex-start;
 align-items:center;
 gap:8px;
@@ -514,6 +517,7 @@ font-size:12px;
 color:#777;
 flex-shrink:0
 }
+.groupCardMeta>*{flex-shrink:0}
 .groupCardMeta{container-type:inline-size;container-name:orderMeta}
 .orderDeposit{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .orderDepositLabel{white-space:nowrap}
@@ -528,6 +532,7 @@ flex-shrink:0
 .reconcileButton.isDone{background:#FFBCD5;color:#fff}
 .groupCardMeta input{
 width:66px;
+flex:0 0 66px;
 padding:4px 6px;
 border-radius:6px;
 font-size:12px;
@@ -551,6 +556,7 @@ border-color:var(--green)
 }
 .orderPayment{
 width:62px;
+flex:0 0 62px;
 padding:4px 3px;
 border-radius:6px;
 font-size:12px
@@ -2388,7 +2394,7 @@ let html=isFaceToFaceView?'':`
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
 <span class="orderSummaryLabel">${esc(summary||'待出貨')}</span><span class="orderSummaryStats">${orders.size} 筆訂單｜總金額 $${money(totalAmount)}</span>
 </div>
-<div class="groupCards">
+<div class="groupCards orderCards">
 `;
 let faceToFaceHtml='';
 let faceToFaceCount=0;
@@ -2470,10 +2476,10 @@ if(isFaceToFaceView){
 ['現貨','預訂','受注','補貨登記'].forEach(section=>{
 const cards=faceSectionCards[section];
 const headClass=section==='現貨'?'faceStockHead':section==='預訂'?'facePreorderHead':section==='受注'?'faceCargoHead':'faceRestockHead';
-html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead ${headClass}"><span>${section}區</span><span>${cards.length} 筆訂單</span></div><div class="groupCards">${cards.length?cards.join(''):'<div class="empty">目前沒有面交訂單</div>'}</div></div>`;
+html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead ${headClass}"><span>${section}區</span><span>${cards.length} 筆訂單</span></div><div class="groupCards orderCards">${cards.length?cards.join(''):'<div class="empty">目前沒有面交訂單</div>'}</div></div>`;
 });
 }else if(faceToFaceCount){
-html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead"><span>要面交</span><span>${faceToFaceCount} 筆訂單</span></div><div class="groupCards">${faceToFaceHtml}</div></div>`;
+html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead"><span>要面交</span><span>${faceToFaceCount} 筆訂單</span></div><div class="groupCards orderCards">${faceToFaceHtml}</div></div>`;
 }
 html+=`${restockRows.length?renderRestockSection(restockRows):''}`;
 res.innerHTML=html;
