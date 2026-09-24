@@ -1150,6 +1150,8 @@ let isFaceToFaceView=false;
 ========================================================= */
 function api(action,params={}){
 const retryable=[
+'authLogin',
+'authCheck',
 'storeProduct',
 'inventory',
 'setInventoryPrice',
@@ -1223,7 +1225,7 @@ q.toString();
 s.async=true;
 (document.head||document.body)
 .appendChild(s);
-const timeoutMs=action==='reorderInventory'?60000:['checkInventoryAvailability','inventory'].includes(action)?30000:15000;
+const timeoutMs=action==='reorderInventory'?60000:['authLogin','authCheck','checkInventoryAvailability','inventory'].includes(action)?30000:15000;
 timer=setTimeout(()=>{
 cleanup();
 if(retryable&&attempt<maxAttempts){
