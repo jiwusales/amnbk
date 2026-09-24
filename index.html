@@ -128,6 +128,7 @@ color:var(--main);
 background:transparent;
 box-shadow:inset 0 3px 0 var(--main)
 }
+.nav button.isRefreshing{opacity:.55}
 .page{
 width:100%;
 max-width:1700px;
@@ -824,6 +825,7 @@ background-size:75%!important
 .inventorySaveOrderButton.isVisible{display:inline-block}
 .inventorySearchButton{flex:0 0 42px;height:42px}
 .inventoryGrid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));grid-auto-flow:row;align-content:start;align-items:start;gap:7px;padding:2px}
+#inventoryGrid>.empty{grid-column:1/-1;width:100%;justify-self:stretch;white-space:nowrap;text-align:center}
 .inventoryCard{width:100%;height:auto;aspect-ratio:.65;position:relative;overflow:hidden;border:2px solid #f4c978;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;min-width:0;padding:5px;touch-action:pan-y}
 .inventoryCard.stockZero{border-color:#d8d8d8}.inventoryCard.stockOne{border-color:#E78790}.inventoryCard.stockAvailable{border-color:#f4c978}.inventoryCard.nonstockAvailable{border-color:#78aaa5}.inventoryCard.relisted{border-color:#B1DEC1;box-shadow:0 0 7px rgba(177,222,193,.7)}
 .inventoryCard.dragging{opacity:.35}.inventoryCard.dragTarget{transform:scale(.98)}
@@ -1081,7 +1083,7 @@ font-size:13px
 }
 .groupSummary{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
 .groupSummary .orderSummaryLabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.groupSummary .orderSummaryStats{flex:0 0 auto;margin-left:auto;text-align:right;white-space:nowrap}
+.groupSummary .orderSummaryStats{flex:0 0 auto;margin-left:auto;text-align:right;white-space:nowrap;font-size:14px}
 .restockSection .cardHead{background:#7E88A0;color:#fff}
 @media(max-width:850px){
   .inventoryTools{grid-template-columns:minmax(0,1fr) 96px;gap:5px;overflow:visible}
@@ -1090,6 +1092,7 @@ font-size:13px
   .inventorySaveOrderButton.isVisible{grid-column:1/-1;justify-self:end}
   .inventoryOriginal,.inventorySale,.inventorySaleButton{font-size:10px;line-height:11px}
   .inventoryStockLine b{font-size:inherit}
+  .inventoryCard{content-visibility:auto;contain-intrinsic-size:auto 190px}
 }
 @media(min-width:851px){
 body[data-page="store"] .topStoreToggle{display:none}
@@ -1164,6 +1167,7 @@ let inventoryStatus='有庫存';
 const inventoryStatusCheckingRows=new Set();
 const INVENTORY_BROWSER_CACHE_MS=5*60*1000;
 const INVENTORY_SESSION_CACHE_KEY='jiwu_inventory_session_v2';
+const INVENTORY_PERSISTENT_CACHE_KEY='jiwu_inventory_session_v2_persist';
 let storeCart=[];
 let payment='';
 let salesperson='shared';
@@ -1386,11 +1390,7 @@ let storeSalesDate=null;
 function tab(name,el){
 const repeated=document.body.dataset.page===name;
 if(repeated&&matchMedia('(max-width:850px)').matches){
-if(name==='inventory'){loadInventory(true);return;}
-if(name==='online'){loadOnline(true);return;}
-if(name==='ship'){renderShip(true);return;}
-if(name==='store'){if(storeView==='sales')renderStoreSales(true);else{loadStoreCart();renderStore();}return;}
-if(name==='buy'){const frame=document.querySelector('#app iframe');if(frame)frame.src=frame.src;return;}
+refreshCurrentMobileTab(name,el);return;
 }
 if(name!=='store')stopStoreCartSync();
 document.body.dataset.page=name;
@@ -1424,6 +1424,17 @@ renderOnline();
 if(name==='ship'){
 renderShip();
 }
+}
+function refreshCurrentMobileTab(name,el){
+const button=el||document.getElementById('btn-'+name);
+if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy','true');}
+let task;
+if(name==='inventory'){renderInventoryContent();task=loadInventory(true);}
+else if(name==='online')task=loadOnline(true);
+else if(name==='ship')task=renderShip(true);
+else if(name==='store'){if(storeView==='sales')task=renderStoreSales(true);else{renderStore();task=loadStoreCart();}}
+else if(name==='buy'){const frame=document.querySelector('#app iframe');if(frame)frame.src=frame.src;task=null;}
+Promise.resolve(task).catch(()=>{}).finally(()=>{if(button){button.classList.remove('isRefreshing');button.removeAttribute('aria-busy');}});
 }
 let storeCartSyncTimer=null;
 let storeCartLoading=false;
@@ -1552,8 +1563,8 @@ function beginInventoryPriceEdit(row,button){const item=inventoryRows.find(x=>Nu
 function beginInventoryStockEdit(row,button){const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['庫存','總庫存','數量']);const input=document.createElement('input');input.className='inventoryInlinePriceInput';input.type='text';input.inputMode='text';input.value=String(current??'');button.replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const value=toHalfWidthDigits(input.value).trim().toLowerCase();if(!/^(?:x|\?|\d+)$/.test(value)){alert('庫存請輸入整數、x 或 ?');renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryStock',{row,stock:value});const i=inventoryHeaderIndex(['庫存','總庫存','數量']);if(i>=0){item.values[i]=value==='x'||value==='?'?value:Number(value);if(item.display)item.display[i]=value;}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('庫存更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();finish(false);}});}
 function selectInventoryCategory(index){inventoryCategory=index===0?'全部':(inventoryCategoryValues[index-1]||'全部');renderInventoryContent();}
 function prepareInventoryRows(){inventoryRows.forEach(item=>{item._searchText=['角色','人物','角色名稱','名稱','商品名稱','品名','商品','貨號','商品貨號','條碼','SN','種類','類型','商品種類','品項'].map(name=>String(inventoryValue(item,[name])||'')).join(' ').normalize('NFKC').toLowerCase();});}
-function restoreInventorySessionCache(){if(inventoryLoaded)return;try{const cached=JSON.parse(sessionStorage.getItem(INVENTORY_SESSION_CACHE_KEY)||'null');if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;inventoryRows=cached.rows;inventoryHeaders=cached.headers;prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
-function saveInventorySessionCache(){try{sessionStorage.setItem(INVENTORY_SESSION_CACHE_KEY,JSON.stringify({savedAt:Date.now(),headers:inventoryHeaders,rows:inventoryRows.map(item=>{const copy={...item};delete copy._searchText;return copy;})}));}catch(_){}}
+function restoreInventorySessionCache(){if(inventoryLoaded)return;try{const raw=sessionStorage.getItem(INVENTORY_SESSION_CACHE_KEY)||localStorage.getItem(INVENTORY_PERSISTENT_CACHE_KEY)||'null';const cached=JSON.parse(raw);if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;inventoryRows=cached.rows;inventoryHeaders=cached.headers;prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
+function saveInventorySessionCache(){try{const payload=JSON.stringify({savedAt:Date.now(),headers:inventoryHeaders,rows:inventoryRows.map(item=>{const copy={...item};delete copy._searchText;return copy;})});sessionStorage.setItem(INVENTORY_SESSION_CACHE_KEY,payload);localStorage.setItem(INVENTORY_PERSISTENT_CACHE_KEY,payload);}catch(_){}}
 async function loadInventory(force=false){
 if(inventoryLoadPromise)return inventoryLoadPromise;
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
@@ -1622,6 +1633,7 @@ return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailabl
 requestAnimationFrame(resizeInventoryCards);
 }
 function resizeInventoryCards(){
+if(matchMedia('(max-width:850px)').matches)return;
 document.querySelectorAll('#inventoryGrid .inventoryCard').forEach(card=>{
 const width=card.getBoundingClientRect().width;
 if(width>0)card.style.height=Math.round(width/.65)+'px';
@@ -2773,7 +2785,7 @@ if(singleCustomerView){
 let totalAmount=0;
 rows.forEach(row=>{totalAmount+=numberValue(getOnlineData(row,['售價','價格']));});
 const summaryStats=isGroupView
-?`跟團${customerNames.size}人｜商品${rows.length}｜總金額 $${money(totalAmount)}`
+?`${customerNames.size}人｜${rows.length}件｜共計 $${money(totalAmount)}`
 :`${orders.size} 筆訂單｜總金額 $${money(totalAmount)}`;
 let html=isFaceToFaceView?'':`
 <div class="card">
