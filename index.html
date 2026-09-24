@@ -826,7 +826,7 @@ background-size:75%!important
 .inventorySearchButton{flex:0 0 42px;height:42px}
 .inventoryGrid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));grid-auto-flow:row;align-content:start;align-items:start;gap:7px;padding:2px}
 #inventoryGrid>.empty{grid-column:1/-1;width:100%;justify-self:stretch;white-space:nowrap;text-align:center}
-.inventoryCard{width:100%;height:auto;aspect-ratio:.65;position:relative;overflow:hidden;border:2px solid #f4c978;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;min-width:0;padding:5px;touch-action:pan-y}
+.inventoryCard{width:100%;height:var(--inventory-card-height,172px);aspect-ratio:auto;position:relative;overflow:hidden;border:2px solid #f4c978;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;min-width:0;padding:5px;touch-action:pan-y}
 .inventoryCard.stockZero{border-color:#d8d8d8}.inventoryCard.stockOne{border-color:#E78790}.inventoryCard.stockAvailable{border-color:#f4c978}.inventoryCard.nonstockAvailable{border-color:#78aaa5}.inventoryCard.relisted{border-color:#B1DEC1;box-shadow:0 0 7px rgba(177,222,193,.7)}
 .inventoryCard.dragging{opacity:.35}.inventoryCard.dragTarget{transform:scale(.98)}
 .inventoryCard.insertBefore{box-shadow:inset 0 5px 0 var(--main)}
@@ -836,6 +836,10 @@ background-size:75%!important
 .inventoryImageWrap{width:100%;height:auto;min-height:0;flex:1 1 0;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .inventoryProductImage{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .inventoryImage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#fff;color:#aaa}
+.inventoryImageEdit{width:100%;height:100%;border:0;padding:0;background:#fff;color:#aaa;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.inventoryImageEdit:hover{background:#fafafa}
+.inventoryImageEdit .inventoryProductImage{pointer-events:none}
+.inventoryImageEdit .inventoryNoImage{font-size:30px}
 .inventoryAvailability{position:absolute;top:3px;left:3px;z-index:2;min-width:20px;height:20px;border:0;padding:0 3px;background:transparent;color:#888;font-size:14px;line-height:20px;text-align:center;box-shadow:none}
 .inventoryImagePlaceholder{font-size:42px}
 .inventoryInfo{width:100%;min-height:0;flex:0 0 auto;padding:0 3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;text-align:center}
@@ -869,7 +873,7 @@ body[data-page="inventory"] .inventoryAddButton{display:inline-block!important}
 .inventoryNoImage{height:100%;width:100%;display:grid;place-items:center;color:#ddd;font-size:30px}
 .inventoryGrid>.loading{grid-column:1/-1;white-space:nowrap;text-align:center;width:100%}
 .salesNegative{color:#E78790!important}
-@media(max-width:850px){.inventoryPage{gap:8px}.inventoryCategory{width:100%;gap:5px}.inventoryCategoryButton{flex:1 1 auto;padding:8px 8px;font-size:13px;text-align:center}.inventoryTools{flex-wrap:nowrap;gap:5px;width:100%}.inventorySearch{flex:1 1 auto;min-width:0;gap:5px}.inventorySearch input{min-width:0;height:38px;padding:7px 8px;font-size:13px}.inventorySearchButton{display:none}.inventoryStatusSelect{flex:0 0 auto;width:auto;min-width:0;height:38px;padding:6px 8px;font-size:12px}.inventoryGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.inventoryCard{height:auto;aspect-ratio:.65;padding:4px 3px}.inventoryImageWrap{height:auto;min-height:0;flex:1 1 0}.inventoryName{font-size:9px;line-height:11px;max-height:22px}.inventoryCode{font-size:7px;line-height:11px;height:11px}.inventoryPrices{line-height:11px;height:11px}.inventorySale,.inventorySaleButton{font-size:11px;line-height:11px}.inventoryOriginal{font-size:8px}.inventoryStockLine{font-size:9px;line-height:11px;height:11px;gap:3px}.inventoryStockLine b{font-size:11px;font-weight:400}.inventoryLinks{margin-top:6px;gap:2px}.inventoryChannelButton{padding:0 4px;font-size:7px}.dialogGrid{grid-template-columns:1fr}.dialogGrid .full{grid-column:auto}.dialogTotals{grid-template-columns:1fr 1fr}.dialogItem{grid-template-columns:minmax(0,1fr) 90px auto}.dialogOverlay{padding:8px}.manualOnlineDialog{width:100%;max-height:calc(100dvh - 16px);padding:14px}.manualOnlineHeader{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px}.manualOnlineItem{grid-template-columns:minmax(0,1fr) minmax(70px,90px) 36px;gap:5px}.manualOnlineItem .btn{padding-left:5px;padding-right:5px}.manualOnlineMoneyRow{grid-template-columns:minmax(0,1fr) minmax(90px,42%)}.manualOnlinePaymentRow{grid-template-columns:auto minmax(0,1fr)}.manualOnlineDialog .dialogActions{margin-top:10px}}
+@media(max-width:850px){.inventoryPage{gap:8px}.inventoryCategory{width:100%;gap:5px}.inventoryCategoryButton{flex:1 1 auto;padding:8px 8px;font-size:13px;text-align:center}.inventoryTools{flex-wrap:nowrap;gap:5px;width:100%}.inventorySearch{flex:1 1 auto;min-width:0;gap:5px}.inventorySearch input{min-width:0;height:38px;padding:7px 8px;font-size:13px}.inventorySearchButton{display:none}.inventoryStatusSelect{flex:0 0 auto;width:auto;min-width:0;height:38px;padding:6px 8px;font-size:12px}.inventoryGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.inventoryCard{height:var(--inventory-card-height,132px);aspect-ratio:auto;padding:4px 3px}.inventoryImageWrap{height:auto;min-height:0;flex:1 1 0}.inventoryName{font-size:9px;line-height:11px;max-height:22px}.inventoryCode{font-size:7px;line-height:11px;height:11px}.inventoryPrices{line-height:11px;height:11px}.inventorySale,.inventorySaleButton{font-size:11px;line-height:11px}.inventoryOriginal{font-size:8px}.inventoryStockLine{font-size:9px;line-height:11px;height:11px;gap:3px}.inventoryStockLine b{font-size:11px;font-weight:400}.inventoryLinks{margin-top:6px;gap:2px}.inventoryChannelButton{padding:0 4px;font-size:7px}.dialogGrid{grid-template-columns:1fr}.dialogGrid .full{grid-column:auto}.dialogTotals{grid-template-columns:1fr 1fr}.dialogItem{grid-template-columns:minmax(0,1fr) 90px auto}.dialogOverlay{padding:8px}.manualOnlineDialog{width:100%;max-height:calc(100dvh - 16px);padding:14px}.manualOnlineHeader{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px}.manualOnlineItem{grid-template-columns:minmax(0,1fr) minmax(70px,90px) 36px;gap:5px}.manualOnlineItem .btn{padding-left:5px;padding-right:5px}.manualOnlineMoneyRow{grid-template-columns:minmax(0,1fr) minmax(90px,42%)}.manualOnlinePaymentRow{grid-template-columns:auto minmax(0,1fr)}.manualOnlineDialog .dialogActions{margin-top:10px}}
 /* 手機 */
 @media(max-width:850px){
 html,body{
@@ -988,8 +992,10 @@ grid-template-columns:1fr
 height:auto;
 max-height:275px
 }
-.topActions .topHomeButton{
+.topActions .topHomeButton,
+.topActions .topFaceButton{
 height:24px;
+min-height:24px;
 font-size:12px;
 line-height:20px;
 padding:2px 8px
@@ -1092,7 +1098,6 @@ font-size:13px
   .inventorySaveOrderButton.isVisible{grid-column:1/-1;justify-self:end}
   .inventoryOriginal,.inventorySale,.inventorySaleButton{font-size:10px;line-height:11px}
   .inventoryStockLine b{font-size:inherit}
-  .inventoryCard{content-visibility:auto;contain-intrinsic-size:auto 190px}
 }
 @media(min-width:851px){
 body[data-page="store"] .topStoreToggle{display:none}
@@ -1131,7 +1136,6 @@ body[data-page="store"] .topStoreToggle{display:none}
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
 <button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button>
 <button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
-<button class="btn light onlineIconButton onlineRefreshButton topRefreshButton" onclick="renderShip(true)" aria-label="重新整理出貨資料" title="重新整理">重新整理</button>
 </div>
 </div>
 <div class="nav">
@@ -1193,6 +1197,7 @@ const retryable=[
 'storeProduct',
 'inventory',
 'setInventoryPrice',
+'setInventoryImage',
 'storeActiveSalesperson',
 'online',
 'appendOnlineOrder',
@@ -1429,10 +1434,16 @@ function refreshCurrentMobileTab(name,el){
 const button=el||document.getElementById('btn-'+name);
 if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy','true');}
 let task;
-if(name==='inventory'){renderInventoryContent();task=loadInventory(true);}
-else if(name==='online')task=loadOnline(true);
+if(name==='inventory'){
+inventoryCategory='全部';inventorySearch='';inventoryStatus='有庫存';
+renderInventory();task=loadInventory(true);
+}
+else if(name==='online'){
+isFaceToFaceView=false;onlineSearchText='';onlineCargo='現貨';isCustomerView=false;isGroupView=false;
+renderOnline();task=loadOnline(true);
+}
 else if(name==='ship')task=renderShip(true);
-else if(name==='store'){if(storeView==='sales')task=renderStoreSales(true);else{renderStore();task=loadStoreCart();}}
+else if(name==='store'){storeView='checkout';renderStore();task=loadStoreCart();}
 else if(name==='buy'){const frame=document.querySelector('#app iframe');if(frame)frame.src=frame.src;task=null;}
 Promise.resolve(task).catch(()=>{}).finally(()=>{if(button){button.classList.remove('isRefreshing');button.removeAttribute('aria-busy');}});
 }
@@ -1533,6 +1544,27 @@ if(!value){const match=formula.match(/(?:IMAGE|HYPERLINK)\s*\(\s*["']([^"']+)/i)
 if(/^https?:\/\//i.test(value))return value;
 return '';
 }
+function openInventoryImageDialog(row){
+const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));
+if(!item)return;
+const name=String(inventoryValue(item,['名稱','商品名稱','品名','商品'])||'商品');
+const current=inventoryImageUrl(item);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>更新商品圖片</h3><p class="salesHint">${esc(name)}</p><form onsubmit="submitInventoryImage(event)"><input id="inventoryImageUrlInput" type="url" inputmode="url" placeholder="直接圖片網址（https://…）" value="${esc(current)}" required style="width:100%"><input id="inventoryImageRow" type="hidden" value="${Number(row)}"><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">更新圖片</button></div></form></div></div>`);
+document.getElementById('inventoryImageUrlInput')?.focus();
+}
+async function submitInventoryImage(event){
+event.preventDefault();
+const row=Number(document.getElementById('inventoryImageRow').value);
+const url=document.getElementById('inventoryImageUrlInput').value.trim();
+if(!/^https?:\/\//i.test(url))return alert('請輸入有效的 http/https 圖片網址');
+const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='更新中…';
+try{
+const result=await api('setInventoryImage',{row,url});
+const item=inventoryRows.find(entry=>Number(entry.row)===row);
+if(item){const index=Number(result.imageCol);while(inventoryHeaders.length<=index)inventoryHeaders.push('');inventoryHeaders[index]=result.imageHeader||inventoryHeaders[index]||'圖片網址';while(item.values.length<=index)item.values.push('');item.values[index]=url;if(item.display){while(item.display.length<=index)item.display.push('');item.display[index]=url;}item.image=url;}
+inventoryLoadedAt=Date.now();saveInventorySessionCache();closeDialog();renderInventoryContent();
+}catch(error){alert('圖片更新失敗：'+error.message);button.disabled=false;button.textContent='更新圖片';}
+}
 function inventoryProductUrl(item){
 const i=inventoryHeaderIndex(['商品網址','官網網址','商品連結','官網連結','網址','URL','url','連結','商品頁面','商品URL','購買網址','官方連結','產品連結','產品網址','官網','商品官網','來源網址']);
 if(i<0)return '';
@@ -1605,6 +1637,7 @@ const code=String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||
 return !!name.trim()&&(inventoryCategory==='全部'||cat===inventoryCategory)&&(!search||String(item._searchText||name+' '+code).includes(search))&&inventoryMatchesStatus(item);
 }).sort((a,b)=>Number(inventoryCellState(b,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(b)==='yes')-Number(inventoryCellState(a,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(a)==='yes'));
 if(!rows.length){grid.innerHTML='<div class="empty">沒有符合條件的商品</div>';return;}
+resizeInventoryCards();
 grid.innerHTML=rows.map(item=>{
 const name=inventoryValue(item,['名稱','商品名稱','品名','商品'])||'';
 const original=inventoryValue(item,['原價','定價','原售價','牌價']);
@@ -1618,7 +1651,7 @@ const nonstock=inventoryQty(item,['非現','非現貨','非現庫存']);
 const note=String(inventoryValue(item,['備註','備註欄','說明'])||'').trim();
 const productUrl=inventoryProductUrl(item);
 const img=inventoryImageUrl(item);
-const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;inventoryImage&quot;><div class=&quot;inventoryNoImage&quot;>▧</div></div>'">`:'<div class="inventoryImage"><div class="inventoryNoImage">▧</div></div>';
+const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.closest('.inventoryImageEdit').innerHTML='<div class=&quot;inventoryNoImage&quot;>▧</div>'">`:'<div class="inventoryNoImage">▧</div>';
 const availability=inventoryAvailabilityState(item);
 const unavailable=(inventoryHasZeroOrX(item,['庫存','總庫存','數量'])&&inventoryHasZeroOrX(item,['店面','店面庫存','店鋪庫存'])&&availability==='no')||(stockState==='x'&&availability==='');
 const relisted=stockState==='x'&&availability==='yes';
@@ -1628,16 +1661,20 @@ const originalText=inventoryOriginalDisplay(item,original);
 const pricesMarkup=originalText?`<span class="inventoryOriginal">${originalText}</span><span class="inventoryPriceDivider">｜</span><button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`:`<button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`;
 const linkMarkup=`<div class="inventoryLinks">${productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}${/^https?:\/\//i.test(note)?`<a class="inventoryChannelButton" href="${esc(note)}" target="_blank" rel="noopener">其他通路</a>`:''}</div>`;
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
-return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" draggable="true" data-row="${Number(item.row)}" ondragstart="inventoryDragStart(event)" ondragover="inventoryDragOver(event)" ondragleave="this.classList.remove('dragTarget','insertBefore','insertAfter')" ondrop="inventoryDrop(event)" ondragend="inventoryDragEnd(event)" ontouchstart="inventoryTouchStart(event)" ontouchmove="inventoryTouchMove(event)" ontouchend="inventoryTouchEnd(event)">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))?'disabled':''} title="點擊更新商品網址狀態" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}<div class="inventoryImageWrap">${image}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div><div class="inventoryCode">${esc(code||'')}</div><div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span>庫存 <button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)">${esc(stock==null?'':stock)}</button></span><span>店面 <b>${esc(store)}</b></span></div>${linkMarkup}${noteMarkup}</div></article>`;
+return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" draggable="true" data-row="${Number(item.row)}" ondragstart="inventoryDragStart(event)" ondragover="inventoryDragOver(event)" ondragleave="this.classList.remove('dragTarget','insertBefore','insertAfter')" ondrop="inventoryDrop(event)" ondragend="inventoryDragEnd(event)" ontouchstart="inventoryTouchStart(event)" ontouchmove="inventoryTouchMove(event)" ontouchend="inventoryTouchEnd(event)">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))?'disabled':''} title="點擊更新商品網址狀態" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}<div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div><div class="inventoryCode">${esc(code||'')}</div><div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span>庫存 <button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)">${esc(stock==null?'':stock)}</button></span><span>店面 <b>${esc(store)}</b></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
-requestAnimationFrame(resizeInventoryCards);
 }
 function resizeInventoryCards(){
-if(matchMedia('(max-width:850px)').matches)return;
-document.querySelectorAll('#inventoryGrid .inventoryCard').forEach(card=>{
-const width=card.getBoundingClientRect().width;
-if(width>0)card.style.height=Math.round(width/.65)+'px';
-});
+const grid=document.getElementById('inventoryGrid');
+if(!grid)return;
+const width=grid.clientWidth;
+if(!width)return;
+const styles=getComputedStyle(grid);
+const gap=Number.parseFloat(styles.columnGap)||0;
+const mobile=matchMedia('(max-width:850px)').matches;
+const columns=mobile?4:Math.max(1,Math.floor((width+gap)/(112+gap)));
+const cardWidth=(width-gap*(columns-1))/columns;
+grid.style.setProperty('--inventory-card-height',Math.max(1,Math.round(cardWidth/.65))+'px');
 }
 window.addEventListener('resize',()=>{
 if(document.body.dataset.page!=='inventory')return;
