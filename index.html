@@ -31,6 +31,47 @@ background:var(--bg);
 color:var(--text);
 font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif
 }
+.loginScreen{
+position:fixed;
+inset:0;
+z-index:9999;
+display:flex;
+align-items:center;
+justify-content:center;
+padding:24px;
+background:#fff
+}
+.loginCard{
+width:min(440px,100%);
+text-align:center
+}
+.loginLogo{
+display:block;
+width:50%;
+height:auto;
+margin:0 auto 24px
+}
+.loginForm{
+width:min(360px,100%);
+margin:auto
+}
+.loginForm input{
+display:block;
+width:100%;
+min-width:0;
+padding:12px 20px;
+border-radius:999px;
+text-align:center
+}
+.loginError{
+min-height:22px;
+margin:10px 0 0;
+color:var(--red);
+font-size:14px
+}
+.protectedShell{display:none}
+body.isAuthenticated .loginScreen{display:none}
+body.isAuthenticated .protectedShell{display:block}
 button,input,select{font:inherit}
 button{cursor:pointer}
 input[type=number]{
@@ -1009,6 +1050,16 @@ body[data-page="store"] .topStoreToggle{display:none}
 </style>
 </head>
 <body>
+<main id="loginScreen" class="loginScreen">
+<div class="loginCard">
+<img class="loginLogo" src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/logo-banner_e06bad65.png" alt="JIWU 吉物">
+<form id="loginForm" class="loginForm" onsubmit="login(event)">
+<input id="loginPassword" type="password" placeholder="請輸入密碼" autocomplete="current-password" required autofocus>
+</form>
+<p id="loginError" class="loginError" role="alert" aria-live="polite"></p>
+</div>
+</main>
+<div id="protectedShell" class="protectedShell">
 <div class="top">
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
@@ -1026,8 +1077,12 @@ body[data-page="store"] .topStoreToggle{display:none}
 <button id="btn-ship" onclick="tab('ship',this)">出貨</button>
 </div>
 <div id="app" class="page"></div>
+</div>
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbydO3PzBMzM-kkYqhq-sJOsp6eJOKhpR2PJYV9_NvyfzIBMn6n4il8Mz4_iQj2EWgg5/exec';
+const AUTH_TOKEN_KEY='jiwu_admin_auth_token';
+let authToken=sessionStorage.getItem(AUTH_TOKEN_KEY)||'';
+let appStarted=false;
 let onlineRows=[];
 let onlineHeaders=[];
 let inventoryRows=[];
@@ -1094,6 +1149,7 @@ if(done)return;
 done=true;
 cleanup();
 if(data&&data.ok===false){
+if(data.error==='登入已失效，請重新登入')showLogin();
 reject(
 new Error(
 data.error||'GAS 錯誤'
@@ -1120,6 +1176,7 @@ const q=new URLSearchParams({
 action,
 callback:cb,
 _t:Date.now(),
+...(authToken?{token:authToken}:{}),
 ...params
 });
 s.src=
@@ -3057,25 +3114,57 @@ calcChange();
 /* =========================================================
    啟動
 ========================================================= */
+function startApp(){
+if(appStarted)return;
+appStarted=true;
+document.body.classList.add('isAuthenticated');
 detectSalesperson();
-const savedTab=
-sessionStorage.getItem(
-'jiwu_current_tab'
-)||'store';
-const targetBtn=
-document.getElementById(
-'btn-'+savedTab
-)||
-document.getElementById(
-'btn-store'
-);
-tab(
-savedTab,
-targetBtn
-);
-if(savedTab!=='online'){
-setTimeout(()=>loadOnline(false,true),0);
+const savedTab=sessionStorage.getItem('jiwu_current_tab')||'store';
+const targetBtn=document.getElementById('btn-'+savedTab)||document.getElementById('btn-store');
+tab(savedTab,targetBtn);
+if(savedTab!=='online')setTimeout(()=>loadOnline(false,true),0);
 }
+function showLogin(){
+authToken='';
+appStarted=false;
+sessionStorage.removeItem(AUTH_TOKEN_KEY);
+document.body.classList.remove('isAuthenticated');
+const input=document.getElementById('loginPassword');
+const error=document.getElementById('loginError');
+if(error)error.textContent='登入已失效，請重新登入';
+if(input)setTimeout(()=>input.focus(),0);
+}
+async function login(event){
+event.preventDefault();
+const input=document.getElementById('loginPassword');
+const error=document.getElementById('loginError');
+input.disabled=true;
+error.textContent='驗證中…';
+try{
+const result=await api('authLogin',{password:input.value});
+authToken=result.token;
+sessionStorage.setItem(AUTH_TOKEN_KEY,authToken);
+input.value='';
+error.textContent='';
+startApp();
+}catch(e){
+authToken='';
+sessionStorage.removeItem(AUTH_TOKEN_KEY);
+error.textContent=e.message==='密碼錯誤'?'密碼錯誤，請重新輸入':e.message;
+input.select();
+}finally{input.disabled=false;input.focus();}
+}
+async function restoreLogin(){
+if(!authToken)return;
+try{
+await api('authCheck');
+startApp();
+}catch(_){
+authToken='';
+sessionStorage.removeItem(AUTH_TOKEN_KEY);
+}
+}
+restoreLogin();
 </script>
 </body>
 </html>
