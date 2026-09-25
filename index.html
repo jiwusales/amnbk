@@ -1130,6 +1130,13 @@ body[data-page="store"] .topStoreToggle{display:none}
 }
 .salesNoteEdit{border:0;padding:0;background:transparent;color:inherit;font:inherit;font-weight:700;text-align:left;cursor:pointer}.detailBrand{display:inline-flex;align-items:center;gap:6px}.detailBrand img{height:1.4em;width:1.4em;object-fit:contain}.detailOrderDate{color:#999;font-size:12px;white-space:nowrap}.detailTotals{padding:12px 10px;border-top:1px solid #eee;text-align:right;font-size:13px;background:#f8f8f8}
 .cartOffer{color:#a58b70;font-size:12px;margin-top:3px}
+
+/* Selected order details fill the viewport; only the item list scrolls. */
+.dialogCard.onlineDetailsDialog{height:calc(100vh - 36px);height:calc(100dvh - 36px);max-height:none;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.onlineDetailsDialog>.groupCard{flex:1 1 0;height:auto;max-height:none;min-height:0;margin:0}
+.onlineDetailsDialog .groupCardItems{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.onlineDetailsDialog .detailTotals,.onlineDetailsDialog>.dialogActions{flex-shrink:0}
+@media(max-width:850px){.dialogCard.onlineDetailsDialog{height:calc(100vh - 16px);height:calc(100dvh - 16px)}}
 </style>
 </head>
 <body>
@@ -3218,7 +3225,7 @@ const selectedOrders=new Set(rows.map(orderKey)),deposits=new Map();
 onlineRows.forEach(row=>{const key=orderKey(row);if(selectedOrders.has(key)&&!deposits.has(key)){const value=getOnlineData(row,['訂金']);if(value!==''&&value!=null)deposits.set(key,numberValue(value));}});
 const deposit=[...deposits.values()].reduce((sum,value)=>sum+value,0);
 const rowsHtml=rows.map(row=>`<div class="groupCardItem"><span class="detailOrderDate">${esc(formatOnlineTime(getOnlineData(row,['購買時間','時間'])))}</span><span class="groupCardItemName">${esc(getOnlineData(row,['名稱','商品名稱']))}</span><span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span></div>`).join('');
-closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${rows.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(total)}｜訂金$${money(deposit)}｜尾款$${money(total-deposit)}</div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${rows.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(total)}｜訂金$${money(deposit)}｜尾款$${money(total-deposit)}</div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
 }
 async function createSelectedShip(){
 const rows=
