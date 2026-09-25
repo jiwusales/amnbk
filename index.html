@@ -1597,6 +1597,7 @@ if(inventoryStatus==='缺貨')return inventoryIsShortage(item);
 return true;
 }
 function inventoryHasZeroOrX(item,names){const value=inventoryCellState(item,names);return value==='x'||value===0;}
+function inventoryNoteHasUrl(item){return /(?:https?:\/\/|www\.)\S+/i.test(String(inventoryValue(item,['備註','備註欄','說明'])||'').trim());}
 async function checkInventoryUrl(row){if(inventoryStatusCheckingRows.has(Number(row)))return;inventoryStatusCheckingRows.add(Number(row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(item){while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}if(result.stock==='x'){const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}}}inventoryLoadedAt=Date.now();saveInventorySessionCache();if(result.available==null)alert(result.detail||'網站無法辨識貨況，已標示為待確認');}catch(e){alert('貨況更新失敗：'+e.message);}finally{inventoryStatusCheckingRows.delete(Number(row));renderInventoryContent();}}
 function inventoryOriginalUnit(item){const row=(item.values||[]).map(x=>String(x??'')).join(' ');return /天貓|天猫|tmall/i.test(row)?'R':'¥';}
 function inventoryOriginalDisplay(item,value){const text=String(value??'').trim();if(!text)return '';if(/[^0-9,.]/.test(text))return text;return inventoryOriginalUnit(item)+money(text);}
@@ -1675,7 +1676,7 @@ const productUrl=inventoryProductUrl(item);
 const img=inventoryImageUrl(item);
 const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.closest('.inventoryImageEdit').innerHTML='<div class=&quot;inventoryNoImage&quot;>▧</div>'">`:'<div class="inventoryNoImage">▧</div>';
 const availability=inventoryAvailabilityState(item);
-const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase());
+const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!inventoryNoteHasUrl(item);
 const relisted=stockState==='x'&&availability==='yes';
 const borderClass=relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
 const availabilityMark=inventoryStatusCheckingRows.has(Number(item.row))?'☺︎':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
