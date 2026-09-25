@@ -2874,10 +2874,10 @@ orders.get(key).items.push(row);
 const restockRows=[];
 if(singleCustomerView){
   for(const [key,order] of orders){
-    if(order.items.every(isRestockRow)){
-      restockRows.push(...order.items);
-      orders.delete(key);
-    }
+    const regularItems=order.items.filter(item=>!isRestockRow(item));
+    restockRows.push(...order.items.filter(isRestockRow));
+    if(regularItems.length)order.items=regularItems;
+    else orders.delete(key);
   }
 }
 let totalAmount=0;
