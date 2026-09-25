@@ -1675,7 +1675,7 @@ const productUrl=inventoryProductUrl(item);
 const img=inventoryImageUrl(item);
 const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.closest('.inventoryImageEdit').innerHTML='<div class=&quot;inventoryNoImage&quot;>▧</div>'">`:'<div class="inventoryNoImage">▧</div>';
 const availability=inventoryAvailabilityState(item);
-const unavailable=(inventoryHasZeroOrX(item,['庫存','總庫存','數量'])&&inventoryHasZeroOrX(item,['店面','店面庫存','店鋪庫存'])&&availability==='no')||(stockState==='x'&&availability==='');
+const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase());
 const relisted=stockState==='x'&&availability==='yes';
 const borderClass=relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
 const availabilityMark=inventoryStatusCheckingRows.has(Number(item.row))?'☺︎':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
