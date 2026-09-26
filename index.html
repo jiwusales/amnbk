@@ -1132,11 +1132,20 @@ body[data-page="store"] .topStoreToggle{display:none}
 .cartOffer{color:#a58b70;font-size:12px;margin-top:3px}
 
 /* Selected order details fill the viewport; only the item list scrolls. */
-.dialogCard.onlineDetailsDialog{height:calc(100vh - 36px);height:calc(100dvh - 36px);max-height:none;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.onlineDetailsDialog>.groupCard{flex:1 1 0;height:auto;max-height:none;min-height:0;margin:0}
-.onlineDetailsDialog .groupCardItems{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.dialogCard.onlineDetailsDialog{height:auto;max-height:80vh;max-height:80dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.onlineDetailsDialog>.groupCard{flex:0 1 auto;height:auto;max-height:none;min-height:0;margin:0}
+.onlineDetailsDialog .groupCardItems{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .onlineDetailsDialog .detailTotals,.onlineDetailsDialog>.dialogActions{flex-shrink:0}
-@media(max-width:850px){.dialogCard.onlineDetailsDialog{height:calc(100vh - 16px);height:calc(100dvh - 16px)}}
+@media(max-width:850px){.dialogCard.onlineDetailsDialog{height:auto;max-height:90vh;max-height:90dvh}}
+
+.cartMoney{font-weight:700;color:#FAB460}
+.orderSelectAll{border:0;border-radius:6px;background:#eee;color:#777;font-size:20px;line-height:24px;min-width:30px;cursor:pointer}
+.dialogItem.orderEditItem{grid-template-columns:32px minmax(0,1fr) 90px}
+.orderDelete{background:#eb8190;color:white;border:0;border-radius:7px;cursor:pointer}
+.orderSwipeDelete{display:none}
+@media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
+.orderEditItem>button:first-child{background:transparent;border:0;color:#888;padding:0}
+.inventoryCard.relisted{border-color:#B1DEC1!important}
 </style>
 </head>
 <body>
@@ -1219,12 +1228,12 @@ const retryable=[
 'storeProduct',
 'inventory',
 'setInventoryPrice',
-'updateInventoryProduct',
+'updateInventoryProduct','deleteInventoryProduct',
 'setInventoryImage',
 'storeActiveSalesperson',
 'online',
 'appendOnlineOrder',
-'editOnlineOrder',
+'editOnlineOrder','deleteOnlineOrder',
 'onlineCustomer',
 'group',
 'ship',
@@ -1628,7 +1637,12 @@ function openInventoryEditDialog(row){
 if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}
 const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)return;
 const val=names=>String(inventoryValue(item,names)??'');
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label>IP<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label>角色<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label>種類<input id="inventoryEditKind" value="${esc(val(['種類','類型','商品種類','品項']))}"></label></div><label class="mobileFull">名稱<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label class="mobileFull">貨號<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label>原價<input id="inventoryEditOriginal" inputmode="decimal" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label>售價<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label><label>庫存<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label>店面<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label class="full stackField">網址<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label class="full stackField">備註<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label>IP<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label>角色<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label>種類<input id="inventoryEditKind" value="${esc(val(['種類','類型','商品種類','品項']))}"></label></div><label class="mobileFull">名稱<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label class="mobileFull">貨號<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label>原價<input id="inventoryEditOriginal" inputmode="decimal" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label>售價<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label><label>庫存<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label>店面<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label class="full stackField">網址<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label class="full stackField">備註<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteInventoryProductFromDialog(${Number(row)},this)">刪除商品</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
+}
+async function deleteInventoryProductFromDialog(row,button){
+if(!confirm('確定刪除此庫存商品？'))return;
+button.disabled=true;
+try{await Promise.allSettled([...inventoryProductSaves.values()]);await api('deleteInventoryProduct',{row});inventoryRows=inventoryRows.filter(item=>Number(item.row)!==Number(row));prepareInventoryRows();saveInventorySessionCache();closeDialog();renderInventoryContent();inventoryLoadedAt=0;await loadInventory(true);}catch(error){alert('刪除失敗：'+error.message);button.disabled=false;}
 }
 async function submitInventoryEdit(event,row){
 event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='儲存中…';
@@ -1640,7 +1654,7 @@ const previous=[];
 for(const [key,names] of Object.entries(fields)){const col=inventoryHeaderIndex(names);if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
 closeDialog();prepareInventoryRows();renderInventoryContent();
 const pending=(async()=>{
-try{await api('updateInventoryProduct',data);inventoryLoadedAt=Date.now();}
+try{await api('updateInventoryProduct','deleteInventoryProduct',data);inventoryLoadedAt=Date.now();}
 catch(error){for(const old of previous){item.values[old.col]=old.value;if(item.display)item.display[old.col]=old.display;}inventoryLoadedAt=0;alert('「'+data.name+'」儲存失敗，畫面已還原，請重新編輯儲存：'+error.message);}
 finally{inventoryProductSaves.delete(Number(row));prepareInventoryRows();if(!inventoryProductSaves.size)saveInventorySessionCache();renderInventoryContent();inventorySaveNotice(inventoryProductSaves.size?'商品背景儲存中…':'背景儲存作業已結束');}
 })();
@@ -1680,9 +1694,9 @@ async function refreshInventoryUnknownStatuses(){
 const button=document.getElementById('inventoryRefreshButton');if(!button)return;
 const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknown');
 if(!rows.length){alert('目前沒有⚠️待確認商品');return;}
-button.disabled=true;button.textContent='⏳';button.title='正在重新檢查貨況';
+button.disabled=true;button.textContent='☺︎';button.title='正在重新檢查貨況';
 let completed=0,failed=0;
-for(const item of rows){try{const result=await api('checkInventoryAvailability',{row:item.row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}}
+for(const item of rows){if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();}}
 inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';if(failed)alert(`完成 ${completed} 筆，${failed} 筆檢查失敗`);
 }
 function fitSelectWidth(select){if(!select)return;const text=select.options[select.selectedIndex]?.text||'';select.style.width=Math.max(2,text.length)+'em';select.style.boxSizing='content-box';}
@@ -2109,8 +2123,8 @@ box.innerHTML=storeCart.map((x,i)=>`
 <b>${esc(x.name)}</b>
 <div class="cartSub">
 ${x.manual?'手動商品':esc(x.code)}
-單價 $${money(x.price)} · 小計 $${money(quantityOffer(x).total)}
-${quantityOffer(x).size?`<div class="cartOffer">${quantityOffer(x).size} 件 $${money(quantityOffer(x).offer)}${quantityOffer(x).groups?` · 已套用 ${quantityOffer(x).groups} 組，省 $${money(quantityOffer(x).saving)}`:' · 滿件自動優惠'}</div>`:''}
+單價 <b class="cartMoney">$${money(x.price)}</b>${quantityOffer(x).size?` · 小計 <b class="cartMoney">$${money(quantityOffer(x).total)}</b>`:''}
+${quantityOffer(x).size?`<div class="cartOffer">${quantityOffer(x).size} 件 <b class="cartMoney">$${money(quantityOffer(x).offer)}</b>${quantityOffer(x).groups?` · 已套用 ${quantityOffer(x).groups} 組，省 $${money(quantityOffer(x).saving)}`:' · 滿件自動優惠'}</div>`:''}
 </div>${x.note?`<div class="cartItemNote">${esc(x.note)}</div>`:''}
 </div>
 <div class="qty">
@@ -2313,12 +2327,12 @@ fitSelectWidth(document.getElementById('manualOnlineSource'));fitSelectWidth(doc
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><input class="manualOnlineName" placeholder="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('input').focus();}
 function orderEditableNote(items){return [...new Set(items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交'))) ].join('｜');}
-function orderEditItemMarkup(row){const name=row?String(getOnlineData(row,['名稱','商品名稱'])||''):'';const price=row?String(getOnlineData(row,['售價','價格'])||''):'';const rowAttr=row?` data-row="${Number(row.row)}"`:'';const remove=row?'<span aria-hidden="true"></span>':'<button type="button" class="btn light" aria-label="刪除新增商品" onclick="this.parentElement.remove()">－</button>';return `<div class="dialogItem manualOnlineItem orderEditItem"${rowAttr}><input class="orderEditName" placeholder="商品名稱" value="${esc(name)}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(price)}" oninput="normalizeMoneyInput(this)" required>${remove}</div>`;}
+function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required></div>`;}
 function openOrderEditDialog(rows){
 const orderRows=(rows||[]).map(Number).filter(row=>row>=2);
 const items=orderRows.map(row=>onlineRows.find(item=>Number(item.row)===row)).filter(Boolean);
 if(!items.length)return;
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><h3>編輯此訂單</h3><form onsubmit="submitOrderEdit(event)"><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存變更</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存變更</button></div></form></div></div>`);
 document.querySelector('.orderEditName')?.focus();
 }
 function addOrderEditItem(){const box=document.getElementById('orderEditItems');box.insertAdjacentHTML('beforeend',orderEditItemMarkup(null));box.lastElementChild.querySelector('.orderEditName')?.focus();}
@@ -2326,9 +2340,10 @@ async function submitOrderEdit(event){
 event.preventDefault();
 const items=[...document.querySelectorAll('.orderEditItem')].map(item=>({row:Number(item.dataset.row)||0,name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0)}));
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
+if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{onlineMutationRevision++;await api('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
+try{onlineMutationRevision++;await api('editOnlineOrder','deleteOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
 }
 function updateManualOnlineTotal(){const total=[...document.querySelectorAll('.manualOnlinePrice')].reduce((sum,x)=>sum+Number(normalizeMoneyInput(x)||0),0);const el=document.getElementById('manualOnlineTotal');if(el)el.textContent='總金額 $'+money(total);}
 function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
@@ -2922,6 +2937,11 @@ showOrderCards(onlineRows.filter(item=>String(getCustomerName(item)||'').trim()=
 }
 }
 }
+function selectWholeOrder(button){const boxes=[...button.closest('.groupCard').querySelectorAll('.shipCheck:not(:disabled)')];const checked=!boxes.every(box=>box.checked);boxes.forEach(box=>{if(box.checked!==checked){box.checked=checked;box.dispatchEvent(new Event('change',{bubbles:true}));}});button.setAttribute('aria-pressed',String(checked));}
+
+function startOrderSwipe(event,card){if(event.touches.length!==1||event.target.closest('input,button,select,textarea'))return;card._swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY};}
+function endOrderSwipe(event,card){const start=card._swipeStart;card._swipeStart=null;if(!start||!event.changedTouches.length)return;const dx=event.changedTouches[0].clientX-start.x,dy=event.changedTouches[0].clientY-start.y;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)card.classList.toggle('showOrderDelete',dx<0);}
+async function deleteWholeOnlineOrder(rows,button){if(!confirm('確定刪除這整筆訂單的所有商品？'))return;button.disabled=true;try{onlineMutationRevision++;await api('deleteOnlineOrder',{rows:JSON.stringify(rows)});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(error){alert('刪除失敗：'+error.message);button.disabled=false;}}
 function showOrderCards(rows,summary){
 const res=document.getElementById('onlineResult');
 if(!res)return;
@@ -2992,7 +3012,7 @@ const depositMarkup=deposit===''?
 '<input class="orderDepositInput" data-money-input type="text" inputmode="decimal" placeholder="訂金" oninput="normalizeMoneyInput(this)" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
 :'$'+money(deposit);
 const orderCard=`
-<div class="groupCard">
+<div class="groupCard swipeOrderCard" ontouchstart="startOrderSwipe(event,this)" ontouchend="endOrderSwipe(event,this)"><button type="button" class="orderSwipeDelete orderDelete" onclick='deleteWholeOnlineOrder(${JSON.stringify(order.items.map(row=>row.row))},this)'>刪除整筆</button>
 <div class="groupCardCustomer">
 ${singleCustomerView?`
 <span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>
@@ -3018,7 +3038,7 @@ ${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoCho
 `).join('')}${noteText?`<div class="groupCardNote">備註：${esc(noteText)}</div>`:''}
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}" data-payment="${esc(payment)}" data-last5="${esc(last5)}">
-<span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>
+${singleCustomerView?'<button type="button" class="orderSelectAll" aria-label="全選此訂單商品" onclick="selectWholeOrder(this)">⇧</button>':`<span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>`}
 ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5">${esc(last5Display)}</span>
 <span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
