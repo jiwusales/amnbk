@@ -2107,7 +2107,9 @@ function quantityOffer(item){
 const price=Math.round(Number(item.price||0)*100),qty=Math.max(0,Math.floor(Number(item.qty)||0));
 const size=Number(item.offerQty),offer=Math.round(Number(item.offerTotal)*100);
 const enabled=!item.manual&&Number.isInteger(size)&&size>=2&&item.offerTotal!==''&&item.offerTotal!=null&&Number.isFinite(offer)&&offer>=0&&offer<price*size;
-const groups=enabled?Math.floor(qty/size):0,remainder=qty-groups*(enabled?size:0);
+// Missing offerTotal must never enter arithmetic (0 * NaN is still NaN).
+if(!enabled)return {total:qty*price/100,groups:0,size:0,offer:0,saving:0};
+const groups=Math.floor(qty/size),remainder=qty-groups*size;
 return {total:(groups*offer+remainder*price)/100,groups,size:enabled?size:0,offer:offer/100,saving:(qty*price-groups*offer-remainder*price)/100};
 }
 function renderCart(){
