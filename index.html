@@ -1146,6 +1146,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 @media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
 .orderEditItem>button:first-child{background:transparent;border:0;color:#888;padding:0}
 .inventoryCard.relisted{border-color:#B1DEC1!important}
+.storeWorkDay{font-size:13px;font-weight:700;color:#F94A66;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -2008,6 +2009,11 @@ const query=isDateQuery?searchText:'';
 const nameQuery=isDateQuery?'':searchText.normalize('NFKC').toLowerCase();
 const year=storeSalesData.today.slice(0,4);
 let days=[...(storeSalesData.days||[])].sort((a,b)=>a.date.localeCompare(b.date));
+// Count each recorded work date once, before applying date or product filters.
+const workDayAnchor='2026-09-25';
+const workDates=[...new Set((storeSalesData.days||[]).filter(day=>day.items?.length).map(day=>day.date).concat(workDayAnchor))].sort();
+const anchorIndex=workDates.indexOf(workDayAnchor);
+const workDayNumbers=new Map(workDates.map((date,index)=>[date,130+index-anchorIndex]));
 if(query){
 if(!/^(\d{2}|\d{4})$/.test(query)){if(summary)summary.hidden=true;result.innerHTML='<div class="empty">輸入兩碼月份或四碼日期，例如 09、0911</div>';return;}
 const month=Number(query.slice(0,2));
@@ -2035,7 +2041,7 @@ if(!orders.has(key))orders.set(key,[]);
 orders.get(key).push(item);
 });
 return `<div class="groupCard salesDayCard" data-sales-date="${esc(day.date)}">
-<div class="groupCardCustomer"><strong>${esc(formatStoreSalesDate(day.date))}</strong><button type="button" class="rainToggle" data-rain-date="${esc(day.date)}" aria-label="切換${esc(day.date)}下雨標記" aria-pressed="${isRainyDay(day.date)}" onclick="toggleRainDay('${esc(day.date)}')">⛆</button>${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${visibleItems.length} 筆商品</span></div>
+<div class="groupCardCustomer"><strong>${esc(formatStoreSalesDate(day.date))}</strong><button type="button" class="rainToggle" data-rain-date="${esc(day.date)}" aria-label="切換${esc(day.date)}下雨標記" aria-pressed="${isRainyDay(day.date)}" onclick="toggleRainDay('${esc(day.date)}')">⛆</button>${day.items.length&&workDayNumbers.has(day.date)?`<span class="storeWorkDay">Day${workDayNumbers.get(day.date)}</span>`:''}${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${visibleItems.length} 筆商品</span></div>
 <div class="groupCardItems salesDayItems">${orders.size?[...orders.values()].map(renderSalesPurchase).join(''):`<div class="empty">${nameQuery?'沒有符合商品名稱的銷售紀錄':'當日尚無銷售紀錄'}</div>`}</div>
 <div class="groupCardMeta salesFooter"><div class="salesDayTotals"><span>總金額 <b>$${money(day.total)}</b></span><span>現金 <b class="salesCash">$${money(day.cash)}</b></span><span>轉帳 <b>$${money(day.transfer)}</b></span></div></div>
 </div>`;
