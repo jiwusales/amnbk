@@ -1147,6 +1147,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 .orderEditItem>button:first-child{background:transparent;border:0;color:#888;padding:0}
 .inventoryCard.relisted{border-color:#B1DEC1!important}
 .storeWorkDay{font-size:13px;font-weight:700;color:#F94A66;white-space:nowrap}
+.salesPurchaseInfo.salesBankLP{gap:6px}
 </style>
 </head>
 <body>
@@ -1961,13 +1962,13 @@ if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')
 }
 function renderSalesPurchase(items){
 const payment=String(items.find(item=>item.payment)?.payment||'').trim();
-const bank=payment.match(/^(中信|LB)/i);
+const bank=payment.match(/^(中信|LB|LP)/i);
 const cash=payment==='💰'||payment==='現金';
-const method=bank?(bank[1].toUpperCase()==='LB'?'LB':'中信'):(payment||'未填付款方式');
+const method=bank?bank[1].toUpperCase():(payment||'未填付款方式');
 const code=bank?(payment.match(/(\d{5})\s*$/)?.[1]||''):'';
-const codeClass=bank?(bank[1].toUpperCase()==='LB'?'salesCodeLB':'salesCodeCTBC'):'';
-const paymentInfoClass=bank?(bank[1].toUpperCase()==='LB'?'salesBankLB':'salesBankCTBC'):'';
-return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>{const hidden=Object.entries(item.hidden||{}).map(([key,value])=>`${esc(key)}：${esc(value)}`).join('｜');return `<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><button type="button" class="salesNoteEdit" onclick="editStoreSaleNote(${Number(item.row)})">${esc(item.name||'未填商品名稱')}</button>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}${hidden?`<span class="salesHiddenFields">${hidden}</span>`:''}</div><b class="${Number(item.amount)<0?'salesNegative':''}">$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>${item.note?`<div class="salesItemNote">${esc(item.note)}</div>`:''}`;}).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><button type="button" class="salesPaymentEdit ${codeClass}" data-method="${esc(method)}" data-last5="${esc(code)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method,this.dataset.last5)" title="點擊修改付款方式或補輸入後五碼">${esc(method)}</button>${code?`<span class="${codeClass}">${esc(code)}</span>`:['中信','LB'].includes(method)?`<button type="button" class="salesLast5Edit" data-method="${esc(method)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method)">輸入後五碼</button>`:''}</div>`}</div>`;
+const codeClass=method==='LB'?'salesCodeLB':method==='中信'?'salesCodeCTBC':'';
+const paymentInfoClass=method==='LB'?'salesBankLB':method==='中信'?'salesBankCTBC':method==='LP'?'salesBankLP':'';
+return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>{const hidden=Object.entries(item.hidden||{}).map(([key,value])=>`${esc(key)}：${esc(value)}`).join('｜');return `<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><button type="button" class="salesNoteEdit" onclick="editStoreSaleNote(${Number(item.row)})">${esc(item.name||'未填商品名稱')}</button>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}${hidden?`<span class="salesHiddenFields">${hidden}</span>`:''}</div><b class="${Number(item.amount)<0?'salesNegative':''}">$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>${item.note?`<div class="salesItemNote">${esc(item.note)}</div>`:''}`;}).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><button type="button" class="salesPaymentEdit ${codeClass}" data-method="${esc(method)}" data-last5="${esc(code)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method,this.dataset.last5)" title="點擊修改付款方式或補輸入後五碼">${esc(method)}</button>${code?`<span class="${codeClass}">${esc(code)}</span>`:['中信','LB','LP'].includes(method)?`<button type="button" class="salesLast5Edit" data-method="${esc(method)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method)">輸入後五碼</button>`:''}</div>`}</div>`;
 }
 function editStoreSaleNote(row){
 const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(!item)return;
@@ -1982,11 +1983,11 @@ const selected=String(method||'').trim();
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>修改付款方式</h3><form onsubmit="saveStoreSalePayment(event)"><input id="editStoreSaleRows" type="hidden" value="${esc(rows.join(','))}"><div class="dialogGrid"><select id="editStoreSaleMethod" onchange="toggleStoreSaleLast5()"><option value="現金" ${selected==='現金'||selected==='💰'?'selected':''}>現金</option><option value="中信" ${selected==='中信'?'selected':''}>中信</option><option value="LB" ${selected==='LB'?'selected':''}>LB</option><option value="LP" ${selected==='LP'?'selected':''}>LP</option><option value="ipass" ${selected==='ipass'?'selected':''}>ipass</option></select><input id="editStoreSaleLast5" inputmode="numeric" maxlength="5" value="${esc(last5)}" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
 const input=document.getElementById('editStoreSaleLast5');input.addEventListener('input',()=>{input.value=toHalfWidthDigits(input.value).replace(/\D/g,'').slice(0,5);});toggleStoreSaleLast5();
 }
-function toggleStoreSaleLast5(){const method=document.getElementById('editStoreSaleMethod')?.value;const input=document.getElementById('editStoreSaleLast5');if(input){input.disabled=!(method==='中信'||method==='LB');input.placeholder='後五碼（選填）';}}
+function toggleStoreSaleLast5(){const method=document.getElementById('editStoreSaleMethod')?.value;const input=document.getElementById('editStoreSaleLast5');if(input){input.disabled=!['中信','LB','LP'].includes(method);input.placeholder='後五碼（選填）';}}
 async function saveStoreSalePayment(event){
 event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
 const rows=document.getElementById('editStoreSaleRows').value.split(',').map(Number),method=document.getElementById('editStoreSaleMethod').value,last5=document.getElementById('editStoreSaleLast5').value.trim();
-if((method==='中信'||method==='LB')&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
+if(['中信','LB','LP'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
 try{await api('updateStoreSalePayment',{rows:JSON.stringify(rows),method,last5});closeDialog();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();drawStoreSales();}catch(error){alert('付款資料更新失敗：'+error.message);button.disabled=false;}
 }
 function formatStoreSalesDate(date){
@@ -2184,7 +2185,7 @@ document.querySelectorAll('.payment button').forEach(x=>x.classList.remove('acti
 el.classList.add('active');
 const box=document.getElementById('last5Box');
 const input=document.getElementById('last5');
-if(v==='中信'||v==='LB'){
+if(['中信','LB','LP'].includes(v)){
 box.style.display='block';
 input.focus();
 }else{
@@ -2227,12 +2228,12 @@ const received=receivedInput===''?'':Number(receivedInput);
 const change=received===''?'':received-total;
 let paymentValue=payment;
 let note='';
-if(payment==='中信'||payment==='LB'){
+if(['中信','LB','LP'].includes(payment)){
 const last5Input=document.getElementById('last5');
 last5Input.value=toHalfWidthDigits(last5Input.value);
 const last5=last5Input.value.trim();
 if(last5&&!/^\d{5}$/.test(last5)){alert('後五碼請輸入 5 碼，或留白後結帳再補');return;}
-if(last5)paymentValue=payment==='中信'?'中信'+last5:'LB '+last5;
+if(last5)paymentValue=payment==='中信'?'中信'+last5:payment+' '+last5;
 }
 note=document.getElementById('storeNote').value.trim();
 if(received!==''&&change<0&&!confirm('收到金額不足，仍要結帳嗎？')){
