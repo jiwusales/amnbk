@@ -1225,7 +1225,7 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 <style>
 /* 團畫布工具列：依團別分成操作列與編輯列。 */
 .launchEditorTools{width:100%;align-items:center;justify-content:space-between}.launchEditorToolsLeft,.launchEditorToolsRight{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.launchEditorToolsRight{margin-left:auto;justify-content:flex-end}.launchMobileEditorTools{display:none}.launchAllItem{position:relative}.launchAllEdit{appearance:none;border:0;background:transparent;padding:0;min-width:0;flex:1;text-align:left;font:inherit;color:inherit;cursor:pointer;overflow-wrap:anywhere}.launchAllItem:has(.launchAllEdit:focus-visible){outline:2px solid #6c8160;outline-offset:2px}.launchAllActions .btn{white-space:nowrap}.launchAllGrid{grid-template-columns:repeat(4,minmax(0,1fr))}.launchAllProductContent{min-width:0;flex:1}.launchStockToggle{display:block;margin-top:7px;border:1px solid #d8dde6;border-radius:7px;background:#f1f3f6;color:#5d6673;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}.launchStockToggle.isShortage{background:#d9544d;border-color:#d9544d;color:#fff}
-.launchAdsHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.launchAdsRows{display:grid;gap:12px}.launchAdsRow{display:grid;grid-template-columns:auto minmax(120px,1fr) minmax(180px,2fr);align-items:center;gap:8px}.launchAdsRow input{min-width:0;margin:0!important}.launchAdsRow span{white-space:nowrap;font-weight:700}
+.launchAdsHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.launchAdsRows{display:grid;gap:12px}.launchAdsRow{display:grid;grid-template-columns:24px 44px minmax(0,1fr);align-items:center;column-gap:8px;row-gap:8px}.launchAdsRow input{min-width:0;margin:0!important}.launchAdsRow span{white-space:nowrap;font-weight:700}.launchAdsRow label{white-space:nowrap;font-weight:700}.launchAdsRow .launchAdsImageLabel{grid-column:2}.launchAdsRow .launchAdsImageInput{grid-column:3}
 @media(max-width:850px){
  body[data-page="launch"] .launchPrimaryTools,body[data-page="launch"] .launchDesktopEditorTools{display:none}
  body[data-page="launch"] .launchMobileEditorTools{display:grid;grid-template-columns:repeat(var(--launch-mobile-tools,5),minmax(0,1fr));gap:5px;width:100%;margin-bottom:12px}
@@ -1234,7 +1234,7 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
  body[data-page="launch"] .launchMobileActions{margin-left:auto}
  .launchAllHeading{gap:6px;flex-wrap:nowrap}.launchAllHeading h2{font-size:18px;white-space:nowrap}.launchAllActions{gap:4px}.launchAllActions .btn{padding:7px 8px;font-size:12px}.launchSelectAll{font-size:0;gap:0}.launchSelectAll input{width:16px!important;height:16px;margin:0!important}
  .launchAllGrid{grid-template-columns:1fr;gap:7px}.launchAllItem{min-height:52px;padding:8px!important;align-items:center!important;font-size:13px}.launchAllItem input{flex:none;margin:0!important}.launchAllEdit{line-height:1.35}
- .launchAdsRow{grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:6px}
+ .launchAdsRow{grid-template-columns:24px 38px minmax(0,1fr);column-gap:6px;row-gap:6px}
 }
 </style>
 <script>
@@ -1362,7 +1362,7 @@ function launchCardColumns(){const current=Math.max(4,Math.min(8,Number(launchCu
 function launchSetCardColumns(count){launchCurrent.cardColumns=Math.max(4,Math.min(8,Number(count)||8));launchMark();document.getElementById('launchDialog').close();launchRenderEditor();}
 function launchAds(){
  const count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=launchCurrent.ads||[];
- launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}. 團名</span><input name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCurrent.name)}" required><input name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
+ launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}.</span><label for="launchAdName_${i}">團名</label><input id="launchAdName_${i}" name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCurrent.name)}" required><label class="launchAdsImageLabel" for="launchAdImage_${i}">首圖</label><input id="launchAdImage_${i}" class="launchAdsImageInput" name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
 }
 function launchAdsSubmit(event){
  event.preventDefault();const form=new FormData(event.target),count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=[];
@@ -2840,6 +2840,9 @@ const status=getOrderStatus(row);
 const opened=getOnlineData(row,['已開單','開單']);
 return status==='已開單'||isTruthy(opened)
 }
+function orderHasUnopenedPurchase(items){
+return items.some(row=>isOrderPurchased(row)&&!isOpenedRow(row));
+}
 function cargoDisplay(row){
 const raw=String(getOnlineData(row,['貨況'])||'').trim();
 const status=getOrderStatus(row);
@@ -3007,12 +3010,14 @@ orderGroups.get(key).push(row);
 const includedRows=new Set();
 orderGroups.forEach(items=>{
 const section=faceToFaceOrderSection({items});
+const hasUnopenedPurchase=orderHasUnopenedPurchase(items);
 let include=false;
 if(onlineCargo==='現貨')include=section==='現貨'&&items.every(row=>!isOpenedRow(row));
-else if(onlineCargo==='已訂購')include=section==='預訂';
+// 已訂購只收尚未開單的品項；同張訂單混有已開單與已訂購時，優先留在已訂購。
+else if(onlineCargo==='已訂購')include=hasUnopenedPurchase;
 else if(onlineCargo==='受注')include=section==='受注';
 else if(onlineCargo==='補貨登記')include=section==='補貨登記';
-else if(onlineCargo==='已開單')include=items.some(isOpenedRow);
+else if(onlineCargo==='已開單')include=items.some(isOpenedRow)&&!hasUnopenedPurchase;
 else include=items.some(row=>cargoCategory(getOnlineData(row,['貨況','狀態']))===onlineCargo);
 if(include)items.forEach(row=>includedRows.add(Number(row.row)));
 });
