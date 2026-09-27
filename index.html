@@ -1467,7 +1467,7 @@ async function launchBuildPNG(){
  await document.fonts.ready;const paper=document.getElementById('launchPaper');await Promise.all(Array.from(paper.images||paper.querySelectorAll('img')).map(im=>im.complete?Promise.resolve():im.decode().catch(()=>{})));
  const base=paper.getBoundingClientRect(),scale=1080/base.width;
  launchFitCards();
- const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle='#fffdf7';ctx.fillRect(0,0,1080,1350);
+ const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle='#F9F9FA';ctx.fillRect(0,0,1080,1350);
  const rect=el=>{const r=el.getBoundingClientRect();return {x:(r.left-base.left)*scale,y:(r.top-base.top)*scale,w:r.width*scale,h:r.height*scale};};
  const cssNumber=(el,name)=>parseFloat(getComputedStyle(el)[name])||0;
  const roundedRect=(r,radius)=>{const limit=Math.min(r.w,r.h)/2,rad=Math.min(Math.max(0,radius),limit);ctx.beginPath();ctx.moveTo(r.x+rad,r.y);ctx.arcTo(r.x+r.w,r.y,r.x+r.w,r.y+r.h,rad);ctx.arcTo(r.x+r.w,r.y+r.h,r.x,r.y+r.h,rad);ctx.arcTo(r.x,r.y+r.h,r.x,r.y,rad);ctx.arcTo(r.x,r.y,r.x+r.w,r.y,rad);ctx.closePath();};
