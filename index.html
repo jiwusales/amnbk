@@ -1298,7 +1298,9 @@ function launchPostURL(g){
  return launchSafeURL(g.shortUrl)||direct;
 }
 function launchPostTags(value){
- return String(value||'').split(/[\s,，]+/).map(tag=>tag.trim()).filter(Boolean).map(tag=>tag.startsWith('#')?tag:'#'+tag).join(' ');
+ const defaults=['#預購','#代購','#台中','#吉物販售'];
+ const custom=String(value||'').split(/[\s,，]+/).map(tag=>tag.trim()).filter(Boolean).map(tag=>tag.startsWith('#')?tag:'#'+tag);
+ return [...new Set([...custom,...defaults])].join(' ');
 }
 function launchPostShipping(g){
  const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
@@ -1413,6 +1415,7 @@ function launchRenderEditor(){
  requestAnimationFrame(()=>{const title=document.querySelector('#launchTitleWrap .launchTitle');if(title)title.textContent=launchGroupTitle(g.name);const emptyBanner=document.querySelector('.launchBannerEmpty');if(emptyBanner)emptyBanner.textContent='貼上首圖網址';launchApplyCardPresentation();launchDraftOriginals();launchApplyZoom();launchFitCards();});
 }
 function launchGroupTitle(name){return String(name||'').replace(/^(\d{4})(?!\s)/,'$1 ');}
+function launchCanvasTitle(g){return String(g?.canvasTitle||'').trim()||String(g?.name||'').trim();}
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchSelectPanel(index){launchPanelIndex=index;launchRenderEditor();}
 function launchRemoveActiveBanner(){const panel=launchCurrent?.panels?.[launchPanelIndex];if(!panel)return;launchPushUndo();panel.image='';launchCurrent.images=(launchCurrent.panels||[]).map(x=>x.image).filter(Boolean);launchMark();launchRenderEditor();}
@@ -1442,8 +1445,8 @@ function launchAdsSubmit(event){
  for(let i=0;i<count;i++){const name=String(form.get(`name_${i}`)||'').trim(),image=String(form.get(`image_${i}`)||'').trim();if(!name||!launchSafeURL(image)){alert('請填寫有效的團名與首圖網址');return;}ads.push({name,image});}
  launchPushUndo();launchCurrent.ads=ads;launchMark();document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
 }
-function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCurrent.name)}" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
-function launchSetTitle(value){if(value.trim()!==launchCurrent.name){launchCurrent.name=value.trim();launchMark();}const wrap=document.getElementById('launchTitleWrap');if(value.trim()&&wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(value.trim())}</button>`;}
+function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCanvasTitle(launchCurrent))}" placeholder="留空使用正式團名" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
+function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')){launchCurrent.canvasTitle=title;launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
 function launchEditFooter(){
  const current=launchFooterText(launchCurrent);
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
