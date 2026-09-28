@@ -1267,7 +1267,27 @@ function launchId(){return crypto.randomUUID();}
 function launchSafeURL(v){try{const u=new URL(v);return ['http:','https:'].includes(u.protocol)?u.href:'';}catch(_){return '';}}
 function launchImage(v){return esc(launchSafeURL(v));}
 function launchColor(v){return /^#[0-9a-f]{6}$/i.test(String(v||''))?String(v):'#617AA6';}
-function launchFooterText(g){const note=String(g.footer||''),month=note.match(/(\d{1,2}月(?:上|中|下)?)/);return `官方LINE @jiwusales｜${month?`官方預計${month[1]}出荷後約2-3週不含假日抵台`:'官方出荷後約2-3週不含假日抵台'}`;}
+function launchFooterText(g){
+ const custom=String(g.footer||'').trim();
+ if(custom)return custom;
+ const date=String(g.shipDate||'').trim();
+ const iso=date.match(/^\d{4}-(\d{2})-(\d{2})$/);
+ const shippingDate=iso?`${Number(iso[1])}月${Number(iso[2])}日`:date;
+ const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
+ return `官方LINE @jiwusales｜${shippingDate?'預計'+shippingDate:'官方'}出荷後約2-3週不含假日抵台${shipping?'｜境內運$'+shipping+'同車平分'+(g.noFreeShipping?'':'（滿額免）'):''}`;
+}
+function launchSetShipping(field,value){
+ if(!launchCurrent||!['shipDate','domesticShipping','noFreeShipping'].includes(field))return;
+ launchPushUndo();launchCurrent[field]=value;launchMark();
+ const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
+ launchFitCards();
+}
+function launchToggleFreeShipping(button){
+ launchSetShipping('noFreeShipping',!launchCurrent.noFreeShipping);
+ button.style.color=launchCurrent.noFreeShipping?'#d9544d':'#777';
+ button.setAttribute('aria-pressed',String(!!launchCurrent.noFreeShipping));
+}
+
 function launchDisplayName(item){const blocked=['三小隻','其他角色','綜合角色','水族','動物','食物'];const role=String(item.role||'').trim();return `${String(item.name||'').trim()}${role&&!blocked.includes(role)?' '+role:''}`;}
 function launchHexColors(value){const found=String(value||'').match(/#[0-9a-fA-F]{3,8}\b/g)||[];return [...new Set(found.map(color=>{const c=color.toUpperCase();return c.length===4?'#'+[...c.slice(1)].map(x=>x+x).join(''):c;}))];}
 function launchProductColors(item){const name=launchDisplayName(item);return [...new Set(launchCurrent.items.filter(x=>launchDisplayName(x)===name).flatMap(x=>launchHexColors(x.size)))];}
@@ -1392,7 +1412,10 @@ function launchAdsSubmit(event){
 }
 function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCurrent.name)}" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
 function launchSetTitle(value){if(value.trim()!==launchCurrent.name){launchCurrent.name=value.trim();launchMark();}const wrap=document.getElementById('launchTitleWrap');if(value.trim()&&wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(value.trim())}</button>`;}
-function launchEditFooter(){launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>底部資訊</h2><p class="launchHelp">內容會儲存至試算表同團第一列的「備註」欄。填寫「10月下」會顯示預計 10 月下出荷；未填月份則顯示固定出荷說明。</p><label>備註<input name="footer" value="${esc(launchCurrent.footer||'')}" placeholder="例如：10月下｜境內運 $220"></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);}
+function launchEditFooter(){
+ const current=launchFooterText(launchCurrent);
+ launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
+}
 function launchBack(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 async function launchPersist(){if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 function launchSaveClick(){launchRun(launchPersist);}
@@ -1446,7 +1469,7 @@ function launchDrag(e,kind,index){
  const done=ev=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',cancel);card.classList.remove('launchDragging');if(handle.hasPointerCapture(e.pointerId))handle.releasePointerCapture(e.pointerId);launchMoveIndex(kind,index,target);};
  const cancel=()=>{target=index;done();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',cancel);
 }
-function launchAllProducts(){launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions"><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
+function launchAllProducts(){launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions"><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchPair"><label>出荷日期<input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" placeholder="選填，例如：10月中" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label>境內運<div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" placeholder="選填，例如：220" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
 function launchToggleProductStock(index,button){const item=launchCurrent?.items[index];if(!item||!launchCurrent?.id)return;const next=!item.stockOut,previous=item.stockOut;item.stockOut=next;button.classList.toggle('isShortage',next);button.textContent=next?'已缺貨':'缺貨';launchPost('launchSetInventoryAvailability',{out:next,groupId:launchCurrent.id,itemId:item.id}).catch(error=>{item.stockOut=previous;button.classList.toggle('isShortage',previous);button.textContent=previous?'已缺貨':'缺貨';alert(error.message);});}
 function launchAllSave(){document.getElementById('launchDialog')?.close();launchSaveClick();}
 function launchUpdateSelectAll(){const all=document.getElementById('launchSelectAll');if(!all||!launchCurrent)return;const selected=launchCurrent.items.filter(item=>item.visible!==false).length;all.checked=selected===launchCurrent.items.length&&selected>0;all.indeterminate=selected>0&&selected<launchCurrent.items.length;}
