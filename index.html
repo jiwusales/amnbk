@@ -1352,7 +1352,7 @@ function launchMark(){launchDirty=true;const b=document.getElementById('launchSa
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty});if(launchUndoStack.length>30)launchUndoStack.shift();}
 function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
-function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Date.now()-saved.savedAt<LAUNCH_CACHE_MS&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
+function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
 function launchSaveListCache(status,groups){try{sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,JSON.stringify({savedAt:Date.now(),groups}));}catch(_){}}
 function launchClearListCache(){launchStates.forEach(status=>sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status));}
 async function launchPost(action,params){
@@ -1374,7 +1374,7 @@ async function launchFillFromInventory(){
 }
 async function launchRun(fn){if(launchBusy)return;launchBusy=true;document.querySelector('.launchPage')?.classList.add('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=true);try{await fn();}catch(e){launchNotice(e.message);alert(e.message);}finally{launchBusy=false;document.querySelector('.launchPage')?.classList.remove('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=false);if(launchCurrent&&document.body.dataset.page==='launch')launchRenderEditor();}}
 async function renderLaunch(){
- if(launchAuxPage==='group-work'){if(launchAuxData){++launchLoad;launchSyncTopActions();launchRenderAux();return;}return launchOpenAux('group-work');}
+ if(launchAuxPage==='group-work'){if(launchAuxData&&launchWorkDirty){++launchLoad;launchSyncTopActions();launchRenderAux();return;}return launchOpenAux('group-work');}
  const ticket=++launchLoad;launchCurrent=null;launchDirty=false;launchSyncTopActions();const openId=sessionStorage.getItem(LAUNCH_OPEN_KEY);
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
@@ -1385,9 +1385,9 @@ function launchSyncTopActions(){const host=document.querySelector('.topActions')
 function launchTopSave(){if(launchAuxPage==='group-work')return launchSaveWorkChanges();if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
- if(launchBusy)return;if(launchAuxPage===kind&&launchWorkDirty){launchRenderAux();return;}const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=null;launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
- document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入資料中…</div></div>';
- try{const data=await api('launchAuxSheet',{kind});if(ticket!==launchLoad||launchAuxPage!==kind)return;launchAuxData=data;launchWorkDirty=false;if(document.body.dataset.page==='launch')launchRenderAux();}catch(e){if(ticket===launchLoad&&launchAuxPage===kind&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
+ if(launchBusy)return;if(launchAuxPage===kind&&launchWorkDirty){launchRenderAux();return;}const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=launchAuxData||instantRead('group-work');launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
+ if(launchAuxData)launchRenderAux();else{launchRenderAux();document.querySelector('.launchDragHint').textContent='首次同步團務資料中…';}
+ try{const data=await api('launchAuxSheet',{kind});if(ticket!==launchLoad||launchAuxPage!==kind||launchWorkDirty)return;launchAuxData=data;instantSave('group-work',data);launchWorkDirty=false;if(document.body.dataset.page==='launch')launchRenderAux();}catch(e){if(launchAuxData){console.warn('團務同步失敗，保留暫存',e);return;}if(ticket===launchLoad&&launchAuxPage===kind&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
 }
 function launchRenderAux(){
  launchSyncTopActions();
@@ -1413,7 +1413,7 @@ async function launchSaveWorkChanges(){
   const saved=new Map(data.entries.map(entry=>[String(entry.id),entry]));
   const text=value=>String(value??'').trim();
   if(entries.some(entry=>{const actual=saved.get(String(entry.id));return !actual||['status','category','arrival','note'].some(key=>text(actual[key])!==text(entry[key]));}))throw new Error('後台回傳的團務資料與修改不一致，請確認試算表寫入功能；修改已保留');
-  launchAuxData=data;launchWorkDirty=false;
+  launchAuxData=data;instantSave('group-work',data);launchWorkDirty=false;
  }catch(error){launchWorkDirty=true;alert('儲存失敗：'+error.message);}
  finally{launchBusy=false;if(document.body.dataset.page==='launch'&&launchAuxPage==='group-work'){launchSyncTopActions();launchRenderAux();}}
 }
@@ -1732,6 +1732,54 @@ function launchExport(mode){
   }else{const blob=await launchBuildPNG(),name=(launchCurrent.name||'開團')+'.png';if(mode==='share'){const file=new File([blob],name,{type:'image/png'});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:launchCurrent.name||'開團圖片'});launchNotice('已開啟分享選單，可選擇儲存到相簿');return;}const url=URL.createObjectURL(blob);window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000);launchNotice('已開啟圖片，長按圖片即可儲存');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);launchNotice('已下載 1080 × 1350 PNG · 200 dpi');}
  });
 }
+
+function instantRead(key){try{return JSON.parse(sessionStorage.getItem('jiwu_instant_'+key)||'null');}catch(_){return null;}}
+function instantSave(key,data){try{sessionStorage.setItem('jiwu_instant_'+key,JSON.stringify(data));}catch(_){}}
+// 背景更新只套用到原頁面，而且在請求完成後再次確認沒有開始編輯。
+let liveRefreshing=false,liveInteraction=0;
+['input','change','pointerdown','keydown'].forEach(type=>document.addEventListener(type,()=>{liveInteraction++;},true));
+function liveCanRefresh(){
+ return document.body.classList.contains('isAuthenticated')&&!document.hidden
+  &&!document.querySelector('dialog[open],#appDialog,input:focus,textarea:focus,select:focus,[contenteditable="true"]:focus,#app input:checked')
+  &&!launchBusy&&!launchDirty&&!launchWorkDirty&&!inventoryOrderDirty&&!inventoryProductSaves.size
+  &&!shipPendingWrites&&!cartPendingWrites&&!cartUnsaved&&!cartOperationBusy
+  &&!pendingRestockRows.size&&!pendingBadgeRows.size&&!pendingFaceRows.size&&!pendingReconcileRows.size;
+}
+async function liveRefresh(){
+ if(liveRefreshing||!liveCanRefresh())return;
+ const page=document.body.dataset.page,interaction=liveInteraction,aux=launchAuxPage,status=launchStatus,current=launchCurrent?.id;
+ if(page==='buy')return; // 外部網站由該網站管理同步，避免重載中斷下單。
+ if(inventoryLoadPromise||onlineLoadPromise||shipLoadPromise||storeSalesPromise)return;
+ liveRefreshing=true;
+ const valid=()=>liveCanRefresh()&&interaction===liveInteraction&&page===document.body.dataset.page&&aux===launchAuxPage&&status===launchStatus&&current===launchCurrent?.id;
+ const scroll=[...document.querySelectorAll('#app,#app *')].filter(x=>x.scrollTop||x.scrollLeft).map(x=>({id:x.id,cls:x.className,top:x.scrollTop,left:x.scrollLeft}));
+ try{
+  if(page==='launch'){
+   if(aux==='group-work'){const d=await api('launchAuxSheet',{kind:aux});if(!valid())return;if(JSON.stringify(d)!==JSON.stringify(launchAuxData)){launchAuxData=d;instantSave('group-work',d);launchRenderAux();}}
+   else if(current){const d=await api('launchGet',{id:current});if(!valid())return;if(JSON.stringify(d.group)!==JSON.stringify(launchCurrent)){launchCurrent=d.group;launchUndoStack=[];launchRenderEditor();}}
+   else{const d=await api('launchList',{status});if(!valid())return;if(JSON.stringify(d.groups)!==JSON.stringify(launchGroups)){launchGroups=d.groups||[];launchSaveListCache(status,launchGroups);launchRenderList();}}
+  }else if(page==='inventory'){
+   const d=await api('inventory',{compact:'1'});if(!valid())return;
+   const rows=d.format==='inventory-matrix-v1'?(d.rows||[]).map(r=>({row:r[0],values:r[1]||[],display:r[2]||r[1]||[],formulas:r[3]||[],image:r[4]||''})):(d.rows||[]);
+   inventoryRows=rows;inventoryHeaders=d.headers||[];inventoryLoaded=true;inventoryLoadedAt=Date.now();prepareInventoryRows();saveInventorySessionCache();renderInventoryContent();
+  }else if(page==='online'){
+   const d=await api('online',{compact:'1'});if(!valid())return;
+   const headers=d.headers||[];onlineRows=d.format==='online-matrix-v1'?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,j)=>[h,r[j+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''})):(d.rows||[]);
+   onlineHeaders=headers;onlineLoadedAt=Date.now();saveOnlineSessionCache();showOnlineCurrentView();
+  }else if(page==='ship'){
+   const d=await api('ship');if(!valid())return;if(JSON.stringify(d)!==JSON.stringify(shipDataCache)){shipDataCache=d;instantSave('ship',d);shipLoadedAt=Date.now();drawShip(d);}
+  }else if(page==='store'){
+   await loadStoreCart();if(!valid())return;
+   if(document.getElementById('storeSalesResult')){const d=await api('storeSales');if(!valid())return;storeSalesData=d;instantSave('storeSales',d);storeSalesLoadedAt=Date.now();drawStoreSales();}
+  }
+  if(valid())scroll.forEach(saved=>{const el=saved.id?document.getElementById(saved.id):[...document.querySelectorAll('#app *')].find(x=>x.className===saved.cls);if(el){el.scrollTop=saved.top;el.scrollLeft=saved.left;}});
+ }catch(error){console.warn('背景更新失敗，保留目前畫面：',error.message);}
+ finally{liveRefreshing=false;}
+}
+setInterval(liveRefresh,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)liveRefresh();});
+window.addEventListener('focus',liveRefresh);
+
 </script>
 
 <script>
@@ -1779,6 +1827,7 @@ let isFaceToFaceView=false;
    API
 ========================================================= */
 function api(action,params={}){
+if(['online','inventory'].includes(action))params={...params,fresh:'1'};
 const retryable=[
 'authWarmup',
 'authLogin',
@@ -1985,6 +2034,7 @@ let storeSalesLoadedAt=0;
 let storeSalesPromise=null;
 let storeSalesDate=null;
 function tab(name,el){
+if(document.body.dataset.page==='launch'&&launchWorkDirty){alert('團務表有尚未儲存的修改，請先按 SAVE');return;}
 if(document.body.dataset.page==='launch'&&(launchBusy||(launchDirty&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
 if(document.body.dataset.page==='launch'){launchDirty=false;launchLoad++;}
 
@@ -2250,7 +2300,7 @@ app.innerHTML=`<div class="inventoryPage"><div id="inventoryCategories" class="i
 const statusSelect=document.getElementById('inventoryStatus');if(statusSelect)statusSelect.value=inventoryStatus;
 fitSelectWidth(statusSelect);
 if(inventoryLoaded)renderInventoryContent();
-loadInventory();
+loadInventory(true);
 }
 function scheduleInventorySearch(value){clearTimeout(inventorySearchTimer);inventorySearchTimer=setTimeout(()=>{inventorySearch=String(value||'').trim();renderInventoryContent();},160);}
 function runInventorySearchNow(){clearTimeout(inventorySearchTimer);const input=document.getElementById('inventorySearch');inventorySearch=String(input?.value||'').trim();renderInventoryContent();}
@@ -2469,6 +2519,7 @@ const button=document.querySelector('.rainToggle[data-rain-date="'+date+'"]');
 if(button)button.setAttribute('aria-pressed',String(rainy));
 }
 async function renderStoreSales(force=false){
+if(!storeSalesData)storeSalesData=instantRead('storeSales');
 if(force)storeSalesDate=null;
 if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷售';
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
@@ -2479,13 +2530,13 @@ app.innerHTML=`<div class="storeSalesPage">
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
 if(storeSalesData)drawStoreSales();
-if(!force&&storeSalesData&&Date.now()-storeSalesLoadedAt<30000)return;
+
 try{
 if(!storeSalesPromise)storeSalesPromise=api('storeSales');
 const request=storeSalesPromise;
 let data;
 try{data=await request;}finally{if(storeSalesPromise===request)storeSalesPromise=null;}
-storeSalesData=data;storeSalesLoadedAt=Date.now();
+storeSalesData=data;instantSave('storeSales',data);storeSalesLoadedAt=Date.now();
 if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
 }catch(e){
@@ -2516,7 +2567,7 @@ setTimeout(async()=>{
 try{
 if(storeSalesPromise)await storeSalesPromise;
 const data=await api('storeSales');
-storeSalesData=data;storeSalesLoadedAt=Date.now();
+storeSalesData=data;instantSave('storeSales',data);storeSalesLoadedAt=Date.now();
 if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
 }catch(_){/* 結帳已完成，保留即時資料並讓使用者可手動重新整理 */}
@@ -2888,9 +2939,9 @@ if(e.key==='Enter')searchOnline();
 });
 if(onlineLoadedAt){
 applyOnlineFilter();
-loadOnline(false,true);
+loadOnline(true,true);
 }else{
-loadOnline();
+loadOnline(true);
 }
 }
 function openOnlineOrderDialog(){
@@ -3874,18 +3925,19 @@ const time=Date.parse(row.data['包貨完成時間']||'');
 return isTruthy(row.data['已包貨'])&&Number.isFinite(time)&&now-time>=SHIP_HIDE_MS;
 }
 async function renderShip(force=false){
+if(!shipDataCache)shipDataCache=instantRead('ship');
 if(shipPendingWrites)return;
 const app=document.getElementById('app');
 if(!document.getElementById('shipResult'))app.innerHTML='<div class="shipPage"><div id="shipResult"><div class="card"><div class="loading">載入中…</div></div></div></div>';
 if(shipDataCache)drawShip(shipDataCache);
-if(!force&&shipDataCache&&Date.now()-shipLoadedAt<30000)return;
+
 if(shipLoadPromise)return shipLoadPromise;
 const revision=shipRevision;
 const request=(async()=>{
 try{
 const d=await api('ship');
 if(revision!==shipRevision)return;
-shipDataCache=d;shipLoadedAt=Date.now();
+shipDataCache=d;instantSave('ship',d);shipLoadedAt=Date.now();
 if(document.body.dataset.page==='ship')drawShip(d);
 }catch(e){
 const res=document.getElementById('shipResult');
