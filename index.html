@@ -1263,7 +1263,7 @@ const launchIcon='https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/ic
 const launchPreviewFallback='https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260927162319_04b00fa2.png';
 const LAUNCH_STATUS_KEY='jiwu_launch_status',LAUNCH_OPEN_KEY='jiwu_launch_open_group',LAUNCH_CACHE_PREFIX='jiwu_launch_list_v2_',LAUNCH_ZOOM_KEY='jiwu_launch_zoom',LAUNCH_CACHE_MS=120000;
 let launchZoom=Math.max(.7,Math.min(1.5,Number(sessionStorage.getItem(LAUNCH_ZOOM_KEY))||1));
-let launchStatus=sessionStorage.getItem(LAUNCH_STATUS_KEY)||'最新開團',launchGroups=[],launchCurrent=null,launchDirty=false,launchBusy=false,launchMessage='',launchLoad=0,launchClosedSearch='',launchUndoStack=[],launchAuxPage='',launchAuxData=null,launchPanelIndex=0,launchWorkFilter='全部',launchWorkDirty=false;
+let launchStatus=sessionStorage.getItem(LAUNCH_STATUS_KEY)||'最新開團',launchGroups=[],launchCurrent=null,launchDirty=false,launchBusy=false,launchMessage='',launchLoad=0,launchClosedSearch='',launchUndoStack=[],launchAuxPage=localStorage.getItem('jiwu_launch_aux_page')||'',launchAuxData=null,launchPanelIndex=0,launchWorkFilter=localStorage.getItem('jiwu_work_filter')||'全部',launchWorkDirty=false;
 function launchId(){return crypto.randomUUID();}
 function launchSafeURL(v){try{const u=new URL(v);return ['http:','https:'].includes(u.protocol)?u.href:'';}catch(_){return '';}}
 function launchImage(v){return esc(launchSafeURL(v));}
@@ -1352,9 +1352,24 @@ function launchMark(){launchDirty=true;const b=document.getElementById('launchSa
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty});if(launchUndoStack.length>30)launchUndoStack.shift();}
 function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
-function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
-function launchSaveListCache(status,groups){try{sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,JSON.stringify({savedAt:Date.now(),groups}));}catch(_){}}
-function launchClearListCache(){launchStates.forEach(status=>sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status));}
+function launchCacheRead(key){try{return JSON.parse(localStorage.getItem(key)||sessionStorage.getItem(key)||'null');}catch(_){return null;}}
+function launchCacheWrite(key,value){const text=JSON.stringify(value);try{localStorage.setItem(key,text);}catch(_){}try{sessionStorage.setItem(key,text);}catch(_){}}
+function launchCacheRemove(key){try{localStorage.removeItem(key);}catch(_){}try{sessionStorage.removeItem(key);}catch(_){}}
+function launchListCache(status){const saved=launchCacheRead(LAUNCH_CACHE_PREFIX+status);return saved&&Array.isArray(saved.groups)?saved.groups:null;}
+function launchSaveListCache(status,groups){launchCacheWrite(LAUNCH_CACHE_PREFIX+status,{savedAt:Date.now(),groups});}
+function launchClearListCache(){launchStates.forEach(status=>launchCacheRemove(LAUNCH_CACHE_PREFIX+status));}
+function launchDetailCache(id){const saved=launchCacheRead('jiwu_launch_detail_v1_'+id);return saved?.group?.id===id&&Array.isArray(saved.group.items)?saved.group:null;}
+function launchSaveDetailCache(group){
+ if(!group||group.summary||!Array.isArray(group.items))return;
+ const indexKey='jiwu_launch_detail_index_v1',ids=launchCacheRead(indexKey)||[];
+ const recent=[group.id,...(Array.isArray(ids)?ids:[]).filter(id=>id!==group.id)];
+ recent.slice(12).forEach(id=>launchCacheRemove('jiwu_launch_detail_v1_'+id));
+ launchCacheWrite(indexKey,recent.slice(0,12));launchCacheWrite('jiwu_launch_detail_v1_'+group.id,{group});
+}
+function launchCacheSavedGroup(group){
+ launchSaveDetailCache(group);
+ launchStates.forEach(status=>{const list=launchListCache(status);if(!list)return;const at=list.findIndex(x=>x.id===group.id);const next=list.filter(x=>x.id!==group.id);if(status===group.status)next.splice(at<0?next.length:at,0,{id:group.id,name:group.name,status:group.status,images:group.images,joined:group.joined,summary:true,items:[]});launchSaveListCache(status,next);});
+}
 async function launchPost(action,params){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:authToken,...params}),signal:controller.signal});const d=await r.json();if(d.ok===false){if(d.error==='登入已失效，請重新登入')showLogin();throw new Error(d.error);}return d;}
@@ -1376,16 +1391,16 @@ async function launchRun(fn){if(launchBusy)return;launchBusy=true;document.query
 async function renderLaunch(){
  if(launchAuxPage==='group-work'){if(launchAuxData&&launchWorkDirty){++launchLoad;launchSyncTopActions();launchRenderAux();return;}return launchOpenAux('group-work');}
  const ticket=++launchLoad;launchCurrent=null;launchDirty=false;launchSyncTopActions();const openId=sessionStorage.getItem(LAUNCH_OPEN_KEY);
- if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
+ if(openId)return launchLoadGroup(openId,ticket);
  const cached=launchListCache(launchStatus);let showingCache=false;
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步試算表資料中…';launchRenderList();}
- try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty)return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':launchCurrent?.status==='已收單'?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions"><button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${(launchAuxPage==='group-work'?launchWorkDirty:launchDirty)?' *':''}</button>${statusAction}</span>`);}
 function launchTopSave(){if(launchAuxPage==='group-work')return launchSaveWorkChanges();if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
- if(launchBusy)return;if(launchAuxPage===kind&&launchWorkDirty){launchRenderAux();return;}const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=launchAuxData||instantRead('group-work');launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
+ if(launchBusy)return;if(launchAuxPage===kind&&launchWorkDirty){launchRenderAux();return;}const ticket=++launchLoad;launchAuxPage=kind;localStorage.setItem('jiwu_launch_aux_page',kind);launchAuxData=launchAuxData||instantRead('group-work');launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
  if(launchAuxData)launchRenderAux();else{launchRenderAux();document.querySelector('.launchDragHint').textContent='首次同步團務資料中…';}
  try{const data=await api('launchAuxSheet',{kind});if(ticket!==launchLoad||launchAuxPage!==kind||launchWorkDirty)return;launchAuxData=data;instantSave('group-work',data);launchWorkDirty=false;if(document.body.dataset.page==='launch')launchRenderAux();}catch(e){if(launchAuxData){console.warn('團務同步失敗，保留暫存',e);return;}if(ticket===launchLoad&&launchAuxPage===kind&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
 }
@@ -1397,7 +1412,7 @@ function launchRenderAux(){
  requestAnimationFrame(launchFitWorkNames);
 }
 function launchWorkNewestFirst(a,b){const ao=Number(a.workOrder),bo=Number(b.workOrder),hasA=Number.isFinite(ao)&&ao>0,hasB=Number.isFinite(bo)&&bo>0;if(hasA||hasB){if(hasA&&hasB)return ao-bo;return hasA?-1:1;}const date=name=>{const match=String(name||'').match(/^(\d{2})(\d{2})/);return match?Number(match[1])*32+Number(match[2]):-1;};return date(b.name)-date(a.name);}
-function launchSetWorkFilter(category){launchWorkFilter=category;launchRenderAux();}
+function launchSetWorkFilter(category){launchWorkFilter=category;localStorage.setItem('jiwu_work_filter',category);launchRenderAux();}
 function launchFitWorkNames(){document.querySelectorAll('.launchWorkTile .launchPreviewName').forEach(name=>{let size=12;name.style.fontSize=size+'px';while(name.scrollWidth>name.clientWidth&&size>8){size-=.5;name.style.fontSize=size+'px';}});}
 function launchSuggestWorkCategory(name,categories){const normalized=String(name||'').toLocaleLowerCase();return (categories||[]).filter(category=>normalized.includes(String(category).toLocaleLowerCase())).sort((a,b)=>String(b).length-String(a).length)[0]||'';}
 function launchWorkPressStart(e,id){if(launchBusy||e.button!==0)return;const card=e.currentTarget,pointId=e.pointerId;let active=false,target=id;const move=ev=>{if(!active)return;const hit=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('[data-work-id]');if(hit)target=hit.dataset.workId;};const end=()=>{clearTimeout(timer);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);if(!active)return;launchPressConsumed=true;card.classList.remove('launchDragging');launchMoveWork(id,target);};const timer=setTimeout(()=>{active=true;launchPressConsumed=true;card.classList.add('launchDragging');try{card.setPointerCapture(pointId);}catch(_){}window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});},380);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});}
@@ -1422,9 +1437,20 @@ function launchEditWork(id){if(launchBusy||launchTakePress())return;const data=l
 function launchChooseWorkStatus(button,status){const form=button.closest('form');form.elements.status.value=status;form.querySelectorAll('.launchWorkEditStatuses button').forEach(item=>item.classList.toggle('selected',item===button));}
 function launchSaveWork(event,id){event.preventDefault();const form=new FormData(event.target),entry=(launchAuxData?.entries||[]).find(item=>String(item.id)===String(id));if(!entry)return;entry.status=String(form.get('status')||'尚未結單');entry.category=String(form.get('category')||'').trim();entry.arrival=String(form.get('arrival')||'').trim();entry.note=String(form.get('note')||'').trim();launchWorkDirty=true;document.getElementById('launchDialog')?.close();launchRenderAux();}
 function launchAddWork(){if(launchBusy)return;const statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=launchAuxData?.categories||[];launchDialog(`<form onsubmit="launchSaveNewWork(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><label>團名<input name="name" required autofocus placeholder="例如：1009吉伊新品"></label><input name="status" type="hidden" value="尚未結單"><div class="launchWorkStatuses launchWorkEditStatuses">${statuses.map(status=>`<button class="btn light ${status==='尚未結單'?'selected':''}" type="button" onclick="launchChooseWorkStatus(this,'${esc(status)}')">${status}</button>`).join('')}</div><div class="launchPair"><label>IP<input name="category" value="${esc(['全部','未分類'].includes(launchWorkFilter)?'':launchWorkFilter)}" list="launchWorkCategories" placeholder="例如：寶可夢"></label><label>時間<input name="arrival" placeholder="例如：10月下"></label></div><datalist id="launchWorkCategories">${categories.map(category=>`<option value="${esc(category)}">`).join('')}</datalist><label>圖片網址<input name="image" type="url" placeholder="https://..."></label><label>運送備註<textarea name="note" rows="4"></textarea></label></form>`);}
-function launchSaveNewWork(event){event.preventDefault();const form=new FormData(event.target);document.getElementById('launchDialog')?.close();launchPost('launchGroupWorkAdd',{name:String(form.get('name')||'').trim(),status:String(form.get('status')||''),category:String(form.get('category')||'').trim(),arrival:String(form.get('arrival')||'').trim(),image:String(form.get('image')||'').trim(),note:String(form.get('note')||'').trim()}).then(data=>{launchAuxData=data;launchRenderAux();}).catch(error=>{alert('新增失敗：'+error.message);launchOpenAux('group-work');});}
+function launchSaveNewWork(event){event.preventDefault();const form=new FormData(event.target);document.getElementById('launchDialog')?.close();launchPost('launchGroupWorkAdd',{name:String(form.get('name')||'').trim(),status:String(form.get('status')||''),category:String(form.get('category')||'').trim(),arrival:String(form.get('arrival')||'').trim(),image:String(form.get('image')||'').trim(),note:String(form.get('note')||'').trim()}).then(data=>{launchAuxData=data;instantSave('group-work',data);launchRenderAux();}).catch(error=>{alert('新增失敗：'+error.message);launchOpenAux('group-work');});}
 async function launchLoadGroup(id,ticket=++launchLoad){
- try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchCurrent=detail.group;launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
+ const cached=launchDetailCache(id),interaction=liveInteraction;
+ if(cached){launchCurrent=structuredClone(cached);launchPanelIndex=0;launchUndoStack=[];launchMessage='顯示上次資料，背景同步中…';launchRenderEditor();}
+ else document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">首次載入這團的內容中…</div></div>';
+ try{
+  const detail=await api('launchGet',{id});
+  if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchBusy||launchAuxPage||interaction!==liveInteraction)return;
+  launchSaveDetailCache(detail.group);launchCurrent=detail.group;launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchMessage='';launchRenderEditor();
+ }catch(e){
+  if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty)return;
+  if(cached){launchNotice('更新失敗，保留上次資料：'+e.message);return;}
+  document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;
+ }
 }
 function launchRenderList(){
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
@@ -1435,19 +1461,19 @@ function launchRenderList(){
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
  if(launchBusy)return;
- if(launchAuxPage==='group-work'){if(launchWorkDirty){alert('團務表有尚未儲存的修改，請先按 SAVE');return;}launchAuxData=null;renderLaunch();return;}
+ if(launchAuxPage==='group-work'){if(launchWorkDirty){alert('團務表有尚未儲存的修改，請先按 SAVE');return;}renderLaunch();return;}
  if(!launchDirty){launchDiscardAndRefresh();return;}
  launchDialog(`<h2>重新整理開團資料</h2><p>目前有尚未儲存的修改，要先儲存嗎？</p><div class="launchTools"><button class="btn" onclick="launchSaveAndRefresh()">儲存後重整</button><button class="btn light" onclick="launchDiscardAndRefresh()">不儲存重整</button><button class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button></div>`);
 }
-function launchDiscardAndRefresh(){document.getElementById('launchDialog')?.close();launchDirty=false;launchUndoStack=[];launchClearListCache();launchMessage='';renderLaunch();}
+function launchDiscardAndRefresh(){document.getElementById('launchDialog')?.close();launchDirty=false;launchUndoStack=[];launchMessage='';renderLaunch();}
 function launchSaveAndRefresh(){document.getElementById('launchDialog')?.close();launchRun(async()=>{if(launchCurrent)await launchPersist();else await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchDirty=false;launchUndoStack=[];launchClearListCache();launchMessage='';await renderLaunch();});}
 function launchSearchClosed(value,apply=false){launchClosedSearch=value;const input=document.querySelector('.launchClosedSearch');if(!apply&&input&&document.activeElement===input)return;launchRenderList();const next=document.querySelector('.launchClosedSearch');if(next){next.focus();next.setSelectionRange(value.length,value.length);}}
 document.addEventListener('compositionend',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value,true);});
 document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value,true);});
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.preventDefault();e.stopPropagation();const card=price.closest('.launchProduct'),index=Number(card?.dataset.launchIndex),item=launchCurrent.items[index];if(!item)return;const value=prompt('修改售價',String(item.price||launchSaleValue(item)||''));if(value===null)return;const number=launchNumber(value);if(number==null||number<0){alert('請輸入有效售價');return;}launchPushUndo();item.price=String(Math.ceil(number));launchMark();launchRenderEditor();},true);
-function launchChangeStatus(s){if(launchBusy)return;if(launchWorkDirty){alert('團務表有尚未儲存的修改，請先按 SAVE');return;}if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;if(group.summary){launchCurrent=null;document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';launchLoadGroup(group.id);return;}launchCurrent=structuredClone(group);launchUndoStack=[];launchRenderEditor();}
+function launchChangeStatus(s){if(launchBusy)return;if(launchWorkDirty){alert('團務表有尚未儲存的修改，請先按 SAVE');return;}if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';localStorage.removeItem('jiwu_launch_aux_page');launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
+function launchOpen(i){if(launchTakePress()||launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;if(!group.summary)launchSaveDetailCache(group);launchCurrent=null;launchLoadGroup(group.id);}
 function launchCloseDisplay(value){return String(value||'').replace(/^\d{4}-(\d{2})-(\d{2})T(\d{2}:\d{2})$/, '$1$2 $3');}
 function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="date"></label><label>境內運<input name="domesticShipping" placeholder="$220同車平分（滿額免）"></label></div><label>收單時間（台灣時間，選填）<input name="closeAt" placeholder="例如：1009 23:59" pattern="[0-9]{4}( [0-9]{2}:[0-9]{2})?"></label><p class="launchHelp">填月日即可，未填時分以當日 23:59 為準；留空依團名日期判斷。</p><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
 function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||''),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',closeAt:String(form.get('closeAt')||'').trim(),shipDate,domesticShipping,footer:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
@@ -1504,11 +1530,11 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+async function launchPersist(){++launchLoad;if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;launchCacheSavedGroup(launchCurrent);sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 function launchSaveClick(){launchRun(launchPersist);}
 function launchMove(status){launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});}
-function launchDelete(){if(!confirm('確定刪除整團及其試算表商品資料？'))return;launchRun(async()=>{if(launchCurrent.revision)await launchPost('launchDelete',{id:launchCurrent.id,revision:launchCurrent.revision});launchClearListCache();launchDirty=false;launchMessage='已刪除';await renderLaunch();});}
-function launchSaveOrder(){if(launchAuxPage==='group-work')return launchSaveWorkChanges();launchRun(async()=>{await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchClearListCache();launchDirty=false;launchMessage='排序已儲存';launchRenderList();});}
+function launchDelete(){if(!confirm('確定刪除整團及其試算表商品資料？'))return;launchRun(async()=>{if(launchCurrent.revision)await launchPost('launchDelete',{id:launchCurrent.id,revision:launchCurrent.revision});const deletedId=launchCurrent.id;launchCacheRemove('jiwu_launch_detail_v1_'+deletedId);launchStates.forEach(status=>{const list=launchListCache(status);if(list)launchSaveListCache(status,list.filter(g=>g.id!==deletedId));});sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchCurrent=null;launchDirty=false;launchMessage='已刪除';await renderLaunch();});}
+function launchSaveOrder(){if(launchAuxPage==='group-work')return launchSaveWorkChanges();launchRun(async()=>{await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchSaveListCache(launchStatus,launchGroups);launchDirty=false;launchMessage='排序已儲存';launchRenderList();});}
 function launchGrab(){launchRun(async()=>{await launchPersist();const ids=launchCurrent.items.map(x=>x.id),results=[];for(let i=0;i<ids.length;i++){launchNotice(`資料抓抓 ${i+1} / ${ids.length}…`);const d=await launchPost('launchScrape',{id:launchCurrent.id,itemId:ids[i],revision:launchCurrent.revision});launchCurrent=d.group;results.push(`${i+1}. ${d.message}`);}launchClearListCache();launchMessage=results.join('\n')||'尚無商品';});}
 function launchDialog(content){
  document.getElementById('launchDialog')?.remove();
@@ -1733,15 +1759,17 @@ function launchExport(mode){
  });
 }
 
-function instantRead(key){try{return JSON.parse(sessionStorage.getItem('jiwu_instant_'+key)||'null');}catch(_){return null;}}
-function instantSave(key,data){try{sessionStorage.setItem('jiwu_instant_'+key,JSON.stringify(data));}catch(_){}}
+function instantRead(key){
+ try{const raw=(key==='group-work'?localStorage.getItem('jiwu_instant_'+key):null)||sessionStorage.getItem('jiwu_instant_'+key);const value=JSON.parse(raw||'null');if(key==='group-work'&&(!value||!Array.isArray(value.entries)||!Array.isArray(value.categories)))return null;return value;}catch(_){return null;}
+}
+function instantSave(key,data){const text=JSON.stringify(data);try{sessionStorage.setItem('jiwu_instant_'+key,text);}catch(_){}if(key==='group-work'){try{localStorage.setItem('jiwu_instant_'+key,text);}catch(_){}}}
 // 背景更新只套用到原頁面，而且在請求完成後再次確認沒有開始編輯。
 let liveRefreshing=false,liveInteraction=0;
 ['input','change','pointerdown','keydown'].forEach(type=>document.addEventListener(type,()=>{liveInteraction++;},true));
 function liveCanRefresh(){
  return document.body.classList.contains('isAuthenticated')&&!document.hidden
   &&!document.querySelector('dialog[open],#appDialog,input:focus,textarea:focus,select:focus,[contenteditable="true"]:focus,#app input:checked')
-  &&!launchBusy&&!launchDirty&&!launchWorkDirty&&!inventoryOrderDirty&&!inventoryProductSaves.size
+  &&!launchBusy&&!launchDirty&&!launchWorkDirty&&!inventoryOrderDirty&&!inventoryProductSaves.size&&!inventoryStatusCheckingRows.size
   &&!shipPendingWrites&&!cartPendingWrites&&!cartUnsaved&&!cartOperationBusy
   &&!pendingRestockRows.size&&!pendingBadgeRows.size&&!pendingFaceRows.size&&!pendingReconcileRows.size;
 }
@@ -1756,7 +1784,7 @@ async function liveRefresh(){
  try{
   if(page==='launch'){
    if(aux==='group-work'){const d=await api('launchAuxSheet',{kind:aux});if(!valid())return;if(JSON.stringify(d)!==JSON.stringify(launchAuxData)){launchAuxData=d;instantSave('group-work',d);launchRenderAux();}}
-   else if(current){const d=await api('launchGet',{id:current});if(!valid())return;if(JSON.stringify(d.group)!==JSON.stringify(launchCurrent)){launchCurrent=d.group;launchUndoStack=[];launchRenderEditor();}}
+   else if(current){const d=await api('launchGet',{id:current});if(!valid())return;if(JSON.stringify(d.group)!==JSON.stringify(launchCurrent)){launchCurrent=d.group;launchSaveDetailCache(d.group);launchUndoStack=[];launchRenderEditor();}}
    else{const d=await api('launchList',{status});if(!valid())return;if(JSON.stringify(d.groups)!==JSON.stringify(launchGroups)){launchGroups=d.groups||[];launchSaveListCache(status,launchGroups);launchRenderList();}}
   }else if(page==='inventory'){
    const d=await api('inventory',{compact:'1'});if(!valid())return;
@@ -2236,7 +2264,11 @@ return true;
 }
 function inventoryHasZeroOrX(item,names){const value=inventoryCellState(item,names);return value==='x'||value===0;}
 function inventoryNoteHasUrl(item){return /(?:https?:\/\/|www\.)\S+/i.test(String(inventoryValue(item,['備註','備註欄','說明'])||'').trim());}
-async function checkInventoryUrl(row){if(inventoryStatusCheckingRows.has(Number(row)))return;inventoryStatusCheckingRows.add(Number(row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(item){while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}if(result.stock==='x'){const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}}}inventoryLoadedAt=Date.now();saveInventorySessionCache();if(result.available==null)alert(result.detail||'網站無法辨識貨況，已標示為待確認');}catch(e){alert('貨況更新失敗：'+e.message);}finally{inventoryStatusCheckingRows.delete(Number(row));renderInventoryContent();}}
+function inventoryCheckParams(item){
+ if(!item)throw new Error('商品資料已更新，請重新點選');
+ return {row:item.row,identity:JSON.stringify({code:String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||'').trim(),name:String(inventoryValue(item,['名稱','商品名稱','品名','商品'])||'').trim(),role:String(inventoryValue(item,['角色'])||'').trim()})};
+}
+async function checkInventoryUrl(row){if(inventoryStatusCheckingRows.has(Number(row)))return;inventoryStatusCheckingRows.add(Number(row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',inventoryCheckParams(inventoryRows.find(x=>Number(x.row)===Number(row))));const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(item){while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}if(result.stock==='x'){const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}}}inventoryLoadedAt=Date.now();saveInventorySessionCache();if(result.available==null)alert(result.detail||'網站無法辨識貨況，已標示為待確認');}catch(e){alert('貨況更新失敗：'+e.message);}finally{inventoryStatusCheckingRows.delete(Number(row));renderInventoryContent();}}
 function inventoryOriginalUnit(item){const row=(item.values||[]).map(x=>String(x??'')).join(' ');return /天貓|天猫|tmall/i.test(row)?'R':'¥';}
 function inventoryOriginalDisplay(item,value){const text=String(value??'').trim();if(!text)return '';if(/[^0-9,.]/.test(text))return text;return inventoryOriginalUnit(item)+money(text);}
 const inventoryProductSaves=new Map();
@@ -2286,9 +2318,10 @@ function saveInventorySessionCache(){try{const payload=JSON.stringify({savedAt:D
 async function loadInventory(force=false){
 if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves.values()]);
 if(inventoryLoadPromise)return inventoryLoadPromise;
+if(inventoryStatusCheckingRows.size)return;
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{let data=await api('inventory',{compact:'1'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1'});}inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map(row=>({row:row[0],values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{let data=await api('inventory',{compact:'1'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1'});}if(inventoryStatusCheckingRows.size||inventoryOrderDirty)return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map(row=>({row:row[0],values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">載入失敗：${esc(e.message)}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -2310,7 +2343,7 @@ const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknow
 if(!rows.length){alert('目前沒有⚠️待確認商品');return;}
 button.disabled=true;button.textContent='☺︎';button.title='正在重新檢查貨況';
 let completed=0,failed=0;
-for(const item of rows){if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();}}
+for(const item of rows){if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',inventoryCheckParams(item));const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();}}
 inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';if(failed)alert(`完成 ${completed} 筆，${failed} 筆檢查失敗`);
 }
 function fitSelectWidth(select){if(!select)return;const text=select.options[select.selectedIndex]?.text||'';select.style.width=Math.max(2,text.length)+'em';select.style.boxSizing='content-box';}
