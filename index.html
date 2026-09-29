@@ -3545,7 +3545,7 @@ let totalAmount=0;
 rows.forEach(row=>{totalAmount+=numberValue(getOnlineData(row,['售價','價格']));});
 const summaryStats=isGroupView
 ?`${customerNames.size}人｜${rows.length}件｜共計 $${money(totalAmount)}`
-:`${orders.size} 筆訂單｜總金額 $${money(totalAmount)}`;
+:`${orders.size} 筆訂單｜${rows.length} 項｜總金額 $${money(totalAmount)}`;
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
