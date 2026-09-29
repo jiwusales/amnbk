@@ -3560,9 +3560,12 @@ const ordersToRender=[...orders.values()];
 if(isFaceToFaceView)ordersToRender.sort((a,b)=>Number(faceToFaceOrderIsOrdered(a))-Number(faceToFaceOrderIsOrdered(b))||orderNewestTime(a)-orderNewestTime(b));
 ordersToRender.forEach(order=>{
 let orderTotal=0;
+let orderShipping=0;
 order.items.forEach(row=>{
 if(isRestockRow(row))return;
-orderTotal+=numberValue(getOnlineData(row,['售價','價格']))+numberValue(getOnlineData(row,['運費']));
+const rowShipping=numberValue(getOnlineData(row,['運費']));
+orderShipping+=rowShipping;
+orderTotal+=numberValue(getOnlineData(row,['售價','價格']))+rowShipping;
 });
 const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
 const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
@@ -3593,7 +3596,7 @@ ${esc(order.customer)}
 </button>
 <button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `}
-<strong class="groupCardTotal">總金額 $${money(orderTotal)}</strong>
+<strong class="groupCardTotal">總金額 $${money(orderTotal)}${orderShipping?`(${money(orderShipping)})`:''}</strong>
 <button type="button" class="orderAddButton" aria-label="編輯此訂單" title="編輯訂單" onclick='openOrderEditDialog(${JSON.stringify(order.items.map(row=>row.row))})'>＋</button>
 </div>
 <div class="groupCardItems">
