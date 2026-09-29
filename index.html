@@ -586,6 +586,8 @@ flex-shrink:0
 .groupCardMeta{container-type:inline-size;container-name:orderMeta}
 .orderDeposit{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .orderDepositLabel{white-space:nowrap}
+.orderAddRemittance{border:0;background:#eee;color:#666;border-radius:7px;padding:3px 6px;font:inherit;cursor:pointer;white-space:nowrap}
+.remittanceFormRows{display:grid;gap:12px}.remittanceFirstRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}.remittanceFormRows input,.remittanceFormRows select{display:block;width:100%;min-width:0;box-sizing:border-box}
 .orderDepositInput::placeholder{color:transparent}
 @container orderMeta (max-width:520px){
 .orderDeposit.hasDepositInput .orderDepositLabel{display:none}
@@ -1887,9 +1889,15 @@ function money(v){
 return numberValue(v).toLocaleString()
 }
 function numberValue(v){
-const n=typeof v==='number'
-?v
-:Number(String(v??'').replace(/,/g,''));
+if(typeof v==='number')return Number.isFinite(v)?v:0;
+const text=String(v??'').replace(/,/g,'').trim();
+if(!text)return 0;
+const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+if(lines.length>1){
+const values=lines.map(Number);
+if(values.every(Number.isFinite))return values.reduce((sum,value)=>sum+value,0)
+}
+const n=Number(text);
 return Number.isFinite(n)?n:0
 }
 function findHeader(headers,names){
@@ -3615,6 +3623,7 @@ ${singleCustomerView?'<button type="button" class="orderSelectAll" aria-label="�
 ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5">${esc(last5Display)}</span>
 <span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
+<button type="button" class="orderAddRemittance" onclick='openAddOnlineRemittance(${JSON.stringify(order.items.map(row=>row.row))},${JSON.stringify(payment)})'>＋匯款</button>
 `:`
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
 <option value="中信" ${payment==='中信'?'selected':''}>中信</option>
@@ -3804,6 +3813,36 @@ onlineLoadedAt=Date.now();saveOnlineSessionCache();
 }catch(e){
 alert('付款資料儲存失敗：'+e.message)
 }
+}
+function localDateValue(date=new Date()){
+const offset=date.getTimezoneOffset()*60000;
+return new Date(date.getTime()-offset).toISOString().slice(0,10)
+}
+function openAddOnlineRemittance(rows,payment){
+const selected=normalizePayment(payment)||'中信';
+document.getElementById('appDialog')?.remove();
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard" style="width:min(430px,100%)"><h3>匯款紀錄</h3><form data-rows="${esc(rows.join(','))}" onsubmit="submitAddOnlineRemittance(event)"><div class="remittanceFormRows"><div class="remittanceFirstRow"><select id="remittancePayment" aria-label="匯款方式" onchange="toggleRemittanceLast5()"><option value="中信" ${selected==='中信'?'selected':''}>中信</option><option value="LB" ${selected==='LB'?'selected':''}>LB</option><option value="LP" ${selected==='LP'?'selected':''}>LP</option><option value="ipass" ${selected==='ipass'?'selected':''}>ipass</option></select><input id="remittanceLast5" aria-label="後五碼" inputmode="numeric" maxlength="5" placeholder="後五碼"></div><input id="remittanceTime" aria-label="匯款日期" type="date" value="${localDateValue()}" required><input id="remittanceAmount" aria-label="匯款金額" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this)" required></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增匯款</button></div></form></div></div>`);
+toggleRemittanceLast5();document.getElementById('remittanceAmount')?.focus()
+}
+function toggleRemittanceLast5(){
+const payment=document.getElementById('remittancePayment')?.value||'';
+const input=document.getElementById('remittanceLast5');
+if(!input)return;
+input.disabled=!['中信','LB'].includes(payment);
+if(input.disabled)input.value=''
+}
+async function submitAddOnlineRemittance(event){
+event.preventDefault();
+const form=event.currentTarget,payment=document.getElementById('remittancePayment').value;
+const last5=document.getElementById('remittanceLast5').value.trim();
+const deposit=normalizeMoneyInput(document.getElementById('remittanceAmount'));
+if(['中信','LB'].includes(payment)&&last5.length!==5)return alert('請輸入 5 碼後五碼');
+if(!(Number(deposit)>0))return alert('請輸入匯款金額');
+const button=form.querySelector('[type=submit]');button.disabled=true;
+try{
+await api('saveOnlinePayment',{rows:JSON.stringify(form.dataset.rows.split(',').map(Number)),payment,last5,deposit,append:'true',remittanceTime:document.getElementById('remittanceTime').value});
+closeDialog();onlineLoadedAt=0;await loadOnline(true)
+}catch(e){alert('新增匯款失敗：'+e.message);button.disabled=false}
 }
 /* =========================================================
    出貨
