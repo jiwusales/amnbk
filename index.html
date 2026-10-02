@@ -1152,16 +1152,6 @@ body[data-page="store"] .topStoreToggle{display:none}
 .storeWorkDay{font-size:13px;font-weight:700;color:#F94A66;white-space:nowrap}
 .salesPurchaseInfo.salesBankLP{gap:6px}
 
-/* Mobile dialogs remain inside the visible viewport; preserve pinch zoom. */
-#launchDialog {position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
-@media (max-width:600px), (pointer:coarse) {
- input,textarea,select,[contenteditable="true"] {font-size:16px !important;}
- #launchDialog {width:calc(100% - 24px);padding:16px;}
- .launchExportHead>div {flex-wrap:wrap;}
- .launchExportHead .btn {white-space:nowrap;flex-shrink:0;}
- .launchExportSpec {white-space:normal;overflow-wrap:anywhere;}
- .launchExportClose {flex-shrink:0;}
-}
 </style>
 </head>
 <body>
@@ -1235,28 +1225,8 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchCards{grid-template-columns:repeat(var(--launch-cols,8),minmax(0,1fr))}.launchProduct h3{margin-top:calc(.35em + 1pt);margin-bottom:calc(.08em + 1pt)}.launchProduct .launchSize{margin-top:1pt}.launchAllGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.launchAllItem{display:flex!important;align-items:flex-start!important;gap:5px!important;margin:0!important;padding:9px!important;border:1px solid #e1e5ed;border-radius:9px;font-size:13px;line-height:1.3;cursor:pointer}.launchAllItem input{width:auto!important;margin:2px 0 0!important}.launchPriceEdit{cursor:text}.launchCardColumnsDialog{display:flex;gap:8px;flex-wrap:wrap}.launchCardColumnsDialog button[aria-pressed="true"]{background:#344b3c;color:#fff}
 /* 商品區四列均分 750px 可用高度；圖片彈性縮放，名稱、售價與尺寸不被裁掉。 */
 .launchCards{grid-template-rows:repeat(4,minmax(0,1fr))!important;grid-auto-rows:unset!important;align-content:stretch!important;align-items:stretch!important}.launchProduct{height:100%!important;min-height:0!important;aspect-ratio:auto!important;align-self:stretch!important;display:flex;flex-direction:column;font-size:1.02cqw}.launchProductPictures{height:59.3%!important;flex:0 0 59.3%!important;min-height:0}.launchProduct h3{flex:none;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.launchProduct p{display:block!important;flex:none}.launchProduct .launchCode{display:none!important}.launchProduct .launchSize{display:block!important;min-height:1.2em}.launchColorSwatches{display:flex;justify-content:center;align-content:center;flex-wrap:wrap;gap:.3em;max-width:calc(5em + 1.2em);max-height:2.4em;margin:auto;overflow:hidden;line-height:1}.launchColorSwatch{display:block;flex:0 0 1em;width:1em;height:1em;border-radius:50%;border:1px solid #c7c7c7;box-sizing:border-box}.launchZoomControls{position:fixed;right:50px;bottom:calc(20px + 62px);z-index:20;display:grid;gap:6px}.launchZoomControls button{width:38px;height:38px;border:1px solid #dce1ea;border-radius:10px;background:#fff;color:#344b3c;font-size:23px;line-height:1;box-shadow:0 3px 12px #27332220;cursor:pointer}.launchZoomControls button:hover{background:#f1f4ef}.launchAllHeading{display:flex;align-items:center;gap:12px;margin:0 0 8px}.launchAllHeading h2{margin:0}.launchAllActions{margin-left:auto;display:flex;gap:8px}.launchSelectAll{display:flex!important;align-items:center!important;gap:5px;margin:0!important;font-size:14px;font-weight:700;cursor:pointer}.launchSelectAll input{width:auto!important;margin:0!important}.launchAllGrid{grid-template-columns:repeat(5,minmax(0,1fr))}.launchDialog{position:relative}.launchDialogClose{position:absolute;right:16px;top:14px;border:0;background:transparent;color:#4b4e55;font:700 20px/1 system-ui,sans-serif;cursor:pointer;padding:5px 8px}.launchDialogClose:hover{color:#111}
-/* Mobile dialogs remain inside the visible viewport; preserve pinch zoom. */
-#launchDialog {position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
-@media (max-width:600px), (pointer:coarse) {
- input,textarea,select,[contenteditable="true"] {font-size:16px !important;}
- #launchDialog {width:calc(100% - 24px);padding:16px;}
- .launchExportHead>div {flex-wrap:wrap;}
- .launchExportHead .btn {white-space:nowrap;flex-shrink:0;}
- .launchExportSpec {white-space:normal;overflow-wrap:anywhere;}
- .launchExportClose {flex-shrink:0;}
-}
 </style>
-<style>.launchCloseButton{background:#D9544D!important;color:#fff!important}/* Mobile dialogs remain inside the visible viewport; preserve pinch zoom. */
-#launchDialog {position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
-@media (max-width:600px), (pointer:coarse) {
- input,textarea,select,[contenteditable="true"] {font-size:16px !important;}
- #launchDialog {width:calc(100% - 24px);padding:16px;}
- .launchExportHead>div {flex-wrap:wrap;}
- .launchExportHead .btn {white-space:nowrap;flex-shrink:0;}
- .launchExportSpec {white-space:normal;overflow-wrap:anywhere;}
- .launchExportClose {flex-shrink:0;}
-}
-</style>
+<style>.launchCloseButton{background:#D9544D!important;color:#fff!important}</style>
 <style>
 /* 團畫布工具列：依團別分成操作列與編輯列。 */
 .launchEditorTools{width:100%;align-items:center;justify-content:space-between}.launchEditorToolsLeft,.launchEditorToolsRight{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.launchEditorToolsRight{margin-left:auto;justify-content:flex-end}.launchMobileEditorTools{display:none}.launchAllItem{position:relative}.launchAllEdit{appearance:none;border:0;background:transparent;padding:0;min-width:0;flex:1;text-align:left;font:inherit;color:inherit;cursor:pointer;overflow-wrap:anywhere}.launchAllItem:has(.launchAllEdit:focus-visible){outline:2px solid #6c8160;outline-offset:2px}.launchAllActions .btn{white-space:nowrap}.launchAllGrid{grid-template-columns:repeat(4,minmax(0,1fr))}.launchAllProductContent{min-width:0;flex:1}.launchStockToggle{display:block;margin-top:7px;border:1px solid #d8dde6;border-radius:7px;background:#f1f3f6;color:#5d6673;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}.launchStockToggle.isShortage{background:#d9544d;border-color:#d9544d;color:#fff}
@@ -1271,16 +1241,6 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
  .launchAllHeading{gap:6px;flex-wrap:nowrap}.launchAllHeading h2{font-size:18px;white-space:nowrap}.launchAllActions{gap:4px}.launchAllActions .btn{padding:7px 8px;font-size:12px}.launchSelectAll{font-size:0;gap:0}.launchSelectAll input{width:16px!important;height:16px;margin:0!important}
  .launchAllGrid{grid-template-columns:1fr;gap:7px}.launchAllItem{min-height:52px;padding:8px!important;align-items:center!important;font-size:13px}.launchAllItem input{flex:none;margin:0!important}.launchAllEdit{line-height:1.35}
  .launchAdsRow{grid-template-columns:24px 38px minmax(0,1fr);column-gap:6px;row-gap:6px}
-}
-/* Mobile dialogs remain inside the visible viewport; preserve pinch zoom. */
-#launchDialog {position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
-@media (max-width:600px), (pointer:coarse) {
- input,textarea,select,[contenteditable="true"] {font-size:16px !important;}
- #launchDialog {width:calc(100% - 24px);padding:16px;}
- .launchExportHead>div {flex-wrap:wrap;}
- .launchExportHead .btn {white-space:nowrap;flex-shrink:0;}
- .launchExportSpec {white-space:normal;overflow-wrap:anywhere;}
- .launchExportClose {flex-shrink:0;}
 }
 </style>
 <style>
@@ -1303,16 +1263,6 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchPositionPreview{position:relative;width:100%;aspect-ratio:1080/400;overflow:hidden;border-radius:10px;background:#eff2f8;margin:12px 0}
 .launchPositionPreview img{width:100%;height:100%;object-fit:cover;will-change:transform}
 .launchPositionControls{display:grid;gap:10px}.launchPositionControls label{display:grid;grid-template-columns:74px 1fr 48px;align-items:center;gap:10px;margin:0}.launchPositionControls input{margin:0;padding:0;border:0}
-/* Mobile dialogs remain inside the visible viewport; preserve pinch zoom. */
-#launchDialog {position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
-@media (max-width:600px), (pointer:coarse) {
- input,textarea,select,[contenteditable="true"] {font-size:16px !important;}
- #launchDialog {width:calc(100% - 24px);padding:16px;}
- .launchExportHead>div {flex-wrap:wrap;}
- .launchExportHead .btn {white-space:nowrap;flex-shrink:0;}
- .launchExportSpec {white-space:normal;overflow-wrap:anywhere;}
- .launchExportClose {flex-shrink:0;}
-}
 </style>
 <script>
 const launchStates=['最新開團','尚未上架','已收單'];
@@ -1364,11 +1314,11 @@ function launchPostShipping(g){
  const delivery=/^0+(?:\.0+)?$/.test(shipping)?'🚚免境內運、免二補包手.ᐟ.ᐟ':(shipping?`🚚境內運$${shipping}同車平分${g.noFreeShipping?'':'（滿額免）'}`:'');
  return `🚀官方出荷後約2-3週不含假日抵台${delivery?'\n'+delivery:''}`;
 }
-function launchPostText(g,ig=false,fb=false){
- const tags=fb?'':launchPostTags(g.tags),shipping=launchPostShipping(g),title=String(g.name||'').trim(),url=launchPostURL(g);
+function launchPostText(g,ig=false){
+ const tags=launchPostTags(g.tags),shipping=launchPostShipping(g),title=String(g.name||'').trim(),url=launchPostURL(g);
  const body=`${title}\n-\n${shipping}\n🌱預購無全額貨付，台中可店取\n📦官LINE有貨況進度表可追蹤`;
  if(ig)return `${body}${tags?`\n\n${tags}`:''}`;
- return `${body}\n-\n下單網址：${url}\n\n🛒購物步驟：\n👉🏻點下單網址\n➡️右上角➕進購物車（點圖可放大）\n➡️點購物車按確認結帳\n➡️轉跳到官方LINE按送出\n➡️等花花回覆後就完成ㄌ🎉${tags?`\n\n${tags}`:''}`;
+ return `#代購\n${body}\n-\n下單網址：${url}\n\n🛒購物步驟：\n👉🏻點下單網址\n➡️右上角➕進購物車（點圖可放大）\n➡️點購物車按確認結帳\n➡️轉跳到官方LINE按送出\n➡️等花花回覆後就完成ㄌ🎉${tags?`\n\n${tags}`:''}`;
 }
 function launchTogglePostChannel(button){button.setAttribute('aria-pressed',String(button.getAttribute('aria-pressed')!=='true'));}
 function launchLineGroupText(g){return `${String(g.name||'').trim()}：${launchPostURL(g)}`;}
@@ -1431,7 +1381,6 @@ async function launchFillFromInventory(){
 }
 async function launchRun(fn){if(launchBusy)return;launchBusy=true;document.querySelector('.launchPage')?.classList.add('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=true);try{await fn();}catch(e){launchNotice(e.message);alert(e.message);}finally{launchBusy=false;document.querySelector('.launchPage')?.classList.remove('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=false);if(launchCurrent&&document.body.dataset.page==='launch')launchRenderEditor();}}
 async function renderLaunch(){
- if(launchAuxPage)return launchOpenAux(launchAuxPage);
  const ticket=++launchLoad;launchCurrent=null;launchDirty=false;launchSyncTopActions();const openId=sessionStorage.getItem(LAUNCH_OPEN_KEY);
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
@@ -1439,15 +1388,14 @@ async function renderLaunch(){
  try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':launchCurrent?.status==='已收單'?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions"><button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
-function launchTopSave(){if(launchAuxPage==='group-work'){launchSaveWorkChanges();return;}if(launchCurrent)launchSaveClick();else launchSaveOrder();}
+function launchTopSave(){if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
- if(launchBusy)return;const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=null;launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
+ if(launchBusy)return;launchAuxPage=kind;launchAuxData=null;launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
  document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入資料中…</div></div>';
- try{const data=await api('launchAuxSheet',{kind});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchAuxPage!==kind)return;launchAuxData=data;launchRenderAux();}catch(e){if(ticket===launchLoad&&document.body.dataset.page==='launch'&&launchAuxPage===kind)document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
+ try{launchAuxData=await api('launchAuxSheet',{kind});if(document.body.dataset.page==='launch'&&launchAuxPage===kind)launchRenderAux();}catch(e){if(document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
 }
 function launchRenderAux(){
- if(document.body.dataset.page!=='launch'||launchAuxPage!=='group-work')return;
  const data=launchAuxData||{entries:[],categories:[]},statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=['全部','未分類',...(data.categories||[]).filter(category=>category!=='未分類')],shown=(data.entries||[]).filter(entry=>launchWorkFilter==='全部'||(launchWorkFilter==='未分類'?!String(entry.category||'').trim():entry.category===launchWorkFilter)).sort(launchWorkNewestFirst),active=shown.filter(entry=>entry.status!=='下班！'),completed=shown.filter(entry=>entry.status==='下班！');
  const cards=entries=>entries.map(entry=>{const image=launchSafeURL(entry.image)||launchPreviewFallback;return `<button class="launchPreviewTile launchWorkTile" data-work-id="${esc(entry.id)}" onpointerdown="launchWorkPressStart(event,'${esc(entry.id)}')" onclick="launchEditWork('${esc(entry.id)}')"><span class="launchPreviewBanner"><img src="${launchImage(image)}" style="${launchBannerStyle(entry)}" alt="" loading="lazy"></span><strong class="launchPreviewName">${esc(entry.name)}</strong><small>${esc(entry.status)}${entry.arrival?'｜'+esc(entry.arrival):''}</small></button>`;}).join('');
  document.getElementById('app').innerHTML=`<section class="launchPage"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}</div><div class="launchListActions"><button class="btn launchSaveWord" onclick="launchSaveWorkChanges()">SAVE${launchWorkDirty?' *':''}</button></div></div><div class="launchWorkStatuses">${statuses.map(status=>`<button class="btn light" aria-pressed="false" type="button">${status}</button>`).join('')}</div><div class="launchWorkCategories"><button class="btn light launchWorkAdd" type="button" aria-label="手動新增團" onclick="launchAddWork()">＋</button>${categories.map(category=>`<button class="btn light" aria-selected="${category===launchWorkFilter}" onclick="launchSetWorkFilter('${esc(category)}')">${esc(category)}</button>`).join('')}</div><p class="launchDragHint">長按並拖移卡片可調整排列；團務資料修改完成後按 SAVE 一次儲存。點選團名可更新運送狀態、IP 與運送備註。</p><div class="launchGrid launchPreviewGrid launchWorkGrid">${cards(active)}</div>${completed.length?`<h2 class="launchWorkCompleteTitle">出貨完畢</h2><div class="launchGrid launchPreviewGrid launchWorkGrid">${cards(completed)}</div>`:''}${shown.length?'':'<p class="launchHelp">目前沒有符合的團務資料。</p>'}</section>`;
@@ -1470,7 +1418,6 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchCurrent=detail.group;launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
 }
 function launchRenderList(){
- if(launchAuxPage||document.body.dataset.page!=='launch')return;
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
  const joined=shown.filter(g=>g.joined===true).length,failed=shown.length-joined;
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
@@ -1479,7 +1426,6 @@ function launchRenderList(){
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
  if(launchBusy)return;
- if(launchAuxPage==='group-work'){if(launchWorkDirty&&!confirm('團務表尚未儲存，要放棄變更並重新整理嗎？'))return;launchWorkDirty=false;launchOpenAux(launchAuxPage);return;}
  if(!launchDirty){launchDiscardAndRefresh();return;}
  launchDialog(`<h2>重新整理開團資料</h2><p>目前有尚未儲存的修改，要先儲存嗎？</p><div class="launchTools"><button class="btn" onclick="launchSaveAndRefresh()">儲存後重整</button><button class="btn light" onclick="launchDiscardAndRefresh()">不儲存重整</button><button class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button></div>`);
 }
@@ -1763,8 +1709,8 @@ function launchPNGDpi(buffer){
 }
 function launchExportMenu(){
  const mobile=matchMedia('(max-width:600px)').matches,action=mobile?`<button class="btn" type="button" onclick="launchExport('share')">儲存圖片</button>`:`<button class="btn" type="button" onclick="launchExport('download')">下載PNG</button>`;
- const fb=launchPostText(launchCurrent,false,true),normal=launchPostText(launchCurrent),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
- launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="false" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">FB貼文 <button class="launchPostCopy" type="button" aria-label="複製 FB 貼文" onclick="launchCopyPostText(this,'launchPostFB')">❏</button></div><textarea id="launchPostFB" class="launchPostText" readonly>${esc(fb)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
+ const normal=launchPostText(launchCurrent),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
+ launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="false" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
 }
 function launchExport(mode){
  if(launchBusy)return;
@@ -1827,9 +1773,28 @@ let isFaceToFaceView=false;
    API
 ========================================================= */
 function api(action,params={}){
-const retryable=['authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship'].includes(action);
-const maxAttempts=2;
-const requestToken=authToken;
+const retryable=[
+'authWarmup',
+'authLogin',
+'authCheck',
+'storeProduct',
+'inventory',
+'setInventoryPrice',
+'updateInventoryProduct','deleteInventoryProduct',
+'setInventoryImage',
+'storeActiveSalesperson',
+'launchList','launchGet','launchAuxSheet',
+'online',
+'appendOnlineOrder',
+'editOnlineOrder','deleteOnlineOrder',
+'onlineCustomer',
+'group',
+'ship',
+'saveOnlinePayment',
+'setOnlineFaceToFace',
+'renameOnlineCustomer'
+].includes(action);
+const maxAttempts=['inventory','launchList','launchGet','launchAuxSheet'].includes(action)?3:2;
 return new Promise((resolve,reject)=>{
 let attempt=0;
 let done=false;
@@ -1841,21 +1806,20 @@ Date.now()+
 '_'+
 Math.random().toString(36).slice(2);
 const s=document.createElement('script');
-let timer=null;let settled=false;
+let timer=null;
 const cleanup=()=>{
-settled=true;
 if(timer)clearTimeout(timer);
-window[cb]=()=>{};setTimeout(()=>{delete window[cb];},300000);
+delete window[cb];
 if(s.parentNode){
 s.parentNode.removeChild(s);
 }
 };
 window[cb]=data=>{
-if(done||settled)return;
+if(done)return;
 done=true;
 cleanup();
 if(data&&data.ok===false){
-if(data.error==='登入已失效，請重新登入'&&requestToken===authToken)showLogin();
+if(data.error==='登入已失效，請重新登入')showLogin();
 reject(
 new Error(
 data.error||'GAS 錯誤'
@@ -1866,7 +1830,6 @@ return;
 resolve(data);
 };
 s.onerror=()=>{
-if(done||settled)return;
 cleanup();
 if(retryable&&attempt<maxAttempts){
 setTimeout(run,300);
@@ -1883,7 +1846,7 @@ const q=new URLSearchParams({
 action,
 callback:cb,
 _t:Date.now(),
-...(requestToken?{token:requestToken}:{}),
+...(authToken?{token:authToken}:{}),
 ...params
 });
 s.src=
@@ -1895,7 +1858,6 @@ s.async=true;
 .appendChild(s);
 const timeoutMs=action==='reorderInventory'?60000:['authLogin','authCheck','checkInventoryAvailability','inventory','launchList','launchGet','launchAuxSheet'].includes(action)?30000:15000;
 timer=setTimeout(()=>{
-if(done||settled)return;
 cleanup();
 if(retryable&&attempt<maxAttempts){
 setTimeout(run,300);
@@ -3121,7 +3083,29 @@ return {text:raw,color:'#8ca7b2'}
 }
 let activeCargoPickerRow=0;
 const pendingBadgeRows=new Set();
-function editCargoTag(rowNumber){const id=Number(rowNumber);if(pendingBadgeRows.has(id))return;activeCargoPickerRow=activeCargoPickerRow===id?0:id;showOnlineCurrentView();}
+// 標籤更新會重建列表；保留頁面、外層容器及每張訂單卡的捲動位置。
+function refreshCargoViewKeepingScroll(){
+const root=document.getElementById('onlineResult');
+const page=document.scrollingElement;
+const outer=[];
+for(let el=root;el;el=el.parentElement){outer.push({el,top:el.scrollTop,left:el.scrollLeft});}
+const pagePosition=page?{top:page.scrollTop,left:page.scrollLeft}:null;
+const cards=new Map();
+root?.querySelectorAll('.groupCard').forEach(card=>{
+const key=card.querySelector('.groupCardMeta')?.dataset.rows;
+const items=card.querySelector('.groupCardItems');
+if(key&&items)cards.set(key,{top:items.scrollTop,left:items.scrollLeft});
+});
+showOnlineCurrentView();
+root?.querySelectorAll('.groupCard').forEach(card=>{
+const saved=cards.get(card.querySelector('.groupCardMeta')?.dataset.rows);
+const items=card.querySelector('.groupCardItems');
+if(saved&&items){items.scrollTop=saved.top;items.scrollLeft=saved.left;}
+});
+outer.forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
+if(page&&pagePosition){page.scrollTop=pagePosition.top;page.scrollLeft=pagePosition.left;}
+}
+function editCargoTag(rowNumber){const id=Number(rowNumber);if(pendingBadgeRows.has(id))return;activeCargoPickerRow=activeCargoPickerRow===id?0:id;refreshCargoViewKeepingScroll();}
 async function chooseCargoTag(rowNumber,choice){
 const id=Number(rowNumber),row=onlineRows.find(item=>Number(item.row)===id);if(!row||pendingBadgeRows.has(id))return;
 let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(choice==='ordered'){type='ordered';value='已訂購';}else if(choice==='stock'){type='cargo';value='現貨';}else if(choice==='restock'){type='cargo';value='補登';}else if(choice==='opened'){type='opened';value='已開單';}else return;
@@ -3129,9 +3113,9 @@ const previous={...row.data};
 if(type==='cargo'){const h=findHeader(onlineHeaders,['貨況']);if(h)row.data[h]=value;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='';const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph&&typeof row.data[ph]==='boolean')row.data[ph]=false;const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
 else if(type==='opened'){const h=findHeader(onlineHeaders,['已開單','開單']);if(h)row.data[h]=true;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='已開單';}
 else{const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]=value;const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph)row.data[ph]=choice==='ordered';const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
-activeCargoPickerRow=0;pendingBadgeRows.add(id);showOnlineCurrentView();
+activeCargoPickerRow=0;pendingBadgeRows.add(id);refreshCargoViewKeepingScroll();
 try{await api('setOnlineItemBadge',{row:id,type,value});saveOnlineSessionCache();}
-catch(e){row.data=previous;saveOnlineSessionCache();showOnlineCurrentView();alert('標籤更新失敗，已還原：'+e.message);}
+catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert('標籤更新失敗，已還原：'+e.message);}
 finally{pendingBadgeRows.delete(id);}
 }
 function cargoChoiceMarkup(row){
@@ -4238,10 +4222,10 @@ if(!authToken)return;
 try{
 await api('authCheck');
 startApp();
-}catch(error){
-if(!authToken)return; // Only an explicit invalid-token response clears credentials.
-const box=document.getElementById('loginError');
-if(box){box.textContent='連線暫時失敗，登入資料已保留。';const retry=document.createElement('button');retry.type='button';retry.className='btn light';retry.textContent='重試連線';retry.onclick=()=>{retry.disabled=true;restoreLogin();};box.appendChild(retry);}
+}catch(_){
+authToken='';
+sessionStorage.removeItem(AUTH_TOKEN_KEY);
+localStorage.removeItem(AUTH_PERSISTENT_TOKEN_KEY);
 }
 }
 if(!authToken)setTimeout(warmAuth,0);
