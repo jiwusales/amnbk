@@ -3924,6 +3924,16 @@ alert(
 (d.count||rows.length)+
 ' 筆'
 );
+const completedRows=new Set((d.rows||rows).map(Number));
+const openedHeader=findHeader(onlineHeaders,['已開單','開單']);
+const statusHeader=findHeader(onlineHeaders,['狀態','訂購狀態']);
+onlineMutationRevision++;
+onlineRows.forEach(row=>{
+if(!completedRows.has(Number(row.row)))return;
+if(openedHeader)row.data[openedHeader]=true;
+if(statusHeader)row.data[statusHeader]='已開單';
+});
+saveOnlineSessionCache();onlineLoadedAt=0;
 shipDataCache=null;shipLoadedAt=0;shipRevision++;
 tab('ship',document.getElementById('btn-ship'));
 }catch(e){
