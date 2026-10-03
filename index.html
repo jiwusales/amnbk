@@ -1165,6 +1165,10 @@ body[data-page="store"] .topStoreToggle{display:none}
 body:not([data-page="online"]) #onlineBackButton{display:none}
 #onlineBackButton{position:absolute;left:10px;padding:5px 8px;font-size:12px}
 #onlineBackButton[hidden]{display:none}
+.topStarButton{display:none;background:#E24C60!important;color:#fff!important}
+body[data-page="online"] .topStarButton{display:inline-flex}
+.orderStarButton{border:0;border-radius:5px;padding:2px 5px;font-size:12px;background:transparent;color:#CBC3BC;cursor:pointer}
+.orderStarButton.active{background:#E24C60;color:#fff}
 </style>
 </head>
 <body>
@@ -1185,7 +1189,7 @@ body:not([data-page="online"]) #onlineBackButton{display:none}
 <div class="topActions">
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
-<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button>
+<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單">✱</button>
 <button class="btn topDetailsButton" onclick="showSelectedOnlineDetails()">明細</button><button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
 </div>
 </div>
@@ -1795,7 +1799,8 @@ const ONLINE_CACHE_MS=5*60*1000;
 const ONLINE_SESSION_CACHE_KEY='jiwu_online_session_v1';
 let isCustomerView=false;
 let isGroupView=false;
-let isFaceToFaceView=false;
+let isStarredView=false;
+let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
@@ -2038,7 +2043,7 @@ if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 if(name==='launch')renderLaunch();
 if(name==='inventory')renderInventory();
 if(name==='online'){
-isFaceToFaceView=false;
+isFaceToFaceView=false;isStarredView=false;
 /*
  * 每次點擊「線上」
  * 都回到預設頁面
@@ -2063,7 +2068,7 @@ inventoryCategory='全部';inventorySearch='';inventoryStatus='目錄';
 renderInventory();task=loadInventory(true);
 }
 else if(name==='online'){
-isFaceToFaceView=false;onlineSearchText='';onlineCargo='現貨';isCustomerView=false;isGroupView=false;
+isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='現貨';isCustomerView=false;isGroupView=false;
 renderOnline();task=loadOnline(true);
 }
 else if(name==='ship')task=renderShip(true);
@@ -2999,6 +3004,7 @@ if(res&&!background){
 }
 }
 async function showFaceToFaceView(){
+isStarredView=false;
 isCustomerView=false;
 isGroupView=false;
 isFaceToFaceView=true;
@@ -3032,7 +3038,7 @@ if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){eve
 async function searchOnline(){
 isCustomerView=false;
 isGroupView=false;
-isFaceToFaceView=false;
+isFaceToFaceView=false;isStarredView=false;
 onlineSearchText=
 document
 .getElementById('customerSearch')
@@ -3053,7 +3059,7 @@ applyOnlineFilter()
 function filterCargo(){
 isCustomerView=false;
 isGroupView=false;
-isFaceToFaceView=false;
+isFaceToFaceView=false;isStarredView=false;
 onlineCargo=document.getElementById('cargoFilter').value;
 onlineSearchText='';
 const input=document.getElementById('customerSearch');
@@ -3233,6 +3239,7 @@ const d=new Date(s);
 return Number.isNaN(d.getTime())?0:d.getMonth()+1
 }
 function onlineSummaryTitle(){
+if(isStarredView)return '✱ 標記訂單';
 if(isFaceToFaceView)return '要面交';
 if(onlineCargo==='現貨')return '待出貨';
 if(onlineCargo)return onlineCargo;
@@ -3242,6 +3249,7 @@ return '全部'
 function applyOnlineFilter(){
 syncOnlineBackButton();
 let rows=[...onlineRows];
+if(isStarredView){const keys=new Set(rows.filter(isStarredOrderRow).map(orderKey));showOrderCards(rows.filter(row=>keys.has(orderKey(row))),'✱ 標記訂單');return;}
 if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
@@ -3665,6 +3673,7 @@ const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
 const faceToFace=order.items.some(isFaceToFace);
+const starred=order.items.some(isStarredOrderRow);
 const reconciled=order.items.every(row=>isTruthy(getOnlineData(row,['對帳','已對帳'])));
 const noteText=[...new Set(order.items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交')))].join('｜');
 const depositMarkup=deposit===''?
@@ -3675,11 +3684,13 @@ const orderCard=`
 <div class="groupCardCustomer">
 ${singleCustomerView?`
 <span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>
+<button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
 <button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${esc(order.customer)}
 </button>
+<button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `}
 <strong class="groupCardTotal">總金額 $${money(orderTotal)}${orderShipping?`(${money(orderShipping)})`:''}</strong>
@@ -3742,12 +3753,12 @@ function rememberOnlineCustomerOrigin(){
 const root=document.getElementById('onlineResult');
 const scroll=[];for(let el=root;el;el=el.parentElement)scroll.push({el,top:el.scrollTop,left:el.scrollLeft});
 const cards=new Map();root?.querySelectorAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows;const items=card.querySelector('.groupCardItems');if(key&&items)cards.set(key,items.scrollTop);});
-onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...document.querySelectorAll('.shipCheck:checked')].map(el=>el.value)});
+onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,star:isStarredView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...document.querySelectorAll('.shipCheck:checked')].map(el=>el.value)});
 }
 function syncOnlineBackButton(){const button=document.getElementById('onlineBackButton');if(button)button.hidden=!isCustomerView||!onlineCustomerHistory.length;}
 function backOnlineCustomer(){
 const saved=onlineCustomerHistory.pop();if(!saved)return;
-onlineSearchText=saved.search;onlineCargo=saved.cargo;isCustomerView=saved.customer;isGroupView=saved.group;isFaceToFaceView=saved.face;
+onlineSearchText=saved.search;onlineCargo=saved.cargo;isCustomerView=saved.customer;isGroupView=saved.group;isFaceToFaceView=saved.face;isStarredView=!!saved.star;
 const input=document.getElementById('customerSearch');if(input)input.value=saved.search;
 const filter=document.getElementById('cargoFilter');if(filter)filter.value=saved.cargo;
 if(saved.customer)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===saved.search),saved.search);
@@ -3762,7 +3773,7 @@ if(document.scrollingElement)document.scrollingElement.scrollTop=saved.pageTop;
 function openCustomer(name){
 const target=String(name).trim();
 if(!isCustomerView||onlineSearchText!==target)rememberOnlineCustomerOrigin();
-isFaceToFaceView=false;
+isFaceToFaceView=false;isStarredView=false;
 const rows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===target);
 onlineSearchText=target;
 onlineCargo='';
@@ -3776,7 +3787,7 @@ showOrderCards(rows,target);syncOnlineBackButton();
 }
 /* 點擊團名後，同一團內仍依顧客與下單時間各自成卡。 */
 function openGroup(group){
-isFaceToFaceView=false;
+isFaceToFaceView=false;isStarredView=false;
 const target=String(group).trim();
 const rows=onlineRows.filter(row=>String(getGroupName(row)||'').trim()===target);
 onlineSearchText=target;
@@ -3788,6 +3799,24 @@ if(input)input.value=target;
 const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 showOrderCards(rows,target)
+}
+function isStarredOrderRow(row){return isTruthy(getOnlineData(row,['星號標記']));}
+async function showStarredOrders(){
+isCustomerView=false;isGroupView=false;isFaceToFaceView=false;isStarredView=true;onlineSearchText='';onlineCargo='';
+const input=document.getElementById('customerSearch');if(input)input.value='';
+const filter=document.getElementById('cargoFilter');if(filter)filter.value='';
+if(!onlineLoadedAt)await loadOnline();applyOnlineFilter();
+}
+async function toggleOrderStar(button,rows){
+if(button.disabled)return;
+const enabled=!button.classList.contains('active');button.disabled=true;
+try{
+await api('setOnlineStar',{rows:JSON.stringify(rows),enabled:String(enabled)});
+let header=findHeader(onlineHeaders,['星號標記']);if(!header){header='星號標記';onlineHeaders.push(header);}
+const ids=new Set(rows.map(Number));onlineRows.forEach(row=>{if(ids.has(Number(row.row)))row.data[header]=enabled;});
+saveOnlineSessionCache();refreshCargoViewKeepingScroll();
+}catch(e){alert('標記更新失敗：'+e.message);}
+finally{if(button.isConnected)button.disabled=false;}
 }
 const pendingFaceRows=new Map();
 function isFaceToFace(row){
