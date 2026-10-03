@@ -2532,7 +2532,7 @@ if(storeSalesData){
 let day=storeSalesData.days.find(item=>item.date===delta.date);
 if(!day){day={date:delta.date,total:0,cash:0,transfer:0,other:0,items:[]};storeSalesData.days.push(day);}
 const known=new Set(day.items.map(item=>item.row));
-delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);day.total+=item.amount;if(item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
+delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);const pickup=['面交','自取'].includes(String(item.name||'').trim());if(!pickup)day.total+=item.amount;if(pickup||item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
 }else if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){
 renderStoreSales(true);
