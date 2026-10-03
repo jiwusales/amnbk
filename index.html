@@ -1162,6 +1162,9 @@ body[data-page="store"] .topStoreToggle{display:none}
 .launchAllInfo label>input,.launchAllInfo label>div{flex:1;min-width:0}
 .launchDialog .launchAllInfo .launchPair{gap:14px}
 @media(max-width:600px){.launchDialog .launchAllInfo .launchPair{grid-template-columns:1fr;gap:0}}
+body:not([data-page="online"]) #onlineBackButton{display:none}
+#onlineBackButton{position:absolute;left:10px;padding:5px 8px;font-size:12px}
+#onlineBackButton[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -1177,6 +1180,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 </main>
 <div id="protectedShell" class="protectedShell">
 <div class="top">
+<button id="onlineBackButton" class="btn light" type="button" onclick="backOnlineCustomer()" aria-label="返回上一頁" hidden>← 返回</button>
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
@@ -3218,6 +3222,7 @@ if(onlineSearchText)return onlineSearchText;
 return '全部'
 }
 function applyOnlineFilter(){
+syncOnlineBackButton();
 let rows=[...onlineRows];
 if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
@@ -3712,9 +3717,32 @@ res.innerHTML=html;
 syncFaceButtons();
 }
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
+let onlineCustomerHistory=[];
+function rememberOnlineCustomerOrigin(){
+const root=document.getElementById('onlineResult');
+const scroll=[];for(let el=root;el;el=el.parentElement)scroll.push({el,top:el.scrollTop,left:el.scrollLeft});
+const cards=new Map();root?.querySelectorAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows;const items=card.querySelector('.groupCardItems');if(key&&items)cards.set(key,items.scrollTop);});
+onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...document.querySelectorAll('.shipCheck:checked')].map(el=>el.value)});
+}
+function syncOnlineBackButton(){const button=document.getElementById('onlineBackButton');if(button)button.hidden=!isCustomerView||!onlineCustomerHistory.length;}
+function backOnlineCustomer(){
+const saved=onlineCustomerHistory.pop();if(!saved)return;
+onlineSearchText=saved.search;onlineCargo=saved.cargo;isCustomerView=saved.customer;isGroupView=saved.group;isFaceToFaceView=saved.face;
+const input=document.getElementById('customerSearch');if(input)input.value=saved.search;
+const filter=document.getElementById('cargoFilter');if(filter)filter.value=saved.cargo;
+if(saved.customer)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===saved.search),saved.search);
+else if(saved.group)showOrderCards(onlineRows.filter(row=>String(getGroupName(row)||'').trim()===saved.search),saved.search);
+else applyOnlineFilter();
+syncOnlineBackButton();
+document.querySelectorAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows,items=card.querySelector('.groupCardItems');if(items&&saved.cards.has(key))items.scrollTop=saved.cards.get(key);});
+const checked=new Set(saved.checked);document.querySelectorAll('.shipCheck').forEach(el=>el.checked=checked.has(el.value));
+saved.scroll.forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
+if(document.scrollingElement)document.scrollingElement.scrollTop=saved.pageTop;
+}
 function openCustomer(name){
-isFaceToFaceView=false;
 const target=String(name).trim();
+if(!isCustomerView||onlineSearchText!==target)rememberOnlineCustomerOrigin();
+isFaceToFaceView=false;
 const rows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===target);
 onlineSearchText=target;
 onlineCargo='';
@@ -3724,7 +3752,7 @@ const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 const input=document.getElementById('customerSearch');
 if(input)input.value=target;
-showOrderCards(rows,target)
+showOrderCards(rows,target);syncOnlineBackButton();
 }
 /* 點擊團名後，同一團內仍依顧客與下單時間各自成卡。 */
 function openGroup(group){
