@@ -1509,7 +1509,20 @@ function launchBack(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲�
 async function launchPersist(){if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 function launchSaveClick(){launchRun(launchPersist);}
 function launchMove(status){launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});}
-function launchDelete(){if(!confirm('確定刪除整團及其試算表商品資料？'))return;launchRun(async()=>{if(launchCurrent.revision)await launchPost('launchDelete',{id:launchCurrent.id,revision:launchCurrent.revision});launchClearListCache();launchDirty=false;launchMessage='已刪除';await renderLaunch();});}
+function launchDelete(){
+if(!launchCurrent||launchBusy||!confirm('確定刪除整團及其試算表商品資料？'))return;
+const group=launchCurrent;
+launchRun(async()=>{
+if(group.revision)await launchPost('launchDelete',{id:group.id,revision:group.revision});
+launchClearListCache();
+sessionStorage.removeItem(LAUNCH_OPEN_KEY);
+launchStatus=group.status||launchStatus;
+sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);
+launchCurrent=null;launchDirty=false;launchUndoStack=[];launchPanelIndex=0;
+launchMessage='已刪除';
+await renderLaunch();
+});
+}
 function launchSaveOrder(){launchRun(async()=>{await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchClearListCache();launchDirty=false;launchMessage='排序已儲存';launchRenderList();});}
 function launchGrab(){launchRun(async()=>{await launchPersist();const ids=launchCurrent.items.map(x=>x.id),results=[];for(let i=0;i<ids.length;i++){launchNotice(`資料抓抓 ${i+1} / ${ids.length}…`);const d=await launchPost('launchScrape',{id:launchCurrent.id,itemId:ids[i],revision:launchCurrent.revision});launchCurrent=d.group;results.push(`${i+1}. ${d.message}`);}launchClearListCache();launchMessage=results.join('\n')||'尚無商品';});}
 function launchDialog(content){
