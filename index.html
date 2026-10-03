@@ -3061,9 +3061,8 @@ isCustomerView=false;
 isGroupView=false;
 isFaceToFaceView=false;isStarredView=false;
 onlineCargo=document.getElementById('cargoFilter').value;
-onlineSearchText='';
 const input=document.getElementById('customerSearch');
-if(input)input.value='';
+if(input)onlineSearchText=input.value.trim();
 applyOnlineFilter()
 }
 function faceToFaceOrderSection(order){
