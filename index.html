@@ -692,6 +692,14 @@ font-size:13px;
 flex-wrap:wrap
 }
 .shipCardTotals strong{color:#E24C60;font-size:15px}
+.shipOrderCard{position:relative}
+.shipDeleteButton{background:#E24C60;color:#fff}
+.shipSwipeDelete{display:none}
+@media(max-width:850px){
+.shipCardTotals .shipDeleteButton{display:none}
+.shipOrderCard.showShipDelete{padding-right:76px}
+.shipOrderCard.showShipDelete>.shipSwipeDelete{display:block;position:absolute;right:0;top:0;bottom:0;width:70px;border:0;border-radius:0;background:#E24C60;color:#fff;font-weight:bold}
+}
 .shipSummary{
 margin-bottom:10px
 }
@@ -4043,7 +4051,9 @@ return `
 <div
 class="card shipOrderCard ${packed?'shipPacked':''}"
 data-rows="${g.map(x=>x.row).join(',')}"
+ontouchstart="startOrderSwipe(event,this)" ontouchend="endShipSwipe(event,this)"
 style="margin-bottom:10px">
+<button type="button" class="shipSwipeDelete" onclick="deleteShipOrder(this)">刪除</button>
 <div class="cardHead shipCardHead">
 <button class="btn light shipCopyButton" onclick="copyShipText(this)" aria-label="複製整筆訂單出貨文" title="複製出貨文"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260923191208_45eb9f40.png" alt=""></button>
 <strong>${esc(customer)}</strong>
@@ -4068,6 +4078,7 @@ ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 <span>訂金 $${money(depositTotal)}</span>
 <strong>尾款 $${money(balance)}</strong>
 <button class="btn green shipCompleteButton" onclick="toggleShipPacked(this)" aria-pressed="${packed}">${packed?'已完成':'完成'}</button>
+<button type="button" class="btn shipDeleteButton" onclick="deleteShipOrder(this)">刪除</button>
 </div>
 </div>
 `;
@@ -4102,6 +4113,26 @@ try{copied=document.execCommand('copy');}finally{ta.remove();}
 if(!copied)throw new Error('瀏覽器未允許複製');
 alert('出貨文已複製');
 }catch(e){alert('複製失敗：'+e.message);}
+}
+function endShipSwipe(event,card){
+const start=card._swipeStart;card._swipeStart=null;
+if(!start||!event.changedTouches.length)return;
+const dx=event.changedTouches[0].clientX-start.x,dy=event.changedTouches[0].clientY-start.y;
+if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)card.classList.toggle('showShipDelete',dx<0);
+}
+async function deleteShipOrder(button){
+if(shipPendingWrites||button.disabled)return;
+const card=button.closest('.shipOrderCard');
+if(!card||!confirm('確定刪除這筆出貨訂單？'))return;
+const rows=card.dataset.rows.split(',').map(Number);
+button.disabled=true;shipPendingWrites++;shipRevision++;
+let deleted=false;
+try{
+await api('deleteShipOrder',{rows:JSON.stringify(rows)});
+deleted=true;shipDataCache=null;shipLoadedAt=0;
+}catch(e){alert('刪除失敗：'+e.message);}
+finally{shipPendingWrites--;if(button.isConnected)button.disabled=false;}
+if(deleted)await renderShip(true);
 }
 async function toggleShipPacked(button){
 if(button.disabled)return;
