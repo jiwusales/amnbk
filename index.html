@@ -1777,7 +1777,7 @@ let inventorySearchTimer=null;
 let inventoryResizeTimer=null;
 let inventoryOrderDirty=false;
 let inventoryPendingMoves=[];
-let inventoryStatus='有庫存';
+let inventoryStatus='目錄';
 const inventoryStatusCheckingRows=new Set();
 const INVENTORY_BROWSER_CACHE_MS=5*60*1000;
 const INVENTORY_SESSION_CACHE_KEY='jiwu_inventory_session_v2';
@@ -2059,7 +2059,7 @@ if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy',
 let task;
 if(name==='launch')task=renderLaunch();
 else if(name==='inventory'){
-inventoryCategory='全部';inventorySearch='';inventoryStatus='有庫存';
+inventoryCategory='全部';inventorySearch='';inventoryStatus='目錄';
 renderInventory();task=loadInventory(true);
 }
 else if(name==='online'){
@@ -2897,7 +2897,7 @@ app.innerHTML=`
 <option value="">全部</option>
 <option value="已開單">已開單</option>
 </select>
-<input id="customerSearch" placeholder="搜尋顧客名稱／團名／月份／後五碼">
+<input id="customerSearch" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
 <button class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
 <button class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
 </div>
@@ -3271,6 +3271,7 @@ x,
 ]
 )||''
 ).toLowerCase();
+const productName=String(getOnlineData(x,['名稱','商品名稱','品名','商品'])||'').toLowerCase();
 const time=String(
 getOnlineData(x,['時間','購買時間'])||''
 );
@@ -3284,6 +3285,7 @@ const last5=toHalfWidthDigits(last5Source).replace(/\D/g,'');
 const searchDigits=toHalfWidthDigits(onlineSearchText).replace(/\D/g,'');
 return(
 customer.includes(key)||
+productName.includes(key)||
 group.includes(key)||
 (searchDate.length>=3&&dateKey.includes(searchDate))||
 (searchDigits.length>0&&last5.includes(searchDigits))
