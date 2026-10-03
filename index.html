@@ -2910,9 +2910,7 @@ const input=document.getElementById('customerSearch');
 input.value=onlineSearchText;
 const f=document.getElementById('cargoFilter');
 f.value=onlineCargo;
-input.addEventListener('keydown',e=>{
-if(e.key==='Enter')searchOnline();
-});
+bindOnlineSearchInput(input);
 if(onlineLoadedAt){
 applyOnlineFilter();
 loadOnline(false,true);
@@ -3010,6 +3008,26 @@ const search=document.getElementById('customerSearch');if(search)search.value=''
 const cargo=document.getElementById('cargoFilter');if(cargo)cargo.value='';
 if(!onlineLoadedAt)await loadOnline();
 applyOnlineFilter();
+}
+function bindOnlineSearchInput(input){
+let composing=false,timer=null,pasting=false;
+const cancel=()=>{clearTimeout(timer);timer=null;};
+const schedule=delay=>{
+cancel();
+if(composing)return;
+timer=setTimeout(()=>{timer=null;if(input.isConnected&&!composing)searchOnline();},delay);
+};
+input.addEventListener('compositionstart',()=>{composing=true;cancel();});
+input.addEventListener('compositionend',()=>{composing=false;schedule(250);});
+input.addEventListener('paste',()=>{pasting=true;schedule(0);});
+input.addEventListener('input',event=>{
+if(composing||event.isComposing){cancel();return;}
+const pasted=pasting||event.inputType==='insertFromPaste';pasting=false;
+schedule(pasted?0:250);
+});
+input.addEventListener('keydown',event=>{
+if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){event.preventDefault();cancel();searchOnline();}
+});
 }
 async function searchOnline(){
 isCustomerView=false;
