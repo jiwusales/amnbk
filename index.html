@@ -3249,7 +3249,7 @@ return '全部'
 function applyOnlineFilter(){
 syncOnlineBackButton();
 let rows=[...onlineRows];
-if(isStarredView){const keys=new Set(rows.filter(isStarredOrderRow).map(orderKey));showOrderCards(rows.filter(row=>keys.has(orderKey(row))),'✱ 標記訂單');return;}
+if(isStarredView){const keys=new Set(rows.filter(isStarredOrderRow).map(starredOrderKey));showOrderCards(rows.filter(row=>keys.has(starredOrderKey(row))),'✱ 標記訂單');return;}
 if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
@@ -3799,6 +3799,10 @@ if(input)input.value=target;
 const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 showOrderCards(rows,target)
+}
+function starredOrderKey(row){
+const merged=String(row.orderMergeKey||row.depositMergeKey||'');
+return merged?'order:'+merged:String(getCustomerName(row)||'未填姓名').trim()+'\u0000'+String(getOnlineData(row,['時間','購買時間'])||'').trim();
 }
 function isStarredOrderRow(row){return isTruthy(getOnlineData(row,['星號標記']));}
 async function showStarredOrders(){
