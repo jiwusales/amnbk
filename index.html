@@ -3640,7 +3640,7 @@ ${esc(order.customer)}
 <div class="groupCardItems">
 ${order.items.map(row=>`
 <div class="groupCardItem ${isOpenedRow(row)?'opened':''}">
-<input class="check shipCheck" type="checkbox" value="${esc(row.row)}" ${isFaceToFaceView?'onchange="markFaceToFacePicked(this)"':''}>
+<input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
 <button type="button" class="tag cargoTag" aria-label="修改商品狀態" aria-expanded="${activeCargoPickerRow===Number(row.row)}" title="點擊修改狀態" onclick="editCargoTag(${Number(row.row)})" style="background:${esc(cargoDisplay(row).color)};${cargoDisplay(row).opened?'color:#fff!important;background:#555!important':''}">${esc(cargoDisplay(row).text)}</button>
 <span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${String(getGroupName(row)||'').trim()?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(getGroupName(row)))})'>${esc(getGroupName(row))}</button>｜`:''}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
 <span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span>
@@ -3732,23 +3732,6 @@ button.classList.toggle('active',items.some(isFaceToFace));
 button.disabled=ids.some(id=>pendingFaceRows.has(id));
 button.setAttribute('aria-pressed',String(button.classList.contains('active')));
 });
-}
-async function markFaceToFacePicked(input){
-if(!input||!input.checked)return;
-const sheetRow=Number(input.value);
-if(!Number.isInteger(sheetRow)||sheetRow<2)return;
-input.disabled=true;
-try{
-await api('setOnlineOpened',{rows:JSON.stringify([sheetRow])});
-const header=findHeader(onlineHeaders,['已開單','開單']);
-const row=onlineRows.find(item=>Number(item.row)===sheetRow);
-if(row&&header)row.data[header]=true;
-onlineLoadedAt=Date.now();saveOnlineSessionCache();
-if(isFaceToFaceView)applyOnlineFilter();
-}catch(e){
-input.checked=false;
-alert('取貨狀態更新失敗：'+e.message);
-}finally{if(input.isConnected)input.disabled=false;}
 }
 async function toggleFaceToFace(button,rows){
 const visibleRows=[...document.querySelectorAll('.shipCheck')].map(input=>Number(input.value));
