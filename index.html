@@ -3702,6 +3702,7 @@ const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
 const last5Display=String(last5).trim()==='現金'?'💰':last5;
 const orderDates=new Set(order.items.map(row=>formatOnlineTime(getOnlineData(row,['時間','購買時間']))).filter(Boolean));
 const showItemDates=!!order.depositMergeKey&&orderDates.size>1;
+const latestOrderDate=order.items.map(row=>getOnlineData(row,['時間','購買時間'])).filter(Boolean).reduce((latest,value)=>timeValue(value)>=timeValue(latest)?value:latest,order.time||'');
 const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
 const payment=storedPayment==='面交'?'中信':(storedPayment||'中信');
 const acceptsLast5=payment==='中信'||payment==='LB';
@@ -3744,7 +3745,7 @@ ${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoCho
 `).join('')}${noteText?`<div class="groupCardNote">備註：${esc(noteText)}</div>`:''}
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}" data-payment="${esc(payment)}" data-last5="${esc(last5)}">
-${singleCustomerView?'<button type="button" class="orderSelectAll" aria-label="全選此訂單商品" onclick="selectWholeOrder(this)">⇧</button>':`<span class="orderMetaDate ${showItemDates?'isHidden':''}">${esc(formatOnlineTime(order.time))}</span>`}
+${singleCustomerView?'<button type="button" class="orderSelectAll" aria-label="全選此訂單商品" onclick="selectWholeOrder(this)">⇧</button>':`<span class="orderMetaDate">${esc(formatOnlineTime(latestOrderDate))}</span>`}
 ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5">${esc(last5Display)}</span>
 <span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
