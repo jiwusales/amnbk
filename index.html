@@ -1169,6 +1169,7 @@ body:not([data-page="online"]) #onlineBackButton{display:none}
 body[data-page="online"] .topStarButton{display:inline-flex}
 .orderStarButton{border:0;border-radius:5px;padding:2px 5px;font-size:12px;background:transparent;color:#CBC3BC;cursor:pointer}
 .orderStarButton.active{background:#E24C60;color:#fff}
+.orderStarButton,.topStarButton{font-weight:900;-webkit-text-stroke:.45px currentColor}
 </style>
 </head>
 <body>
@@ -4127,7 +4128,7 @@ let shipLoadedAt=0;
 let shipLoadPromise=null;
 let shipRevision=0;
 let shipPendingWrites=0;
-const SHIP_HIDE_MS=60*60*1000;
+const SHIP_HIDE_MS=5*60*1000;
 function shipRowExpired(row,now=Date.now()){
 const time=Date.parse(row.data['包貨完成時間']||'');
 return isTruthy(row.data['已包貨'])&&Number.isFinite(time)&&now-time>=SHIP_HIDE_MS;
