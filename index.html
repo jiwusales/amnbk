@@ -2993,7 +2993,9 @@ const job={keys,items,note};onlineEditQueue.push(job);onlineOrderEditPending=tru
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
 function applyOnlineEditJob(source,job){
-const keys=new Set(job.keys),kept=new Map(job.items.map(item=>[item.key,item]));
+const keys=new Set(job.keys);
+if(job.delete)return source.filter(row=>!keys.has(row.editKey));
+const kept=new Map(job.items.map(item=>[item.key,item]));
 const template=source.find(row=>keys.has(row.editKey));if(!template)return source;
 const header=names=>findHeader(onlineHeaders,names);
 const nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),bh=header(['備註','備註欄']);
@@ -3019,7 +3021,7 @@ const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
 if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
 const rows=selected.map(row=>Number(row.row));
 const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
-const result=await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:job.note});
+const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note})});
 const server=result.online||await api('online',{compact:'0',fresh:'1'});
 const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
 const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
@@ -3027,7 +3029,7 @@ const newPosition=row=>row+(row>last?added.length:0)-removed.filter(deleted=>del
 const keyByRow=new Map(onlineEditBase.filter(row=>!removed.includes(Number(row.row))).map(row=>[newPosition(Number(row.row)),row.editKey]));
 added.forEach((item,i)=>keyByRow.set(last+1+i-removed.length,item.key));
 onlineHeaders=server.headers;onlineEditBase=server.rows.map(row=>({...row,editKey:keyByRow.get(Number(row.row))||'edit-'+(++onlineEditKey)}));
-}catch(e){alert('訂單儲存失敗，這筆畫面已還原：'+e.message);}
+}catch(e){alert((job.delete?'訂單刪除失敗':'訂單儲存失敗')+'，這筆畫面已還原：'+e.message);}
 onlineEditQueue.shift();onlineMutationRevision++;renderPendingOnlineEdits();
 }}
 finally{onlineEditWorkerRunning=false;onlineOrderEditPending=false;onlineRows=onlineEditBase||onlineRows;onlineLoadedAt=Date.now();saveOnlineSessionCache();}
@@ -3689,7 +3691,17 @@ function selectWholeOrder(button){const boxes=[...button.closest('.groupCard').q
 
 function startOrderSwipe(event,card){if(event.touches.length!==1||event.target.closest('input,button,select,textarea'))return;card._swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY};}
 function endOrderSwipe(event,card){const start=card._swipeStart;card._swipeStart=null;if(!start||!event.changedTouches.length)return;const dx=event.changedTouches[0].clientX-start.x,dy=event.changedTouches[0].clientY-start.y;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)card.classList.toggle('showOrderDelete',dx<0);}
-async function deleteWholeOnlineOrder(rows,button){if(!confirm('確定刪除這整筆訂單的所有商品？'))return;button.disabled=true;try{onlineMutationRevision++;await api('deleteOnlineOrder',{rows:JSON.stringify(rows)});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(error){alert('刪除失敗：'+error.message);button.disabled=false;}}
+async function deleteWholeOnlineOrder(rows,button){
+if(!confirm('確定刪除這整筆訂單的所有商品？'))return;
+onlineRows.forEach(row=>{if(!row.editKey)row.editKey='edit-'+(++onlineEditKey);});
+const dialogRows=document.getElementById('orderEditRows');
+const keys=dialogRows?JSON.parse(dialogRows.dataset.editKeys||'[]'):onlineRows.filter(row=>rows.map(Number).includes(Number(row.row))).map(row=>row.editKey);
+if(!keys.length)return alert('找不到原訂單');
+if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
+onlineEditQueue.push({keys,items:[],note:'',delete:true});onlineOrderEditPending=true;onlineMutationRevision++;
+closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
+}
+
 function showOrderCards(rows,summary){
 const res=document.getElementById('onlineResult');
 if(!res)return;
