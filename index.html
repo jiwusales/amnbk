@@ -2284,7 +2284,7 @@ const previous=[];
 for(const [key,names] of Object.entries(fields)){const col=inventoryHeaderIndex(names);if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
 closeDialog();prepareInventoryRows();renderInventoryContent();
 const pending=(async()=>{
-try{await api('updateInventoryProduct','deleteInventoryProduct',data);inventoryLoadedAt=Date.now();}
+try{await api('updateInventoryProduct',data);inventoryLoadedAt=Date.now();}
 catch(error){for(const old of previous){item.values[old.col]=old.value;if(item.display)item.display[old.col]=old.display;}inventoryLoadedAt=0;alert('「'+data.name+'」儲存失敗，畫面已還原，請重新編輯儲存：'+error.message);}
 finally{inventoryProductSaves.delete(Number(row));prepareInventoryRows();if(!inventoryProductSaves.size)saveInventorySessionCache();renderInventoryContent();inventorySaveNotice(inventoryProductSaves.size?'商品背景儲存中…':'背景儲存作業已結束');}
 })();
@@ -2982,7 +2982,7 @@ const rows=document.getElementById('orderEditRows').value.split(',').map(Number)
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{onlineMutationRevision++;await api('editOnlineOrder','deleteOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
+try{onlineMutationRevision++;await api('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
 }
 function updateManualOnlineTotal(){const total=[...document.querySelectorAll('.manualOnlinePrice')].reduce((sum,x)=>sum+Number(normalizeMoneyInput(x)||0),0);const el=document.getElementById('manualOnlineTotal');if(el)el.textContent='總金額 $'+money(total);}
 function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
