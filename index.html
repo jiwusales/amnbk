@@ -4098,7 +4098,8 @@ alert(
 ' 筆'
 );
 const completedRows=new Set((d.rows||rows).map(Number));
-const openedHeader=findHeader(onlineHeaders,['已開單','開單']);
+let openedHeader=findHeader(onlineHeaders,['已開單','開單']);
+if(!openedHeader){openedHeader='已開單';onlineHeaders.push(openedHeader);}
 const statusHeader=findHeader(onlineHeaders,['狀態','訂購狀態']);
 onlineMutationRevision++;
 onlineRows.forEach(row=>{
@@ -4108,7 +4109,7 @@ if(statusHeader)row.data[statusHeader]='已開單';
 });
 saveOnlineSessionCache();onlineLoadedAt=0;
 sessionStorage.removeItem('jiwu_snapshot_ship');shipDataCache=null;shipLoadedAt=0;shipRevision++;
-tab('ship',document.getElementById('btn-ship'));
+if(document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
 }catch(e){
 alert(e.message)
 }
