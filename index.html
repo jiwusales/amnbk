@@ -4025,14 +4025,11 @@ if(!rows.length){
 alert('請先勾選要出貨的商品');
 return
 }
+const selected=new Set(rows.map(Number));
+const expected=onlineRows.filter(row=>selected.has(Number(row.row))).map(row=>({row:Number(row.row),data:row.data}));
+if(expected.length!==selected.size)return alert('勾選資料已變動，請重新整理後再選擇');
 try{
-const d=
-await api(
-'createShip',
-{
-rows:JSON.stringify(rows)
-}
-);
+const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected)});
 alert(
 '已產生出貨單，共 '+
 (d.count||rows.length)+
