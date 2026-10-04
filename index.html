@@ -1828,6 +1828,7 @@ let onlineCargo='現貨';
 let onlineLoadedAt=0;
 let onlineLoadPromise=null;
 let onlineMutationRevision=0;
+let onlineOrderEditPending=false;
 const pendingRestockRows=new Set();
 const ONLINE_CACHE_MS=5*60*1000;
 const ONLINE_SESSION_CACHE_KEY='jiwu_online_session_v1';
@@ -2968,6 +2969,7 @@ function addManualOnlineItem(){const box=document.getElementById('manualOnlineIt
 function orderEditableNote(items){return [...new Set(items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交'))) ].join('｜');}
 function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
 function openOrderEditDialog(rows){
+if(onlineOrderEditPending)return alert('訂單正在背景儲存，請稍候');
 const orderRows=(rows||[]).map(Number).filter(row=>row>=2);
 const items=orderRows.map(row=>onlineRows.find(item=>Number(item.row)===row)).filter(Boolean);
 if(!items.length)return;
@@ -2981,8 +2983,33 @@ const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const sh
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
-const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{onlineMutationRevision++;await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
+if(onlineOrderEditPending)return;
+const note=document.getElementById('orderEditNote').value.trim();
+const previous=structuredClone(onlineRows);
+const selected=new Set(rows),kept=new Map(items.filter(item=>item.row).map(item=>[item.row,item]));
+const template=onlineRows.find(row=>selected.has(Number(row.row)));
+if(!template)return alert('找不到原訂單');
+const nameHeader=findHeader(onlineHeaders,['名稱','商品名稱','品名','商品']);
+const priceHeader=findHeader(onlineHeaders,['售價','價格']);
+const shippingHeader=findHeader(onlineHeaders,['運費']);
+const noteHeader=findHeader(onlineHeaders,['備註','備註欄']);
+const originalNote=noteHeader?String(template.data[noteHeader]||''):'';
+const face=originalNote.split('｜').some(value=>value.trim()==='面交');
+const cleanNote=note.split('｜').map(value=>value.trim()).filter(value=>value&&value!=='面交').join('｜');
+const nextNote=face?(cleanNote?cleanNote+'｜面交':'面交'):cleanNote;
+const update=(row,item)=>{if(nameHeader)row.data[nameHeader]=item.name;if(priceHeader)row.data[priceHeader]=item.price;if(shippingHeader)row.data[shippingHeader]=item.shipping;if(noteHeader)row.data[noteHeader]=nextNote;return row;};
+const additions=items.filter(item=>!item.row).map((item,i)=>update({...structuredClone(template),row:-Date.now()-i},item));
+const next=[];
+onlineRows.forEach(row=>{if(selected.has(Number(row.row))){const item=kept.get(Number(row.row));if(item)next.push(update(structuredClone(row),item));if(Number(row.row)===Math.max(...rows))next.push(...additions);}else next.push(row);});
+onlineOrderEditPending=true;onlineMutationRevision++;onlineRows=next;
+closeDialog();refreshCargoViewKeepingScroll();
+try{
+const result=await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note});
+if(result.online){onlineRows=result.online.rows;onlineHeaders=result.online.headers;onlineLoadedAt=Date.now();saveOnlineSessionCache();refreshCargoViewKeepingScroll();}
+else{onlineOrderEditPending=false;onlineLoadedAt=0;await loadOnline(true);}
+}catch(e){onlineRows=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert('訂單儲存失敗，畫面已還原：'+e.message);}
+finally{onlineOrderEditPending=false;onlineMutationRevision++;}
+
 }
 function updateManualOnlineTotal(){const total=[...document.querySelectorAll('.manualOnlinePrice')].reduce((sum,x)=>sum+Number(normalizeMoneyInput(x)||0),0);const el=document.getElementById('manualOnlineTotal');if(el)el.textContent='總金額 $'+money(total);}
 function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
@@ -3012,7 +3039,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||pendingRestockRows.size)return;
+  if(revision!==onlineMutationRevision||pendingRestockRows.size||onlineOrderEditPending)return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -4014,6 +4041,7 @@ const rowsHtml=rows.map(row=>`<div class="groupCardItem"><span class="detailOrde
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${rows.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(total)}｜訂金$${money(deposit)}｜尾款$${money(total-deposit)}</div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
 }
 async function createSelectedShip(){
+if(onlineOrderEditPending)return alert('訂單正在背景儲存，完成後即可出貨');
 const rows=
 [
 ...document
