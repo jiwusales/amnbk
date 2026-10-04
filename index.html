@@ -1829,6 +1829,7 @@ let onlineLoadedAt=0;
 let onlineLoadPromise=null;
 let onlineMutationRevision=0;
 let onlineOrderEditPending=false;
+let onlineEditQueue=[],onlineEditBase=null,onlineEditKey=0;
 const pendingRestockRows=new Set();
 const ONLINE_CACHE_MS=5*60*1000;
 const ONLINE_SESSION_CACHE_KEY='jiwu_online_session_v1';
@@ -2967,50 +2968,71 @@ fitSelectWidth(document.getElementById('manualOnlineSource'));fitSelectWidth(doc
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><input class="manualOnlineName" placeholder="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('input').focus();}
 function orderEditableNote(items){return [...new Set(items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交'))) ].join('｜');}
-function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
+function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}" data-edit-key="${esc(row.editKey||'')}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
 function openOrderEditDialog(rows){
-if(onlineOrderEditPending)return alert('訂單正在背景儲存，請稍候');
+onlineRows.forEach(row=>{if(!row.editKey)row.editKey='edit-'+(++onlineEditKey);});
 const orderRows=(rows||[]).map(Number).filter(row=>row>=2);
 const items=orderRows.map(row=>onlineRows.find(item=>Number(item.row)===row)).filter(Boolean);
 if(!items.length)return;
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存變更</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存變更</button></div></form></div></div>`);
 document.querySelector('.orderEditName')?.focus();
 }
 function addOrderEditItem(){const box=document.getElementById('orderEditItems');box.insertAdjacentHTML('beforeend',orderEditItemMarkup(null));box.lastElementChild.querySelector('.orderEditName')?.focus();}
 async function submitOrderEdit(event){
 event.preventDefault();
-const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));return {row:Number(item.dataset.row)||0,name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping)};});
+const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping)};});
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
-if(onlineOrderEditPending)return;
 const note=document.getElementById('orderEditNote').value.trim();
-const previous=structuredClone(onlineRows);
-const selected=new Set(rows),kept=new Map(items.filter(item=>item.row).map(item=>[item.row,item]));
-const template=onlineRows.find(row=>selected.has(Number(row.row)));
-if(!template)return alert('找不到原訂單');
-const nameHeader=findHeader(onlineHeaders,['名稱','商品名稱','品名','商品']);
-const priceHeader=findHeader(onlineHeaders,['售價','價格']);
-const shippingHeader=findHeader(onlineHeaders,['運費']);
-const noteHeader=findHeader(onlineHeaders,['備註','備註欄']);
-const originalNote=noteHeader?String(template.data[noteHeader]||''):'';
-const face=originalNote.split('｜').some(value=>value.trim()==='面交');
-const cleanNote=note.split('｜').map(value=>value.trim()).filter(value=>value&&value!=='面交').join('｜');
-const nextNote=face?(cleanNote?cleanNote+'｜面交':'面交'):cleanNote;
-const update=(row,item)=>{if(nameHeader)row.data[nameHeader]=item.name;if(priceHeader)row.data[priceHeader]=item.price;if(shippingHeader)row.data[shippingHeader]=item.shipping;if(noteHeader)row.data[noteHeader]=nextNote;return row;};
-const additions=items.filter(item=>!item.row).map((item,i)=>update({...structuredClone(template),row:-Date.now()-i},item));
-const next=[];
-onlineRows.forEach(row=>{if(selected.has(Number(row.row))){const item=kept.get(Number(row.row));if(item)next.push(update(structuredClone(row),item));if(Number(row.row)===Math.max(...rows))next.push(...additions);}else next.push(row);});
-onlineOrderEditPending=true;onlineMutationRevision++;onlineRows=next;
-closeDialog();refreshCargoViewKeepingScroll();
-try{
-const result=await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note});
-if(result.online){onlineRows=result.online.rows;onlineHeaders=result.online.headers;onlineLoadedAt=Date.now();saveOnlineSessionCache();refreshCargoViewKeepingScroll();}
-else{onlineOrderEditPending=false;onlineLoadedAt=0;await loadOnline(true);}
-}catch(e){onlineRows=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert('訂單儲存失敗，畫面已還原：'+e.message);}
-finally{onlineOrderEditPending=false;onlineMutationRevision++;}
-
+const selected=new Set(rows);
+const keys=JSON.parse(document.getElementById('orderEditRows').dataset.editKeys||'[]');
+if(!keys.length)return alert('找不到原訂單');
+if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
+const job={keys,items,note};onlineEditQueue.push(job);onlineOrderEditPending=true;onlineMutationRevision++;
+closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
+function applyOnlineEditJob(source,job){
+const keys=new Set(job.keys),kept=new Map(job.items.map(item=>[item.key,item]));
+const template=source.find(row=>keys.has(row.editKey));if(!template)return source;
+const header=names=>findHeader(onlineHeaders,names);
+const nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),bh=header(['備註','備註欄']);
+const face=String(template.data[bh]||'').split('｜').some(v=>v.trim()==='面交');
+const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').join('｜');
+const fullNote=face?(note?note+'｜面交':'面交'):note;
+const update=(row,item)=>{if(nh)row.data[nh]=item.name;if(ph)row.data[ph]=item.price;if(sh)row.data[sh]=item.shipping;if(bh)row.data[bh]=fullNote;return row;};
+const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
+const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
+const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
+}
+function renderPendingOnlineEdits(){
+onlineRows=onlineEditQueue.reduce(applyOnlineEditJob,structuredClone(onlineEditBase));
+refreshCargoViewKeepingScroll();
+}
+let onlineEditWorkerRunning=false;
+async function processOnlineEditQueue(){
+if(onlineEditWorkerRunning)return;onlineEditWorkerRunning=true;
+try{while(onlineEditQueue.length){
+const job=onlineEditQueue[0];
+try{
+const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
+if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
+const rows=selected.map(row=>Number(row.row));
+const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
+const result=await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:job.note});
+const server=result.online||await api('online',{compact:'0',fresh:'1'});
+const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
+const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
+const newPosition=row=>row+(row>last?added.length:0)-removed.filter(deleted=>deleted<row).length;
+const keyByRow=new Map(onlineEditBase.filter(row=>!removed.includes(Number(row.row))).map(row=>[newPosition(Number(row.row)),row.editKey]));
+added.forEach((item,i)=>keyByRow.set(last+1+i-removed.length,item.key));
+onlineHeaders=server.headers;onlineEditBase=server.rows.map(row=>({...row,editKey:keyByRow.get(Number(row.row))||'edit-'+(++onlineEditKey)}));
+}catch(e){alert('訂單儲存失敗，這筆畫面已還原：'+e.message);}
+onlineEditQueue.shift();onlineMutationRevision++;renderPendingOnlineEdits();
+}}
+finally{onlineEditWorkerRunning=false;onlineOrderEditPending=false;onlineRows=onlineEditBase||onlineRows;onlineLoadedAt=Date.now();saveOnlineSessionCache();}
+}
+
 function updateManualOnlineTotal(){const total=[...document.querySelectorAll('.manualOnlinePrice')].reduce((sum,x)=>sum+Number(normalizeMoneyInput(x)||0),0);const el=document.getElementById('manualOnlineTotal');if(el)el.textContent='總金額 $'+money(total);}
 function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
 function normalizeManualOrderDate(value){
