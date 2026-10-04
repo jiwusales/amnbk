@@ -1571,7 +1571,17 @@ function launchProductSubmit(e,index,mode){
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image||launchCurrent.images?.[launchPanelIndex]||'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
 function launchSetBannerURL(e){e.preventDefault();const url=String(new FormData(e.target).get('url')||'');if(!launchSafeURL(url)){alert('請填有效圖片網址');return;}if(!Array.isArray(launchCurrent.panels))launchCurrent.panels=[];if(!launchCurrent.panels[launchPanelIndex])launchCurrent.panels[launchPanelIndex]={image:'',mainColor:launchCurrent.mainColor};launchCurrent.panels[launchPanelIndex].image=url;launchCurrent.images=launchCurrent.panels.map(x=>x.image).filter(Boolean);launchMark();document.getElementById('launchDialog').close();launchPickBannerColor(['#617AA6','#526B8C','#876D57','#788A63','#B07B77','#575D69']);}
 async function launchBannerColors(dataUrl){return await new Promise(resolve=>{const image=new Image();image.onload=()=>{try{const canvas=document.createElement('canvas'),side=80;canvas.width=side;canvas.height=side;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0,side,side);const bins=new Map();for(let y=0;y<side;y+=4)for(let x=0;x<side;x+=4){const p=ctx.getImageData(x,y,1,1).data;if(p[3]<200||Math.max(p[0],p[1],p[2])-Math.min(p[0],p[1],p[2])<24)continue;const q=[p[0],p[1],p[2]].map(v=>Math.min(255,Math.round(v/32)*32));const key=q.map(v=>v.toString(16).padStart(2,'0')).join('');bins.set(key,(bins.get(key)||0)+1);}const colors=[...bins.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([key])=>'#'+key);resolve([...new Set(colors)].slice(0,5));}catch(_){resolve([]);}};image.onerror=()=>resolve([]);image.src=dataUrl;});}
-function launchPickBannerColor(colors=[]){const choices=[...new Set([...colors,'#617AA6','#526B8C','#876D57','#788A63','#B07B77','#575D69'])].slice(0,8);launchDialog(`<h2>選擇藍色標題列主色</h2><p class="launchHelp">已從首圖取出代表色；可點選後再隨時更改。</p><div class="launchTools">${choices.map(c=>`<button class="btn" style="background:${c};color:#fff;min-width:86px" onclick="launchSetMainColor('${c}')">${c}</button>`).join('')}</div><label>自訂色<input type="color" value="${launchColor(launchCurrent.mainColor)}" oninput="launchSetMainColor(this.value)"></label><button class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button>`);}
+function launchPickBannerColor(colors=[]){
+const choices=['#617AA6','#526B8C','#876D57','#788A63','#B07B77','#575D69','#D4AA56','#9683B5','#5D9994','#D58D61'];
+launchDialog(`<h2>選擇標題列主色</h2><div class="launchTools">${choices.map(c=>`<button class="btn" style="background:${c};color:#fff;min-width:86px" onclick="launchSetMainColor('${c}')">${c}</button>`).join('')}</div><label>自訂色<input type="text" aria-label="自訂色碼" value="${launchColor(launchCurrent.panels?.[launchPanelIndex]?.mainColor||launchCurrent.mainColor)}" onchange="launchApplyCustomColor(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();launchApplyCustomColor(this)}"></label><button class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button>`);
+}
+function launchApplyCustomColor(input){
+const raw=input.value.trim().replace(/^#/,'');
+if(!/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)){input.setCustomValidity('請輸入有效色碼，例如 #617AA6');input.reportValidity();return;}
+input.setCustomValidity('');
+const hex=raw.length===3?[...raw].map(c=>c+c).join(''):raw;
+launchSetMainColor('#'+hex.toUpperCase());
+}
 function launchSetMainColor(color){const next=launchColor(color);launchCurrent.mainColor=next;if(launchCurrent.panels?.[launchPanelIndex])launchCurrent.panels[launchPanelIndex].mainColor=next;launchMark();document.getElementById('launchDialog')?.close();launchRenderEditor();}
 async function launchFileData(file){if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('請使用 PNG、JPEG 或 WebP 圖片');if(file.size>3*1024*1024)throw new Error('每張圖片請小於 3 MB');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('圖片讀取失敗'));r.readAsDataURL(file);});}
 function launchUploadFiles(files){const file=Array.from(files)[0];if(!file)return;launchRun(async()=>{launchNotice('上傳 '+file.name+'…');const dataUrl=await launchFileData(file),colors=await launchBannerColors(dataUrl),d=await launchPost('launchUpload',{image:dataUrl});if(!Array.isArray(launchCurrent.panels))launchCurrent.panels=[];if(!launchCurrent.panels[launchPanelIndex])launchCurrent.panels[launchPanelIndex]={image:'',mainColor:launchCurrent.mainColor};launchCurrent.panels[launchPanelIndex].image=d.url;launchCurrent.images=launchCurrent.panels.map(x=>x.image).filter(Boolean);launchMark();launchMessage='Banner 已上傳，請選擇主色系';launchRenderEditor();launchPickBannerColor(colors);});}
@@ -1666,7 +1676,27 @@ function launchAllSave(){document.getElementById('launchDialog')?.close();launch
 function launchUpdateSelectAll(){const all=document.getElementById('launchSelectAll');if(!all||!launchCurrent)return;const selected=launchCurrent.items.filter(item=>item.visible!==false).length;all.checked=selected===launchCurrent.items.length&&selected>0;all.indeterminate=selected>0&&selected<launchCurrent.items.length;}
 function launchToggleAllProducts(visible){if(!launchCurrent)return;launchCurrent.items.forEach(item=>item.visible=visible);document.querySelectorAll('[data-launch-product-select]').forEach(input=>input.checked=visible);launchMark();launchUpdateSelectAll();}
 function launchSetProductVisible(index,visible){if(!launchCurrent.items[index])return;launchCurrent.items[index].visible=visible;launchMark();launchUpdateSelectAll();}
-function launchFitCardText(){document.querySelectorAll('.launchProduct').forEach(card=>{if(card.style.display==='none'||card.style.visibility==='hidden')return;card.style.removeProperty('font-size');let size=parseFloat(getComputedStyle(card).fontSize),min=size*.68,tries=0;while(card.scrollHeight>card.clientHeight+1&&size>min&&tries++<10){size*=.92;card.style.fontSize=size+'px';}});}
+function launchNameLines(text,width,measure){
+const source=String(text||'').trim(),words=source.split(/\s+/),lines=[];
+let line='';
+for(const word of words){
+const candidate=line?line+' '+word:word;
+if(line&&measure(candidate)>width){lines.push(line);line='';}
+if(measure(word)>width){
+for(const char of word){if(line&&measure(line+char)>width){lines.push(line);line='';}line+=char;}
+}else line=line?line+' '+word:word;
+}
+if(line||!lines.length)lines.push(line);
+return lines;
+}
+function launchWrapCardName(card){
+const title=card.querySelector('h3'),item=launchCurrent?.items[Number(card.dataset.launchIndex)];if(!title||!item)return;
+const style=getComputedStyle(title),context=document.createElement('canvas').getContext('2d');
+context.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
+const lines=launchNameLines(launchDisplayName(item),title.clientWidth,text=>context.measureText(text).width);
+title.innerHTML=lines.map(esc).join('<br>');
+}
+function launchFitCardText(){document.querySelectorAll('.launchProduct').forEach(card=>{if(card.style.display==='none'||card.style.visibility==='hidden')return;card.style.removeProperty('font-size');launchWrapCardName(card);let size=parseFloat(getComputedStyle(card).fontSize),min=size*.68,tries=0;while(card.scrollHeight>card.clientHeight+1&&size>min&&tries++<10){size*=.92;card.style.fontSize=size+'px';launchWrapCardName(card);}});}
 function launchFitCards(){
  const paper=document.getElementById('launchPaper');if(!paper)return;paper.querySelector('.launchMore')?.remove();
  const allCards=Array.from(paper.querySelectorAll('.launchProduct'));
@@ -1724,7 +1754,7 @@ async function launchBuildPNG(){
   // 售價不可斷行；依卡片可用寬度微調字級，確保最後一位數不會落到下一行。
   if(isPrice){while(ctx.measureText(source).width>r.w&&size>4){size-=.25;ctx.font=`${style.fontWeight} ${size}px ${style.fontFamily}`;}}
   const line=Number.isFinite(cssLine)?cssLine*scale:size*1.3;ctx.fillStyle=style.color;ctx.textBaseline=isHeadingTitle?'middle':'top';
-  const lines=[];if(isPrice||isHeadingTitle)lines.push(source);else{let text='';for(const c of source){if(text&&ctx.measureText(text+c).width>r.w){lines.push(text);text=c;}else text+=c;}if(text||!lines.length)lines.push(text);}
+  const lines=[];if(isPrice||isHeadingTitle)lines.push(source);else if(el.matches('.launchProduct h3'))lines.push(...launchNameLines(launchDisplayName(launchCurrent.items[Number(card.dataset.launchIndex)]),r.w,text=>ctx.measureText(text).width));else{let text='';for(const c of source){if(text&&ctx.measureText(text+c).width>r.w){lines.push(text);text=c;}else text+=c;}if(text||!lines.length)lines.push(text);}
   const align=style.textAlign,headingRect=isHeadingTitle?rect(header):null;lines.forEach((part,index)=>{const width=ctx.measureText(part).width;const x=align==='center'?r.x+(r.w-width)/2:align==='right'||align==='end'?r.x+r.w-width:r.x;const y=isHeadingTitle?headingRect.y+headingRect.h/2:r.y+index*line;ctx.fillText(part,x,y);if(style.textDecorationLine.includes('line-through')){ctx.beginPath();ctx.moveTo(x,y+size*.5);ctx.lineTo(x+width,y+size*.5);ctx.strokeStyle=style.color;ctx.stroke();}});
  }
  const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)drawText(title);
