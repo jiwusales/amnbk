@@ -2982,7 +2982,7 @@ const rows=document.getElementById('orderEditRows').value.split(',').map(Number)
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{onlineMutationRevision++;await api('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
+try{onlineMutationRevision++;await launchPost('editOnlineOrder',{rows:JSON.stringify(rows),items:JSON.stringify(items),note:document.getElementById('orderEditNote').value.trim()});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}
 }
 function updateManualOnlineTotal(){const total=[...document.querySelectorAll('.manualOnlinePrice')].reduce((sum,x)=>sum+Number(normalizeMoneyInput(x)||0),0);const el=document.getElementById('manualOnlineTotal');if(el)el.textContent='總金額 $'+money(total);}
 function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
