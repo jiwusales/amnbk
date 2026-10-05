@@ -548,6 +548,7 @@ flex:1;
 min-width:0;
 word-break:break-word
 }
+.groupCardItemDeposit{color:#e53935}
 .groupCardItemPrice{
 white-space:nowrap
 }
@@ -1147,7 +1148,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 
 .cartMoney{font-weight:700;color:#FAB460}
 .orderSelectAll{border:0;border-radius:6px;background:#eee;color:#777;font-size:20px;line-height:24px;min-width:30px;cursor:pointer}
-.dialogItem.orderEditItem{grid-template-columns:32px minmax(0,1fr) 90px 90px}
+.dialogItem.orderEditItem{grid-template-columns:32px minmax(0,1fr) 80px 80px 80px}
 .orderDelete{background:#eb8190;color:white;border:0;border-radius:7px;cursor:pointer}
 .orderSwipeDelete{display:none}
 @media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
@@ -2969,7 +2970,7 @@ fitSelectWidth(document.getElementById('manualOnlineSource'));fitSelectWidth(doc
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><input class="manualOnlineName" placeholder="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('input').focus();}
 function orderEditableNote(items){return [...new Set(items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交'))) ].join('｜');}
-function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}" data-edit-key="${esc(row.editKey||'')}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
+function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}" data-edit-key="${esc(row.editKey||'')}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditDeposit" inputmode="decimal" placeholder="訂金" aria-label="訂金" data-original="${esc(row?getOnlineData(row,['訂金']):'')}" value="${esc(row&&getOnlineData(row,['訂金'])!==''?numberValue(getOnlineData(row,['訂金'])):'')}" oninput="this.dataset.changed='1';normalizeMoneyInput(this)"><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
 function openOrderEditDialog(rows){
 onlineRows.forEach(row=>{if(!row.editKey)row.editKey='edit-'+(++onlineEditKey);});
 const orderRows=(rows||[]).map(Number).filter(row=>row>=2);
@@ -2979,9 +2980,20 @@ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogO
 document.querySelector('.orderEditName')?.focus();
 }
 function addOrderEditItem(){const box=document.getElementById('orderEditItems');box.insertAdjacentHTML('beforeend',orderEditItemMarkup(null));box.lastElementChild.querySelector('.orderEditName')?.focus();}
+function allocateOrderEditDeposit(items,originalDeposits,originalFirstRow){
+const amount=value=>String(value??'').replace(/,/g,'').split(/\r?\n/).reduce((sum,line)=>sum+(Number(line.trim())||0),0);
+const first=items.find(item=>Number(item.row)===Number(originalFirstRow));
+if(items.length<2||!first||first.deposit==null||String(first.deposit).trim()===''||amount(first.deposit)===amount(originalDeposits[0]))return;
+const originalTotal=originalDeposits.reduce((sum,value)=>sum+amount(value),0);
+const remaining=Math.round((originalTotal-items.reduce((sum,item)=>sum+amount(item.deposit),0))*100)/100;
+if(remaining<=0)return;
+const empty=items.find(item=>item!==first&&item.deposit!=null&&String(item.deposit).trim()==='');
+if(!empty)throw new Error('剩餘訂金 $'+remaining+' 需要一個訂金空白的商品列');
+empty.deposit=String(remaining);
+}
 async function submitOrderEdit(event){
 event.preventDefault();
-const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping)};});
+const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));const depositInput=item.querySelector('.orderEditDeposit');const deposit=depositInput.dataset.changed?normalizeMoneyInput(depositInput):depositInput.dataset.original;return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping),deposit};});
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
@@ -2989,6 +3001,8 @@ const note=document.getElementById('orderEditNote').value.trim();
 const selected=new Set(rows);
 const keys=JSON.parse(document.getElementById('orderEditRows').dataset.editKeys||'[]');
 if(!keys.length)return alert('找不到原訂單');
+const originalItems=keys.map(key=>onlineRows.find(row=>row.editKey===key)).filter(Boolean).sort((a,b)=>Number(a.row)-Number(b.row));
+try{allocateOrderEditDeposit(items,originalItems.map(row=>getOnlineData(row,['訂金'])),originalItems[0]?.row);}catch(e){return alert(e.message);}
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
 const job={keys,items,note};onlineEditQueue.push(job);onlineOrderEditPending=true;onlineMutationRevision++;
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
@@ -2999,11 +3013,11 @@ if(job.delete)return source.filter(row=>!keys.has(row.editKey));
 const kept=new Map(job.items.map(item=>[item.key,item]));
 const template=source.find(row=>keys.has(row.editKey));if(!template)return source;
 const header=names=>findHeader(onlineHeaders,names);
-const nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),bh=header(['備註','備註欄']);
+const nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),dh=header(['訂金']),bh=header(['備註','備註欄']);
 const face=String(template.data[bh]||'').split('｜').some(v=>v.trim()==='面交');
 const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').join('｜');
 const fullNote=face?(note?note+'｜面交':'面交'):note;
-const update=(row,item)=>{if(nh)row.data[nh]=item.name;if(ph)row.data[ph]=item.price;if(sh)row.data[sh]=item.shipping;if(bh)row.data[bh]=fullNote;return row;};
+const update=(row,item)=>{if(nh)row.data[nh]=item.name;if(ph)row.data[ph]=item.price;if(sh)row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined)row.data[dh]=item.deposit;if(bh)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
 const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
@@ -3759,7 +3773,8 @@ const rowShipping=numberValue(getOnlineData(row,['運費']));
 orderShipping+=rowShipping;
 orderTotal+=numberValue(getOnlineData(row,['售價','價格']))+rowShipping;
 });
-const deposit=order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)||'';
+const itemDeposits=order.items.length>1&&order.items.slice(1).some(row=>{const value=getOnlineData(row,['訂金']);return value!==''&&value!=null;});
+const deposit=itemDeposits?order.items.reduce((sum,row)=>sum+numberValue(getOnlineData(row,['訂金'])),0):(order.items.map(row=>getOnlineData(row,['訂金'])).find(v=>v!==''&&v!=null)??'');
 const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
 const last5Display=String(last5).trim()==='現金'?'💰':last5;
 const orderDates=new Set(order.items.map(row=>formatOnlineTime(getOnlineData(row,['時間','購買時間']))).filter(Boolean));
@@ -3801,7 +3816,7 @@ ${order.items.map(row=>`
 <input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
 <button type="button" class="tag cargoTag" aria-label="修改商品狀態" aria-expanded="${activeCargoPickerRow===Number(row.row)}" title="點擊修改狀態" onclick="editCargoTag(${Number(row.row)})" style="background:${esc(cargoDisplay(row).color)};${cargoDisplay(row).opened?'color:#fff!important;background:#555!important':''}">${esc(cargoDisplay(row).text)}</button>
 <span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${String(getGroupName(row)||'').trim()?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(getGroupName(row)))})'>${esc(getGroupName(row))}</button>｜`:''}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
-<span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span>
+<span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}${itemDeposits&&getOnlineData(row,['訂金'])!==''&&getOnlineData(row,['訂金'])!=null?`<span class="groupCardItemDeposit">(${money(numberValue(getOnlineData(row,['訂金'])))})</span>`:''}</span>
 </div>
 ${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoChoiceMarkup(row)}</div>`:''}
 `).join('')}${noteText?`<div class="groupCardNote">備註：${esc(noteText)}</div>`:''}
@@ -4070,7 +4085,7 @@ if(!rows.length){alert('請先勾選要查看的商品');return;}
 const total=rows.reduce((sum,row)=>sum+numberValue(getOnlineData(row,['售價','價格'])),0);
 const orderKey=row=>String(row.depositMergeKey||row.orderMergeKey||'')||String(getCustomerName(row)||'')+'\u0000'+String(getOnlineData(row,['時間','購買時間'])||'');
 const selectedOrders=new Set(rows.map(orderKey)),deposits=new Map();
-onlineRows.forEach(row=>{const key=orderKey(row);if(selectedOrders.has(key)&&!deposits.has(key)){const value=getOnlineData(row,['訂金']);if(value!==''&&value!=null)deposits.set(key,numberValue(value));}});
+onlineRows.forEach(row=>{const key=orderKey(row);if(selectedOrders.has(key)){const value=getOnlineData(row,['訂金']);if(value!==''&&value!=null)deposits.set(key,(deposits.get(key)||0)+numberValue(value));}});
 const deposit=[...deposits.values()].reduce((sum,value)=>sum+value,0);
 const rowsHtml=rows.map(row=>`<div class="groupCardItem"><span class="detailOrderDate">${esc(formatOnlineTime(getOnlineData(row,['購買時間','時間'])))}</span><span class="groupCardItemName">${esc(getOnlineData(row,['名稱','商品名稱']))}</span><span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span></div>`).join('');
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${rows.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(total)}｜訂金$${money(deposit)}｜尾款$${money(total-deposit)}</div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
