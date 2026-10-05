@@ -3799,9 +3799,7 @@ const faceToFace=order.items.some(isFaceToFace);
 const starred=order.items.some(isStarredOrderRow);
 const reconciled=order.items.every(row=>isTruthy(getOnlineData(row,['對帳','已對帳'])));
 const noteText=[...new Set(order.items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交')))].join('｜');
-const depositMarkup=deposit===''?
-'<input class="orderDepositInput" data-money-input type="text" inputmode="decimal" placeholder="訂金" oninput="normalizeMoneyInput(this)" onblur="saveOrderPayment(this.closest(\'.groupCardMeta\'))">'
-:'$'+money(deposit);
+const depositMarkup='$'+money(deposit||0);
 const orderCard=`
 <div class="groupCard swipeOrderCard" ontouchstart="startOrderSwipe(event,this)" ontouchend="endOrderSwipe(event,this)"><button type="button" class="orderSwipeDelete orderDelete" onclick='deleteWholeOnlineOrder(${JSON.stringify(order.items.map(row=>row.row))},this)'>刪除整筆</button>
 <div class="groupCardCustomer">
@@ -3825,7 +3823,7 @@ ${order.items.map(row=>`
 <input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
 <button type="button" class="tag cargoTag" aria-label="修改商品狀態" aria-expanded="${activeCargoPickerRow===Number(row.row)}" title="點擊修改狀態" onclick="editCargoTag(${Number(row.row)})" style="background:${esc(cargoDisplay(row).color)};${cargoDisplay(row).opened?'color:#fff!important;background:#555!important':''}">${esc(cargoDisplay(row).text)}</button>
 <span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${String(getGroupName(row)||'').trim()?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(getGroupName(row)))})'>${esc(getGroupName(row))}</button>｜`:''}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
-<span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}${itemDeposits&&getOnlineData(row,['訂金'])!==''&&getOnlineData(row,['訂金'])!=null?`<span class="groupCardItemDeposit">(${money(numberValue(getOnlineData(row,['訂金'])))})</span>`:''}</span>
+<span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}${itemDeposits&&numberValue(getOnlineData(row,['訂金']))!==0?` <span class="groupCardItemDeposit">(${money(numberValue(getOnlineData(row,['訂金'])))})</span>`:''}</span>
 </div>
 ${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoChoiceMarkup(row)}</div>`:''}
 `).join('')}${noteText?`<div class="groupCardNote">備註：${esc(noteText)}</div>`:''}
@@ -3834,8 +3832,7 @@ ${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoCho
 ${singleCustomerView?'<button type="button" class="orderSelectAll" aria-label="全選此訂單商品" onclick="selectWholeOrder(this)">⇧</button>':`<span class="orderMetaDate">${esc(formatOnlineTime(latestOrderDate))}</span>`}
 ${openedWithoutPayment?'':paymentCommitted?`
 <span class="orderLast5">${esc(last5Display)}</span>
-<span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
-<button type="button" class="orderAddRemittance" onclick='openAddOnlineRemittance(${JSON.stringify(order.items.map(row=>row.row))},${JSON.stringify(payment)})'>＋匯款</button>
+${numberValue(deposit)!==0?`<span class="orderDeposit"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>`:''}
 `:`
 <select class="orderPayment" onchange="handleOrderPaymentChange(this)">
 <option value="中信" ${payment==='中信'?'selected':''}>中信</option>
@@ -3844,7 +3841,7 @@ ${openedWithoutPayment?'':paymentCommitted?`
 <option value="ipass" ${payment==='ipass'?'selected':''}>ipass</option>
 </select>
 <span class="orderLast5"><input class="orderLast5Input" aria-label="匯款後五碼" type="text" value="${esc(paymentLast5Value(last5))}" ${acceptsLast5?'':'disabled'} onblur="saveOrderPayment(this.closest('.groupCardMeta'))"></span>
-<span class="orderDeposit ${deposit===''?'hasDepositInput':''}"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>
+${numberValue(deposit)!==0?`<span class="orderDeposit"><span class="orderDepositLabel">訂金</span>${depositMarkup}</span>`:''}
 `}
 <button type="button" class="btn light reconcileButton ${reconciled?'isDone':''}" onclick="toggleOnlineReconciled(this)">${reconciled?'完成':'對帳'}</button>
 </div>
@@ -4041,48 +4038,15 @@ try{
 await api('saveOnlinePayment',{
 rows:JSON.stringify(rows),
 payment,
-last5:['中信','LB'].includes(payment)?last5:'',
-deposit:meta.querySelector('.orderDepositInput')?.value||''
+last5:['中信','LB'].includes(payment)?last5:''
 });
 const paymentHeader=findHeader(onlineHeaders,['付款方式','支付方式','付款','收款方式']);
 const last5Header=findHeader(onlineHeaders,['後五碼','匯款後五碼']);
-const depositHeader=findHeader(onlineHeaders,['訂金']);
-const depositValue=meta.querySelector('.orderDepositInput')?.value||'';
-onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=payment==='中信'?'中信'+last5:payment==='LB'?'LB '+last5:payment;if(depositHeader&&depositValue!=='')row.data[depositHeader]=depositValue;});
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=payment==='中信'?'中信'+last5:payment==='LB'?'LB '+last5:payment;});
 onlineLoadedAt=Date.now();saveOnlineSessionCache();
 }catch(e){
 alert('付款資料儲存失敗：'+e.message)
 }
-}
-function localDateValue(date=new Date()){
-const offset=date.getTimezoneOffset()*60000;
-return new Date(date.getTime()-offset).toISOString().slice(0,10)
-}
-function openAddOnlineRemittance(rows,payment){
-const selected=normalizePayment(payment)||'中信';
-document.getElementById('appDialog')?.remove();
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard" style="width:min(430px,100%)"><h3>匯款紀錄</h3><form data-rows="${esc(rows.join(','))}" onsubmit="submitAddOnlineRemittance(event)"><div class="remittanceFormRows"><div class="remittanceFirstRow"><select id="remittancePayment" aria-label="匯款方式" onchange="toggleRemittanceLast5()"><option value="中信" ${selected==='中信'?'selected':''}>中信</option><option value="LB" ${selected==='LB'?'selected':''}>LB</option><option value="LP" ${selected==='LP'?'selected':''}>LP</option><option value="ipass" ${selected==='ipass'?'selected':''}>ipass</option></select><input id="remittanceLast5" aria-label="後五碼" type="text" placeholder="後五碼"></div><input id="remittanceTime" aria-label="匯款日期" type="date" value="${localDateValue()}" required><input id="remittanceAmount" aria-label="匯款金額" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this)" required></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增匯款</button></div></form></div></div>`);
-toggleRemittanceLast5();document.getElementById('remittanceAmount')?.focus()
-}
-function toggleRemittanceLast5(){
-const payment=document.getElementById('remittancePayment')?.value||'';
-const input=document.getElementById('remittanceLast5');
-if(!input)return;
-input.disabled=!['中信','LB'].includes(payment);
-if(input.disabled)input.value=''
-}
-async function submitAddOnlineRemittance(event){
-event.preventDefault();
-const form=event.currentTarget,payment=document.getElementById('remittancePayment').value;
-const last5=document.getElementById('remittanceLast5').value.trim();
-const deposit=normalizeMoneyInput(document.getElementById('remittanceAmount'));
-
-if(!(Number(deposit)>0))return alert('請輸入匯款金額');
-const button=form.querySelector('[type=submit]');button.disabled=true;
-try{
-await api('saveOnlinePayment',{rows:JSON.stringify(form.dataset.rows.split(',').map(Number)),payment,last5,deposit,append:'true',remittanceTime:document.getElementById('remittanceTime').value});
-closeDialog();onlineLoadedAt=0;await loadOnline(true)
-}catch(e){alert('新增匯款失敗：'+e.message);button.disabled=false}
 }
 /* =========================================================
    出貨
