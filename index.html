@@ -1540,9 +1540,12 @@ function launchEditFooter(){
  const current=launchFooterText(launchCurrent);
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
-function launchBack(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
+function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 async function launchPersist(){if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
+const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
+function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
+function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){
  let toast=document.getElementById('launchCompletionToast');
  if(!toast){toast=document.createElement('div');toast.id='launchCompletionToast';toast.setAttribute('role','status');document.body.appendChild(toast);}
@@ -1552,8 +1555,10 @@ function launchCompletionToast(text,error=false){
 function launchSaveClick(){
  if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  const snapshot=structuredClone(launchCurrent),id=snapshot.id;
- const signature=group=>JSON.stringify({...group,revision:undefined});
+ const signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
+ launchSubmittedSignatures.set(id,savedSignature);
+ if(!launchPendingSaves||!launchSavedRevisions.has(id))launchSavedRevisions.set(id,snapshot.revision);
  const before=launchUndoStack.at(-1)?.group,parts=[];
  if(before){
   for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['canvasTitle','畫布標題'],['footer','底部文字'],['shipDate','出荷日期'],['domesticShipping','境內運']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
@@ -1561,16 +1566,16 @@ function launchSaveClick(){
  const completed=parts.length?parts.join('、'):'畫布修改';
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
-  if(launchCurrent?.id!==id)throw new Error('畫布已切換，請回到原團重新儲存');
-  snapshot.revision=launchCurrent.revision;
+  snapshot.revision=launchSavedRevisions.get(id);
   const d=await launchPost('launchSave',{group:snapshot});
+  launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   if(launchCurrent?.id===id){
    launchCurrent.revision=d.group.revision;
    if(signature(launchCurrent)===savedSignature){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');}
   }
   launchCompletionToast('已完成：'+completed);
- }).catch(error=>{launchDirty=true;launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
+ }).catch(error=>{launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id)launchDirty=true;launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
  return launchSaveTail;
 }
 function launchMove(status){launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});}
@@ -2127,7 +2132,7 @@ let storeSalesLoadedAt=0;
 let storeSalesPromise=null;
 let storeSalesDate=null;
 function tab(name,el){
-if(document.body.dataset.page==='launch'&&(launchBusy||(launchDirty&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
+if(document.body.dataset.page==='launch'&&(launchBusy||(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
 if(document.body.dataset.page==='launch'){launchDirty=false;launchLoad++;}
 
 const repeated=document.body.dataset.page===name;
