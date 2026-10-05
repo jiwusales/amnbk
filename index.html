@@ -1170,6 +1170,7 @@ body:not([data-page="online"]) #onlineBackButton{display:none}
 body[data-page="online"] .topStarButton{display:inline-flex}
 .orderStarButton{border:0;border-radius:5px;padding:2px 5px;font-size:12px;background:transparent;color:#CBC3BC;cursor:pointer}
 .orderStarButton.active{background:#E24C60;color:#fff}
+.topStarButton svg{width:16px;height:16px;display:block;fill:currentColor;flex:none}
 .orderStarButton,.topStarButton{font-weight:900;-webkit-text-stroke:.45px currentColor}
 </style>
 </head>
@@ -1191,7 +1192,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <div class="topActions">
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
-<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單">✱</button>
+<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 2h5v5.67l4.91-2.84 2.5 4.34L17 12l4.91 2.83-2.5 4.34-4.91-2.84V22h-5v-5.67l-4.91 2.84-2.5-4.34L7 12 2.09 9.17l2.5-4.34L9.5 7.67Z"/></svg></button>
 <button class="btn topDetailsButton" onclick="showSelectedOnlineDetails()">明細</button><button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
 </div>
 </div>
@@ -1851,8 +1852,18 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
+const apiReadActions=new Set(['authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship']);
+const apiPendingReads=new Map();
 function api(action,params={}){
-const retryable=[
+if(!apiReadActions.has(action))return apiRequest(action,params);
+const key=JSON.stringify([action,authToken,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
+if(apiPendingReads.has(key))return apiPendingReads.get(key);
+const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
+apiPendingReads.set(key,request);
+return request;
+}
+function apiRequest(action,params={}){
+const retryable=apiReadActions.has(action)||[
 'authWarmup',
 'authLogin',
 'authCheck',
@@ -1935,7 +1946,7 @@ q.toString();
 s.async=true;
 (document.head||document.body)
 .appendChild(s);
-const timeoutMs=action==='reorderInventory'?60000:['authLogin','authCheck','checkInventoryAvailability','inventory','launchList','launchGet','launchAuxSheet'].includes(action)?30000:15000;
+const timeoutMs=apiReadActions.has(action)?60000:action==='reorderInventory'?60000:['authLogin','checkInventoryAvailability'].includes(action)?30000:15000;
 timer=setTimeout(()=>{
 cleanup();
 if(retryable&&attempt<maxAttempts){
