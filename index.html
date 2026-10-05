@@ -1193,7 +1193,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <div class="topActions">
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
-<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+<button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單"><span aria-hidden="true">✱</span></button>
 <button class="btn topDetailsButton" onclick="showSelectedOnlineDetails()">明細</button><button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
 </div>
 </div>
@@ -4511,6 +4511,12 @@ syncTitleRowBack();
 #onlineBackButton[hidden],#launchHeaderBack[hidden]{display:none}
 .topStarButton{align-items:center;justify-content:center;padding:0!important;width:34px;height:34px;box-sizing:border-box;font-weight:400;-webkit-text-stroke:0;line-height:1}
 .topStarButton svg{width:18px;height:18px}
+</style>
+<style>
+.topStarButton{font-size:12px!important;font-weight:900!important;-webkit-text-stroke:.45px currentColor!important}
+.topStarButton span{display:block;line-height:1;transform:translateY(-1px)}
+#onlineBackButton,#launchHeaderBack,.titleRowBack{font-size:0!important}
+#onlineBackButton::after,#launchHeaderBack::after,.titleRowBack::after{content:'';display:block;width:20px;height:20px;background:currentColor;clip-path:polygon(40% 12%,0 50%,40% 88%,40% 62%,100% 62%,100% 38%,40% 38%);flex:none}
 </style>
 </body>
 </html>
