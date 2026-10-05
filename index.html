@@ -1269,7 +1269,16 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchStockToggle{flex:none;margin:0 0 0 auto}
 @media(max-width:850px){
   /* iOS 的瀏覽器列會縮小可視高度，讓商品視窗固定留在可視範圍內。 */
-  .launchDialog{position:fixed;top:calc(env(safe-area-inset-top) + 12px);right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);left:12px;width:auto;max-height:none;margin:0;padding:18px;overscroll-behavior:contain}
+  .launchDialog{position:fixed;inset:0;width:calc(100% - 24px);max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);height:auto;min-height:0;margin:auto;padding:16px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  .launchDialog .launchAllHeading{display:flex;flex-wrap:wrap;min-width:0}
+  .launchDialog .launchAllHeading h2{min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .launchDialog .launchAllActions{display:flex;flex-wrap:wrap;max-width:100%;margin-left:auto}
+  .launchDialog .launchPair{grid-template-columns:minmax(0,1fr)}
+  .launchDialog .launchAllInfo label{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px}
+  .launchDialog .launchAllInfo label>div{min-width:0}
+  .launchDialog input,.launchDialog textarea,.launchDialog select{min-width:0;max-width:100%;font-size:16px}
+  .launchDialog .launchAllGrid{min-width:0;grid-template-columns:minmax(0,1fr)}
+  .launchDialog .launchAllItem{min-width:0;box-sizing:border-box}
 }
 /* 卡片依每排數量等比縮放，取消固定四列。 */
 .launchCards{grid-template-rows:repeat(var(--launch-rows,4),var(--launch-row-height,16.72cqw))!important;grid-auto-rows:var(--launch-row-height,16.72cqw)!important;align-content:start!important}
