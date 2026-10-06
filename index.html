@@ -1355,7 +1355,15 @@ function launchPostText(g,ig=false){
  if(ig)return `${body}${tags?`\n\n${tags}`:''}`;
  return `#代購\n${body}\n-\n下單網址：${url}\n\n🛒購物步驟：\n👉🏻點下單網址\n➡️右上角➕進購物車（點圖可放大）\n➡️點購物車按確認結帳\n➡️轉跳到官方LINE按送出\n➡️等花花回覆後就完成ㄌ🎉`;
 }
-function launchTogglePostChannel(button){button.setAttribute('aria-pressed',String(button.getAttribute('aria-pressed')!=='true'));}
+function launchPostChannelState(){
+ try{return JSON.parse(localStorage.getItem('jiwu_post_channels_'+launchCurrent.id)||'{}');}catch(_){return {};}
+}
+function launchTogglePostChannel(button){
+ const selected=button.getAttribute('aria-pressed')!=='true',state=launchPostChannelState();
+ state[button.textContent.trim()]=selected;
+ button.setAttribute('aria-pressed',String(selected));
+ try{localStorage.setItem('jiwu_post_channels_'+launchCurrent.id,JSON.stringify(state));}catch(_){launchCompletionToast('無法保存平台標記，請確認瀏覽器儲存空間',true);}
+}
 function launchLineGroupText(g){return `${String(g.name||'').trim()}：${launchPostURL(g)}`;}
 async function launchCopyPostText(button,id){
  const input=document.getElementById(id),text=input?.value||'';if(!text)return;
@@ -1893,8 +1901,8 @@ function launchPNGDpi(buffer){
 }
 function launchExportMenu(){
  const action=`<button class="btn" type="button" onclick="launchExport('download')">${window.matchMedia('(max-width:850px)').matches?'儲存圖片':'下載圖片'}</button>`;
- const normal=launchPostText(launchCurrent),fb=normal.replace(/^#代購\r?\n/,''),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
- launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="false" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">FB <button class="launchPostCopy" type="button" aria-label="複製 FB 貼文" onclick="launchCopyPostText(this,'launchPostFB')">❏</button></div><textarea id="launchPostFB" class="launchPostText" readonly>${esc(fb)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
+ const normal=launchPostText(launchCurrent),tags=launchPostTags(launchCurrent.tags),fb=normal.replace(/^#代購\r?\n/,'')+(tags?'\n\n'+tags:''),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
+ launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="${launchPostChannelState()[name]===true}" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">FB <button class="launchPostCopy" type="button" aria-label="複製 FB 貼文" onclick="launchCopyPostText(this,'launchPostFB')">❏</button></div><textarea id="launchPostFB" class="launchPostText" readonly>${esc(fb)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
 }
 function launchDownloadPNG(blob,name){
  const url=URL.createObjectURL(blob),a=document.createElement('a');
