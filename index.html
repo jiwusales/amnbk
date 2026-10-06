@@ -1842,69 +1842,22 @@ function launchPNGDpi(buffer){
  while(offset<source.length){const view=new DataView(source.buffer,source.byteOffset+offset),length=view.getUint32(0),type=String.fromCharCode(...source.subarray(offset+4,offset+8));if(type!=='pHYs')parts.push(source.subarray(offset,offset+length+12));if(type==='IHDR'){parts.push(chunk);inserted=true;}offset+=length+12;}
  if(!inserted)throw new Error('PNG 格式錯誤');return new Blob(parts,{type:'image/png'});
 }
-let launchPreparedExport=null;
-// 在輸出選單開啟時先產生 PNG；儲存按鈕的點擊直接呼叫分享 API。
-async function launchPreparePNG(){
- const dialog=document.getElementById('launchDialog'),button=dialog?.querySelector('[data-launch-export-share]');
- if(!button||!launchCurrent)return;
- const prepared={dialog,group:launchCurrent,panel:launchPanelIndex,blob:null,name:(launchCurrent.name||'開團')+'.png',title:launchCurrent.name||'開團圖片',sharing:false};
- launchPreparedExport=prepared;button.disabled=true;button.textContent='圖片產生中…';
- try{
-  await launchSaveTail;
-  if(launchPreparedExport!==prepared||!dialog.open)return;
-  const blob=await launchBuildPNG();
-  if(launchPreparedExport!==prepared||!dialog.open||launchCurrent!==prepared.group||launchPanelIndex!==prepared.panel)return;
-  prepared.blob=blob;button.disabled=false;button.textContent='儲存圖片';
- }catch(error){
-  if(launchPreparedExport!==prepared||!dialog.open)return;
-  button.disabled=false;button.textContent='重試產生圖片';
-  launchNotice('圖片產生失敗：'+error.message);
- }
-}
-function launchShowExportImage(prepared){
- const url=URL.createObjectURL(prepared.blob);
- launchDialog(`<div class="launchExportHead"><strong>長按圖片，選擇儲存到相簿</strong><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><img src="${url}" alt="${esc(prepared.title)}" style="display:block;width:100%;height:auto;user-select:auto;-webkit-user-select:auto;-webkit-touch-callout:default"> <p class="launchHelp">1080 × 1350 PNG · 200 dpi</p>`);
- setTimeout(()=>URL.revokeObjectURL(url),300000);
- launchNotice('長按圖片即可儲存到相簿');
-}
-function launchSharePreparedPNG(){
- const prepared=launchPreparedExport;
- if(!prepared?.blob||prepared.dialog!==document.getElementById('launchDialog')||launchCurrent!==prepared.group||launchPanelIndex!==prepared.panel){launchPreparePNG();return;}
- if(prepared.sharing)return;
- const button=prepared.dialog.querySelector('[data-launch-export-share]');
- const reset=()=>{prepared.sharing=false;if(button?.isConnected){button.disabled=false;button.textContent='儲存圖片';}};
- const fallback=()=>{reset();launchShowExportImage(prepared);};
- prepared.sharing=true;if(button)button.disabled=true;
- try{
-  const file=new File([prepared.blob],prepared.name,{type:'image/png'});
-  if(typeof navigator.share!=='function'||!navigator.canShare?.({files:[file]})){fallback();return;}
-  // 此呼叫前不可 await、排程，或進入會等待儲存佇列的 launchRun。
-  const sharing=navigator.share({files:[file],title:prepared.title});
-  Promise.resolve(sharing).then(()=>{
-   reset();if(prepared.dialog===document.getElementById('launchDialog'))prepared.dialog.close();
-   launchNotice('已開啟分享選單，可選擇儲存到相簿');
-  }).catch(error=>{if(error.name==='AbortError'){reset();return;}fallback();});
- }catch(error){if(error.name==='AbortError'){reset();return;}fallback();}
-}
 function launchExportMenu(){
- const mobile=matchMedia('(max-width:600px)').matches,action=mobile?`<button class="btn" type="button" data-launch-export-share disabled onclick="launchExport('share')">圖片產生中…</button>`:`<button class="btn" type="button" onclick="launchExport('download')">下載PNG</button>`;
+ const action=`<button class="btn" type="button" onclick="launchExport('download')">下載圖片</button>`;
  const normal=launchPostText(launchCurrent),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
  launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="false" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
- if(mobile)launchPreparePNG();
 }
 function launchExport(mode){
  if(launchBusy)return;
- if(mode==='share'){launchSharePreparedPNG();return;}
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  document.getElementById('launchDialog').close();
  launchRun(async()=>{
-  launchNotice('正在產生 1080 × 1350 PNG…');
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
    const promise=launchBuildPNG();promise.catch(()=>{});
    try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
    launchNotice('已複製圖片（1080 × 1350 PNG）');
-  }else{const blob=await launchBuildPNG(),name=(launchCurrent.name||'開團')+'.png';const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);launchNotice('已下載 1080 × 1350 PNG · 200 dpi');}
+  }else{const blob=await launchBuildPNG(),name=(launchCurrent.name||'開團')+'.png';const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);launchNotice('已下載 1080 × 1350 PNG · 200 dpi');}
  });
 }
 </script>
