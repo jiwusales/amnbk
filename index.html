@@ -1394,9 +1394,9 @@ function launchMark(){launchDirty=true;const b=document.getElementById('launchSa
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty});if(launchUndoStack.length>30)launchUndoStack.shift();}
 function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
-function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
-function launchSaveListCache(status,groups){try{sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,JSON.stringify({savedAt:Date.now(),groups}));}catch(_){}}
-function launchClearListCache(){launchStates.forEach(status=>sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status));}
+function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||localStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
+function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
+function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status);localStorage.removeItem(LAUNCH_CACHE_PREFIX+status);});}
 async function launchPost(action,params){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:authToken,...params}),signal:controller.signal});const d=await r.json();if(d.ok===false){if(d.error==='登入已失效，請重新登入')showLogin();throw new Error(d.error);}return d;}
@@ -1426,9 +1426,10 @@ function launchSyncTopActions(){const host=document.querySelector('.topActions')
 function launchTopSave(){if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
- if(launchBusy)return;launchAuxPage=kind;launchAuxData=null;launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
+ if(launchBusy)return;launchAuxPage=kind;launchAuxData=readBackendSnapshot('launchAux_'+kind);launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
  document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入資料中…</div></div>';
- try{launchAuxData=await api('launchAuxSheet',{kind});if(document.body.dataset.page==='launch'&&launchAuxPage===kind)launchRenderAux();}catch(e){if(document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
+ if(launchAuxData)launchRenderAux();
+ try{launchAuxData=await api('launchAuxSheet',{kind});saveBackendSnapshot('launchAux_'+kind,launchAuxData);if(document.body.dataset.page==='launch'&&launchAuxPage===kind)launchRenderAux();}catch(e){if(document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
 }
 function launchRenderAux(){
  const data=launchAuxData||{entries:[],categories:[]},statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=['全部','未分類',...(data.categories||[]).filter(category=>category!=='未分類')],shown=(data.entries||[]).filter(entry=>launchWorkFilter==='全部'||(launchWorkFilter==='未分類'?!String(entry.category||'').trim():entry.category===launchWorkFilter)).sort(launchWorkNewestFirst),active=shown.filter(entry=>entry.status!=='下班！'),completed=shown.filter(entry=>entry.status==='下班！');
@@ -1453,7 +1454,7 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  const cached=readBackendSnapshot('launchGroup_'+id);
  if(cached&&document.body.dataset.page==='launch'){launchCurrent=cached;launchStatus=cached.status;launchRenderEditor();}
 
- try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
+ try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(cached){launchCompletionToast('目前顯示上次資料，連線恢復後可重新整理',true);return;}if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
 }
 function launchRenderList(){
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
@@ -2615,8 +2616,8 @@ try{if(rainy)localStorage.setItem(rainDayKey(date),'1');else localStorage.remove
 const button=document.querySelector('.rainToggle[data-rain-date="'+date+'"]');
 if(button)button.setAttribute('aria-pressed',String(rainy));
 }
-function readBackendSnapshot(key){try{return JSON.parse(sessionStorage.getItem('jiwu_snapshot_'+key)||'null');}catch(_){return null;}}
-function saveBackendSnapshot(key,data){try{sessionStorage.setItem('jiwu_snapshot_'+key,JSON.stringify(data));}catch(_){}}
+function readBackendSnapshot(key){try{return JSON.parse(sessionStorage.getItem('jiwu_snapshot_'+key)||localStorage.getItem('jiwu_snapshot_'+key)||'null');}catch(_){return null;}}
+function saveBackendSnapshot(key,data){try{const payload=JSON.stringify(data);sessionStorage.setItem('jiwu_snapshot_'+key,payload);localStorage.setItem('jiwu_snapshot_'+key,payload);}catch(_){}}
 async function renderStoreSales(force=false){
 if(!storeSalesData){const cached=readBackendSnapshot('storeSales');if(cached)storeSalesData=cached;}
 if(force)storeSalesDate=null;
@@ -3002,8 +3003,8 @@ if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結
 /* =========================================================
    線上
 ========================================================= */
-function restoreOnlineSessionCache(){if(onlineLoadedAt)return;try{const cached=JSON.parse(sessionStorage.getItem(ONLINE_SESSION_CACHE_KEY)||'null');if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;onlineRows=cached.rows;onlineHeaders=cached.headers;onlineLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
-function saveOnlineSessionCache(){try{sessionStorage.setItem(ONLINE_SESSION_CACHE_KEY,JSON.stringify({savedAt:Date.now(),headers:onlineHeaders,rows:onlineRows}));}catch(_){}}
+function restoreOnlineSessionCache(){if(onlineLoadedAt)return;try{const cached=JSON.parse(sessionStorage.getItem(ONLINE_SESSION_CACHE_KEY)||localStorage.getItem(ONLINE_SESSION_CACHE_KEY)||'null');if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;onlineRows=cached.rows;onlineHeaders=cached.headers;onlineLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
+function saveOnlineSessionCache(){try{const payload=JSON.stringify({savedAt:Date.now(),headers:onlineHeaders,rows:onlineRows});sessionStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);localStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);}catch(_){}}
 function renderOnline(){
 isCustomerView=false;
 isGroupView=false;
@@ -4191,10 +4192,10 @@ return isTruthy(row.data['已包貨'])&&Number.isFinite(time)&&now-time>=SHIP_HI
 }
 async function renderShip(force=false){
 if(!shipDataCache)shipDataCache=readBackendSnapshot('ship');
-if(shipPendingWrites)return;
 const app=document.getElementById('app');
 if(!document.getElementById('shipResult'))app.innerHTML='<div class="shipPage"><div id="shipResult"><div class="card"><div class="loading">載入中…</div></div></div></div>';
 if(shipDataCache)drawShip(shipDataCache);
+if(shipPendingWrites)return;
 if(!force&&shipDataCache&&Date.now()-shipLoadedAt<30000)return;
 if(shipLoadPromise)return shipLoadPromise;
 const revision=shipRevision;
@@ -4460,6 +4461,21 @@ calcChange();
 /* =========================================================
    啟動
 ========================================================= */
+let backendPreloadRunning=false;
+async function preloadBackendPages(){
+ if(backendPreloadRunning||!authToken||!navigator.onLine)return;
+ backendPreloadRunning=true;
+ const tasks=[()=>loadOnline(false,true),()=>loadInventory(false),
+  async()=>{const revision=shipRevision,data=await api('ship');if(revision!==shipRevision||shipPendingWrites)return;shipDataCache=data;shipLoadedAt=Date.now();saveBackendSnapshot('ship',data);if(document.body.dataset.page==='ship')drawShip(data);},
+  async()=>{const data=await api('storeSales');saveBackendSnapshot('storeSales',data);if(!storeSalesData){storeSalesData=data;storeSalesLoadedAt=Date.now();}},
+  ...launchStates.map(status=>async()=>{const data=await api('launchList',{status});launchSaveListCache(status,data.groups||[]);}),
+  async()=>{const data=await api('launchAuxSheet',{kind:'group-work'});saveBackendSnapshot('launchAux_group-work',data);}];
+ let next=0;
+ const worker=async()=>{while(next<tasks.length&&authToken){const task=tasks[next++];try{await task();}catch(_){}}};
+ try{await Promise.all([worker(),worker()]);}finally{backendPreloadRunning=false;}
+}
+window.addEventListener('online',()=>{preloadBackendPages();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&appStarted)preloadBackendPages();});
 function startApp(){
 if(appStarted)return;
 appStarted=true;
@@ -4468,6 +4484,7 @@ detectSalesperson();
 const savedTab=sessionStorage.getItem('jiwu_current_tab')||'launch';
 const targetBtn=document.getElementById('btn-'+savedTab)||document.getElementById('btn-store');
 tab(savedTab,targetBtn);
+setTimeout(preloadBackendPages,0);
 }
 function showLogin(){
 authToken='';
