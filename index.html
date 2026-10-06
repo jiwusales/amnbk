@@ -1390,7 +1390,7 @@ function launchCardSize(value){
 function launchProductColors(item){const name=launchDisplayName(item);return [...new Set(launchCurrent.items.filter(x=>launchDisplayName(x)===name).flatMap(x=>launchHexColors(x.size)))];}
 function launchThumb(g){const banner=g.images?.[0],items=g.items||[],visible=items.slice(0,28),more=(g.itemCount??items.length)>visible.length;return `<div class="launchThumb" aria-hidden="true"><div class="launchThumbPage" style="--launch-main:${launchColor(g.mainColor)}"><div class="launchThumbHead"><img src="${launchIcon}" alt="" loading="lazy" decoding="async">${esc(g.name)}</div>${banner?`<img class="launchThumbBanner" src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<div class="launchThumbBanner"></div>'}<div class="launchThumbItems">${visible.map(p=>`<div class="launchThumbCard">${p.images?.[0]?`<img src="${launchImage(p.images[0])}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<span class="launchThumbBlank"></span>'}<b>${esc(launchDisplayName(p))}</b><strong>${esc(p.price)}</strong><small>${esc(launchCardSize(p.size))}</small></div>`).join('')}${more?'<div class="launchThumbMore">更多商品</div>':''}</div><div class="launchThumbFooter">${esc(launchFooterText(g))}</div></div></div>`;}
 const launchThumbObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(!(node instanceof Element))return;const nested=node.querySelectorAll?[...node.querySelectorAll('img.launchThumbBanner')]:[],banners=[...(node.matches&&node.matches('img.launchThumbBanner')?[node]:[]),...nested];banners.forEach(img=>{img.loading='eager';img.fetchPriority='high';});})));launchThumbObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
-function launchMark(){launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='儲存 *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
+function launchMark(){launchQueuePNG();launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='儲存 *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty});if(launchUndoStack.length>30)launchUndoStack.shift();}
 function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
@@ -1480,7 +1480,7 @@ function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launc
 function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="date"></label><label>境內運<input name="domesticShipping" placeholder="$220同車平分（滿額免）"></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
 function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||''),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,domesticShipping,footer:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
 function launchApplyZoom(){const editor=document.querySelector('.launchEditor');if(editor)editor.style.zoom=String(launchZoom);}
-function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(launchFitCards);}
+function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});}
 function launchRenderEditor(){
  const g=launchCurrent;if(!g)return;launchSyncTopActions();
  if(!Array.isArray(g.panels)||!g.panels.length)g.panels=(g.images||[]).map(image=>({image,mainColor:g.mainColor}));if(!g.panels.length)g.panels=[{image:'',mainColor:g.mainColor||'#617AA6'}];
@@ -1492,7 +1492,7 @@ function launchRenderEditor(){
  const mobileTools=`<div class="launchMobileEditorTools" style="--launch-mobile-tools:6"><button class="btn light" onclick="launchAllProducts()">商品</button><button class="btn light" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" onclick="launchAds()">廣告</button><button class="btn light" onclick="launchGrab()">抓抓</button><button class="btn light" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button class="btn light" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>${panelTabs}</div>`;
  const desktopControls=`<div class="launchZoomControls" aria-label="畫布工具">${isDraft?'<button type="button" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>':''}<button type="button" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button type="button" aria-label="放大畫布" onclick="launchAdjustZoom(.1)">＋</button><button type="button" aria-label="縮小畫布" onclick="launchAdjustZoom(-.1)">－</button></div>`;
  document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''} ${g.status==='最新開團'?'launchLatestCanvas':''}"><div class="launchTools launchPrimaryTools"><span class="launchRightTools">${desktopPrimary}</span></div><div class="launchTools launchEditorTools launchDesktopEditorTools"><span class="launchEditorToolsLeft">${editActions}</span><span class="launchEditorToolsRight">${desktopSecondary}</span></div>${mobileTools}<p class="launchHelp">${esc(g.status)} · 畫布 ${launchPanelIndex+1}/${g.panels.length} · 1080 × 1350 直式 · 點商品卡編輯；長按後拖移排序。</p><div class="launchEditor"><div class="launchPaper" id="launchPaper" style="--launch-main:${launchColor(activePanel.mainColor||g.mainColor)}"><div class="launchHeading"><img src="${launchIcon}" alt="JIWU"><div id="launchTitleWrap" class="launchTitle"><button class="launchTitle" onclick="launchEditTitle()">${esc(g.name)}</button></div></div><div class="launchBanners">${banner?`<div class="launchBanner"><button class="launchBannerEdit" aria-label="修改首圖" onclick="launchBannerURLs()"><img src="${launchImage(banner)}" alt="開團 Banner" style="${launchBannerStyle(activePanel)}"></button><button class="launchBannerPosition" aria-label="調整首圖位置與大小" onclick="launchBannerPosition(event)">調整</button><button aria-label="移除 Banner" onclick="launchRemoveActiveBanner()">×</button></div>`:`<button class="launchBannerEmpty" onclick="launchBannerURLs()">貼上 Banner 網址</button>`}</div><div class="launchCards">${panelItems.map(({p,i})=>`<article class="launchProduct ${Number(p.scale||1)>=1.5?'launchResized':''}" data-launch-index="${i}" tabindex="0" role="button" aria-label="編輯 ${esc(launchDisplayName(p))}" onpointerdown="launchPressStart(event,'product',${i})" onclick="launchProductDialog(${i})" onkeydown="if(event.key==='Enter'&&event.target===this)launchProductDialog(${i})">${launchSafeURL(p.url)?`<a class="launchProductPictures" href="${launchImage(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(launchDisplayName(p))} 商品網址" onclick="event.stopPropagation()">`:'<div class="launchProductPictures">'}${p.images.length?p.images.slice(0,1).map(u=>`<img src="${launchImage(u)}" alt="${esc(launchDisplayName(p))}" decoding="async">`).join(''):'<span class="launchPlaceholder">商品圖片</span>'}${launchSafeURL(p.url)?'</a>':'</div>'}<h3>${esc(launchDisplayName(p))}</h3><p class="launchCode">${esc(p.code)}</p><p><b>$${esc(String(p.price||'').replace(/^\$/,''))}</b></p><p class="launchSize">${esc(launchCardSize(p.size))}</p></article>`).join('')}</div><button class="launchFooter" onclick="launchEditFooter()">官方LINE @jiwusales｜${esc(g.footer||'')}</button></div></div>${desktopControls}<p id="launchOverflowNote" class="launchHelp"></p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
- requestAnimationFrame(()=>{const title=document.querySelector('#launchTitleWrap .launchTitle');if(title)title.textContent=launchGroupTitle(launchCanvasTitle(g));const emptyBanner=document.querySelector('.launchBannerEmpty');if(emptyBanner)emptyBanner.textContent='貼上首圖網址';launchApplyCardPresentation();launchDraftOriginals();launchApplyZoom();launchFitCards();});
+ requestAnimationFrame(()=>{const title=document.querySelector('#launchTitleWrap .launchTitle');if(title)title.textContent=launchGroupTitle(launchCanvasTitle(g));const emptyBanner=document.querySelector('.launchBannerEmpty');if(emptyBanner)emptyBanner.textContent='貼上首圖網址';launchApplyCardPresentation();launchDraftOriginals();launchApplyZoom();launchFitCards();launchQueuePNG();});
 }
 function launchGroupTitle(name,canvas=true){
  let text=String(name||'').trim();
@@ -1790,31 +1790,68 @@ function launchFitCards(){
  const footer=paper.querySelector('.launchFooter');if(footer){footer.style.fontSize='';const min=12;while(footer.scrollWidth>footer.clientWidth&&parseFloat(getComputedStyle(footer).fontSize)>min){footer.style.fontSize=(parseFloat(getComputedStyle(footer).fontSize)-1)+'px';}}
  const note=document.getElementById('launchOverflowNote');if(note)note.textContent=hidden?`${hidden} 項商品未顯示於畫布，右下角已換成更多商品提示；可從「全部商品」編輯。`:'';
 }
-let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchResizeTimer);launchResizeTimer=setTimeout(launchFitCards,100);});
-document.fonts.ready.then(()=>launchFitCards());
-document.addEventListener('load',e=>{if(e.target instanceof HTMLImageElement&&e.target.closest('#launchPaper'))requestAnimationFrame(launchFitCards);},true);
+let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchResizeTimer);launchResizeTimer=setTimeout(()=>{launchFitCards();launchQueuePNG();},100);});
+document.fonts.ready.then(()=>{launchFitCards();launchQueuePNG();});
+document.addEventListener('load',e=>{if(e.target instanceof HTMLImageElement&&e.target.closest('#launchPaper'))requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});},true);
 window.addEventListener('beforeunload',e=>{if(launchDirty||launchBusy||launchPendingSaves){e.preventDefault();e.returnValue='';}});
 const launchExportImageCache=new Map();
-async function launchLoadImage(url){
+function launchLoadImage(url){
+ if(launchExportImageCache.has(url))return launchExportImageCache.get(url);
  const load=source=>new Promise((resolve,reject)=>{const im=new Image();im.crossOrigin='anonymous';const timer=setTimeout(()=>reject(new Error('圖片載入逾時')),20000);im.onload=()=>{clearTimeout(timer);resolve(im);};im.onerror=()=>{clearTimeout(timer);reject(new Error('圖片無法載入'));};im.src=source;});
- try{return await load(url);}catch(_){
-  if(launchExportImageCache.has(url))return load(await launchExportImageCache.get(url));
-  const pending=launchPost('launchImageProxy',{url}).then(d=>{if(!d.dataUrl)throw new Error('圖片代理未回傳資料');return d.dataUrl;});launchExportImageCache.set(url,pending);
-  try{return await load(await pending);}catch(e){launchExportImageCache.delete(url);throw new Error('圖片無法輸出：'+url+'（'+e.message+'）');}
- }
+ const pending=load(url).catch(async()=>{
+  const data=await launchPost('launchImageProxy',{url});
+  if(!data.dataUrl)throw new Error('圖片代理未回傳資料');
+  return load(data.dataUrl);
+ }).catch(error=>{if(launchExportImageCache.get(url)===pending)launchExportImageCache.delete(url);throw new Error('圖片無法輸出：'+url+'（'+error.message+'）');});
+ launchExportImageCache.set(url,pending);
+ // 限制已解碼圖片的記憶體用量。
+ if(launchExportImageCache.size>96)launchExportImageCache.delete(launchExportImageCache.keys().next().value);
+ return pending;
+}
+let launchPNGPrepared=null,launchPNGTimer;
+function launchPNGKey(paper){
+ const r=paper.getBoundingClientRect();
+ return JSON.stringify([launchCurrent,launchPanelIndex,r.width,r.height,launchZoom]);
+}
+function launchGetPNG(){
+ const paper=document.getElementById('launchPaper');
+ if(!paper||!launchCurrent)return Promise.reject(new Error('找不到畫布'));
+ const key=launchPNGKey(paper);
+ if(launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===key)return launchPNGPrepared.promise;
+ const prepared={paper,key,promise:null};
+ prepared.promise=launchBuildPNG().then(blob=>{
+  if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
+  prepared.blob=blob;return blob;
+ }).catch(error=>{if(launchPNGPrepared===prepared)launchPNGPrepared=null;throw error;});
+ launchPNGPrepared=prepared;
+ return prepared.promise;
+}
+function launchQueuePNG(){
+ clearTimeout(launchPNGTimer);
+ launchPNGTimer=setTimeout(()=>{
+  if(!document.getElementById('launchPaper')||!launchCurrent)return;
+  launchGetPNG().catch(()=>{});
+ },250);
 }
 async function launchBuildPNG(){
- await document.fonts.ready;const paper=document.getElementById('launchPaper');await Promise.all(Array.from(paper.images||paper.querySelectorAll('img')).map(im=>im.complete?Promise.resolve():im.decode().catch(()=>{})));
- const base=paper.getBoundingClientRect(),scale=1080/base.width;
+ const paper=document.getElementById('launchPaper'),group=launchCurrent,panelIndex=launchPanelIndex;
+ if(!paper||!group)throw new Error('找不到畫布');
+ const key=launchPNGKey(paper);
+ await document.fonts.ready;
+ // 同時載入所有可見圖片，共用快取及進行中的請求。
+ const imageElements=Array.from(paper.querySelectorAll('img')).filter(el=>{const card=el.closest('.launchProduct');return !card||(card.style.display!=='none'&&card.style.visibility!=='hidden');});
+ const images=await Promise.all(imageElements.map(el=>launchLoadImage(el.src)));
+ if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
  launchFitCards();
+ const base=paper.getBoundingClientRect(),scale=1080/base.width;
  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle='#F9F9FA';ctx.fillRect(0,0,1080,1350);
  const rect=el=>{const r=el.getBoundingClientRect();return {x:(r.left-base.left)*scale,y:(r.top-base.top)*scale,w:r.width*scale,h:r.height*scale};};
  const cssNumber=(el,name)=>parseFloat(getComputedStyle(el)[name])||0;
  const roundedRect=(r,radius)=>{const limit=Math.min(r.w,r.h)/2,rad=Math.min(Math.max(0,radius),limit);ctx.beginPath();ctx.moveTo(r.x+rad,r.y);ctx.arcTo(r.x+r.w,r.y,r.x+r.w,r.y+r.h,rad);ctx.arcTo(r.x+r.w,r.y+r.h,r.x,r.y+r.h,rad);ctx.arcTo(r.x,r.y+r.h,r.x,r.y,rad);ctx.arcTo(r.x,r.y,r.x+r.w,r.y,rad);ctx.closePath();};
  const drawBox=(el,{fill=true,stroke=true}={})=>{const r=rect(el),style=getComputedStyle(el),line=cssNumber(el,'borderTopWidth')*scale,radius=cssNumber(el,'borderTopLeftRadius')*scale;roundedRect(r,radius);if(fill){ctx.fillStyle=style.backgroundColor==='rgba(0, 0, 0, 0)'?'#fff':style.backgroundColor;ctx.fill();}if(stroke&&line){ctx.lineWidth=line;ctx.strokeStyle=style.borderTopColor;ctx.stroke();}return r;};
- const main=launchColor(launchCurrent.mainColor),header=paper.querySelector('.launchHeading');if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
+ const main=launchColor(group.mainColor),header=paper.querySelector('.launchHeading');if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchProduct')){if(el.style.display==='none'||el.style.visibility==='hidden')continue;drawBox(el);}
- for(const el of paper.querySelectorAll('img')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=await launchLoadImage(el.src),r=rect(el),isBanner=!!el.closest('.launchBanner');if(isBanner){const p=launchBannerSettings(launchCurrent?.panels?.[launchPanelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
+ for(const [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],r=rect(el),isBanner=!!el.closest('.launchBanner');if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
  for(const el of paper.querySelectorAll('.launchProductPictures .launchPlaceholder')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el);ctx.fillStyle='#edf0e8';ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchColorSwatch')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el),radius=Math.min(r.w,r.h)/2;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,radius,0,Math.PI*2);ctx.fillStyle=getComputedStyle(el).backgroundColor;ctx.fill();ctx.lineWidth=Math.max(1,scale);ctx.strokeStyle='#c7c7c7';ctx.stroke();}
  function drawText(el){
@@ -1824,7 +1861,7 @@ async function launchBuildPNG(){
   // 售價不可斷行；依卡片可用寬度微調字級，確保最後一位數不會落到下一行。
   if(isPrice){while(ctx.measureText(source).width>r.w&&size>4){size-=.25;ctx.font=`${style.fontWeight} ${size}px ${style.fontFamily}`;}}
   const line=Number.isFinite(cssLine)?cssLine*scale:size*1.3;ctx.fillStyle=style.color;ctx.textBaseline=isHeadingTitle?'middle':'top';
-  const lines=[];if(isPrice||isHeadingTitle)lines.push(source);else if(el.matches('.launchProduct h3'))lines.push(...launchNameLines(launchDisplayName(launchCurrent.items[Number(card.dataset.launchIndex)]),r.w,text=>ctx.measureText(text).width));else{let text='';for(const c of source){if(text&&ctx.measureText(text+c).width>r.w){lines.push(text);text=c;}else text+=c;}if(text||!lines.length)lines.push(text);}
+  const lines=[];if(isPrice||isHeadingTitle)lines.push(source);else if(el.matches('.launchProduct h3'))lines.push(...launchNameLines(launchDisplayName(group.items[Number(card.dataset.launchIndex)]),r.w,text=>ctx.measureText(text).width));else{let text='';for(const c of source){if(text&&ctx.measureText(text+c).width>r.w){lines.push(text);text=c;}else text+=c;}if(text||!lines.length)lines.push(text);}
   const align=style.textAlign,headingRect=isHeadingTitle?rect(header):null;lines.forEach((part,index)=>{const width=ctx.measureText(part).width;const x=align==='center'?r.x+(r.w-width)/2:align==='right'||align==='end'?r.x+r.w-width:r.x;const y=isHeadingTitle?headingRect.y+headingRect.h/2:r.y+index*line;ctx.fillText(part,x,y);if(style.textDecorationLine.includes('line-through')){ctx.beginPath();ctx.moveTo(x,y+size*.5);ctx.lineTo(x+width,y+size*.5);ctx.strokeStyle=style.color;ctx.stroke();}});
  }
  const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)drawText(title);
@@ -1847,17 +1884,28 @@ function launchExportMenu(){
  const normal=launchPostText(launchCurrent),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
  launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="false" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea>`);
 }
+function launchDownloadPNG(blob,name){
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),60000);
+ launchNotice('已下載 1080 × 1350 PNG · 200 dpi');
+}
 function launchExport(mode){
  if(launchBusy)return;
+ const paper=document.getElementById('launchPaper');
+ if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
+  document.getElementById('launchDialog').close();
+  launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
+ }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  document.getElementById('launchDialog').close();
  launchRun(async()=>{
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
-   const promise=launchBuildPNG();promise.catch(()=>{});
+   const promise=launchGetPNG();promise.catch(()=>{});
    try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
    launchNotice('已複製圖片（1080 × 1350 PNG）');
-  }else{const blob=await launchBuildPNG(),name=(launchCurrent.name||'開團')+'.png';const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);launchNotice('已下載 1080 × 1350 PNG · 200 dpi');}
+  }else{const blob=await launchGetPNG(),name=(launchCurrent.name||'開團')+'.png';launchDownloadPNG(blob,name);}
  });
 }
 </script>
