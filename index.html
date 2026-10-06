@@ -1794,12 +1794,24 @@ let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchR
 document.fonts.ready.then(()=>{launchFitCards();launchQueuePNG();});
 document.addEventListener('load',e=>{if(e.target instanceof HTMLImageElement&&e.target.closest('#launchPaper'))requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});},true);
 window.addEventListener('beforeunload',e=>{if(launchDirty||launchBusy||launchPendingSaves){e.preventDefault();e.returnValue='';}});
+const launchExportLocalImages=new Map([
+ ['https://baseec-img-mng.akamaized.net/images/item/origin/c28662c5c707903f15298b8848beac86.jpg','assets/export-images/c28662c5c707903f15298b8848beac86.jpg']
+]);
+function launchExportImageSource(url){
+ try{const u=new URL(url,document.baseURI),local=launchExportLocalImages.get(u.origin+u.pathname);return local?new URL(local,document.baseURI).href:u.href;}catch(_){return url;}
+}
+async function launchFetchExportImage(url){
+ // 先使用後台其他讀取功能採用的 JSONP，避免 Safari 收到非 JSON 回應。
+ let firstError;
+ try{const data=await api('launchImageProxy',{url});if(typeof data?.dataUrl==='string'&&data.dataUrl.startsWith('data:image/'))return data;firstError=new Error('圖片代理未回傳圖片');}catch(error){firstError=error;}
+ try{const data=await launchPost('launchImageProxy',{url});if(typeof data?.dataUrl!=='string'||!data.dataUrl.startsWith('data:image/'))throw new Error('圖片代理未回傳圖片');return data;}catch(_){throw new Error('圖片轉抓失敗：'+firstError.message);}
+}
 const launchExportImageCache=new Map();
 function launchLoadImage(url){
  if(launchExportImageCache.has(url))return launchExportImageCache.get(url);
  const load=source=>new Promise((resolve,reject)=>{const im=new Image();im.crossOrigin='anonymous';const timer=setTimeout(()=>reject(new Error('圖片載入逾時')),20000);im.onload=()=>{clearTimeout(timer);resolve(im);};im.onerror=()=>{clearTimeout(timer);reject(new Error('圖片無法載入'));};im.src=source;});
- const pending=load(url).catch(async()=>{
-  const data=await launchPost('launchImageProxy',{url});
+ const pending=load(launchExportImageSource(url)).catch(async()=>{
+  const data=await launchFetchExportImage(url);
   if(!data.dataUrl)throw new Error('圖片代理未回傳資料');
   return load(data.dataUrl);
  }).catch(error=>{if(launchExportImageCache.get(url)===pending)launchExportImageCache.delete(url);throw new Error('圖片無法輸出：'+url+'（'+error.message+'）');});
