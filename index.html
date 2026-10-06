@@ -1194,7 +1194,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
 <button class="btn green topFaceButton" onclick="showFaceToFaceView()">面交</button><button class="btn topStarButton" onclick="showStarredOrders()" aria-label="顯示標記訂單"><span aria-hidden="true">✱</span></button>
-<button class="btn topDetailsButton" onclick="showSelectedOnlineDetails()">明細</button><button class="btn topHomeButton" onclick="createSelectedShip()">寶寶回家</button>
+<button class="btn topDetailsButton" onclick="showSelectedOnlineDetails()">明細</button><button class="btn topHomeButton" onclick="createSelectedShip()"><span class="homeDesktopLabel">寶寶回家</span><span class="homeMobileLabel">回家</span></button>
 </div>
 </div>
 <div class="nav">
@@ -4574,6 +4574,18 @@ syncTitleRowBack();
 #launchCompletionToast{position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:10000;max-width:calc(100vw - 32px);box-sizing:border-box;border-radius:10px;background:#344b3c;color:white;padding:10px 16px;font-size:14px;box-shadow:0 4px 16px #0002;pointer-events:none;text-align:center}
 #launchCompletionToast[hidden]{display:none}
 #launchCompletionToast.isError{background:#b34242}
+</style>
+<style>
+.homeMobileLabel{display:none}
+.topActions .topStarButton{width:26px;height:26px;min-width:26px;min-height:26px;padding:0!important;flex:none;aspect-ratio:1}
+@media(max-width:850px){
+ .topActions .btn{height:26px;min-height:26px;box-sizing:border-box;align-items:center;justify-content:center;line-height:1}
+ #onlineBackButton,#launchHeaderBack,.launchDialog .titleRowBack{width:26px;height:26px;min-width:26px;min-height:26px;border-radius:6px}
+ #onlineBackButton::after,#launchHeaderBack::after,.titleRowBack::after{width:16px;height:16px}
+ .launchDialog .titleRowBack{top:13px}
+ .homeDesktopLabel{display:none}
+ .homeMobileLabel{display:inline}
+}
 </style>
 </body>
 </html>
