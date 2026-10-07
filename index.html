@@ -485,6 +485,8 @@ font-size:16px;
 font-weight:400
 }
 .customerNameTitle{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:1;border:0;padding:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.customerMessageButton{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;background:transparent;padding:2px 4px;font-size:16px;cursor:pointer;line-height:1.2}
+.customerMessageButton:disabled{opacity:.5;cursor:wait}
 .customerNameEditIcon{display:block;width:1em;height:1em;object-fit:contain;align-self:center;flex:0 0 1em}
 .faceOrderHead{background:var(--green);color:#fff}
 .faceOrderSection{margin:12px 0}
@@ -2104,6 +2106,37 @@ return String(v??'')
 .replaceAll('>','&gt;')
 .replaceAll('"','&quot;')
 .replaceAll("'",'&#39;')
+}
+function customerMessageButton(customer){
+return `<button type="button" class="customerMessageButton" data-customer="${esc(customer)}" onclick="openCustomerLineChat(this)" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="開啟官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">💬</button>`;
+}
+function validCustomerLineChat(value){
+return /^https:\/\/chat\.line\.biz\/U[0-9a-f]{32}\/chat\/U[0-9a-f]{32}\/?$/i.test(String(value||'').trim());
+}
+async function openCustomerLineChat(button){
+const customer=button.dataset.customer;
+// 先在點擊時開啟分頁，避免等待 API 後被瀏覽器封鎖。
+const tab=window.open('about:blank','_blank');if(tab)tab.opener=null;
+button.disabled=true;
+try{
+const result=await api('getCustomerLineChat',{customer});
+if(!result.url){if(tab)tab.close();editCustomerLineChat(customer);return;}
+if(!validCustomerLineChat(result.url))throw new Error('聊天網址格式不正確');
+if(tab)tab.location.replace(result.url);else showCustomerLineChatLink(customer,result.url);
+}catch(e){if(tab)tab.close();alert('無法開啟官賴對話：'+e.message);}
+finally{button.disabled=false;}
+}
+function showCustomerLineChatLink(customer,url){
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(400px,100%)"><h3>${esc(customer)} 的官賴對話</h3><div class="dialogActions"><button class="btn light" onclick="closeDialog()">關閉</button><button class="btn light" data-customer="${esc(customer)}" onclick="editCustomerLineChat(this.dataset.customer)">修改網址</button><a class="btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">開啟對話</a></div></div></div>`);
+}
+function editCustomerLineChat(customer){
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(440px,100%)"><h3>${esc(customer)} 的官賴對話</h3><form data-customer="${esc(customer)}" onsubmit="saveCustomerLineChat(event)"><p>在官賴管理後台開啟這位客人的對話，再貼上完整聊天網址。</p><input name="chatURL" type="url" placeholder="https://chat.line.biz/…/chat/…" aria-label="官賴聊天網址" required style="width:100%"><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button type="submit" class="btn">儲存</button></div></form></div></div>`);
+}
+async function saveCustomerLineChat(event){
+event.preventDefault();const form=event.currentTarget,url=form.elements.chatURL.value.trim(),customer=form.dataset.customer;
+if(!validCustomerLineChat(url)){alert('請貼上完整的官賴客人聊天網址');return;}
+const button=form.querySelector('[type=submit]');button.disabled=true;
+try{await api('saveCustomerLineChat',{customer,url});showCustomerLineChatLink(customer,url);}catch(e){alert('聊天網址儲存失敗：'+e.message);button.disabled=false;}
 }
 function money(v){
 return numberValue(v).toLocaleString()
@@ -3772,7 +3805,7 @@ value="${esc(x.row)}">
 ${
 customer
 ?
-`<button
+`${customerMessageButton(customer)}<button
 class="customerLink"
 onclick='openCustomer(${JSON.stringify(String(customer))})'>
 ${esc(customer)}
@@ -3923,7 +3956,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${esc(summary||'未填姓名')}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${esc(summary||'未填姓名')}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -3967,7 +4000,7 @@ ${singleCustomerView?`
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
-<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
+${customerMessageButton(order.customer)}<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${esc(order.customer)}
 </button>
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
@@ -4413,7 +4446,7 @@ style="margin-bottom:10px">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer+'：'+g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製名字與品項" title="複製名字＋品項">全</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製品項" title="複製品項">物</button>
 </span>
-<strong>${esc(customer)}</strong>
+${customerMessageButton(customer)}<strong>${esc(customer)}</strong>
 <span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
 </div>
 ${g.map(x=>`
