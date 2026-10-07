@@ -1984,7 +1984,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship']);
+const apiReadActions=new Set(['authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={}){
 if(!apiReadActions.has(action))return apiRequest(action,params);
@@ -2107,6 +2107,28 @@ return String(v??'')
 .replaceAll('"','&quot;')
 .replaceAll("'",'&#39;')
 }
+let customerChatSnapshot=null,customerChatSnapshotAt=0,customerChatWarmup=null,customerChatAuth='',customerChatResolved=new Map();
+function warmCustomerLineChats(force=false){
+if(customerChatAuth!==authToken){customerChatAuth=authToken;customerChatSnapshot=null;customerChatSnapshotAt=0;customerChatResolved.clear();}
+if(!authToken)return Promise.resolve();
+if(customerChatWarmup)return customerChatWarmup;
+if(!force&&customerChatSnapshot&&Date.now()-customerChatSnapshotAt<60000)return Promise.resolve();
+const token=authToken;
+customerChatWarmup=api('customerLineChatData').then(result=>{if(authToken===token){customerChatSnapshot=result.contacts||[];customerChatSnapshotAt=Date.now();customerChatResolved.clear();}}).catch(()=>{}).finally(()=>{customerChatWarmup=null;});
+return customerChatWarmup;
+}
+function cachedCustomerLineChat(customer){
+if(customerChatAuth!==authToken)return '';
+if(customerChatResolved.has(customer))return customerChatResolved.get(customer);
+if(!customerChatSnapshot)return '';
+let matches=customerChatSnapshot.filter(item=>(item.aliases||[]).includes(customer));
+const key=String(customer).normalize('NFKC').split(/[（(]/)[0].trim();
+if(!matches.length)matches=customerChatSnapshot.filter(item=>String(item.customer).normalize('NFKC').split(/[（(]/)[0].trim()===key);
+const urls=[...new Set(matches.map(item=>item.url.replace(/\/$/,'')))];
+return urls.length===1&&validCustomerLineChat(urls[0])?urls[0]:'';
+}
+function openCustomerChatURL(customer,url){const tab=window.open(url,'_blank');if(tab)tab.opener=null;else showCustomerLineChatLink(customer,url);}
+window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats(true);});
 function customerMessageButton(customer){
 return `<button type="button" class="customerMessageButton" data-customer="${esc(customer)}" onclick="openCustomerLineChat(this)" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="開啟官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">💬</button>`;
 }
@@ -2114,17 +2136,19 @@ function validCustomerLineChat(value){
 return /^https:\/\/chat\.line\.biz\/U[0-9a-f]{32}\/chat\/U[0-9a-f]{32}\/?$/i.test(String(value||'').trim());
 }
 async function openCustomerLineChat(button){
-const customer=button.dataset.customer;
-// 先在點擊時開啟分頁，避免等待 API 後被瀏覽器封鎖。
-const tab=window.open('about:blank','_blank');if(tab)tab.opener=null;
-button.disabled=true;
+const customer=button.dataset.customer,cached=cachedCustomerLineChat(customer);
+if(cached){openCustomerChatURL(customer,cached);return;}
+button.disabled=true;button.textContent='⏳';button.title='查詢對話中…';
 try{
+await warmCustomerLineChats();
+const ready=cachedCustomerLineChat(customer);
+if(ready){openCustomerChatURL(customer,ready);return;}
 const result=await api('getCustomerLineChat',{customer});
-if(!result.url){if(tab)tab.close();chooseCustomerLineChat(customer,result.candidates||[],result.ambiguous);return;}
+if(!result.url){chooseCustomerLineChat(customer,result.candidates||[],result.ambiguous);return;}
 if(!validCustomerLineChat(result.url))throw new Error('聊天網址格式不正確');
-if(tab)tab.location.replace(result.url);else showCustomerLineChatLink(customer,result.url);
-}catch(e){if(tab)tab.close();alert('無法開啟官賴對話：'+e.message);}
-finally{button.disabled=false;}
+customerChatResolved.set(customer,result.url);openCustomerChatURL(customer,result.url);
+}catch(e){alert('無法開啟官賴對話：'+e.message);}
+finally{button.disabled=false;button.textContent='💬';button.title='開啟官賴對話；右鍵可修改網址';}
 }
 function chooseCustomerLineChat(customer,candidates,ambiguous){
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(460px,100%)"><h3>${esc(customer)} 的官賴對話</h3><p>${ambiguous?'括號前姓名相同的對話有多位，請選擇正確客人。':'找不到相同姓名，請從相似名單選擇客人。'}</p><input id="customerChatSearch" placeholder="搜尋官賴顧客姓名" aria-label="搜尋官賴顧客姓名" style="width:100%"><div id="customerChatCandidates" style="max-height:300px;overflow:auto;margin:10px 0"></div><div class="dialogActions"><button class="btn light" onclick="closeDialog()">取消</button><button class="btn light" data-customer="${esc(customer)}" onclick="editCustomerLineChat(this.dataset.customer)">貼上聊天網址</button></div></div></div>`);
@@ -2133,7 +2157,7 @@ const render=()=>{
 list.replaceChildren();const key=search.value.normalize('NFKC').toLocaleLowerCase();
 const visible=candidates.filter(item=>item.customer.normalize('NFKC').toLocaleLowerCase().includes(key));
 if(!visible.length){list.textContent='尚無對應資料，請先在官賴外掛儲存客人。';return;}
-visible.slice(0,80).forEach(item=>{const button=document.createElement('button');button.type='button';button.className='btn light';button.style.cssText='display:block;width:100%;margin:6px 0;text-align:left';button.textContent=item.customer+(item.uid?' ｜ '+item.uid.slice(-6):'');button.onclick=async()=>{button.disabled=true;try{const result=await api('bindCustomerLineChat',{customer,url:item.url});showCustomerLineChatLink(customer,result.url);}catch(e){alert(e.message);button.disabled=false;}};list.append(button);});
+visible.slice(0,80).forEach(item=>{const button=document.createElement('button');button.type='button';button.className='btn light';button.style.cssText='display:block;width:100%;margin:6px 0;text-align:left';button.textContent=item.customer+(item.uid?' ｜ '+item.uid.slice(-6):'');button.onclick=async()=>{button.disabled=true;try{const result=await api('bindCustomerLineChat',{customer,url:item.url});customerChatResolved.set(customer,result.url);showCustomerLineChatLink(customer,result.url);}catch(e){alert(e.message);button.disabled=false;}};list.append(button);});
 };search.oninput=render;render();
 }
 function showCustomerLineChatLink(customer,url){
@@ -2146,7 +2170,7 @@ async function saveCustomerLineChat(event){
 event.preventDefault();const form=event.currentTarget,url=form.elements.chatURL.value.trim(),customer=form.dataset.customer;
 if(!validCustomerLineChat(url)){alert('請貼上完整的官賴客人聊天網址');return;}
 const button=form.querySelector('[type=submit]');button.disabled=true;
-try{await api('saveCustomerLineChat',{customer,url});showCustomerLineChatLink(customer,url);}catch(e){alert('聊天網址儲存失敗：'+e.message);button.disabled=false;}
+try{await api('saveCustomerLineChat',{customer,url});customerChatResolved.set(customer,url);showCustomerLineChatLink(customer,url);}catch(e){alert('聊天網址儲存失敗：'+e.message);button.disabled=false;}
 }
 function money(v){
 return numberValue(v).toLocaleString()
@@ -3135,6 +3159,7 @@ if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結
 function restoreOnlineSessionCache(){if(onlineLoadedAt)return;try{const cached=JSON.parse(sessionStorage.getItem(ONLINE_SESSION_CACHE_KEY)||localStorage.getItem(ONLINE_SESSION_CACHE_KEY)||'null');if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;onlineRows=cached.rows;onlineHeaders=cached.headers;onlineLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
 function saveOnlineSessionCache(){try{const payload=JSON.stringify({savedAt:Date.now(),headers:onlineHeaders,rows:onlineRows});sessionStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);localStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);}catch(_){}}
 function renderOnline(){
+warmCustomerLineChats();
 isCustomerView=false;
 isGroupView=false;
 restoreOnlineSessionCache();
@@ -4355,6 +4380,7 @@ shipLoadPromise=request;
 try{await request;}finally{if(shipLoadPromise===request)shipLoadPromise=null;}
 }
 function drawShip(source){
+warmCustomerLineChats();
 const d={...source,rows:(source.rows||[]).filter(row=>!shipRowExpired(row))};
 shipHeadersCache=
 d.headers||[];
