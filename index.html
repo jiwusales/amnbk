@@ -3538,7 +3538,7 @@ if(newName===oldName){closeDialog();return;}
 const customerRows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===oldName);const rows=customerRows.map(row=>Number(row.row)).filter(row=>row>=2);
 if(!rows.length){alert('找不到此顧客的訂單');return;}
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{await api('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);closeDialog();onlineSearchText=newName;saveOnlineSessionCache();showOrderCards(customerRows,newName);}
+try{await api('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);closeDialog();onlineSearchText=newName;saveOnlineSessionCache();const search=document.getElementById('customerSearch');if(search)search.value=newName;customerChatResolved.delete(oldName);customerChatResolved.delete(newName);showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===newName),newName);}
 catch(e){alert('顧客名稱修改失敗：'+e.message);button.disabled=false;}
 }
 function showOnlineCurrentView(){if(isCustomerView){openCustomer(document.getElementById('customerSearch')?.value||'');}else if(isGroupView){openGroup(document.getElementById('customerSearch')?.value||'');}else applyOnlineFilter();}
