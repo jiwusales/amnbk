@@ -2130,7 +2130,7 @@ q.toString();
 s.async=true;
 (document.head||document.body)
 .appendChild(s);
-const timeoutMs=apiReadActions.has(action)?60000:action==='reorderInventory'?60000:['authLogin','checkInventoryAvailability'].includes(action)?30000:15000;
+const timeoutMs=apiReadActions.has(action)?60000:['reorderInventory','purchaseEdit'].includes(action)?60000:['authLogin','checkInventoryAvailability'].includes(action)?30000:15000;
 timer=setTimeout(()=>{
 cleanup();
 if(retryable&&attempt<maxAttempts){
