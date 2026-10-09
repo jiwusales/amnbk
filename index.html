@@ -2385,19 +2385,37 @@ function purchaseOpenStatus(event,i){
 document.addEventListener('click',event=>{if(purchaseStatusMenu&&!purchaseStatusMenu.contains(event.target))purchaseCloseStatus();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')purchaseCloseStatus();});
 document.addEventListener('scroll',purchaseCloseStatus,true);
-async function purchaseSetStatus(i,statusIndex){
- const order=purchaseOrders[i];if(purchaseStatusPending.has(order.number))return;
- const previous=order.status||'未出貨',selected=purchaseStatuses[statusIndex];purchaseCloseStatus();if(!selected||selected[0]===previous)return;
- order.status=selected[0];purchaseStatusPending.add(order.number);
- const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;
- try{await api('purchaseEdit',{number:order.number,status:order.status,tracking:order.tracking||'',weight:order.weight||'',shipping:order.shipping||''});}
- catch(e){order.status=previous;purchaseMessage='狀態儲存失敗：'+e.message;}
- finally{purchaseStatusPending.delete(order.number);if(document.body.dataset.page==='purchase'){const y=app.scrollTop;renderPurchase();app.scrollTop=y;}}
+function purchaseSetStatus(i,statusIndex){
+ const order=purchaseOrders[i],selected=purchaseStatuses[statusIndex];purchaseCloseStatus();if(!selected||selected[0]===(order.status||'未出貨'))return;
+ purchaseQueueEdit(order,{status:selected[0]});
 }
 function purchaseEditDialog(i){
  const o=purchaseOrders[i];closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>編輯訂單 · ${esc(o.number)}</h3><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields"><label><span>官網訂單網址：</span><input name="orderURL" type="url" placeholder="https://chiikawamarket.jp/account/orders/…" value="${esc(o.orderURL||'')}"></label><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span>重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight||'')}"></label><label><span>運費：</span><input name="shipping" type="number" min="0" step="any" value="${esc(o.shipping||'')}"></label></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
 }
-async function purchaseSubmitEdit(event,i){event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;const order=purchaseOrders[i],fields=Object.fromEntries(new FormData(form));if(purchaseStatusPending.has(order.number)){document.getElementById('purchaseEditError').textContent='狀態儲存中，請稍後再儲存';button.disabled=false;return;}fields.status=order.status||'未出貨';try{await api('purchaseEdit',{number:order.number,...fields});Object.assign(order,fields);closeDialog();purchaseMessage='訂單已更新';const app=document.getElementById('app'),scroll=app.scrollTop;if(document.body.dataset.page==='purchase'){renderPurchase();app.scrollTop=scroll;}}catch(e){const error=document.getElementById('purchaseEditError');if(error)error.textContent=e.message;}finally{button.disabled=false;}}
+const purchaseEditQueue=new Map();let purchaseQueueRunning=false,purchaseQueueVersion=0,purchaseToastTimer=null;
+function purchaseEditToast(message,error=false){
+ clearTimeout(purchaseToastTimer);let toast=document.getElementById('purchaseEditToast');if(!toast){toast=document.createElement('div');toast.id='purchaseEditToast';toast.setAttribute('role','status');Object.assign(toast.style,{position:'fixed',top:'68px',left:'50%',transform:'translateX(-50%)',zIndex:'10000',background:'#344b3c',color:'#fff',padding:'10px 16px',borderRadius:'10px',maxWidth:'90vw',boxSizing:'border-box'});document.body.appendChild(toast);}
+ toast.textContent=message;if(error){const retry=document.createElement('button');retry.textContent='重試';retry.style.marginLeft='10px';retry.onclick=()=>purchaseDrainEdits();toast.appendChild(retry);}else purchaseToastTimer=setTimeout(()=>toast.remove(),2000);
+}
+function purchaseKeepPending(){try{sessionStorage.setItem('jiwu_purchase_pending_edits',JSON.stringify([...purchaseEditQueue]));}catch(_) {}}
+try{const saved=JSON.parse(sessionStorage.getItem('jiwu_purchase_pending_edits')||'[]');saved.forEach(([key,value])=>{purchaseEditQueue.set(key,value);purchaseQueueVersion=Math.max(purchaseQueueVersion,value.version||0);});}catch(_){}
+function purchaseOverlayPending(){purchaseOrders.forEach(o=>{const pending=purchaseEditQueue.get(o.number);if(pending)Object.assign(o,pending.fields);});}
+function purchaseQueueEdit(order,changed){
+ const fields={status:order.status||'未出貨',tracking:order.tracking||'',weight:order.weight??'',shipping:order.shipping??'',orderURL:order.orderURL||'',...changed};
+ Object.assign(order,fields);purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion});purchaseKeepPending();
+ if(document.body.dataset.page==='purchase'){const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;}purchaseDrainEdits();
+}
+async function purchaseDrainEdits(){
+ if(purchaseQueueRunning)return;purchaseQueueRunning=true;
+ try{while(purchaseEditQueue.size){const [number,pending]=purchaseEditQueue.entries().next().value;
+  try{await api('purchaseEdit',{number,...pending.fields});if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至試算表');}
+  catch(e){purchaseEditToast('未送出修改已保留：'+e.message,true);break;}
+ }}finally{purchaseQueueRunning=false;}
+}
+function purchaseSubmitEdit(event,i){
+ event.preventDefault();const fields=Object.fromEntries(new FormData(event.target)),order=purchaseOrders[i];
+ closeDialog();purchaseQueueEdit(order,fields);
+}
 function renderPurchase(){
  purchaseCloseStatus();
  const app=document.getElementById('app');
@@ -2406,7 +2424,7 @@ function renderPurchase(){
  app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='record'?'':'light'}" role="tab" aria-selected="${purchaseView==='record'}" onclick="purchaseChangeView('record')">訂單登記</button><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button>${purchaseView==='manage'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='record'?record:management}</div></section>`;
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
-async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
+async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseOverlayPending();purchaseDrainEdits();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
 function purchaseFetchURL(url){
  return new Promise((resolve,reject)=>{const id=crypto.randomUUID();const timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('讀取逾時，請在 Chrome 安裝／重新載入訂購狀態同步外掛，並登入官網；本機頁面需允許外掛存取檔案網址'));},45000);
  function receive(event){if(event.source!==window||event.data?.type!=='jiwuPurchaseImportResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.error)reject(new Error(event.data.error));else resolve(event.data.data);}
