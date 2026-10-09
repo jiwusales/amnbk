@@ -2321,6 +2321,14 @@ return 0
    TAB
 ========================================================= */
 
+function purchaseOrderSite(url){
+ try{const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;
+ const standard={'chiikawamarket.jp':'ちいかわマーケット','nagano-market.jp':'ナガノマーケット','chiikawamogumogu.shop':'ちいかわもぐもぐ本舗'};
+ if(standard[u.hostname]&&/^\/account\/orders\/[a-zA-Z0-9]+\/?$/.test(u.pathname))return {channel:standard[u.hostname],host:u.hostname,id:u.pathname.split('/').filter(Boolean).pop()};
+ if(u.hostname==='account.lilalamode-store.jp'&&/^\/orders\/\d+\/?$/.test(u.pathname))return {channel:'リララモード',host:u.hostname,id:u.pathname.split('/').filter(Boolean).pop()};
+ if(u.hostname==='chiikawa-pocket-goods-store.com'&&/^\/account\/orders\/detail\/?$/.test(u.pathname)&&/^\d+$/.test(u.searchParams.get('orderId')||''))return {channel:'ちいかわぽけっと',host:u.hostname,id:u.searchParams.get('orderId')};
+ }catch(_){}return null;
+}
 let purchaseOrdersLoaded=false;
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',purchaseMessage='',purchaseBusy=false;
 let purchaseSearch='';
@@ -2338,7 +2346,7 @@ function purchaseProductName(item){return [String(item.name||item.originalName||
 function purchaseChangeView(view){if(view==='record')view='manage';if(view!==purchaseView){purchaseSelectedDate='';purchaseDateCollapsed=false;}purchaseView=view;renderPurchase();purchaseLoadImages();document.getElementById('app').scrollTop=0;}
 function parsePurchaseText(text){
  text=String(text||'').normalize('NFKC');
- const number=(text.match(/(?:注文番号|訂單編號)\s*[:：]\s*([^\s]+)/)||[])[1]||'';
+ const number=(text.match(/(?:ご注文番号|注文番号|注文ID|オーダー番号|Order\s*(?:number|no\.?|#)|訂單編號)\s*[:：#]?\s*([A-Za-z0-9][A-Za-z0-9_-]*)/)||[])[1]||'';
  const d=text.match(/(?:ご注文日|注文日|訂購日期)\s*[:：]\s*(\d{4})[年\/-](\d{1,2})[月\/-](\d{1,2})/);
  const date=d?`${d[1]}-${d[2].padStart(2,'0')}-${d[3].padStart(2,'0')}`:'';
  const items=[];let last=0;const re=/(\d{8,14})\s+[¥￥]\s*([\d,]+)\s+(\d+)\s+[¥￥]\s*([\d,]+)/g;let m;
@@ -2397,7 +2405,7 @@ function purchaseSetStatus(i,statusIndex){
  purchaseQueueEdit(order,{status:selected[0]});
 }
 function purchaseEditDialog(i){
- const o=purchaseOrders[i];closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>編輯訂單 · ${esc(o.number)}</h3><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields"><label><span>官網訂單網址：</span><input name="orderURL" type="url" placeholder="https://chiikawamarket.jp/account/orders/…" value="${esc(o.orderURL||'')}"></label><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span>重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight||'')}"></label><label><span>運費：</span><input name="shipping" type="number" min="0" step="any" value="${esc(o.shipping||'')}"></label></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
+ const o=purchaseOrders[i];closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>編輯訂單 · ${esc(o.number)}</h3><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields"><label><span>官網訂單網址：</span><input name="orderURL" type="url" placeholder="貼上訂單網址" value="${esc(o.orderURL||'')}"></label><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span>重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight||'')}"></label><label><span>運費：</span><input name="shipping" type="number" min="0" step="any" value="${esc(o.shipping||'')}"></label></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
 }
 const purchaseEditQueue=new Map();let purchaseQueueRunning=false,purchaseQueueVersion=0,purchaseToastTimer=null;
 function purchaseEditToast(message,error=false){
@@ -2441,9 +2449,9 @@ function purchaseManualSubmit(event){
 function renderPurchase(){
  purchaseCloseStatus();
  const app=document.getElementById('app');
- const record=`<div style="display:flex;gap:8px"><input id="purchaseOrderURL" type="url" style="width:100%;box-sizing:border-box" placeholder="貼上訂單網址" value="${esc(purchaseOrderURL)}" oninput="purchaseURLInput(this.value)"><button type="button" class="btn" style="flex-shrink:0" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>日期 <input type="text" inputmode="numeric" placeholder="月/日" value="${esc(purchaseDateLabel(purchaseDraft.date))}" onchange="purchaseEditDate(this.value)"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}`;
+ const record=`<div style="display:flex;gap:8px"><input id="purchaseOrderURL" type="url" style="width:100%;box-sizing:border-box" placeholder="貼上訂單網址" value="${esc(purchaseOrderURL)}" oninput="purchaseURLInput(this.value)"><button type="button" class="btn" style="flex-shrink:0" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div><p id="purchaseURLSearching" role="status" aria-live="polite" ${purchaseBusy?'':'hidden'}>搜尋中⋯</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>日期 <input type="text" inputmode="numeric" placeholder="月/日" value="${esc(purchaseDateLabel(purchaseDraft.date))}" onchange="purchaseEditDate(this.value)"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}`;
  const management=`${purchaseDailyView()}`;
- app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button><button class="btn ${purchaseView==='packed'?'':'light'}" role="tab" aria-selected="${purchaseView==='packed'}" onclick="purchaseChangeView('packed')">打包區</button><button class="btn ${purchaseView==='arrived'?'':'light'}" role="tab" aria-selected="${purchaseView==='arrived'}" onclick="purchaseChangeView('arrived')">抵台區</button>${purchaseView!=='record'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='manage'?`<section class="purchaseRegistration">${record}</section>`:''}${management}</div></section>`;
+ app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button><button class="btn ${purchaseView==='packed'?'':'light'}" role="tab" aria-selected="${purchaseView==='packed'}" onclick="purchaseChangeView('packed')">打包區</button><button class="btn ${purchaseView==='arrived'?'':'light'}" role="tab" aria-selected="${purchaseView==='arrived'}" onclick="purchaseChangeView('arrived')">點貨區</button>${purchaseView!=='record'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='manage'?`<section class="purchaseRegistration">${record}</section>`:''}${management}</div></section>`;
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
 let purchaseLoadPromise=null,purchaseImageTicket=0;
@@ -2463,13 +2471,14 @@ async function purchaseLoadImages(){
 }
 let purchaseURLTimer=null,purchaseLastAutoURL='';
 function purchaseURLInput(value){
- purchaseOrderURL=value;clearTimeout(purchaseURLTimer);
+ purchaseOrderURL=value;clearTimeout(purchaseURLTimer);const indicator=document.getElementById('purchaseURLSearching');if(indicator)indicator.hidden=true;
  const url=value.trim();if(!url){purchaseLastAutoURL='';return;}
- if(!/^https:\/\/chiikawamarket\.jp\/account\/orders\/[a-zA-Z0-9]+\/?$/.test(url))return;
+ if(!purchaseOrderSite(url))return;
+ if(indicator)indicator.hidden=false;
  purchaseURLTimer=setTimeout(async()=>{
-  if(purchaseOrderURL.trim()!==url||purchaseLastAutoURL===url)return;
+  if(purchaseOrderURL.trim()!==url||purchaseLastAutoURL===url){if(indicator&&!purchaseBusy)indicator.hidden=true;return;}
   if(purchaseBusy){purchaseURLInput(purchaseOrderURL);return;}
-  purchaseLastAutoURL=url;await purchaseImport();if(!purchaseDraft)purchaseLastAutoURL='';
+  purchaseLastAutoURL=url;await purchaseImport();const current=document.getElementById('purchaseURLSearching');if(current)current.hidden=true;if(!purchaseDraft)purchaseLastAutoURL='';
  },500);
 }
 function purchaseFetchURL(url){
@@ -2477,7 +2486,7 @@ function purchaseFetchURL(url){
  function receive(event){if(event.source!==window||event.data?.type!=='jiwuPurchaseImportResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.error)reject(new Error(/sendMessage|Extension context invalidated/.test(event.data.error)?'外掛連線已失效，請重新載入「吉物訂購狀態同步」外掛，再重新整理後台頁面':event.data.error));else resolve(event.data.data);}
  window.addEventListener('message',receive);window.postMessage({type:'jiwuPurchaseImport',id,url},'*');});
 }
-async function purchaseImport(){if(purchaseBusy)return;try{purchaseBusy=true;const url=purchaseOrderURL.trim();if(!/^https:\/\/chiikawamarket\.jp\/account\/orders\/[a-zA-Z0-9]+\/?$/.test(url))throw new Error('請貼上正確的官網訂單網址');purchaseMessage='正在讀取官網訂單…';renderPurchase();const page=await purchaseFetchURL(url);const draft=parsePurchaseText(page.text);draft.orderURL=url;draft.status=page.state==='発送済'?'已出貨':'未出貨';if(page.number&&draft.number!==page.number)throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseOrdersLoaded=true;if(draft.number&&(purchaseRegistrationQueue.has(draft.number.trim())||purchaseOrders.some(o=>o.number===draft.number.trim()))){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對貨號…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))])});draft.items.forEach(x=>{x.candidates=r.matches[x.code]||[];if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
+async function purchaseImport(){if(purchaseBusy)return;try{purchaseBusy=true;const url=purchaseOrderURL.trim();if(!purchaseOrderSite(url))throw new Error('請貼上正確的官網訂單網址');purchaseMessage='正在讀取官網訂單…';renderPurchase();const page=await purchaseFetchURL(url);if(page.invalidAmounts)throw new Error('有商品金額無法辨識，請確認官網訂單內容');const draft=page.order?{...page.order,items:page.order.items.map(x=>({...x,name:'',candidates:[],choice:''}))}:parsePurchaseText(page.text);if(page.missingCodes)throw new Error('有商品未顯示貨號，無法完整比對，請改用手動登記');draft.channel=purchaseOrderSite(url).channel;draft.orderURL=url;draft.status=page.state==='発送済'?'已出貨':'未出貨';if(page.number&&draft.number!==page.number)throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseOrdersLoaded=true;if(draft.number&&(purchaseRegistrationQueue.has(draft.number.trim())||purchaseOrders.some(o=>o.number===draft.number.trim()))){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對貨號…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))])});draft.items.forEach(x=>{x.candidates=r.matches[x.code]||[];if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
 const purchaseRegistrationQueue=new Map();let purchaseRegistrationRunning=false;
 try{JSON.parse(sessionStorage.getItem('jiwu_purchase_pending_registrations')||'[]').forEach(([number,payload])=>purchaseRegistrationQueue.set(number,payload));}catch(_){}
 function purchaseKeepRegistrations(){try{sessionStorage.setItem('jiwu_purchase_pending_registrations',JSON.stringify([...purchaseRegistrationQueue]));}catch(_) {}}
