@@ -1241,8 +1241,10 @@ body[data-page="purchase"] #app.page{
 .purchaseOrderContent{height:36px;box-sizing:border-box;display:flex;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0}
 .purchaseOrderFooter{display:flex;align-items:center;min-height:28px;white-space:normal}
 .purchaseEditFields{display:flex;flex-direction:column;gap:12px}
+.purchaseEditFields label[hidden]{display:none}
 .purchaseEditFields label{display:flex;align-items:center;gap:8px}
 .purchaseEditFields label span{flex:0 0 auto}
+.purchaseEditFields select{flex:1;min-width:0;width:100%}
 .purchaseEditFields input{flex:1;min-width:0;width:100%}
 .purchaseOrderContent:last-child{border-bottom:0}
 .purchaseOrderContentHeading{display:flex;align-items:center;gap:10px;font-size:13px;line-height:20px;width:100%}
@@ -2038,7 +2040,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={}){
 if(!apiReadActions.has(action))return apiRequest(action,params);
@@ -2421,12 +2423,16 @@ function purchaseSubmitEdit(event,i){
  event.preventDefault();const fields=Object.fromEntries(new FormData(event.target)),order=purchaseOrders[i];
  closeDialog();purchaseQueueEdit(order,fields);
 }
-function purchaseManualDialog(){
- closeDialog();const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)"><div class="purchaseEditFields"><label><span>通路：</span><input name="channel" required></label><label><span>日期：</span><input name="date" type="date" value="${today}" required></label><label><span>訂單編號：</span><input name="number" required></label><label><span>金額：</span><input name="amount" type="number" min="0" step="any" required></label><label><span>名稱：</span><input name="name" required></label></div><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存訂單</button></div></form></div></div>`);
+function purchaseManualChannelChange(select){const field=document.getElementById('purchaseNewChannel');const other=select.value==='__other__';field.hidden=!other;document.getElementById('purchaseNewChannelLabel').hidden=!other;field.required=other;if(other)field.focus();}
+function purchaseManualChannelOptions(channels){return channels.map((name,i)=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')+'<option value="__other__">其他</option>';}
+async function purchaseManualDialog(){
+ closeDialog();const channels=[...new Set(purchaseOrders.map(o=>o.channel).filter(Boolean))];const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)"><div class="purchaseEditFields"><label><span>通路：</span><select id="purchaseChannelSelect" name="channelChoice" onchange="purchaseManualChannelChange(this)" required>${purchaseManualChannelOptions(channels)}</select></label><label id="purchaseNewChannelLabel" ${channels.length?'hidden':''}><span>新增通路：</span><input id="purchaseNewChannel" name="newChannel" placeholder="輸入通路名" ${channels.length?'hidden':'required'}></label><label><span>日期：</span><input name="date" type="date" value="${today}" required></label><label><span>單號：</span><input name="number" required></label><label><span>金額：</span><input name="amount" type="number" min="0" step="any" required></label><label><span>名稱：</span><input name="name" required></label></div><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存訂單</button></div></form></div></div>`);
+ const dialog=document.getElementById('appDialog');
+ try{const data=await api('purchaseChannels');if(document.getElementById('appDialog')!==dialog)return;const select=document.getElementById('purchaseChannelSelect'),previous=select.value;const all=[...new Set([...channels,...(data.channels||[])])];select.innerHTML=purchaseManualChannelOptions(all);if(previous==='__other__'||all.includes(previous))select.value=previous;const field=document.getElementById('purchaseNewChannel');field.hidden=select.value!=='__other__';document.getElementById('purchaseNewChannelLabel').hidden=field.hidden;field.required=select.value==='__other__';}catch(e){if(document.getElementById('appDialog')===dialog)document.getElementById('purchaseManualError').textContent='通路清單載入失敗，可選其他新增：'+e.message;}
 }
 function purchaseManualSubmit(event){
- event.preventDefault();const f=Object.fromEntries(new FormData(event.target)),number=f.number.trim(),name=f.name.trim(),channel=f.channel.trim(),amount=Number(f.amount);
+ event.preventDefault();const f=Object.fromEntries(new FormData(event.target)),number=f.number.trim(),name=f.name.trim(),channel=(f.channelChoice==='__other__'?f.newChannel:f.channelChoice||'').trim(),amount=Number(f.amount);
  if(purchaseBusy||!number||!name||!channel||!Number.isFinite(amount)||amount<0){document.getElementById('purchaseManualError').textContent='請確認輸入資料';return;}
  if(purchaseRegistrationQueue.has(number)||purchaseOrders.some(o=>o.number===number)){document.getElementById('purchaseManualError').textContent='已經登記過或正在背景登記';return;}
  purchaseDraft={number,date:f.date,channel,manual:true,status:'未出貨',items:[{code:'',name,role:'',originalName:'',quantity:1,price:amount,total:amount,source:'手動',group:'',candidates:[],choice:''}]};closeDialog();purchaseSave();
