@@ -1226,6 +1226,7 @@ body[data-page="purchase"] #app.page{
 }
 .purchasePage{max-width:1100px;min-width:0;margin:auto;padding:18px;box-sizing:border-box}
 .purchasePage>div{max-width:100%}
+.purchaseRegistration{margin-bottom:24px}
 .purchaseOrderCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--purchase-order-min,260px)),1fr));gap:12px;align-items:start}
 .purchaseOrderCard{min-width:0;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .purchaseOrderCard header{display:flex;align-items:center;gap:8px;background:#f5f5f5;padding:10px 12px}
@@ -1481,6 +1482,7 @@ async function launchFillFromInventory(){
 }
 async function launchRun(fn){if(launchBusy)return;launchBusy=true;document.querySelector('.launchPage')?.classList.add('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=true);try{await launchSaveTail;await fn();}catch(e){launchNotice(e.message);alert(e.message);}finally{launchBusy=false;document.querySelector('.launchPage')?.classList.remove('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=false);if(launchCurrent&&document.body.dataset.page==='launch')launchRenderEditor();}}
 async function renderLaunch(){
+ if(launchAuxPage)return launchOpenAux(launchAuxPage);
  const ticket=++launchLoad;launchCurrent=null;launchDirty=false;launchSyncTopActions();const openId=sessionStorage.getItem(LAUNCH_OPEN_KEY);
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
@@ -1491,10 +1493,10 @@ function launchSyncTopActions(){const host=document.querySelector('.topActions')
 function launchTopSave(){if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
- if(launchBusy)return;launchAuxPage=kind;launchAuxData=readBackendSnapshot('launchAux_'+kind);launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
+ if(launchBusy)return;const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=readBackendSnapshot('launchAux_'+kind);launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
  document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入資料中…</div></div>';
  if(launchAuxData)launchRenderAux();
- try{launchAuxData=await api('launchAuxSheet',{kind});saveBackendSnapshot('launchAux_'+kind,launchAuxData);if(document.body.dataset.page==='launch'&&launchAuxPage===kind)launchRenderAux();}catch(e){if(document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
+ try{const data=await api('launchAuxSheet',{kind});if(ticket!==launchLoad||launchAuxPage!==kind||document.body.dataset.page!=='launch')return;launchAuxData=data;saveBackendSnapshot('launchAux_'+kind,launchAuxData);if(document.body.dataset.page==='launch'&&launchAuxPage===kind)launchRenderAux();}catch(e){if(ticket===launchLoad&&launchAuxPage===kind&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="launchOpenAux('${kind}')">重試</button></div>`;}
 }
 function launchRenderAux(){
  const data=launchAuxData||{entries:[],categories:[]},statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=['全部','未分類',...(data.categories||[]).filter(category=>category!=='未分類')],shown=(data.entries||[]).filter(entry=>launchWorkFilter==='全部'||(launchWorkFilter==='未分類'?!String(entry.category||'').trim():entry.category===launchWorkFilter)).sort(launchWorkNewestFirst),active=shown.filter(entry=>entry.status!=='下班！'),completed=shown.filter(entry=>entry.status==='下班！');
@@ -2320,15 +2322,15 @@ return 0
 let purchaseOrdersLoaded=false;
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',purchaseMessage='',purchaseBusy=false;
 let purchaseSearch='';
-function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return q?purchaseOrders.filter(o=>[o.number,o.tracking,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q)):purchaseOrders;}
+function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?o.status==='已打包':purchaseView==='arrived'?o.status==='已到貨':!['已打包','已到貨'].includes(o.status);return area&&(!q||[o.number,o.tracking,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();const input=document.getElementById('purchaseSearch');if(input){input.focus();input.setSelectionRange(value.length,value.length);}}
-let purchaseView='record',purchaseSelectedDate='',purchaseDateCollapsed=false,purchaseRecordsCollapsed=false;
+let purchaseView='manage',purchaseSelectedDate='',purchaseDateCollapsed=false,purchaseRecordsCollapsed=false;
 function purchaseDateLabel(date){const m=String(date||'').match(/(?:\d{4}-)?(\d{1,2})[-\/](\d{1,2})/);return m?`${Number(m[1])}/${Number(m[2])}`:String(date||'');}
 function purchaseEditDate(value){const m=value.trim().match(/^(\d{1,2})[\/-](\d{1,2})$/);if(!m){purchaseDraft.date='';return;}const year=(purchaseDraft.date||'').slice(0,4)||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());purchaseDraft.date=`${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;}
 function purchaseToggleRecords(){purchaseRecordsCollapsed=!purchaseRecordsCollapsed;renderPurchase();}
 function purchaseSelectDate(date){purchaseDateCollapsed=date===purchaseSelectedDate?!purchaseDateCollapsed:false;purchaseSelectedDate=date;renderPurchase();}
 function purchaseProductName(item){return [String(item.name||item.originalName||'未找到').trim(),String(item.role||'').trim()].filter(Boolean).join(' ');}
-function purchaseChangeView(view){if(view==='manage'&&purchaseView!=='manage'){purchaseSelectedDate='';purchaseDateCollapsed=false;}purchaseView=view;renderPurchase();document.getElementById('app').scrollTop=0;}
+function purchaseChangeView(view){if(view==='record')view='manage';if(view!==purchaseView){purchaseSelectedDate='';purchaseDateCollapsed=false;}purchaseView=view;renderPurchase();document.getElementById('app').scrollTop=0;}
 function parsePurchaseText(text){
  text=String(text||'').normalize('NFKC');
  const number=(text.match(/(?:注文番号|訂單編號)\s*[:：]\s*([^\s]+)/)||[])[1]||'';
@@ -2355,11 +2357,11 @@ function purchaseDailyTotals(orders){
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
   });
  });
- return [...days.values()].sort((a,b)=>b.date.localeCompare(a.date)).map(day=>({date:day.date,orderCount:day.numbers.size,items:[...day.products.values()].map(x=>({...x,names:[...x.names],numbers:[...x.numbers]}))}));
+ return [...days.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(day=>({date:day.date,orderCount:day.numbers.size,items:[...day.products.values()].map(x=>({...x,names:[...x.names],numbers:[...x.numbers]}))}));
 }
 function purchaseDailyView(){
  const days=purchaseDailyTotals(purchaseFilteredOrders());if(!days.length)return '<p>尚無訂購紀錄</p>';
- if(!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate=days[0].date;purchaseDateCollapsed=false;}
+ if(!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate=days[days.length-1].date;purchaseDateCollapsed=false;}
  const day=days.find(x=>x.date===purchaseSelectedDate);
  return `<div class="purchaseDateTabs" role="tablist" aria-label="日期">${days.map(d=>`<button class="btn ${d.date===purchaseSelectedDate?'':'light'}" role="tab" aria-selected="${d.date===purchaseSelectedDate}" aria-expanded="${d.date===purchaseSelectedDate&&!purchaseDateCollapsed}" data-date="${esc(d.date)}" onclick="purchaseSelectDate(this.dataset.date)">${esc(purchaseDateLabel(d.date))} (${d.orderCount})</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">訂單紀錄 ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3>${purchaseRecordsCollapsed?'':purchaseOrderCards()}<div class="purchaseProductGrid">${day.items.map(x=>`<article class="purchaseProductCard">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.names.join(' / '))}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="purchaseNoImage" hidden>暫無圖片</div>`:'<div class="purchaseNoImage">暫無圖片</div>'}<strong class="purchaseQuantity">${x.quantity}</strong><div class="purchaseProductName">${x.names.map(esc).join('<br>')}</div></article>`).join('')}</div>`}`;
 }
@@ -2421,13 +2423,13 @@ function renderPurchase(){
  const app=document.getElementById('app');
  const record=`<input id="purchaseOrderURL" type="url" style="width:100%;box-sizing:border-box" placeholder="貼上官網訂單網址 https://chiikawamarket.jp/account/orders/…" value="${esc(purchaseOrderURL)}" oninput="purchaseOrderURL=this.value"><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>讀取與比對</button></p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>日期 <input type="text" inputmode="numeric" placeholder="月/日" value="${esc(purchaseDateLabel(purchaseDraft.date))}" onchange="purchaseEditDate(this.value)"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}`;
  const management=`${purchaseDailyView()}`;
- app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='record'?'':'light'}" role="tab" aria-selected="${purchaseView==='record'}" onclick="purchaseChangeView('record')">訂單登記</button><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button>${purchaseView==='manage'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='record'?record:management}</div></section>`;
+ app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button><button class="btn ${purchaseView==='packed'?'':'light'}" role="tab" aria-selected="${purchaseView==='packed'}" onclick="purchaseChangeView('packed')">打包區</button><button class="btn ${purchaseView==='arrived'?'':'light'}" role="tab" aria-selected="${purchaseView==='arrived'}" onclick="purchaseChangeView('arrived')">抵台區</button>${purchaseView!=='record'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='manage'?`<section class="purchaseRegistration">${record}</section>`:''}${management}</div></section>`;
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
 async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseOverlayPending();purchaseDrainEdits();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
 function purchaseFetchURL(url){
  return new Promise((resolve,reject)=>{const id=crypto.randomUUID();const timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('讀取逾時，請在 Chrome 安裝／重新載入訂購狀態同步外掛，並登入官網；本機頁面需允許外掛存取檔案網址'));},45000);
- function receive(event){if(event.source!==window||event.data?.type!=='jiwuPurchaseImportResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.error)reject(new Error(event.data.error));else resolve(event.data.data);}
+ function receive(event){if(event.source!==window||event.data?.type!=='jiwuPurchaseImportResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.error)reject(new Error(/sendMessage|Extension context invalidated/.test(event.data.error)?'外掛連線已失效，請重新載入「吉物訂購狀態同步」外掛，再重新整理後台頁面':event.data.error));else resolve(event.data.data);}
  window.addEventListener('message',receive);window.postMessage({type:'jiwuPurchaseImport',id,url},'*');});
 }
 async function purchaseImport(){if(purchaseBusy)return;try{purchaseBusy=true;const url=purchaseOrderURL.trim();if(!/^https:\/\/chiikawamarket\.jp\/account\/orders\/[a-zA-Z0-9]+\/?$/.test(url))throw new Error('請貼上正確的官網訂單網址');purchaseMessage='正在讀取官網訂單…';renderPurchase();const page=await purchaseFetchURL(url);const draft=parsePurchaseText(page.text);draft.orderURL=url;if(page.number&&draft.number!==page.number)throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseOrdersLoaded=true;if(draft.number&&purchaseOrders.some(o=>o.number===draft.number.trim())){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對貨號…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))])});draft.items.forEach(x=>{x.candidates=r.matches[x.code]||[];if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
