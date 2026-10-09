@@ -1212,6 +1212,23 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <button id="btn-ship" onclick="tab('ship',this)">出貨</button>
 </div>
 <div id="app" class="page"></div>
+<style>
+/* 訂購使用獨立捲動區，內容高度限制在頂列與底部導覽之間。 */
+body[data-page="purchase"] #app.page{
+ height:calc(100dvh - 122px);
+ box-sizing:border-box;
+ min-height:0;
+ overflow-y:auto;
+ overflow-x:hidden;
+ overscroll-behavior-y:contain;
+ -webkit-overflow-scrolling:touch;
+ padding-bottom:24px;
+}
+.purchasePage{max-width:1100px;min-width:0;margin:auto;padding:18px;box-sizing:border-box}
+.purchasePage>div{max-width:100%}
+.purchasePage select{max-width:320px}
+@media(max-width:600px){.purchasePage{padding:10px 0}.purchasePage select{max-width:240px}}
+</style>
 </div>
 <style>
 body[data-page="launch"] .launchAdd{display:inline-flex}.launchAdd{display:none}body[data-page="launch"],body[data-page="launch"] .page{background:#FAFAFB}.launchPage{max-width:none;margin:auto;padding:24px 50px 110px;background:#FAFAFB;min-height:calc(100vh - 82px);box-sizing:border-box}.launchTabs,.launchTools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}.launchTabs button[aria-selected="true"]{background:#344b3c;color:#fff}.launchGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:26px}.launchTile{min-width:0;text-align:center}.launchTile>button{width:100%;background:none;border:0;cursor:pointer}.launchThumb{overflow:hidden;border-radius:14px;background:#fff;border:1px solid #e2e5ef;aspect-ratio:4/5;display:flex;flex-direction:column}.launchThumbHead{height:17%;background:#617AA6;color:#fff;font-size:clamp(11px,1.25vw,18px);display:flex;align-items:center;padding:0 8%;text-align:left;font-weight:700}.launchThumbBanner{height:34%;background:#eff2f8;object-fit:cover;width:100%}.launchThumbItems{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;flex:1}.launchThumbItems img,.launchThumbBlank{min-width:0;width:100%;height:100%;object-fit:contain;background:#fff}.launchTile strong{display:block;margin:8px 0 3px;overflow-wrap:anywhere}.launchHandle{cursor:grab;touch-action:none;border:0;border-radius:8px;background:#eef0e9;padding:5px 12px}.launchDragging{opacity:.45}.launchEditor{max-width:1080px;margin:auto}.launchPaper{position:relative;background:#fff;aspect-ratio:4/5;width:100%;box-sizing:border-box;overflow:hidden;container-type:inline-size;border:1px solid #e1e1d6;box-shadow:0 8px 28px #27332212}.launchHeading{height:7.6cqw;background:#617AA6;display:flex;gap:2cqw;align-items:center;padding:0 4.63cqw;box-sizing:border-box}.launchHeading img{width:6.5cqw;height:5.5cqw;object-fit:contain}.launchTitle{font-size:4.17cqw;font-weight:600;color:#fff;flex:1;min-width:0;background:none;border:0;text-align:left;overflow-wrap:anywhere}.launchBanners{position:relative;height:31cqw;background:#eff2f8}.launchBanner{position:absolute;inset:0}.launchBanner img{width:100%;height:100%;object-fit:cover}.launchBanner button{position:absolute;right:8px;top:8px}.launchBannerEmpty{height:100%;display:grid;place-items:center;color:#617AA6;font-size:2cqw;border:2px dashed #bdc8df;box-sizing:border-box}.launchCards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1cqw;padding:3cqw 4.63cqw 10cqw;align-content:start}.launchProduct{width:auto;aspect-ratio:.8;position:relative;min-width:0;box-sizing:border-box;border:.27cqw solid #617AA6;border-radius:1.1cqw;background:#fff;font-size:1.35cqw;cursor:pointer;overflow:hidden;text-align:center;padding:.7cqw .6cqw}.launchMore{position:absolute;right:4.63%;bottom:6cqw;width:15%;aspect-ratio:.8;background:#fff;border:.27cqw solid #617AA6;border-radius:1.1cqw;display:flex;align-items:center;justify-content:center;text-align:center;padding:1%;box-sizing:border-box;color:#617AA6;font-size:1.7cqw;font-weight:700;line-height:1.55}.launchMore span{display:block}.launchProduct .launchHandle{position:absolute;right:.3cqw;top:.3cqw;z-index:2;font-size:0;inline-size:2cqw;block-size:2cqw;padding:0;border-radius:50%;background:#d9dce1}.launchProduct .launchHandle::after{content:'+';font-size:1.8cqw;color:#fff;line-height:2cqw}.launchProductPictures{display:flex;width:100%;height:57%;gap:2px}.launchProductPictures img{width:0;flex:1;object-fit:contain;min-width:0}.launchPlaceholder{display:grid;place-items:center;background:#f0f2f5;color:#9aa4b7;width:100%;height:100%}.launchProduct h3{font-size:1.05em;line-height:1.15;margin:.5em 0 .2em;overflow-wrap:anywhere}.launchProduct p{margin:.15em 0}.launchProduct a,.launchProduct del,.launchProduct .launchCode{display:none}.launchProduct b{color:#E9A077;font-size:1.25em}.launchFooter{position:absolute;bottom:2.5cqw;left:4.63cqw;right:4.63cqw;border:0;background:transparent;color:#617AA6;font-size:2.1cqw;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.launchNotice{min-height:26px;color:#4a634e;white-space:pre-line;margin:10px 0}.launchDialog{width:min(680px,94vw);max-height:90vh;overflow:auto;border:0;border-radius:18px;padding:24px;box-sizing:border-box}.launchDialog::backdrop{background:#0006}.launchDialog label{display:block;margin:12px 0}.launchDialog input,.launchDialog textarea{display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:8px;font:inherit}.launchDialog .launchPair{display:grid;grid-template-columns:1fr 1fr;gap:16px}.launchPage button:disabled{opacity:.5;cursor:wait}.launchHelp{font-size:13px;color:#73786a;margin:8px 0 18px}.launchTile:has(.launchHandle:focus-visible),.launchProduct:has(.launchHandle:focus-visible){outline:2px solid #6c8160}.launchBusy{pointer-events:none}.launchBusy .launchEditor,.launchBusy .launchGrid,.launchBusy .launchTabs{pointer-events:none;opacity:.7}
@@ -2267,11 +2284,50 @@ return 0
 ========================================================= */
 
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseMessage='',purchaseBusy=false;
+let purchaseOCRLoader=null,purchaseImageURL='';
+function purchaseOCRStatus(message){purchaseMessage=message;const status=document.getElementById('purchaseStatus');if(status)status.textContent=message;}
+function loadPurchaseOCR(){
+ if(window.Tesseract)return Promise.resolve(window.Tesseract);
+ if(purchaseOCRLoader)return purchaseOCRLoader;
+ purchaseOCRLoader=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');let timer;
+  const fail=()=>{clearTimeout(timer);script.remove();purchaseOCRLoader=null;reject(new Error('圖片辨識工具載入失敗，請確認網路後重試'));};
+  script.src='https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+  script.onload=()=>{clearTimeout(timer);if(window.Tesseract)resolve(window.Tesseract);else fail();};script.onerror=fail;
+  timer=setTimeout(fail,45000);document.head.appendChild(script);
+ });return purchaseOCRLoader;
+}
+function purchasePasteImage(event){
+ const files=[...(event.clipboardData?.items||[])].filter(x=>x.kind==='file'&&x.type.startsWith('image/')).map(x=>x.getAsFile()).filter(Boolean);
+ if(!files.length)return;event.preventDefault();purchaseReadImage(files[0]);
+}
+async function purchaseReadImage(file){
+ if(!file||purchaseBusy)return;
+ if(!['image/png','image/jpeg','image/webp','image/bmp'].includes(file.type)){purchaseOCRStatus('請使用 PNG、JPG、WebP 或 BMP 圖片');return;}
+ if(file.size>20*1024*1024){purchaseOCRStatus('圖片超過 20 MB，請縮小圖片後再試');return;}
+ purchaseBusy=true;purchaseOCRStatus('正在載入圖片辨識工具…');
+ if(purchaseImageURL)URL.revokeObjectURL(purchaseImageURL);purchaseImageURL=URL.createObjectURL(file);renderPurchase();
+ let worker;
+ try{
+  const OCR=await loadPurchaseOCR();
+  worker=await OCR.createWorker(['jpn','eng','chi_tra'],1,{logger:m=>{
+   const percent=Number.isFinite(m.progress)?` ${Math.round(m.progress*100)}%`:'';
+   purchaseOCRStatus(m.status==='recognizing text'?'正在辨識圖片…'+percent:'正在準備辨識…'+percent);
+  }});
+  const result=await worker.recognize(file);const text=String(result.data.text||'').trim();
+  if(!text)throw new Error('沒有辨識到文字，請改用清楚、完整的訂單截圖');
+  // 附加辨識文字，保留已貼上的內容；不修改已保存的訂單。
+  purchaseText=[purchaseText.trim(),text].filter(Boolean).join('\n\n');purchaseDraft=null;
+  purchaseOCRStatus('圖片辨識完成，請核對貨號、數量與金額，再按「辨識與比對」。');
+ }catch(e){purchaseOCRStatus('圖片辨識失敗：'+e.message);}
+ finally{if(worker)try{await worker.terminate();}catch(_){}purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}
+}
 function parsePurchaseText(text){
+ text=String(text||'').normalize('NFKC');
  const number=(text.match(/(?:注文番号|訂單編號)\s*[:：]\s*([^\s]+)/)||[])[1]||'';
  const d=text.match(/(?:ご注文日|注文日|訂購日期)\s*[:：]\s*(\d{4})[年\/-](\d{1,2})[月\/-](\d{1,2})/);
  const date=d?`${d[1]}-${d[2].padStart(2,'0')}-${d[3].padStart(2,'0')}`:'';
- const items=[];let last=0;const re=/(\d{8,14})[\t ]+[¥￥]\s*([\d,]+)[\t ]+(\d+)[\t ]+[¥￥]\s*([\d,]+)/g;let m;
+ const items=[];let last=0;const re=/(\d{8,14})\s+[¥￥]\s*([\d,]+)\s+(\d+)\s+[¥￥]\s*([\d,]+)/g;let m;
  while((m=re.exec(text))){const prefix=text.slice(last,m.index).trim().split(/\r?\n/).filter(x=>x.trim());const originalName=(prefix.pop()||'').trim();items.push({code:m[1],originalName,name:'',quantity:Number(m[3]),price:Number(m[2].replace(/,/g,'')),total:Number(m[4].replace(/,/g,'')),candidates:[],choice:''});last=re.lastIndex;}
  if(!items.length)throw new Error('沒有辨識到商品，請貼上包含商品コード、金額、数量與合計金額的訂單');
  return {number,date,items};
@@ -2299,7 +2355,7 @@ function purchaseDailyView(){
  return days.map(day=>`<section style="margin:18px 0"><h4>${esc(day.date)} · ${day.orderCount} 筆訂單</h4><div style="overflow:auto"><table class="launchAuxTable"><thead><tr><th>貨號</th><th>商品名稱</th><th>當日總數</th><th>日幣合計</th><th>訂單編號</th></tr></thead><tbody>${day.items.map(x=>`<tr><td>${esc(x.code)}</td><td>${x.names.map(esc).join('<br>')}</td><td><strong>${x.quantity}</strong></td><td>¥${x.total.toLocaleString()}</td><td>${x.numbers.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></section>`).join('')||'<p>尚無訂購紀錄</p>';
 }
 function renderPurchase(){
- const app=document.getElementById('app');app.innerHTML=`<section style="max-width:1100px;margin:auto;padding:18px"><h2>訂購</h2><textarea id="purchasePaste" rows="8" style="width:100%;box-sizing:border-box" placeholder="貼上完整採購訂單" oninput="purchaseText=this.value">${esc(purchaseText)}</textarea><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>辨識與比對</button> <button class="btn light" onclick="purchaseLoad()" ${purchaseBusy?'disabled':''}>重新載入紀錄</button></p><p role="status">${esc(purchaseMessage)}</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>訂購日期 <input type="date" value="${esc(purchaseDraft.date)}" oninput="purchaseDraft.date=this.value"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}<h3>每日訂購總數</h3>${purchaseDailyView()}<h3>各筆訂單記錄</h3>${purchaseOrders.map((o,i)=>`<details data-purchase-order="${i}"><summary>${esc(o.date)} · ${esc(o.number)} · ${o.items.length} 項 · ¥${o.items.reduce((n,x)=>n+x.total,0).toLocaleString()}</summary>${purchaseTable(o.items)}<button class="btn light" onclick="purchaseCopy(${i})">複製結果</button></details>`).join('')||'<p>尚無訂購紀錄</p>'}</section>`;
+ const app=document.getElementById('app');app.innerHTML=`<section class="purchasePage" onpaste="purchasePasteImage(event)"><h2>訂購</h2><p><label class="btn light" style="display:inline-block;cursor:pointer">選擇圖片<input type="file" accept="image/png,image/jpeg,image/webp,image/bmp" style="display:none" onchange="purchaseReadImage(this.files[0]);this.value=''"></label> 可直接貼上訂單截圖（⌘V／Ctrl+V）</p>${purchaseImageURL?`<img src="${esc(purchaseImageURL)}" alt="訂單截圖" style="display:block;max-width:100%;max-height:220px;object-fit:contain;margin-bottom:12px">`: ''}<textarea id="purchasePaste" rows="8" style="width:100%;box-sizing:border-box" placeholder="貼上完整採購訂單" oninput="purchaseText=this.value">${esc(purchaseText)}</textarea><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>辨識與比對</button> <button class="btn light" onclick="purchaseLoad()" ${purchaseBusy?'disabled':''}>重新載入紀錄</button></p><p id="purchaseStatus" role="status" aria-live="polite">${esc(purchaseMessage)}</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>訂購日期 <input type="date" value="${esc(purchaseDraft.date)}" oninput="purchaseDraft.date=this.value"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}<h3>每日訂購總數</h3>${purchaseDailyView()}<h3>各筆訂單記錄</h3>${purchaseOrders.map((o,i)=>`<details data-purchase-order="${i}"><summary>${esc(o.date)} · ${esc(o.number)} · ${o.items.length} 項 · ¥${o.items.reduce((n,x)=>n+x.total,0).toLocaleString()}</summary>${purchaseTable(o.items)}<button class="btn light" onclick="purchaseCopy(${i})">複製結果</button></details>`).join('')||'<p>尚無訂購紀錄</p>'}</section>`;
  if(!purchaseOrders.length&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
 async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseMessage='已載入訂購紀錄';}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
