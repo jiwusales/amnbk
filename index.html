@@ -2284,44 +2284,6 @@ return 0
 ========================================================= */
 
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseMessage='',purchaseBusy=false;
-let purchaseOCRLoader=null,purchaseImageURL='';
-function purchaseOCRStatus(message){purchaseMessage=message;const status=document.getElementById('purchaseStatus');if(status)status.textContent=message;}
-function loadPurchaseOCR(){
- if(window.Tesseract)return Promise.resolve(window.Tesseract);
- if(purchaseOCRLoader)return purchaseOCRLoader;
- purchaseOCRLoader=new Promise((resolve,reject)=>{
-  const script=document.createElement('script');let timer;
-  const fail=()=>{clearTimeout(timer);script.remove();purchaseOCRLoader=null;reject(new Error('圖片辨識工具載入失敗，請確認網路後重試'));};
-  script.src='https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
-  script.onload=()=>{clearTimeout(timer);if(window.Tesseract)resolve(window.Tesseract);else fail();};script.onerror=fail;
-  timer=setTimeout(fail,45000);document.head.appendChild(script);
- });return purchaseOCRLoader;
-}
-function purchasePasteImage(event){
- const files=[...(event.clipboardData?.items||[])].filter(x=>x.kind==='file'&&x.type.startsWith('image/')).map(x=>x.getAsFile()).filter(Boolean);
- if(!files.length)return;event.preventDefault();purchaseReadImage(files[0]);
-}
-async function purchaseReadImage(file){
- if(!file||purchaseBusy)return;
- if(!['image/png','image/jpeg','image/webp','image/bmp'].includes(file.type)){purchaseOCRStatus('請使用 PNG、JPG、WebP 或 BMP 圖片');return;}
- if(file.size>20*1024*1024){purchaseOCRStatus('圖片超過 20 MB，請縮小圖片後再試');return;}
- purchaseBusy=true;purchaseOCRStatus('正在載入圖片辨識工具…');
- if(purchaseImageURL)URL.revokeObjectURL(purchaseImageURL);purchaseImageURL=URL.createObjectURL(file);renderPurchase();
- let worker;
- try{
-  const OCR=await loadPurchaseOCR();
-  worker=await OCR.createWorker(['jpn','eng','chi_tra'],1,{logger:m=>{
-   const percent=Number.isFinite(m.progress)?` ${Math.round(m.progress*100)}%`:'';
-   purchaseOCRStatus(m.status==='recognizing text'?'正在辨識圖片…'+percent:'正在準備辨識…'+percent);
-  }});
-  const result=await worker.recognize(file);const text=String(result.data.text||'').trim();
-  if(!text)throw new Error('沒有辨識到文字，請改用清楚、完整的訂單截圖');
-  // 附加辨識文字，保留已貼上的內容；不修改已保存的訂單。
-  purchaseText=[purchaseText.trim(),text].filter(Boolean).join('\n\n');purchaseDraft=null;
-  purchaseOCRStatus('圖片辨識完成，請核對貨號、數量與金額，再按「辨識與比對」。');
- }catch(e){purchaseOCRStatus('圖片辨識失敗：'+e.message);}
- finally{if(worker)try{await worker.terminate();}catch(_){}purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}
-}
 function parsePurchaseText(text){
  text=String(text||'').normalize('NFKC');
  const number=(text.match(/(?:注文番号|訂單編號)\s*[:：]\s*([^\s]+)/)||[])[1]||'';
@@ -2355,7 +2317,7 @@ function purchaseDailyView(){
  return days.map(day=>`<section style="margin:18px 0"><h4>${esc(day.date)} · ${day.orderCount} 筆訂單</h4><div style="overflow:auto"><table class="launchAuxTable"><thead><tr><th>貨號</th><th>商品名稱</th><th>當日總數</th><th>日幣合計</th><th>訂單編號</th></tr></thead><tbody>${day.items.map(x=>`<tr><td>${esc(x.code)}</td><td>${x.names.map(esc).join('<br>')}</td><td><strong>${x.quantity}</strong></td><td>¥${x.total.toLocaleString()}</td><td>${x.numbers.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></section>`).join('')||'<p>尚無訂購紀錄</p>';
 }
 function renderPurchase(){
- const app=document.getElementById('app');app.innerHTML=`<section class="purchasePage" onpaste="purchasePasteImage(event)"><h2>訂購</h2><p><label class="btn light" style="display:inline-block;cursor:pointer">選擇圖片<input type="file" accept="image/png,image/jpeg,image/webp,image/bmp" style="display:none" onchange="purchaseReadImage(this.files[0]);this.value=''"></label> 可直接貼上訂單截圖（⌘V／Ctrl+V）</p>${purchaseImageURL?`<img src="${esc(purchaseImageURL)}" alt="訂單截圖" style="display:block;max-width:100%;max-height:220px;object-fit:contain;margin-bottom:12px">`: ''}<textarea id="purchasePaste" rows="8" style="width:100%;box-sizing:border-box" placeholder="貼上完整採購訂單" oninput="purchaseText=this.value">${esc(purchaseText)}</textarea><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>辨識與比對</button> <button class="btn light" onclick="purchaseLoad()" ${purchaseBusy?'disabled':''}>重新載入紀錄</button></p><p id="purchaseStatus" role="status" aria-live="polite">${esc(purchaseMessage)}</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>訂購日期 <input type="date" value="${esc(purchaseDraft.date)}" oninput="purchaseDraft.date=this.value"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}<h3>每日訂購總數</h3>${purchaseDailyView()}<h3>各筆訂單記錄</h3>${purchaseOrders.map((o,i)=>`<details data-purchase-order="${i}"><summary>${esc(o.date)} · ${esc(o.number)} · ${o.items.length} 項 · ¥${o.items.reduce((n,x)=>n+x.total,0).toLocaleString()}</summary>${purchaseTable(o.items)}<button class="btn light" onclick="purchaseCopy(${i})">複製結果</button></details>`).join('')||'<p>尚無訂購紀錄</p>'}</section>`;
+ const app=document.getElementById('app');app.innerHTML=`<section class="purchasePage"><h2>訂購</h2><textarea id="purchasePaste" rows="8" style="width:100%;box-sizing:border-box" placeholder="貼上完整採購訂單" oninput="purchaseText=this.value">${esc(purchaseText)}</textarea><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>辨識與比對</button> <button class="btn light" onclick="purchaseLoad()" ${purchaseBusy?'disabled':''}>重新載入紀錄</button></p><p id="purchaseStatus" role="status" aria-live="polite">${esc(purchaseMessage)}</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>訂購日期 <input type="date" value="${esc(purchaseDraft.date)}" oninput="purchaseDraft.date=this.value"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}<h3>每日訂購總數</h3>${purchaseDailyView()}<h3>各筆訂單記錄</h3>${purchaseOrders.map((o,i)=>`<details data-purchase-order="${i}"><summary>${esc(o.date)} · ${esc(o.number)} · ${o.items.length} 項 · ¥${o.items.reduce((n,x)=>n+x.total,0).toLocaleString()}</summary>${purchaseTable(o.items)}<button class="btn light" onclick="purchaseCopy(${i})">複製結果</button></details>`).join('')||'<p>尚無訂購紀錄</p>'}</section>`;
  if(!purchaseOrders.length&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
 async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseMessage='已載入訂購紀錄';}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
