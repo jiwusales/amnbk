@@ -2325,7 +2325,10 @@ let purchaseSearch='';
 function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?o.status==='已打包':purchaseView==='arrived'?o.status==='已到貨':!['已打包','已到貨'].includes(o.status);return area&&(!q||[o.number,o.tracking,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();const input=document.getElementById('purchaseSearch');if(input){input.focus();input.setSelectionRange(value.length,value.length);}}
 let purchaseView='manage',purchaseSelectedDate='',purchaseDateCollapsed=false,purchaseRecordsCollapsed=false;
-function purchaseDateLabel(date){const m=String(date||'').match(/(?:\d{4}-)?(\d{1,2})[-\/](\d{1,2})/);return m?`${Number(m[1])}/${Number(m[2])}`:String(date||'');}
+function purchaseDateParts(date){const m=String(date||'').trim().match(/^(?:(\d{4})[-\/])?(\d{1,2})[-\/](\d{1,2})/);return m?{year:Number(m[1])||Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date())),month:Number(m[2]),day:Number(m[3])}:null;}
+function purchaseDateLabel(date){const d=purchaseDateParts(date);return d?`${d.month}/${d.day}`:String(date||'');}
+function purchaseDateSortKey(date){const d=purchaseDateParts(date);return d?d.year*10000+d.month*100+d.day:0;}
+
 function purchaseEditDate(value){const m=value.trim().match(/^(\d{1,2})[\/-](\d{1,2})$/);if(!m){purchaseDraft.date='';return;}const year=(purchaseDraft.date||'').slice(0,4)||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());purchaseDraft.date=`${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;}
 function purchaseToggleRecords(){purchaseRecordsCollapsed=!purchaseRecordsCollapsed;renderPurchase();}
 function purchaseSelectDate(date){purchaseDateCollapsed=date===purchaseSelectedDate?!purchaseDateCollapsed:false;purchaseSelectedDate=date;renderPurchase();}
@@ -2357,7 +2360,7 @@ function purchaseDailyTotals(orders){
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
   });
  });
- return [...days.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(day=>({date:day.date,orderCount:day.numbers.size,items:[...day.products.values()].map(x=>({...x,names:[...x.names],numbers:[...x.numbers]}))}));
+ return [...days.values()].sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date)).map(day=>({date:day.date,orderCount:day.numbers.size,items:[...day.products.values()].map(x=>({...x,names:[...x.names],numbers:[...x.numbers]}))}));
 }
 function purchaseDailyView(){
  const days=purchaseDailyTotals(purchaseFilteredOrders());if(!days.length)return '<p>尚無訂購紀錄</p>';
