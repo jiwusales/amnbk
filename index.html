@@ -1226,21 +1226,26 @@ body[data-page="purchase"] #app.page{
 }
 .purchasePage{max-width:1100px;min-width:0;margin:auto;padding:18px;box-sizing:border-box}
 .purchasePage>div{max-width:100%}
-.purchaseOrderCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-.purchaseOrderCard{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.purchaseOrderCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--purchase-order-min,260px)),1fr));gap:12px;align-items:start}
+.purchaseOrderCard{min-width:0;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .purchaseOrderCard header{display:flex;align-items:center;gap:8px;background:#f5f5f5;padding:10px 12px}
+.purchaseOrderCard header>strong{min-width:0;white-space:nowrap;font-size:13px}
+.purchaseOrderCard header{overflow-x:auto}
+.purchaseStatusMenu{position:fixed;z-index:1100;display:flex;gap:8px;padding:8px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 3px 12px #0002}
+.purchaseStatusMenu button{width:30px;height:30px;border:0;border-radius:5px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;padding:0}
+.purchaseStatusMenu button[aria-pressed="true"]{outline:2px solid #555;outline-offset:2px}
 .purchaseBadge{border:0;cursor:pointer;flex-shrink:0;padding:0;display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:5px;color:#fff;font-weight:700}
 .purchaseEditButton{margin-left:auto;border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--main)}
-.purchaseOrderContents{height:156px;overflow-y:auto;overscroll-behavior:contain}
-.purchaseOrderContent{height:52px;box-sizing:border-box;padding:10px 12px;border-bottom:1px solid var(--border)}
+.purchaseOrderContents{height:108px;overflow-y:auto;overscroll-behavior:contain;padding:3px 13px;box-sizing:content-box}
+.purchaseOrderContent{height:36px;box-sizing:border-box;display:flex;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0}
 .purchaseOrderFooter{display:flex;align-items:center;min-height:28px;white-space:normal}
 .purchaseEditFields{display:flex;flex-direction:column;gap:12px}
 .purchaseEditFields label{display:flex;align-items:center;gap:8px}
 .purchaseEditFields label span{flex:0 0 auto}
 .purchaseEditFields input{flex:1;min-width:0;width:100%}
 .purchaseOrderContent:last-child{border-bottom:0}
-.purchaseOrderContentHeading{display:flex;align-items:center;gap:8px;font-size:13px}
-.purchaseOrderContentHeading strong{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.purchaseOrderContentHeading{display:flex;align-items:center;gap:10px;font-size:13px;line-height:20px;width:100%}
+.purchaseOrderContentHeading strong{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow-wrap:anywhere;font-weight:400}
 .purchaseOrderContentHeading>span{flex-shrink:0}
 .purchaseOrderContentMeta{margin-top:8px;color:#777;font-size:12px;overflow-wrap:anywhere}
 .purchaseOrderCard footer{padding:0 12px 12px;color:#777;font-size:12px;overflow-wrap:anywhere}
@@ -2361,30 +2366,47 @@ function purchaseDailyView(){
 
 const purchaseStatuses=[['未出貨','未','#E7625F'],['已出貨','出','#E2B850'],['集運中','集','#739C77'],['已打包','包','#556890'],['已到貨','台','#F4B9B8']];
 function purchaseOrderCards(){
- return `<div class="purchaseOrderCards">${purchaseOrders.map((o,i)=>{if(o.date!==purchaseSelectedDate||!purchaseFilteredOrders().includes(o))return '';const status=purchaseStatuses.find(s=>s[0]===o.status)||purchaseStatuses[0];const meta=[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}`).join('　');return `<article class="purchaseOrderCard"><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊切換狀態" aria-label="${status[0]}，點擊切換狀態" onclick="purchaseCycleStatus(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button><strong>${esc(o.number)}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header><div class="purchaseOrderContents">${o.items.map(x=>`<div class="purchaseOrderContent"><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong><span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
+ const visible=purchaseOrders.filter(o=>o.date===purchaseSelectedDate&&purchaseFilteredOrders().includes(o));
+ const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
+ let minWidth=260;
+ if(context){context.font='700 13px -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif';minWidth=Math.ceil(Math.max(260,...visible.map(o=>context.measureText(o.number).width+100)));}
+ return `<div class="purchaseOrderCards" style="--purchase-order-min:max(${minWidth}px,calc((100% - 36px)/4))">${purchaseOrders.map((o,i)=>{if(o.date!==purchaseSelectedDate||!purchaseFilteredOrders().includes(o))return '';const status=purchaseStatuses.find(s=>s[0]===o.status)||purchaseStatuses[0];const meta=[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}`).join('　');return `<article class="purchaseOrderCard"><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊選擇狀態" aria-label="${status[0]}，點擊選擇狀態" onclick="purchaseOpenStatus(event,${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button><strong>${esc(o.number)}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header><div class="purchaseOrderContents">${o.items.map(x=>`<div class="purchaseOrderContent"><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong><span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
 }
 const purchaseStatusPending=new Set();
-async function purchaseCycleStatus(i){
+let purchaseStatusMenu=null;
+function purchaseCloseStatus(){if(purchaseStatusMenu){purchaseStatusMenu.remove();purchaseStatusMenu=null;}}
+function purchaseOpenStatus(event,i){
+ event.stopPropagation();const order=purchaseOrders[i];if(purchaseStatusPending.has(order.number))return;
+ const same=purchaseStatusMenu&&purchaseStatusMenu.dataset.number===order.number;purchaseCloseStatus();if(same)return;
+ const menu=document.createElement('div');menu.className='purchaseStatusMenu';menu.dataset.number=order.number;menu.setAttribute('role','group');menu.setAttribute('aria-label','選擇訂購狀態');
+ menu.innerHTML=purchaseStatuses.map((s,j)=>`<button type="button" style="background:${s[2]}" title="${s[0]}" aria-label="${s[0]}" aria-pressed="${(order.status||'未出貨')===s[0]}" onclick="purchaseSetStatus(${i},${j})">${s[1]}</button>`).join('');
+ document.body.appendChild(menu);purchaseStatusMenu=menu;const rect=event.currentTarget.getBoundingClientRect();const width=menu.offsetWidth,height=menu.offsetHeight;menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-width-8))+'px';menu.style.top=(rect.bottom+height+8>window.innerHeight?Math.max(8,rect.top-height-6):rect.bottom+6)+'px';
+}
+document.addEventListener('click',event=>{if(purchaseStatusMenu&&!purchaseStatusMenu.contains(event.target))purchaseCloseStatus();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')purchaseCloseStatus();});
+document.addEventListener('scroll',purchaseCloseStatus,true);
+async function purchaseSetStatus(i,statusIndex){
  const order=purchaseOrders[i];if(purchaseStatusPending.has(order.number))return;
- const previous=order.status||'未出貨',index=purchaseStatuses.findIndex(s=>s[0]===previous);
- order.status=purchaseStatuses[(index+1)%purchaseStatuses.length][0];purchaseStatusPending.add(order.number);
+ const previous=order.status||'未出貨',selected=purchaseStatuses[statusIndex];purchaseCloseStatus();if(!selected||selected[0]===previous)return;
+ order.status=selected[0];purchaseStatusPending.add(order.number);
  const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;
  try{await api('purchaseEdit',{number:order.number,status:order.status,tracking:order.tracking||'',weight:order.weight||'',shipping:order.shipping||''});}
  catch(e){order.status=previous;purchaseMessage='狀態儲存失敗：'+e.message;}
  finally{purchaseStatusPending.delete(order.number);if(document.body.dataset.page==='purchase'){const y=app.scrollTop;renderPurchase();app.scrollTop=y;}}
 }
 function purchaseEditDialog(i){
- const o=purchaseOrders[i];closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>編輯訂單 · ${esc(o.number)}</h3><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields"><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span>重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight||'')}"></label><label><span>運費：</span><input name="shipping" type="number" min="0" step="any" value="${esc(o.shipping||'')}"></label></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
+ const o=purchaseOrders[i];closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>編輯訂單 · ${esc(o.number)}</h3><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields"><label><span>官網訂單網址：</span><input name="orderURL" type="url" placeholder="https://chiikawamarket.jp/account/orders/…" value="${esc(o.orderURL||'')}"></label><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span>重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight||'')}"></label><label><span>運費：</span><input name="shipping" type="number" min="0" step="any" value="${esc(o.shipping||'')}"></label></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存</button></div></form></div></div>`);
 }
 async function purchaseSubmitEdit(event,i){event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;const order=purchaseOrders[i],fields=Object.fromEntries(new FormData(form));if(purchaseStatusPending.has(order.number)){document.getElementById('purchaseEditError').textContent='狀態儲存中，請稍後再儲存';button.disabled=false;return;}fields.status=order.status||'未出貨';try{await api('purchaseEdit',{number:order.number,...fields});Object.assign(order,fields);closeDialog();purchaseMessage='訂單已更新';const app=document.getElementById('app'),scroll=app.scrollTop;if(document.body.dataset.page==='purchase'){renderPurchase();app.scrollTop=scroll;}}catch(e){const error=document.getElementById('purchaseEditError');if(error)error.textContent=e.message;}finally{button.disabled=false;}}
 function renderPurchase(){
+ purchaseCloseStatus();
  const app=document.getElementById('app');
  const record=`<textarea id="purchasePaste" rows="8" style="width:100%;box-sizing:border-box" placeholder="貼上完整採購訂單" oninput="purchaseText=this.value">${esc(purchaseText)}</textarea><p><button class="btn" onclick="purchaseImport()" ${purchaseBusy?'disabled':''}>辨識與比對</button></p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>日期 <input type="text" inputmode="numeric" placeholder="月/日" value="${esc(purchaseDateLabel(purchaseDraft.date))}" onchange="purchaseEditDate(this.value)"></label>${purchaseTable(purchaseDraft.items,true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>儲存訂單</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}`;
- const management=`<p><button class="btn light" onclick="purchaseLoad()" ${purchaseBusy?'disabled':''}>重新載入紀錄</button></p>${purchaseDailyView()}`;
+ const management=`${purchaseDailyView()}`;
  app.innerHTML=`<section class="purchasePage"><div role="tablist" aria-label="訂購頁面" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"><button class="btn ${purchaseView==='record'?'':'light'}" role="tab" aria-selected="${purchaseView==='record'}" onclick="purchaseChangeView('record')">訂單登記</button><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')">訂單管理</button>${purchaseView==='manage'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱" placeholder="訂單編號、出貨單號、商品名稱" value="${esc(purchaseSearch)}" oninput="purchaseRunSearch(this.value)" style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='record'?record:management}</div></section>`;
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
-async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseSelectedDate='';purchaseDateCollapsed=false;purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
+async function purchaseLoad(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();}
 async function purchaseImport(){if(purchaseBusy)return;try{const draft=parsePurchaseText(purchaseText);purchaseBusy=true;purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseOrdersLoaded=true;if(draft.number&&purchaseOrders.some(o=>o.number===draft.number.trim())){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對貨號…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))])});draft.items.forEach(x=>{x.candidates=r.matches[x.code]||[];if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
 async function purchaseSave(){if(purchaseBusy||!purchaseDraft)return;const savedNumber=purchaseDraft.number.trim();try{if(!purchaseDraft.number.trim()||!purchaseDraft.date)throw new Error('請填寫訂單編號與日期');if(purchaseDraft.items.some(x=>x.candidates.length>0&&x.choice===''))throw new Error('請選擇商品對應資料');purchaseBusy=true;purchaseMessage='儲存中…';renderPurchase();const items=purchaseDraft.items.map(({candidates,choice,...x})=>x);const r=await api('purchaseSave',{number:savedNumber,date:purchaseDraft.date,items:JSON.stringify(items)});const list=await api('purchaseOrders');purchaseOrders=list.orders||[];purchaseMessage=r.existing?'已經登記過':'訂單已儲存';purchaseDraft=null;purchaseText='';purchaseView='manage';purchaseDateCollapsed=false;purchaseSelectedDate=list.orders?.find(o=>o.number===savedNumber)?.date||'';}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase'){renderPurchase();const d=document.querySelector('#app details[data-purchase-order]');if(d&&purchaseMessage.includes('已存在')){const target=purchaseOrders.findIndex(x=>x.number===savedNumber);if(target>=0)document.querySelector(`#app details[data-purchase-order="${target}"]`).open=true;}}}}
 async function purchaseCopy(index){const o=Number.isInteger(index)?purchaseOrders[index]:purchaseDraft;if(!o)return;try{await navigator.clipboard.writeText([`訂單編號：${o.number}`,`日期：${purchaseDateLabel(o.date)}`,'貨號\t名稱\t數量\t日幣單價\t日幣小計',...o.items.map(x=>[x.code,purchaseProductName(x),x.quantity,x.price,x.total].join('\t'))].join('\n'));purchaseMessage='已複製';}catch(e){purchaseMessage='無法複製：'+e.message;}renderPurchase();}
