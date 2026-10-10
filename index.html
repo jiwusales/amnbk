@@ -1593,10 +1593,15 @@ function launchRenderEditor(){
 }
 function launchGroupTitle(name,canvas=true){
  let text=String(name||'').trim();
+ if(canvas&&/⛔[\uFE0E\uFE0F]?/.test(text)){
+  text=text.replace(/(?:收單\s*)?⛔[\uFE0E\uFE0F]?\s*(?:收單\s*)?/g,'收單 ');
+  return text.replace(/^(\d{4})\s*收單\s*/,'$1收單 ').trim();
+ }
  if(/^\d{4}\s*收單\s*⛔(?:️)?/.test(text))text=text.replace(/^(\d{4})\s*收單\s*⛔(?:️)?\s*/,'$1收單⛔️ ');
  else text=text.replace(/^(\d{4})(?!\s)/,'$1 ');
- return canvas?text.replace(/⛔(?:️)?/g,''):text;
+ return text;
 }
+
 function launchCanvasTitle(g){return String(g?.canvasTitle||'').trim()||String(g?.name||'').trim();}
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchSelectPanel(index){launchPanelIndex=index;launchRenderEditor();}
