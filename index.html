@@ -1181,8 +1181,9 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <style>
 .purchaseManualTop,.purchaseManualItem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;margin-bottom:12px}
 .purchaseManualItem{grid-template-columns:minmax(0,1fr) minmax(85px,28%) auto}
-.purchaseManualTop label,.purchaseManualItem label{min-width:0;display:flex;gap:6px;align-items:center}
-.purchaseManualTop input,.purchaseManualItem input{min-width:0;width:100%;box-sizing:border-box}
+.purchaseManualTop label,.purchaseManualItem label{min-width:0;display:flex;gap:6px;align-items:center;white-space:nowrap}
+.purchaseManualTop label>span,.purchaseManualItem label>span{flex:0 0 auto;white-space:nowrap}
+.purchaseManualTop input,.purchaseManualItem input{flex:1 1 0;min-width:0;width:0;box-sizing:border-box}
 @media(max-width:850px){body input,body select,body textarea{font-size:16px!important}.purchaseManualTop{gap:8px}.purchaseManualItem{gap:6px;grid-template-columns:minmax(0,1fr) 90px auto}}
 </style>
 </head>
@@ -2563,12 +2564,12 @@ function purchaseSubmitEdit(event,i){
  event.preventDefault();const fields=Object.fromEntries(new FormData(event.target)),order=purchaseOrders[i];
  closeDialog();purchaseQueueEdit(order,fields);
 }
-function purchaseManualItemMarkup(){return `<div class="purchaseManualItem"><label>名稱：<input class="purchaseManualName" required></label><label>金額：<input class="purchaseManualAmount" type="number" min="0" step="any" oninput="purchaseManualTotal()" required></label><button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
+function purchaseManualItemMarkup(){return `<div class="purchaseManualItem"><label><span>名稱：</span><input class="purchaseManualName" required></label><label><span>金額：</span><input class="purchaseManualAmount" type="number" min="0" step="any" oninput="purchaseManualTotal()" required></label><button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
 function purchaseManualAdd(){document.getElementById('purchaseManualItems').insertAdjacentHTML('beforeend',purchaseManualItemMarkup());}
 function purchaseManualTotal(){const sum=[...document.querySelectorAll('.purchaseManualAmount')].reduce((total,input)=>total+(Number(input.value)||0),0);document.getElementById('purchaseManualTotal').textContent='總額 $'+money(sum);}
 async function purchaseManualDialog(){
  closeDialog();const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)"><div class="purchaseManualTop"><label>日期：<input name="date" inputmode="numeric" placeholder="月/日" value="${purchaseDateLabel(today)}" data-year="${today.slice(0,4)}" required></label><label>通路：<input name="channel" placeholder="輸入通路" list="purchaseChannelSuggestions" required></label></div>${purchaseChannelList([...purchaseOrders.map(o=>o.channel),...Object.values(purchaseSiteChannels)])}<div class="purchaseEditFields"><label><span>單號：</span><input name="number" required></label></div><div id="purchaseManualItems">${purchaseManualItemMarkup()}</div><button type="button" class="btn light" onclick="purchaseManualAdd()">＋新增商品</button><strong id="purchaseManualTotal" style="display:block;margin-top:12px">總額 $0</strong><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">儲存訂單</button></div></form></div></div>`);
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)"><div class="purchaseManualTop"><label><span>日期：</span><input name="date" inputmode="numeric" placeholder="月/日" value="${purchaseDateLabel(today)}" data-year="${today.slice(0,4)}" required></label><label><span>通路：</span><input name="channel" placeholder="輸入通路" list="purchaseChannelSuggestions" required></label></div>${purchaseChannelList([...purchaseOrders.map(o=>o.channel),...Object.values(purchaseSiteChannels)])}<div class="purchaseEditFields"><label><span>單號：</span><input name="number" required></label></div><div id="purchaseManualItems">${purchaseManualItemMarkup()}</div><button type="button" class="btn light" onclick="purchaseManualAdd()">＋新增商品</button><strong id="purchaseManualTotal" style="display:block;margin-top:12px">總額 $0</strong><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  await purchaseLoadChannels(document.getElementById('appDialog'));
 }
 function purchaseManualSubmit(event){
