@@ -2482,12 +2482,12 @@ function purchaseDailyTotals(orders){
  orders.forEach(order=>{
   if(!days.has(order.date))days.set(order.date,{date:order.date,numbers:new Set(),products:new Map()});
   const day=days.get(order.date);day.numbers.add(order.number);
-  (order.items||[]).forEach(item=>{
+  (order.items||[]).forEach((item,itemIndex)=>{
    const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
    // 無貨號的舊資料逐項保留，避免把不同商品合在一起。
    const key=code||Symbol();
-   if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set()});
-   const product=day.products.get(key);product.names.add(purchaseProductName(item));if(!product.image&&/^https?:\/\//i.test(item.image||''))product.image=item.image;
+   if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
+   const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image&&/^https?:\/\//i.test(item.image||''))product.image=item.image;
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
   });
  });
@@ -2502,7 +2502,24 @@ function purchaseDailyView(){
  const days=purchaseDailyTotals(purchaseFilteredOrders());if(!days.length)return '<p>尚無訂購紀錄</p>';
  if(!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate=days[days.length-1].date;purchaseDateCollapsed=false;}
  const day=days.find(x=>x.date===purchaseSelectedDate);
- return `<div class="purchaseDateTabs" aria-label="月份">${[...new Set(days.map(d=>purchaseMonthKey(d.date)))].map(month=>`<button type="button" class="btn ${month===purchaseMonthKey(purchaseSelectedDate)?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${esc(month.replace('-','/'))}</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">訂單紀錄 ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3>${purchaseRecordsCollapsed?'':purchaseOrderCards()}<div class="purchaseProductGrid">${day.items.map(x=>`<article class="purchaseProductCard" data-code="${esc(x.code)}">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.names.join(' / '))}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="purchaseNoImage" hidden>暫無圖片</div>`:'<div class="purchaseNoImage">暫無圖片</div>'}<strong class="purchaseQuantity">${x.quantity}</strong><div class="purchaseProductName">${x.names.map(esc).join('<br>')}</div></article>`).join('')}</div>`}`;
+ return `<div class="purchaseDateTabs" aria-label="月份">${[...new Set(days.map(d=>purchaseMonthKey(d.date)))].map(month=>`<button type="button" class="btn ${month===purchaseMonthKey(purchaseSelectedDate)?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${esc(month.replace('-','/'))}</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">訂單紀錄 ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3>${purchaseRecordsCollapsed?'':purchaseOrderCards()}<div class="purchaseProductGrid">${day.items.map((x,productIndex)=>`<article class="purchaseProductCard" data-code="${esc(x.code)}">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.names.join(' / '))}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})" hidden>暫無圖片</button>`:`<button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})">暫無圖片</button>`}<strong class="purchaseQuantity">${x.quantity}</strong><div class="purchaseProductName">${x.names.map(esc).join('<br>')}</div></article>`).join('')}</div>`}`;
+}
+
+function purchaseImageDialog(index){
+ const day=purchaseDailyTotals(purchaseFilteredOrders()).find(d=>d.date===purchaseSelectedDate),product=day?.items[index];if(!product)return;
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>貼上圖片網址</h3><form onsubmit="purchaseSaveImage(event)"><input name="image" type="url" placeholder="https://…" aria-label="圖片網址" style="width:100%;box-sizing:border-box" required><p class="purchaseImageError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ const form=document.querySelector('#appDialog form');form.purchaseImageRefs=product.refs;form.elements.image.focus();
+}
+async function purchaseSaveImage(event){
+ event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]'),image=form.elements.image.value.trim(),refs=form.purchaseImageRefs;
+ try{const url=new URL(image);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('請貼上 http 或 https 圖片網址');}catch(_){form.querySelector('.purchaseImageError').textContent='請貼上有效的圖片網址';return;}
+ button.disabled=true;
+ try{
+  if(refs.some(ref=>purchaseRegistrationQueue.has(ref.number))){await purchaseDrainRegistrations();if(refs.some(ref=>purchaseRegistrationQueue.has(ref.number)))throw new Error('訂單尚未儲存完成，請稍後再試');}
+  await api('purchaseImage',{refs:JSON.stringify(refs),image});
+  refs.forEach(ref=>{const item=purchaseOrders.find(o=>o.number===ref.number)?.items[ref.index];if(item)item.image=image;});
+  purchaseImageTicket++;if(form.isConnected)closeDialog();if(document.body.dataset.page==='purchase')renderPurchase();purchaseEditToast('圖片已儲存至試算表');
+ }catch(e){if(form.isConnected){form.querySelector('.purchaseImageError').textContent='圖片儲存失敗：'+e.message;button.disabled=false;}}
 }
 
 const purchaseStatuses=[['未出貨','未','#E7625F'],['已出貨','出','#E2B850'],['集運中','集','#739C77'],['已打包','包','#556890'],['已到貨','台','#F4B9B8']];
@@ -2595,11 +2612,11 @@ async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseFilteredOrders().filter(o=>o.date===purchaseSelectedDate).flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
  try{for(let start=0;start<codes.length;start+=100){const response=await api('purchaseMatch',{codes:JSON.stringify(codes.slice(start,start+100))});if(ticket!==purchaseImageTicket)return;
-  items.forEach(item=>{const candidates=response.matches?.[item.code];if(!candidates)return;for(const source of ['最新開團','商品庫存','已收單']){let rows=candidates.filter(c=>c.source===source&&/^https?:\/\//i.test(c.image||''));const exact=rows.filter(c=>(item.url&&c.url===item.url)||(item.group&&c.group===item.group&&c.role===(item.role||'')));if(exact.length)rows=exact;const images=[...new Set(rows.map(c=>c.image.trim()))];if(images.length===1){item.image=images[0];break;}}});
+  items.forEach(item=>{if(item.image)return;const candidates=response.matches?.[item.code];if(!candidates)return;for(const source of ['最新開團','商品庫存','已收單']){let rows=candidates.filter(c=>c.source===source&&/^https?:\/\//i.test(c.image||''));const exact=rows.filter(c=>(item.url&&c.url===item.url)||(item.group&&c.group===item.group&&c.role===(item.role||'')));if(exact.length)rows=exact;const images=[...new Set(rows.map(c=>c.image.trim()))];if(images.length===1){item.image=images[0];break;}}});
  }
  if(ticket===purchaseImageTicket&&document.body.dataset.page==='purchase'){
   // 只更新統計圖片，不重建輸入欄、卡片或編輯視窗。
-  document.querySelectorAll('.purchaseProductCard[data-code]').forEach(card=>{const item=items.find(x=>x.code===card.dataset.code&&x.image);if(!item)return;let img=card.querySelector('img');if(!img){img=document.createElement('img');img.loading='lazy';img.alt=purchaseProductName(item);card.prepend(img);}img.hidden=false;img.src=item.image;const placeholder=card.querySelector('.purchaseNoImage');if(placeholder)placeholder.hidden=true;img.onerror=()=>{img.hidden=true;if(placeholder)placeholder.hidden=false;};});
+  document.querySelectorAll('.purchaseProductCard[data-code]').forEach(card=>{if(!card.dataset.code)return;const item=items.find(x=>x.code===card.dataset.code&&x.image);if(!item)return;let img=card.querySelector('img');if(!img){img=document.createElement('img');img.loading='lazy';img.alt=purchaseProductName(item);card.prepend(img);}img.hidden=false;img.src=item.image;const placeholder=card.querySelector('.purchaseNoImage');if(placeholder)placeholder.hidden=true;img.onerror=()=>{img.hidden=true;if(placeholder)placeholder.hidden=false;};});
  }
  }catch(_){/* 訂單已顯示；圖片失敗保留原圖，下次重新載入可重試。 */}
 }
