@@ -1348,6 +1348,11 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchProduct:has(.launchLink,.launchDeleteProduct){padding-top:calc(1.75cqw * var(--launch-card-scale,1))}
 .launchProduct.launchResized{grid-column:auto;grid-row:auto}
 .launchProduct a.launchProductPictures{display:flex;text-decoration:none;color:inherit;cursor:pointer}
+/* 商品內容上下置中，剩餘空間平均留在上下邊框內。 */
+.launchProduct{justify-content:center}
+.launchProduct .launchSize:empty{display:none!important;min-height:0}
+.launchProduct > p:last-child{margin-bottom:0}
+
 .launchBanner .launchBannerEdit{position:static;display:block;width:100%;height:100%;padding:0;border:0;border-radius:0;background:transparent;cursor:pointer}
 .launchBanner .launchBannerEdit{overflow:hidden}
 .launchBanner .launchBannerEdit img{width:100%;height:100%;object-fit:cover;will-change:transform}
@@ -1637,14 +1642,18 @@ function launchSaveClick(options={}){
  }
  const completed=parts.length?parts.join('、'):'畫布修改';
  const progressId=options.previousStatus?null:'save-'+launchId();
- const saveProgress=(state,error='')=>{if(progressId)launchMoveProgress(progressId,snapshot.name,state,error,'儲存');};
+ const saveProgress=(state,error='')=>{if(progressId)launchMoveProgress(progressId,snapshot.name,state,error,'儲存・'+completed);};
  saveProgress('排隊中');
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
   snapshot.revision=launchSavedRevisions.get(id);
+  if(options.previousStatus&&!snapshot.revision){
+   const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}});
+   snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);
+  }
   const d=await launchPost('launchSave',{group:snapshot});
-  if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認下架完成');
+  if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認'+(options.actionLabel||'狀態變更')+'完成');
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   if(launchCurrent?.id===id){
@@ -1668,24 +1677,26 @@ function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;right:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
- box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:6px 0"><strong>${esc(j.name)}</strong><div>${esc(j.action)}${esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}</div>`).join('');
+ let waiting=0;
+ box.innerHTML='<strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}`}</div>`).join('');
 }
 function launchMove(status){
- if(status==='已收單'&&launchCurrent?.revision){
+ if(['已收單','最新開團'].includes(status)&&launchCurrent){
   if(launchCurrent.status===status)return;
-  const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id;
+  const actionLabel=status==='最新開團'?'上架':'下架';
+  const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id,moveProgressId='move-'+launchId();
   launchCurrent.status=status;launchDirty=true;
-  launchMoveProgress(id,original.name,'排隊中');
+  launchMoveProgress(moveProgressId,original.name,'排隊中','',actionLabel);
   launchPendingMoves.set(id,status);++launchLoad;
-  launchMessage='正在背景下架「'+original.name+'」…';
-  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onStart:()=>launchMoveProgress(id,original.name,'傳送中'),onSuccess:()=>{
-   launchMoveProgress(id,original.name,'完成');
+  launchMessage='正在背景'+actionLabel+'「'+original.name+'」…';
+  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
+   launchMoveProgress(moveProgressId,original.name,'完成','',actionLabel);
    launchPendingMoves.delete(id);++launchLoad;
    launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
    if(document.body.dataset.page==='launch'&&!launchCurrent)renderLaunch();
   },onFailure:(error)=>{
-   launchMoveProgress(id,original.name,'失敗',error.message);
-   launchPendingMoves.delete(id);launchMessage='「'+original.name+'」下架失敗：'+error.message;
+   launchMoveProgress(moveProgressId,original.name,'失敗',error.message,actionLabel);
+   launchPendingMoves.delete(id);launchMessage='「'+original.name+'」'+actionLabel+'失敗：'+error.message;
    if(!launchGroups.some(g=>g.id===id))launchGroups.unshift(original);
    launchSaveListCache(previousStatus,launchGroups.filter(g=>g.status===previousStatus));
    if(document.body.dataset.page==='launch'&&!launchCurrent&&launchStatus===previousStatus)launchRenderList();
