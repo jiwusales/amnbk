@@ -1644,17 +1644,25 @@ function launchSaveClick(options={}){
    launchCurrent.revision=d.group.revision;
    if(signature(launchCurrent)===savedSignature){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');}
   }
-  launchCompletionToast(options.successMessage||'已完成：'+completed);
- }).catch(error=>{launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
+  if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(options.successMessage||'已完成：'+completed);
+ }).catch(error=>{if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
  return launchSaveTail;
 }
 function launchMove(status){
  if(status==='已收單'&&launchCurrent?.revision){
   if(launchCurrent.status===status)return;
-  const previousStatus=launchCurrent.status;
+  const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id;
   launchCurrent.status=status;launchDirty=true;
-  const pending=launchSaveClick({successMessage:'下架完成',previousStatus});
-  launchRenderEditor();
+  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onFailure:()=>{
+   if(!launchGroups.some(g=>g.id===id))launchGroups.unshift(original);
+   launchSaveListCache(previousStatus,launchGroups.filter(g=>g.status===previousStatus));
+   if(document.body.dataset.page==='launch'&&!launchCurrent&&launchStatus===previousStatus)launchRenderList();
+  }});
+  launchGroups=launchGroups.filter(g=>g.id!==id);
+  launchSaveListCache(previousStatus,launchGroups);
+  launchCurrent=null;launchDirty=false;launchStatus=previousStatus;launchUndoStack=[];
+  sessionStorage.removeItem(LAUNCH_OPEN_KEY);sessionStorage.setItem(LAUNCH_STATUS_KEY,previousStatus);
+  launchSyncTopActions();launchRenderList();
   return pending;
  }
  launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});
