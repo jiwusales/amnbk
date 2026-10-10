@@ -1525,7 +1525,9 @@ async function launchLoadGroup(id,ticket=++launchLoad){
 
  try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(cached){launchCompletionToast('目前顯示上次資料，連線恢復後可重新整理',true);return;}if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
 }
+const launchPendingMoves=new Map();
 function launchRenderList(){
+ launchGroups=launchGroups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus);
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
  const joined=shown.filter(g=>g.joined===true).length,failed=shown.length-joined;
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
@@ -1638,6 +1640,7 @@ function launchSaveClick(options={}){
  launchSaveTail=launchSaveTail.then(async()=>{
   snapshot.revision=launchSavedRevisions.get(id);
   const d=await launchPost('launchSave',{group:snapshot});
+  if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認下架完成');
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   if(launchCurrent?.id===id){
@@ -1653,7 +1656,14 @@ function launchMove(status){
   if(launchCurrent.status===status)return;
   const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id;
   launchCurrent.status=status;launchDirty=true;
-  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onFailure:()=>{
+  launchPendingMoves.set(id,status);++launchLoad;
+  launchMessage='正在背景下架「'+original.name+'」…';
+  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onSuccess:()=>{
+   launchPendingMoves.delete(id);++launchLoad;
+   launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
+   if(document.body.dataset.page==='launch'&&!launchCurrent)renderLaunch();
+  },onFailure:(error)=>{
+   launchPendingMoves.delete(id);launchMessage='「'+original.name+'」下架失敗：'+error.message;
    if(!launchGroups.some(g=>g.id===id))launchGroups.unshift(original);
    launchSaveListCache(previousStatus,launchGroups.filter(g=>g.status===previousStatus));
    if(document.body.dataset.page==='launch'&&!launchCurrent&&launchStatus===previousStatus)launchRenderList();
