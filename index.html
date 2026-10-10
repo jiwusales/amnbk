@@ -1622,7 +1622,7 @@ function launchCompletionToast(text,error=false){
  toast.textContent=text;toast.classList.toggle('isError',error);toast.hidden=false;
  clearTimeout(launchToastTimer);launchToastTimer=setTimeout(()=>toast.hidden=true,error?5000:2000);
 }
-function launchSaveClick(){
+function launchSaveClick(options={}){
  if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  const snapshot=structuredClone(launchCurrent),id=snapshot.id;
  const signature=launchSaveSignature;
@@ -1644,11 +1644,21 @@ function launchSaveClick(){
    launchCurrent.revision=d.group.revision;
    if(signature(launchCurrent)===savedSignature){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');}
   }
-  launchCompletionToast('已完成：'+completed);
- }).catch(error=>{launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id)launchDirty=true;launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
+  launchCompletionToast(options.successMessage||'已完成：'+completed);
+ }).catch(error=>{launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
  return launchSaveTail;
 }
-function launchMove(status){launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});}
+function launchMove(status){
+ if(status==='已收單'&&launchCurrent?.revision){
+  if(launchCurrent.status===status)return;
+  const previousStatus=launchCurrent.status;
+  launchCurrent.status=status;launchDirty=true;
+  const pending=launchSaveClick({successMessage:'下架完成',previousStatus});
+  launchRenderEditor();
+  return pending;
+ }
+ launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});
+}
 function launchDelete(){
 if(!launchCurrent||launchBusy||!confirm('確定刪除整團及其試算表商品資料？'))return;
 const group=launchCurrent;
