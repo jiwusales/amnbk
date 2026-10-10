@@ -1378,6 +1378,8 @@ function launchNormalizeURL(value){
 }
 function launchNormalizeGroupURLs(group){
  group.shortUrl=launchNormalizeURL(group.shortUrl);
+ const misplaced=launchNormalizeURL(group.tags);
+ if(!group.shortUrl&&/^https?:\/\/[^\s]+$/i.test(misplaced)){group.shortUrl=misplaced;group.tags='';}
  group.images=(group.images||[]).map(launchNormalizeURL);
  (group.panels||[]).forEach(p=>p.image=launchNormalizeURL(p.image));
  (group.ads||[]).forEach(p=>p.image=launchNormalizeURL(p.image));
@@ -1418,6 +1420,7 @@ function launchSetGroupText(field,value){
  launchPushUndo();launchCurrent[field]=text;launchMark();
 }
 function launchPostURL(g){
+ launchNormalizeGroupURLs(g);
  const direct='https://jiwusales.github.io/jiwu_menu/NEWGOODS.html?group='+encodeURIComponent(g.name||'');
  return launchSafeURL(g.shortUrl)||direct;
 }
@@ -1432,6 +1435,7 @@ function launchPostShipping(g){
  return `🚀官方出荷後約2-3週不含假日抵台${delivery?'\n'+delivery:''}`;
 }
 function launchPostText(g,ig=false){
+ launchNormalizeGroupURLs(g);
  const tags=launchPostTags(g.tags),shipping=launchPostShipping(g),title=String(g.name||'').trim(),url=launchPostURL(g);
  const body=`${title}\n-\n${shipping}\n🌱預購無全額貨付，台中可店取\n📦官LINE有貨況進度表可追蹤`;
  if(ig)return `${body}${tags?`\n\n${tags}`:''}`;
@@ -1826,7 +1830,7 @@ function launchDrag(e,kind,index){
  const done=ev=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',cancel);card.classList.remove('launchDragging');if(handle.hasPointerCapture(e.pointerId))handle.releasePointerCapture(e.pointerId);launchMoveIndex(kind,index,target);};
  const cancel=()=>{target=index;done();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',cancel);
 }
-function launchAllProducts(){launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label></div><label><span>標籤</span><input aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>短網址</span><input aria-label="短網址" type="url" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"></label></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
+function launchAllProducts(){launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>短網址</span><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"></label></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
 let launchImportTarget='launch';
 let launchImportSource=null,launchImportGroups=[],launchImportCategories=[],launchImportCategory='吉伊卡哇&白熊',launchImportSearch='',launchImportSearchTimer=null;
 async function launchImportClosedProducts(target='launch'){
@@ -1888,7 +1892,15 @@ function launchCopyClosedProducts(event){
  launchCurrent.items.push(...copied);launchMark();launchNotice(`已從「${source.name}」複製 ${copied.length} 樣商品`);document.getElementById('launchDialog')?.close();launchRenderEditor();
 }
 function launchToggleProductStock(index,button){const item=launchCurrent?.items[index];if(!item||!launchCurrent?.id)return;const next=!item.stockOut,previous=item.stockOut;item.stockOut=next;button.classList.toggle('isShortage',next);button.textContent=next?'已缺貨':'缺貨';launchPost('launchSetInventoryAvailability',{out:next,groupId:launchCurrent.id,itemId:item.id}).catch(error=>{item.stockOut=previous;button.classList.toggle('isShortage',previous);button.textContent=previous?'已缺貨':'缺貨';alert(error.message);});}
-function launchAllSave(){document.getElementById('launchDialog')?.close();launchSaveClick();}
+function launchAllSave(){
+ const dialog=document.getElementById('launchDialog');
+ const tags=dialog?.querySelector('[name="tags"]'),url=dialog?.querySelector('[name="shortUrl"]');
+ if(tags)launchCurrent.tags=tags.value.trim();
+ if(url)launchCurrent.shortUrl=launchNormalizeURL(url.value);
+ launchNormalizeGroupURLs(launchCurrent);
+ if(launchCurrent.shortUrl&&!launchSafeURL(launchCurrent.shortUrl)){launchCompletionToast('短網址格式不正確',true);return;}
+ dialog?.close();launchSaveClick();
+}
 function launchUpdateSelectAll(){const all=document.getElementById('launchSelectAll');if(!all||!launchCurrent)return;const selected=launchCurrent.items.filter(item=>item.visible!==false).length;all.checked=selected===launchCurrent.items.length&&selected>0;all.indeterminate=selected>0&&selected<launchCurrent.items.length;}
 function launchToggleAllProducts(visible){if(!launchCurrent)return;launchCurrent.items.forEach(item=>item.visible=visible);document.querySelectorAll('[data-launch-product-select]').forEach(input=>input.checked=visible);launchMark();launchUpdateSelectAll();}
 function launchSetProductVisible(index,visible){if(!launchCurrent.items[index])return;launchCurrent.items[index].visible=visible;launchMark();launchUpdateSelectAll();}
