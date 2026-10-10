@@ -1369,7 +1369,22 @@ const LAUNCH_STATUS_KEY='jiwu_launch_status',LAUNCH_OPEN_KEY='jiwu_launch_open_g
 let launchZoom=Math.max(.7,Math.min(1.5,Number(sessionStorage.getItem(LAUNCH_ZOOM_KEY))||1));
 let launchStatus=sessionStorage.getItem(LAUNCH_STATUS_KEY)||'最新開團',launchGroups=[],launchCurrent=null,launchDirty=false,launchBusy=false,launchMessage='',launchLoad=0,launchClosedSearch='',launchUndoStack=[],launchAuxPage='',launchAuxData=null,launchPanelIndex=0,launchWorkFilter='全部',launchWorkDirty=false;
 function launchId(){return crypto.randomUUID();}
-function launchSafeURL(v){try{const u=new URL(v);return ['http:','https:'].includes(u.protocol)?u.href:'';}catch(_){return '';}}
+function launchNormalizeURL(value){
+ const text=String(value||'').trim();
+ if(!text)return '';
+ if(text.startsWith('//'))return 'https:'+text;
+ if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(text))return 'https://'+text;
+ return text;
+}
+function launchNormalizeGroupURLs(group){
+ group.shortUrl=launchNormalizeURL(group.shortUrl);
+ group.images=(group.images||[]).map(launchNormalizeURL);
+ (group.panels||[]).forEach(p=>p.image=launchNormalizeURL(p.image));
+ (group.ads||[]).forEach(p=>p.image=launchNormalizeURL(p.image));
+ (group.items||[]).forEach(p=>{p.url=launchNormalizeURL(p.url);p.images=(p.images||[]).map(launchNormalizeURL);});
+ return group;
+}
+function launchSafeURL(v){try{const u=new URL(launchNormalizeURL(v));return ['http:','https:'].includes(u.protocol)?u.href:'';}catch(_){return '';}}
 function launchImage(v){return esc(launchSafeURL(v));}
 function launchColor(v){return /^#[0-9a-f]{6}$/i.test(String(v||''))?String(v):'#617AA6';}
 function launchFooterText(g){
@@ -1398,7 +1413,9 @@ function launchToggleFreeShipping(button){
 }
 function launchSetGroupText(field,value){
  if(!launchCurrent||!['name','tags','shortUrl'].includes(field))return;
- launchPushUndo();launchCurrent[field]=String(value||'').trim();launchMark();
+ let text=String(value||'').trim();
+ if(field==='shortUrl'&&text){if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(text))text='https://'+text;if(!launchSafeURL(text)){launchCompletionToast('短網址格式不正確，請填 http/https 網址',true);return;}}
+ launchPushUndo();launchCurrent[field]=text;launchMark();
 }
 function launchPostURL(g){
  const direct='https://jiwusales.github.io/jiwu_menu/NEWGOODS.html?group='+encodeURIComponent(g.name||'');
@@ -1618,7 +1635,7 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
@@ -1631,6 +1648,7 @@ function launchCompletionToast(text,error=false){
 }
 function launchSaveClick(options={}){
  if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
+ launchNormalizeGroupURLs(launchCurrent);
  const snapshot=structuredClone(launchCurrent),id=snapshot.id;
  const signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
@@ -1638,7 +1656,7 @@ function launchSaveClick(options={}){
  if(!launchPendingSaves||!launchSavedRevisions.has(id))launchSavedRevisions.set(id,snapshot.revision);
  const before=launchUndoStack.at(-1)?.group,parts=[];
  if(before){
-  for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['canvasTitle','畫布標題'],['footer','底部文字'],['shipDate','出荷日期'],['domesticShipping','境內運']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
+  for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['canvasTitle','畫布標題'],['footer','底部文字'],['tags','標籤'],['shortUrl','短網址'],['shipDate','出荷日期'],['domesticShipping','境內運']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
  }
  const completed=parts.length?parts.join('、'):'畫布修改';
  const progressId=options.previousStatus?null:'save-'+launchId();
