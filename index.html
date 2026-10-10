@@ -1638,6 +1638,7 @@ function launchSaveClick(options={}){
  const completed=parts.length?parts.join('、'):'畫布修改';
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
+  if(options.onStart)options.onStart();
   snapshot.revision=launchSavedRevisions.get(id);
   const d=await launchPost('launchSave',{group:snapshot});
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認下架完成');
@@ -1651,18 +1652,36 @@ function launchSaveClick(options={}){
  }).catch(error=>{if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
  return launchSaveTail;
 }
+const launchMoveProgressJobs=new Map();
+let launchMoveProgressTimer;
+function launchMoveProgress(id,name,state,error=''){
+ const previous=launchMoveProgressJobs.get(id);
+ launchMoveProgressJobs.set(id,{name,state,error,start:previous?.start||Date.now()});
+ launchPaintMoveProgress();
+ if(!launchMoveProgressTimer)launchMoveProgressTimer=setInterval(launchPaintMoveProgress,1000);
+ if(state==='完成')setTimeout(()=>{launchMoveProgressJobs.delete(id);launchPaintMoveProgress();},2000);
+}
+function launchPaintMoveProgress(){
+ let box=document.getElementById('launchMoveProgress');
+ if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
+ if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;right:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
+ box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:6px 0"><strong>${esc(j.name)}</strong><div>下架${esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':`<progress aria-label="下架${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重複下架或重新整理。</small>`}</div>`).join('');
+}
 function launchMove(status){
  if(status==='已收單'&&launchCurrent?.revision){
   if(launchCurrent.status===status)return;
   const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id;
   launchCurrent.status=status;launchDirty=true;
+  launchMoveProgress(id,original.name,'排隊中');
   launchPendingMoves.set(id,status);++launchLoad;
   launchMessage='正在背景下架「'+original.name+'」…';
-  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onSuccess:()=>{
+  const pending=launchSaveClick({successMessage:'下架完成',previousStatus,onStart:()=>launchMoveProgress(id,original.name,'傳送中'),onSuccess:()=>{
+   launchMoveProgress(id,original.name,'完成');
    launchPendingMoves.delete(id);++launchLoad;
    launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
    if(document.body.dataset.page==='launch'&&!launchCurrent)renderLaunch();
   },onFailure:(error)=>{
+   launchMoveProgress(id,original.name,'失敗',error.message);
    launchPendingMoves.delete(id);launchMessage='「'+original.name+'」下架失敗：'+error.message;
    if(!launchGroups.some(g=>g.id===id))launchGroups.unshift(original);
    launchSaveListCache(previousStatus,launchGroups.filter(g=>g.status===previousStatus));
