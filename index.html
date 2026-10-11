@@ -1257,6 +1257,14 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
  .purchasePackingDialog{padding:14px}.purchasePackingDialog td,.purchasePackingDialog th{padding:6px 3px}
 }
 </style>
+<style>
+.progressMobileBrief{display:none}
+@media(max-width:850px){
+ #launchMoveProgress{width:20vw!important;height:20vw!important;max-height:none!important;box-sizing:border-box;padding:5px!important;overflow:hidden!important;border-radius:9px!important;right:10px!important}
+ #launchMoveProgress .progressDesktopDetails{display:none}
+ #launchMoveProgress .progressMobileBrief{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;text-align:center;font-size:clamp(9px,2.7vw,12px);line-height:1.2;overflow-wrap:anywhere}
+}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -1785,8 +1793,11 @@ function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;right:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
+ const jobs=[...launchMoveProgressJobs.values()];
+ const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.at(-1);
+ const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span>${Math.floor((Date.now()-current.start)/1000)} 秒</span></div>`;
  let waiting=0;
- box.innerHTML='<strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}`}</div>`).join('');
+ box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}`}</div>`).join('')+'</div>';
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
