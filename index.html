@@ -1477,24 +1477,40 @@ function launchNormalizeGroupURLs(group){
 function launchSafeURL(v){try{const u=new URL(launchNormalizeURL(v));return ['http:','https:'].includes(u.protocol)?u.href:'';}catch(_){return '';}}
 function launchImage(v){return esc(launchSafeURL(v));}
 function launchColor(v){return /^#[0-9a-f]{6}$/i.test(String(v||''))?String(v):'#617AA6';}
+function launchNeedsSecondShipping(g){return /需二補運費\s*$/.test(String(g?.footer||''));}
 function launchFooterText(g){
- const custom=String(g.footer||'').trim();
+ const suffix=launchNeedsSecondShipping(g)?'｜需二補運費':'';
+ const custom=String(g.footer||'').replace(/(?:[｜|]\s*)?需二補運費\s*$/,'').trim();
  if(custom){
   let text=custom.replace(/(?:預計)?([^｜|，,]*?)(?:出荷|出貨)(?:日期)?(?:後約2-3週不含假日抵台)?/,(_,date)=>`預計${date.trim()}出荷後約2-3週不含假日抵台`);
-  return /@jiwusales/i.test(text)?text:`官方LINE @jiwusales｜${text}`;
+  return (/@jiwusales/i.test(text)?text:`官方LINE @jiwusales｜${text}`)+suffix;
  }
  const date=String(g.shipDate||'').trim();
  const iso=date.match(/^\d{4}-(\d{2})-(\d{2})$/);
  const shippingDate=iso?`${Number(iso[1])}月${Number(iso[2])}日`:date;
  const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
  const freeShipping=/^0+(?:\.0+)?$/.test(shipping)?'｜免境內運、免二補包手.ᐟ.ᐟ':(shipping?'｜境內運$'+shipping+'同車平分'+(g.noFreeShipping?'':'（滿額免）'): '');
- return `官方LINE @jiwusales｜${shippingDate?'預計'+shippingDate:'官方'}出荷後約2-3週不含假日抵台${freeShipping}`;
+ return `官方LINE @jiwusales｜${shippingDate?'預計'+shippingDate:'官方'}出荷後約2-3週不含假日抵台${freeShipping}${suffix}`;
 }
 function launchSetShipping(field,value){
  if(!launchCurrent||!['shipDate','domesticShipping','noFreeShipping'].includes(field))return;
  launchPushUndo();launchCurrent[field]=value;launchMark();
  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
  launchFitCards();
+}
+function launchSecondShippingButton(selected=false,creating=false){return `<button type="button" class="launchSecondShipping" aria-label="需二補運費" title="綠色代表需二補運費" aria-pressed="${selected}" style="border:0;background:transparent;padding:6px;font-size:20px;line-height:1;cursor:pointer;color:${selected?'#26954b':'#777'}" onclick="launchToggleSecondShipping(this,${creating})">○</button>`;}
+function launchToggleSecondShipping(button,creating=false){
+ const selected=button.getAttribute('aria-pressed')!=='true';
+ if(creating)button.form.elements.secondShipping.value=selected?'1':'';
+ else{
+  if(!launchCurrent)return;
+  launchPushUndo();
+  const footer=String(launchCurrent.footer||'').replace(/(?:[｜|]\s*)?需二補運費\s*$/,'').trim();
+  launchCurrent.footer=footer+(selected?(footer?'｜':'')+'需二補運費':'');
+  const node=document.querySelector('.launchFooter');if(node)node.textContent=launchFooterText(launchCurrent);
+  launchFitCards();launchMark();
+ }
+ button.style.color=selected?'#26954b':'#777';button.setAttribute('aria-pressed',String(selected));
 }
 function launchToggleFreeShipping(button){
  launchSetShipping('noFreeShipping',!launchCurrent.noFreeShipping);
@@ -1663,8 +1679,8 @@ document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e
 document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.preventDefault();e.stopPropagation();const card=price.closest('.launchProduct'),index=Number(card?.dataset.launchIndex),item=launchCurrent.items[index];if(!item)return;const value=prompt('修改售價',String(item.price||launchSaleValue(item)||''));if(value===null)return;const number=launchNumber(value);if(number==null||number<0){alert('請輸入有效售價');return;}launchPushUndo();item.price=String(Math.ceil(number));launchMark();launchRenderEditor();},true);
 function launchChangeStatus(s){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;if(group.summary){launchCurrent=null;document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';launchLoadGroup(group.id);return;}launchCurrent=structuredClone(group);launchUndoStack=[];launchRenderEditor();}
-function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="text" placeholder="例如：2月、2月上、2月中、2月下"></label><label>境內運<input name="domesticShipping" placeholder="$220同車平分（滿額免）"></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
-function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,domesticShipping,footer:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
+function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="text" placeholder="例如：2月、2月上、2月中、2月下"></label><label>境內運<div style="display:flex;align-items:center;gap:6px"><input name="domesticShipping" style="min-width:0;flex:1" placeholder="$220同車平分（滿額免）"><input name="secondShipping" type="hidden" value="">${launchSecondShippingButton(false,true)}</div></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
+function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,domesticShipping,footer:form.get('secondShipping')==='1'?'需二補運費':'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
 function launchApplyZoom(){const editor=document.querySelector('.launchEditor');if(editor)editor.style.zoom=String(launchZoom);}
 function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});}
 function launchRenderEditor(){
@@ -1734,7 +1750,7 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const progressId='persist-'+launchId(),progressName=launchCurrent.name;launchMoveProgress(progressId,progressName,'傳送中','','回傳試算表');try{const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');launchMoveProgress(progressId,progressName,'完成','','回傳試算表');}catch(e){launchMoveProgress(progressId,progressName,'失敗',e.message,'回傳試算表');throw e;}}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
@@ -1790,13 +1806,14 @@ function launchMoveProgress(id,name,state,error='',action='下架'){
  if(!launchMoveProgressTimer)launchMoveProgressTimer=setInterval(launchPaintMoveProgress,1000);
  if(state==='完成')setTimeout(()=>{launchMoveProgressJobs.delete(id);launchPaintMoveProgress();},2000);
 }
+function launchDismissFailedProgress(){for(const [id,job] of launchMoveProgressJobs)if(job.state==='失敗')launchMoveProgressJobs.delete(id);launchPaintMoveProgress();}
 function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;right:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const jobs=[...launchMoveProgressJobs.values()];
  const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.at(-1);
- const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span>${Math.floor((Date.now()-current.start)/1000)} 秒</span></div>`;
+ const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span>${esc(current.state)}</span><progress aria-label="${esc(current.action)}進度" style="width:100%;height:6px;accent-color:#26954b" ${['完成','失敗'].includes(current.state)?'max="1" value="1"':''}></progress><span>${Math.floor((Date.now()-current.start)/1000)} 秒</span>${current.state==='失敗'?'<button type="button" class="btn light" onclick="launchDismissFailedProgress()" style="padding:1px 4px;font-size:10px">關閉</button>':''}</div>`;
  let waiting=0;
  box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}`}</div>`).join('')+'</div>';
 }
@@ -1942,7 +1959,7 @@ function launchDrag(e,kind,index){
  const done=ev=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',cancel);card.classList.remove('launchDragging');if(handle.hasPointerCapture(e.pointerId))handle.releasePointerCapture(e.pointerId);launchMoveIndex(kind,index,target);};
  const cancel=()=>{target=index;done();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',cancel);
 }
-function launchAllProducts(){launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>短網址</span><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"></label></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
+function launchAllProducts(){launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button>${launchSecondShippingButton(launchNeedsSecondShipping(launchCurrent))}</div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>短網址</span><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"></label></div><p class="launchHelp">勾選要顯示在開團圖的商品；點商品可編輯單一品項，編號會維持原本排序。</p><div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem"><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${i+1}. ${esc(launchDisplayName(p))}</button><button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
 let launchImportTarget='launch';
 let launchImportSource=null,launchImportGroups=[],launchImportCategories=[],launchImportCategory='吉伊卡哇&白熊',launchImportSearch='',launchImportSearchTimer=null;
 async function launchImportClosedProducts(target='launch'){
@@ -2180,20 +2197,26 @@ function launchDownloadPNG(blob,name){
 }
 function launchExport(mode){
  if(launchBusy)return;
+ const progressId='export-'+launchId(),progressName=launchCurrent?.name||'開團畫布';
+ const progress=(state,error='')=>launchMoveProgress(progressId,progressName,state,error,mode==='copy'?'複製畫布圖片':'儲存畫布圖片');
  const paper=document.getElementById('launchPaper');
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
   document.getElementById('launchDialog').close();
-  launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
+  progress('儲存中');try{launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');progress('完成');}catch(e){progress('失敗',e.message);alert(e.message);}return;
  }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  document.getElementById('launchDialog').close();
+ progress('產生圖片中');
  launchRun(async()=>{
+  try{
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
    const promise=launchGetPNG();promise.catch(()=>{});
    try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
    launchNotice('已複製圖片（1080 × 1350 PNG）');
-  }else{const blob=await launchGetPNG(),name=(launchCurrent.name||'開團')+'.png';launchDownloadPNG(blob,name);}
+  }else{const blob=await launchGetPNG(),name=(launchCurrent.name||'開團')+'.png';progress('儲存中');launchDownloadPNG(blob,name);}
+  progress('完成');
+  }catch(e){progress('失敗',e.message);throw e;}
  });
 }
 </script>
@@ -5516,3 +5539,4 @@ syncTitleRowBack();
 </style>
 </body>
 </html>
+
