@@ -1498,7 +1498,7 @@ function launchSetShipping(field,value){
  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
  launchFitCards();
 }
-function launchSecondShippingButton(selected=false,creating=false){return `<button type="button" class="launchSecondShipping" aria-label="需二補運費" title="綠色代表需二補運費" aria-pressed="${selected}" style="border:0;background:transparent;padding:6px;font-size:20px;line-height:1;cursor:pointer;color:${selected?'#26954b':'#777'}" onclick="launchToggleSecondShipping(this,${creating})">○</button>`;}
+function launchSecondShippingButton(selected=false,creating=false){return `<button type="button" class="launchSecondShipping" aria-label="需二補運費" title="綠色代表需二補運費" aria-pressed="${selected}" style="border:0;background:transparent;padding:6px;font-size:20px;font-weight:700;-webkit-text-stroke:1px currentColor;line-height:1;cursor:pointer;color:${selected?'#26954b':'#777'}" onclick="launchToggleSecondShipping(this,${creating})">○</button>`;}
 function launchToggleSecondShipping(button,creating=false){
  const selected=button.getAttribute('aria-pressed')!=='true';
  if(creating)button.form.elements.secondShipping.value=selected?'1':'';
