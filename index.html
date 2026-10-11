@@ -1190,10 +1190,6 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .purchaseToolbar{display:flex;flex-wrap:nowrap;gap:8px;margin-bottom:16px;overflow-x:auto;align-items:center}
 .purchaseToolbar>.btn{flex-shrink:0;white-space:nowrap}
 .purchaseToolbar #purchaseSearch{min-width:130px!important;max-width:none!important}
-.purchaseMonthList{overflow-x:auto;margin-bottom:18px}
-.purchaseMonthList table{border-collapse:collapse;width:100%;text-align:left}
-.purchaseMonthList th,.purchaseMonthList td{padding:9px 12px;border-bottom:1px solid #ddd;white-space:nowrap}
-.purchaseMonthList td:last-child{white-space:normal;min-width:150px}
 .purchaseProductScroll{overflow-x:auto}
 .purchaseProductScroll .purchaseProductGrid{grid-template-columns:repeat(10,minmax(0,1fr));min-width:760px;gap:8px}
 .purchaseContentsFields{margin:12px 0;display:grid;gap:6px}
@@ -1201,6 +1197,13 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .purchaseContentsFields input{min-width:0;flex:1;width:0}
 .purchaseContentsFields small{color:#777;line-height:1.5}
 .purchaseManualTop,.purchaseManualItem{margin:0 0 12px!important}
+</style>
+<style>
+.purchaseOrderCard header>strong{font-size:13px;line-height:13px}
+.purchaseOrderCard .purchaseBadge{width:13px;height:13px;line-height:13px;font-size:11px;border-radius:2px}
+.purchaseCardSummary{display:flex;gap:12px;padding:8px 12px;font-size:12px;color:#777;align-items:flex-start}
+.purchaseCardSummary>span:first-child{flex-shrink:0}
+.purchaseContentsSummary{overflow-wrap:anywhere;color:#555}
 </style>
 </head>
 <body>
@@ -2479,7 +2482,7 @@ function purchaseDateSortKey(date){const d=purchaseDateParts(date);return d?d.ye
 
 function purchaseEditDate(value){const m=value.trim().match(/^(\d{1,2})[\/-](\d{1,2})$/);if(!m){purchaseDraft.date='';return;}const year=(purchaseDraft.date||'').slice(0,4)||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());purchaseDraft.date=`${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;}
 function purchaseToggleRecords(){purchaseRecordsCollapsed=!purchaseRecordsCollapsed;renderPurchase();}
-function purchaseSelectDate(date){purchaseDateCollapsed=false;purchaseSelectedDate=date;renderPurchase();if(!purchaseDateCollapsed)purchaseLoadImages();}
+function purchaseSelectDate(date){purchaseDateCollapsed=false;purchaseSelectedDate=purchaseSelectedDate===date?'':date;renderPurchase();if(!purchaseDateCollapsed)purchaseLoadImages();}
 function purchaseProductName(item){return [String(item.name||item.originalName||'未找到').trim(),String(item.role||'').trim()].filter(Boolean).join(' ');}
 function purchaseChangeView(view){if(view==='record')view='manage';if(view!==purchaseView){purchaseSelectedDate='';purchaseDateCollapsed=false;}purchaseView=view;renderPurchase();purchaseLoadImages();document.getElementById('app').scrollTop=0;}
 function parsePurchaseText(text){
@@ -2512,20 +2515,20 @@ function purchaseDailyTotals(orders){
 }
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
+function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate)).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
+function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders)[0]?.items||[];}
 function purchaseDailyView(){
  const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return '<p>尚無訂購紀錄</p>';
  const months=[...new Set(allDays.map(d=>purchaseMonthKey(d.date)))];
  if(!months.includes(purchaseSelectedMonth))purchaseSelectedMonth=months.includes(purchaseMonthKey(purchaseSelectedDate))?purchaseMonthKey(purchaseSelectedDate):months[months.length-1];
  const days=allDays.filter(d=>purchaseMonthKey(d.date)===purchaseSelectedMonth);
- if(!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate=days[days.length-1].date;purchaseDateCollapsed=false;}
- const monthOrders=purchaseFilteredOrders().filter(o=>purchaseMonthKey(o.date)===purchaseSelectedMonth).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date)||String(a.channel||'').localeCompare(String(b.channel||''))||String(a.number).localeCompare(String(b.number)));
- const monthList=`<div class="purchaseMonthList"><table><thead><tr><th>日期</th><th>通路</th><th>訂單編號</th><th>內容物</th></tr></thead><tbody>${monthOrders.map(o=>`<tr><td>${esc(purchaseDateLabel(o.date))}</td><td>${esc(o.channel||'')}</td><td>${esc(o.number)}</td><td>${esc(o.contents||'')}</td></tr>`).join('')}</tbody></table></div>`;
- const day=days.find(x=>x.date===purchaseSelectedDate);
- return `<div class="purchaseDateTabs" aria-label="月份">${months.map(month=>`<button type="button" class="btn ${month===purchaseSelectedMonth?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${Number(month.split('-')[1])}月</button>`).join('')}</div>${monthList}${purchaseDateCollapsed?'':`<h3><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">訂單紀錄 ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3><div class="purchaseDateTabs" aria-label="日期">${days.map(d=>`<button type="button" class="btn ${d.date===purchaseSelectedDate?'':'light'}" data-date="${esc(d.date)}" onclick="purchaseSelectDate(this.dataset.date)">${esc(purchaseDateLabel(d.date))}</button>`).join('')}</div>${purchaseRecordsCollapsed?'':purchaseOrderCards()}<div class="purchaseProductScroll"><div class="purchaseProductGrid">${day.items.map((x,productIndex)=>`<article class="purchaseProductCard" data-code="${esc(x.code)}">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.names.join(' / '))}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})" hidden>暫無圖片</button>`:`<button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})">暫無圖片</button>`}<strong class="purchaseQuantity">${x.quantity}</strong><div class="purchaseProductName">${x.names.map(esc).join('<br>')}</div></article>`).join('')}</div></div>`}`;
+ if(purchaseSelectedDate&&!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate='';purchaseDateCollapsed=false;}
+ const products=purchaseVisibleProducts();
+ return `<div class="purchaseDateTabs" aria-label="月份">${months.map(month=>`<button type="button" class="btn ${month===purchaseSelectedMonth?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${Number(month.split('-')[1])}月</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">訂單紀錄 ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3><div class="purchaseDateTabs" aria-label="日期">${days.map(d=>`<button type="button" class="btn ${d.date===purchaseSelectedDate?'':'light'}" data-date="${esc(d.date)}" onclick="purchaseSelectDate(this.dataset.date)">${esc(purchaseDateLabel(d.date))}</button>`).join('')}</div>${purchaseRecordsCollapsed?'':purchaseOrderCards()}<div class="purchaseProductScroll"><div class="purchaseProductGrid">${products.map((x,productIndex)=>`<article class="purchaseProductCard" data-code="${esc(x.code)}">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.names.join(' / '))}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})" hidden>暫無圖片</button>`:`<button type="button" class="purchaseNoImage" style="border:0;width:100%;cursor:pointer" aria-label="貼上圖片網址" onclick="purchaseImageDialog(${productIndex})">暫無圖片</button>`}<strong class="purchaseQuantity">${x.quantity}</strong><div class="purchaseProductName">${x.names.map(esc).join('<br>')}</div></article>`).join('')}</div></div>`}`;
 }
 
 function purchaseImageDialog(index){
- const day=purchaseDailyTotals(purchaseFilteredOrders()).find(d=>d.date===purchaseSelectedDate),product=day?.items[index];if(!product)return;
+ const product=purchaseVisibleProducts()[index];if(!product)return;
  closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>貼上圖片網址</h3><form onsubmit="purchaseSaveImage(event)"><input name="image" type="url" placeholder="https://…" aria-label="圖片網址" style="width:100%;box-sizing:border-box" required><p class="purchaseImageError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  const form=document.querySelector('#appDialog form');form.purchaseImageRefs=product.refs;form.elements.image.focus();
 }
@@ -2543,11 +2546,11 @@ async function purchaseSaveImage(event){
 
 const purchaseStatuses=[['未出貨','未','#E7625F'],['已出貨','出','#E2B850'],['集運中','集','#739C77'],['已打包','包','#556890'],['已到貨','台','#F4B9B8']];
 function purchaseOrderCards(){
- const visible=purchaseOrders.filter(o=>o.date===purchaseSelectedDate&&purchaseFilteredOrders().includes(o));
+ const visible=purchaseVisibleOrders();
  const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
  let minWidth=260;
  if(context){context.font='700 13px -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif';minWidth=Math.ceil(Math.max(260,...visible.map(o=>context.measureText(o.number).width+100)));}
- return `<div class="purchaseOrderCards" style="--purchase-order-min:max(${minWidth}px,calc((100% - 36px)/4))">${purchaseOrders.map((o,i)=>{if(o.date!==purchaseSelectedDate||!purchaseFilteredOrders().includes(o))return '';const status=purchaseStatuses.find(s=>s[0]===o.status)||purchaseStatuses[0];const meta=[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}`).join('　');return `<article class="purchaseOrderCard"><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊選擇狀態" aria-label="${status[0]}，點擊選擇狀態" onclick="purchaseOpenStatus(event,${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button><strong>${esc(o.number)}${o.channel?` · ${esc(o.channel)}`:''}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header><div class="purchaseOrderContents">${o.items.map(x=>`<div class="purchaseOrderContent"><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong><span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
+ return `<div class="purchaseOrderCards" style="--purchase-order-min:max(${minWidth}px,calc((100% - 36px)/4))">${visible.map(o=>{const i=purchaseOrders.indexOf(o);const status=purchaseStatuses.find(s=>s[0]===o.status)||purchaseStatuses[0];const meta=[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}`).join('　');return `<article class="purchaseOrderCard"><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊選擇狀態" aria-label="${status[0]}，點擊選擇狀態" onclick="purchaseOpenStatus(event,${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button><strong>${o.channel?`${esc(o.channel)} · `:''}${esc(o.number)}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header><div class="purchaseCardSummary"><span>${esc(purchaseDateLabel(o.date))}</span>${o.contents?`<span class="purchaseContentsSummary">${esc(o.contents)}</span>`:''}</div><div class="purchaseOrderContents">${o.items.map(x=>`<div class="purchaseOrderContent"><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong><span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
 }
 const purchaseStatusPending=new Set();
 let purchaseStatusMenu=null;
@@ -2630,7 +2633,7 @@ async function purchaseLoad(){if(purchaseLoadPromise)return purchaseLoadPromise;
 async function purchaseLoadData(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();purchaseLoadImages();}
 async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
- const items=purchaseFilteredOrders().filter(o=>o.date===purchaseSelectedDate).flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
+ const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
  try{for(let start=0;start<codes.length;start+=100){const response=await api('purchaseMatch',{codes:JSON.stringify(codes.slice(start,start+100))});if(ticket!==purchaseImageTicket)return;
   items.forEach(item=>{if(item.image)return;const candidates=response.matches?.[item.code];if(!candidates)return;for(const source of ['最新開團','商品庫存','已收單']){let rows=candidates.filter(c=>c.source===source&&/^https?:\/\//i.test(c.image||''));const exact=rows.filter(c=>(item.url&&c.url===item.url)||(item.group&&c.group===item.group&&c.role===(item.role||'')));if(exact.length)rows=exact;const images=[...new Set(rows.map(c=>c.image.trim()))];if(images.length===1){item.image=images[0];break;}}});
  }
@@ -2682,7 +2685,7 @@ function purchaseSave(){
   const items=draft.items.map(({candidates,choice,...x})=>x),payload={number,date:draft.date,tracking:draft.tracking||'',shipping:draft.shipping??'',contents:draft.contents||'',channel:draft.channel||'',manual:draft.manual===true,status:draft.status||'未出貨',orderURL:draft.orderURL||'',items:JSON.stringify(items)};
   purchaseRegistrationQueue.set(number,payload);purchaseKeepRegistrations();
   purchaseOrders.unshift({number,date:draft.date,tracking:draft.tracking||'',shipping:draft.shipping??'',contents:draft.contents||'',channel:draft.channel||'',orderURL:draft.orderURL||'',status:draft.status||'未出貨',items});
-  purchaseDraft=null;purchaseText='';purchaseOrderURL='';purchaseLastAutoURL='';purchaseMessage='';purchaseDateCollapsed=false;purchaseSelectedDate=draft.date;purchaseSelectedMonth=purchaseMonthKey(draft.date);
+  purchaseDraft=null;purchaseText='';purchaseOrderURL='';purchaseLastAutoURL='';purchaseMessage='';purchaseDateCollapsed=false;purchaseSelectedDate='';purchaseSelectedMonth=purchaseMonthKey(draft.date);
   renderPurchase();document.getElementById('purchaseOrderURL')?.focus();purchaseDrainRegistrations();
  }catch(e){purchaseMessage=e.message;renderPurchase();}
 }
