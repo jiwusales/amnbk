@@ -2500,7 +2500,22 @@ function purchaseDateParts(date){const m=String(date||'').trim().match(/^(?:(\d{
 function purchaseDateLabel(date){const d=purchaseDateParts(date);return d?`${d.month}/${d.day}`:String(date||'');}
 function purchaseDateSortKey(date){const d=purchaseDateParts(date);return d?d.year*10000+d.month*100+d.day:0;}
 
-function purchaseEditDate(value){const m=value.trim().match(/^(\d{1,2})[\/-](\d{1,2})$/);if(!m){purchaseDraft.date='';return;}const year=(purchaseDraft.date||'').slice(0,4)||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());purchaseDraft.date=`${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;}
+function purchaseNormalizeDate(value,year){
+ let text=toHalfWidthDigits(value).trim().replace(/／/g,'/');if(/^\d{4}$/.test(text))text=text.slice(0,2)+'/'+text.slice(2);
+ const m=text.match(/^(\d{1,2})[\/-](\d{1,2})$/);if(!m)throw new Error('日期請輸入 0919 或 9/19');
+ const date=`${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`,parsed=new Date(date+'T00:00:00Z');if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==date)throw new Error('日期無效，請確認月與日');return date;
+}
+function purchaseEditDate(value){const year=(purchaseDraft.date||'').slice(0,4)||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());try{purchaseDraft.date=purchaseNormalizeDate(value,year);}catch(_){purchaseDraft.date='';}}
+function purchaseNormalizeInput(input){
+ if(!(input instanceof HTMLInputElement))return;
+ const form=input.closest('form');if(!input.closest('.purchasePage')&&!String(form?.getAttribute('onsubmit')||'').includes('purchase'))return;
+ const value=toHalfWidthDigits(input.value).replace(/／/g,'/');if(value!==input.value){const pos=input.selectionStart;input.value=value;if(pos!=null)input.setSelectionRange(pos,pos);}
+ if(input.hasAttribute('data-purchase-number')){const text=input.value.trim(),n=Number(text);input.setCustomValidity(text!==''&&(!Number.isFinite(n)||n<0||(input.hasAttribute('data-content-kind')&&!Number.isInteger(n)))?'請輸入有效的非負數字':'');}
+}
+document.addEventListener('input',event=>{if(!event.isComposing)purchaseNormalizeInput(event.target);},true);
+document.addEventListener('compositionend',event=>{purchaseNormalizeInput(event.target);if(event.target instanceof HTMLInputElement&&(event.target.closest('.purchasePage')||String(event.target.closest('form')?.getAttribute('onsubmit')||'').includes('purchase')))event.target.dispatchEvent(new Event('input',{bubbles:true}));},true);
+document.addEventListener('blur',event=>{const input=event.target;if(!(input instanceof HTMLInputElement)||input.placeholder!=='月/日')return;purchaseNormalizeInput(input);try{const year=input.dataset.year||new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date());input.value=purchaseDateLabel(purchaseNormalizeDate(input.value,year));}catch(_){}},true);
+
 function purchaseToggleRecords(){purchaseRecordsCollapsed=!purchaseRecordsCollapsed;renderPurchase();}
 function purchaseSelectDate(date){purchaseDateCollapsed=false;purchaseSelectedDate=purchaseSelectedDate===date?'':date;renderPurchase();if(!purchaseDateCollapsed)purchaseLoadImages();}
 function purchaseProductName(item){return [String(item.name||item.originalName||'未找到').trim(),String(item.role||'').trim()].filter(Boolean).join(' ');}
@@ -2596,7 +2611,7 @@ async function purchaseLoadChannels(dialog){try{const data=await api('purchaseCh
 function purchaseAutoChannel(input){const name=purchaseChannelFromURL(input.value);if(name)input.form.elements.channel.value=name;}
 async function purchaseEditDialog(i){
  const o=purchaseOrders[i],channels=[...new Set([o.channel,...purchaseOrders.map(x=>x.channel),...['ちいかわマーケット','ナガノマーケット','リララモード','ちいかわもぐもぐ本舗','ちいかわぽけっと']].filter(Boolean))];
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><h3 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input name="channel" aria-label="通路" placeholder="輸入通路" list="purchaseChannelSuggestions" value="${esc(o.channel||purchaseChannelFromURL(o.orderURL))}">${purchaseChannelList(channels)}<span>${/^MANUAL-/.test(o.number)?'':esc(o.number)}</span></h3><div class="purchaseEditFields"><label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label><div class="purchaseManualTop" style="margin-bottom:0!important"><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span style="flex:0 0 auto;white-space:nowrap">重量：</span><input name="weight" type="number" min="0" step="any" value="${esc(o.weight??'')}"></label></div></div>${purchaseContentsMarkup(o.contents||'')}<p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><h3 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input name="channel" aria-label="通路" placeholder="輸入通路" list="purchaseChannelSuggestions" value="${esc(o.channel||purchaseChannelFromURL(o.orderURL))}">${purchaseChannelList(channels)}<span>${/^MANUAL-/.test(o.number)?'':esc(o.number)}</span></h3><div class="purchaseEditFields"><label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label><div class="purchaseManualTop" style="margin-bottom:0!important"><label><span>出貨單號：</span><input name="tracking" value="${esc(o.tracking||'')}"></label><label><span style="flex:0 0 auto;white-space:nowrap">重量：</span><input name="weight" type="text" inputmode="decimal" data-purchase-number min="0" step="any" value="${esc(o.weight??'')}"></label></div></div>${purchaseContentsMarkup(o.contents||'',false,purchaseOrderRegion(o))}<p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  const dialog=document.getElementById('appDialog');await purchaseLoadChannels(dialog);
 }
 const purchaseEditQueue=new Map();let purchaseQueueRunning=false,purchaseQueueVersion=0,purchaseToastTimer=null;
@@ -2628,11 +2643,12 @@ function purchaseSubmitEdit(event,i){
  closeDialog();purchaseQueueEdit(order,fields);
 }
 const purchaseContentsKinds=['吊娃','娃','娃包','痛包','鑰匙圈'];
-function purchaseParseContents(value){
+const purchaseChinaContentsKinds=['吊娃','娃','包袋','包材','寵物'];
+function purchaseParseContents(value,kinds=purchaseContentsKinds){
  const counts={},other=[];
  String(value||'').split(/[、,，;；\n]+/).map(v=>v.trim()).filter(Boolean).forEach(part=>{
   const m=part.match(/^(.*?)\s*[x×*]\s*(\d+)$/i)||part.match(/^(.*?\D)\s*(\d+)$/);
-  if(m&&purchaseContentsKinds.includes(m[1].trim())){const type=m[1].trim();counts[type]=(counts[type]||0)+Number(m[2]);}
+  if(m&&kinds.includes(m[1].trim())){const type=m[1].trim();counts[type]=(counts[type]||0)+Number(m[2]);}
   else other.push(m?m[1].trim()+m[2]:part);
  });return {counts,other:other.join('、')};
 }
@@ -2642,12 +2658,13 @@ function purchaseContentsSync(box,draft=false){
  const other=purchaseOtherContents(box.querySelector('.purchaseContentsOther').value);if(other)parts.push(other);
  box.querySelector('[name=contents]').value=parts.join('、');if(draft&&purchaseDraft)purchaseDraft.contents=parts.join('、');
 }
-function purchaseContentsMarkup(value='',draft=false){
- const data=purchaseParseContents(value);
- return `<div class="purchaseContentsFields" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds">${purchaseContentsKinds.map(kind=>`<label><span>${kind}</span><input type="number" min="0" step="1" inputmode="numeric" data-content-kind="${kind}" aria-label="${kind}數量" value="${data.counts[kind]||''}"></label>`).join('')}</div><label class="purchaseContentsOtherRow"><span>其他</span><input class="purchaseContentsOther" aria-label="其他內容物" placeholder="輸入項目＋數字，例如：衣服1" value="${esc(data.other)}"></label></div>`;
+function purchaseContentsMarkup(value='',draft=false,region=purchaseRegion){
+ const kinds=region==='cn'?purchaseChinaContentsKinds:purchaseContentsKinds;
+ const data=purchaseParseContents(value,kinds);
+ return `<div class="purchaseContentsFields" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds">${kinds.map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number min="0" step="1" data-content-kind="${kind}" aria-label="${kind}數量" value="${data.counts[kind]||''}"></label>`).join('')}</div><label class="purchaseContentsOtherRow"><span>其他</span><input class="purchaseContentsOther" aria-label="其他內容物" placeholder="輸入項目＋數字，例如：衣服1" value="${esc(data.other)}"></label></div>`;
 }
 
-function purchaseManualItemMarkup(){return `<div class="purchaseManualItem"><label><span>名　　稱：</span><input class="purchaseManualName" required></label><label><span>金　　額：</span><input class="purchaseManualAmount" type="number" min="0" step="any" oninput="purchaseManualTotal()" required></label><button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
+function purchaseManualItemMarkup(){return `<div class="purchaseManualItem"><label><span>名　　稱：</span><input class="purchaseManualName" required></label><label><span>金　　額：</span><input class="purchaseManualAmount" type="text" inputmode="decimal" data-purchase-number min="0" step="any" oninput="purchaseManualTotal()" required></label><button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
 function purchaseManualAdd(){document.getElementById('purchaseManualItems').insertAdjacentHTML('beforeend',purchaseManualItemMarkup());}
 function purchaseManualTotal(){const sum=[...document.querySelectorAll('.purchaseManualAmount')].reduce((total,input)=>total+(Number(input.value)||0),0);document.getElementById('purchaseManualTotal').textContent='總額 $'+money(sum+(Number(document.querySelector('#appDialog [name=shipping]')?.value)||0));}
 async function purchaseManualDialog(){
@@ -2660,7 +2677,7 @@ function purchaseManualSubmit(event){
  const items=[...event.target.querySelectorAll('.purchaseManualItem')].map(row=>{const amount=Number(row.querySelector('.purchaseManualAmount').value);return {code:'',name:row.querySelector('.purchaseManualName').value.trim(),role:'',originalName:'',quantity:1,price:amount,total:amount,source:'手動',group:'',candidates:[],choice:''};});
  if(purchaseBusy||!number||!channel||!items.length||items.some(x=>!x.name||!Number.isFinite(x.price)||x.price<0)){document.getElementById('purchaseManualError').textContent='請確認輸入資料';return;}
  if(purchaseRegistrationQueue.has(number)||purchaseOrders.some(o=>o.number===number)){document.getElementById('purchaseManualError').textContent='已經登記過或正在背景登記';return;}
- const parts=f.date.trim().match(/^(\d{1,2})[\/-](\d{1,2})$/),year=event.target.elements.date.dataset.year;if(!parts){document.getElementById('purchaseManualError').textContent='日期請輸入月/日，例如 10/9';return;}const date=`${year}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`,parsed=new Date(date+'T00:00:00Z');if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==date){document.getElementById('purchaseManualError').textContent='日期無效，請確認月與日';return;}
+ let date;try{date=purchaseNormalizeDate(f.date,event.target.elements.date.dataset.year);event.target.elements.date.value=purchaseDateLabel(date);}catch(e){document.getElementById('purchaseManualError').textContent=e.message;return;}
  purchaseDraft={number,date,channel,tracking:String(f.tracking||'').trim(),contents:f.contents||'',manual:true,status:String(f.tracking||'').trim()?'已出貨':'未出貨',items};closeDialog();purchaseSave();
 }
 function renderPurchase(){
