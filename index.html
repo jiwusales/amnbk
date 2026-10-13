@@ -2666,7 +2666,7 @@ function purchaseOrderSite(url){
 let purchaseOrdersLoaded=false;
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',purchaseMessage='',purchaseBusy=false;
 let purchaseSearch='',purchaseRegion='';
-function purchaseOrderRegion(order){const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅]/.test(channel)?'cn':'';}
+function purchaseOrderRegion(order){const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅京]/.test(channel)?'cn':'';}
 function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':region;purchaseSelectedMonth='';purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?o.status==='已到貨':true;return area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
@@ -2822,7 +2822,7 @@ function purchaseSetStatus(i,statusIndex){
 }
 const purchaseSiteChannels={'chiikawamarket.jp':'ちいかわ官網','nagano-market.jp':'nagano官網','chiikawamogumogu.shop':'Mogu本舖','chiikawa-pocket-goods-store.com':'ちいかわ手遊','account.lilalamode-store.jp':'LIL ala mode'};
 function purchaseChannelFromURL(value){try{return purchaseSiteChannels[new URL(value).hostname]||'';}catch(_){return '';}}
-function purchaseChannelList(names){return `<datalist id="purchaseChannelSuggestions">${[...new Set(names.filter(Boolean))].map(name=>`<option value="${esc(name)}"></option>`).join('')}</datalist>`;}
+function purchaseChannelList(names){return `<datalist id="purchaseChannelSuggestions">${[...new Set([...names,...(purchaseRegion==='cn'?['京']:[])].filter(Boolean))].map(name=>`<option value="${esc(name)}"></option>`).join('')}</datalist>`;}
 async function purchaseLoadChannels(dialog){try{const data=await api('purchaseChannels');if(document.getElementById('appDialog')!==dialog)return;dialog.querySelector('#purchaseChannelSuggestions').outerHTML=purchaseChannelList([...purchaseOrders.map(o=>o.channel),...Object.values(purchaseSiteChannels),...(data.channels||[])]);}catch(_) {}}
 function purchaseAutoChannel(input){const name=purchaseChannelFromURL(input.value);if(name)input.form.elements.channel.value=name;}
 async function purchaseEditDialog(i){
