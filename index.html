@@ -2702,7 +2702,7 @@ function purchaseDailyTotals(orders,mergeByName=false){
   const day=days.get(order.date);day.numbers.add(order.number);
   (order.items||[]).forEach((item,itemIndex)=>{
    const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
-   // 未指定日期的商品統計按顯示名稱合併；指定日期時維持原有統計方式。
+   // 商品統計按顯示名稱合併；日期由可見訂單篩選，訂單卡維持分開。
    const name=String(item.name||item.originalName||'').trim()?purchaseProductName(item).normalize('NFKC').replace(/\s+/g,' ').trim():'';
    const key=mergeByName&&name?'name:'+name:purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||Symbol();
    if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
@@ -2715,7 +2715,7 @@ function purchaseDailyTotals(orders,mergeByName=false){
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseNoMonths()||(purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate))).filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.items.length&&o.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000)&&!purchaseCheckJobs.some(job=>job.orders.some(x=>x.number===o.number)))).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
-function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseSelectedDate)[0]?.items||[];}
+function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,true)[0]?.items||[];}
 function purchaseRecordsTitle(){return purchaseView==='packed'||purchaseView==='arrived'?`訂單記錄 (${purchaseVisibleOrders().length})`:'訂單紀錄';}
 function purchaseDailyView(){
  const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return (purchaseView==='packed'||purchaseView==='arrived'?'<h3>訂單記錄 (0)</h3>':'')+(purchaseRegion==='cn'&&purchaseView==='manage'?'<div class="purchaseDateTabs"><button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>':'')+'<p>尚無訂購紀錄</p>';
