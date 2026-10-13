@@ -1487,7 +1487,7 @@ function launchFooterText(g){
  const iso=date.match(/^\d{4}-(\d{2})-(\d{2})$/);
  const shippingDate=iso?`${Number(iso[1])}月${Number(iso[2])}日`:date;
  const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
- const freeShipping=g.needsSecondPayment?'｜需二補('+shipping+'/kg)':/^0+(?:\.0+)?$/.test(shipping)?'｜免境內運、免二補包手.ᐟ.ᐟ':(shipping?'｜境內運$'+shipping+'同車平分'+(g.noFreeShipping?'':'（滿額免）'): '');
+ const freeShipping=g.needsSecondPayment?'｜需二補（'+shipping+'/kg)':/^0+(?:\.0+)?$/.test(shipping)?'｜免境內運、免二補包手.ᐟ.ᐟ':(shipping?'｜境內運$'+shipping+'同車平分'+(g.noFreeShipping?'':'（滿額免）'): '');
  return `官方LINE @jiwusales｜${shippingDate?'預計'+shippingDate:'官方'}出荷後約2-3週不含假日抵台${freeShipping}`;
 }
 function launchSetShipping(field,value){
@@ -1524,7 +1524,7 @@ function launchPostTags(value){
 }
 function launchPostShipping(g){
  const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
- const delivery=g.needsSecondPayment?'🚚需二補('+shipping+'/kg)':/^0+(?:\.0+)?$/.test(shipping)?'🚚免境內運、免二補包手.ᐟ.ᐟ':(shipping?`🚚境內運$${shipping}同車平分${g.noFreeShipping?'':'（滿額免）'}`:'');
+ const delivery=g.needsSecondPayment?'🚚需二補（'+shipping+'/kg)':/^0+(?:\.0+)?$/.test(shipping)?'🚚免境內運、免二補包手.ᐟ.ᐟ':(shipping?`🚚境內運$${shipping}同車平分${g.noFreeShipping?'':'（滿額免）'}`:'');
  return `🚀官方出荷後約2-3週不含假日抵台${delivery?'\n'+delivery:''}`;
 }
 function launchPostText(g,ig=false){
@@ -1585,9 +1585,9 @@ function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getIt
 function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
 function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status);localStorage.removeItem(LAUNCH_CACHE_PREFIX+status);});}
 function launchPost(action,params){return backendTrackWrite(action,()=>launchPostRequest(action,params));}
-async function launchPostRequest(action,params){
+async function launchPostRequest(action,params,attempt=0){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
- try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:authToken,...params}),signal:controller.signal});const d=await r.json();if(d.ok===false){if(d.error==='登入已失效，請重新登入')showLogin();throw new Error(d.error);}return d;}
+ try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:authToken,...params}),signal:controller.signal});const d=await r.json();if(d.ok===false&&d.code==='LAUNCH_LOCK_BUSY'&&attempt<3){clearTimeout(timer);await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)));return launchPostRequest(action,params,attempt+1);}if(d.ok===false){if(d.error==='登入已失效，請重新登入')showLogin();throw new Error(d.error);}return d;}
  catch(e){if(e.name==='AbortError')throw new Error('連線逾時，請重新載入確認是否已儲存，再重試');throw e;}finally{clearTimeout(timer);}
 }
 async function launchFillFromInventory(){
