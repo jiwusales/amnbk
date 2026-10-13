@@ -2087,6 +2087,8 @@ function launchFitCards(){
  // 若下一排只需縮短不到 3%，讓卡片填入剩餘空間，避免六張一排時誤少一排。
  const nextHeight=(availableHeight-gap*rows)/(rows+1);
  if(columns===6&&nextHeight>=height*.97){rows++;height=nextHeight;}
+ // 七張一列固定四列，依商品區高度均分，最多顯示 28 張。
+ if(columns===7){rows=4;height=Math.max(1,(availableHeight-gap*3)/4);}
  // 四張一列至少保留兩列，卡片高度配合可用空間，避免第二列溢出。
  if(columns===4&&rows<2){rows=2;height=Math.max(1,(availableHeight-gap)/2);}
  grid.style.setProperty('--launch-row-height',height+'px');
