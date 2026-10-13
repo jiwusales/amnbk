@@ -1260,7 +1260,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <style>
 .progressMobileBrief{display:none}
 @media(max-width:850px){
- #launchMoveProgress{width:20vw!important;height:20vw!important;max-height:none!important;box-sizing:border-box;padding:5px!important;overflow:hidden!important;border-radius:9px!important;right:10px!important}
+ #launchMoveProgress{width:20vw!important;height:20vw!important;max-height:none!important;box-sizing:border-box;padding:5px!important;overflow:hidden!important;border-radius:9px!important;left:10px!important;right:auto!important}
  #launchMoveProgress .progressDesktopDetails{display:none}
  #launchMoveProgress .progressMobileBrief{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;text-align:center;font-size:clamp(9px,2.7vw,12px);line-height:1.2;overflow-wrap:anywhere}
 }
@@ -1597,7 +1597,7 @@ function launchNotice(text){launchMessage=text;const n=document.getElementById('
 function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||localStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
 function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
 function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status);localStorage.removeItem(LAUNCH_CACHE_PREFIX+status);});}
-function launchPost(action,params){return backendTrackWrite(action,()=>launchPostRequest(action,params));}
+function launchPost(action,params,progressId){return backendTrackWrite(action,()=>launchPostRequest(action,params),params,progressId);}
 async function launchPostRequest(action,params){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:authToken,...params}),signal:controller.signal});const d=await r.json();if(d.ok===false){if(d.error==='登入已失效，請重新登入')showLogin();throw new Error(d.error);}return d;}
@@ -1752,7 +1752,7 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const progressId='persist-'+launchId(),progressName=launchCurrent.name;launchMoveProgress(progressId,progressName,'傳送中','','回傳試算表');try{const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');launchMoveProgress(progressId,progressName,'完成','','回傳試算表');}catch(e){launchMoveProgress(progressId,progressName,'失敗',e.message,'回傳試算表');throw e;}}
+async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const progressId='persist-'+launchId(),progressName=launchCurrent.name;launchMoveProgress(progressId,progressName,'傳送中','','回傳試算表');try{const d=await launchPost('launchSave',{group:launchCurrent},progressId);launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');launchMoveProgress(progressId,progressName,'完成','','回傳試算表');}catch(e){launchMoveProgress(progressId,progressName,'失敗',e.message,'回傳試算表');throw e;}}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
@@ -1776,18 +1776,18 @@ function launchSaveClick(options={}){
   for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['canvasTitle','畫布標題'],['footer','底部文字'],['tags','標籤'],['shortUrl','短網址'],['shipDate','出荷日期'],['domesticShipping','境內運']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
  }
  const completed=parts.length?parts.join('、'):'畫布修改';
- const progressId=options.previousStatus?null:'save-'+launchId();
- const saveProgress=(state,error='')=>{if(progressId)launchMoveProgress(progressId,snapshot.name,state,error,'儲存・'+completed);};
+ const progressId=options.progressId||'save-'+launchId();
+ const saveProgress=(state,error='')=>{if(!options.previousStatus)launchMoveProgress(progressId,snapshot.name,state,error,'儲存・'+completed);};
  saveProgress('排隊中');
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
   snapshot.revision=launchSavedRevisions.get(id);
   if(options.previousStatus&&!snapshot.revision){
-   const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}});
+   const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}},progressId);
    snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);
   }
-  const d=await launchPost('launchSave',{group:snapshot});
+  const d=await launchPost('launchSave',{group:snapshot},progressId);
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認'+(options.actionLabel||'狀態變更')+'完成');
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
@@ -1811,13 +1811,14 @@ function launchMoveProgress(id,name,state,error='',action='下架'){
 function launchDismissFailedProgress(){for(const [id,job] of launchMoveProgressJobs)if(job.state==='失敗')launchMoveProgressJobs.delete(id);launchPaintMoveProgress();}
 function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
- if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
- if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;right:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
+ if(!launchMoveProgressJobs.size){box?.remove();document.documentElement.style.setProperty('--backend-progress-height','0px');clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
+ if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const jobs=[...launchMoveProgressJobs.values()];
  const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.at(-1);
  const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span>${esc(current.state)}</span><progress aria-label="${esc(current.action)}進度" style="width:100%;height:6px;accent-color:#26954b" ${['完成','失敗'].includes(current.state)?'max="1" value="1"':''}></progress><span>${Math.floor((Date.now()-current.start)/1000)} 秒</span>${current.state==='失敗'?'<button type="button" class="btn light" onclick="launchDismissFailedProgress()" style="padding:1px 4px;font-size:10px">關閉</button>':''}</div>`;
  let waiting=0;
  box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待試算表確認，請勿重新整理頁面。</small>`}`}</div>`).join('')+'</div>';
+ document.documentElement.style.setProperty('--backend-progress-height',box.offsetHeight+'px');
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -1828,7 +1829,7 @@ function launchMove(status){
   launchMoveProgress(moveProgressId,original.name,'排隊中','',actionLabel);
   launchPendingMoves.set(id,status);++launchLoad;
   launchMessage='正在背景'+actionLabel+'「'+original.name+'」…';
-  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
+  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,progressId:moveProgressId,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
    launchMoveProgress(moveProgressId,original.name,'完成','',actionLabel);
    launchPendingMoves.delete(id);++launchLoad;
    launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
@@ -2187,7 +2188,8 @@ function launchPNGDpi(buffer){
  if(!inserted)throw new Error('PNG 格式錯誤');return new Blob(parts,{type:'image/png'});
 }
 function launchExportMenu(){
- const action=`<button class="btn" type="button" onclick="launchExport('download')">${window.matchMedia('(max-width:850px)').matches?'SAVE':'下載圖片'}</button>`;
+ const mobile=window.matchMedia('(max-width:850px)').matches;
+ const action=`<button class="btn" type="button" onclick="launchExport('${mobile?'image':'download'}')">${mobile?'圖片輸出':'下載圖片'}</button>`;
  const normal=launchPostText(launchCurrent),tags=launchPostTags(launchCurrent.tags),fb=normal.replace(/^#代購\r?\n/,'')+(tags?'\n\n'+tags:''),ig=launchPostText(launchCurrent,true),line=launchLineGroupText(launchCurrent);
  launchDialog(`<div class="launchExportHead"><div>${action}<span class="launchExportSpec">（1080x1350px/PNG/200dpi）</span></div><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><div class="launchPostChannels" aria-label="發布平台">${['@','IG','FB','社團','Google'].map(name=>`<button type="button" aria-pressed="${launchPostChannelState()[name]===true}" onclick="launchTogglePostChannel(this)">${name}</button>`).join('')}</div><div class="launchPostLabel">賴群 <button class="launchPostCopy" type="button" aria-label="複製賴群文字" onclick="launchCopyPostText(this,'launchPostLine')">❏</button></div><textarea id="launchPostLine" class="launchPostText line" readonly>${esc(line)}</textarea><div class="launchPostLabel">開團文 <button class="launchPostCopy" type="button" aria-label="複製開團文" onclick="launchCopyPostText(this,'launchPostNormal')">❏</button></div><textarea id="launchPostNormal" class="launchPostText" readonly>${esc(normal)}</textarea><div class="launchPostLabel">FB <button class="launchPostCopy" type="button" aria-label="複製 FB 貼文" onclick="launchCopyPostText(this,'launchPostFB')">❏</button></div><textarea id="launchPostFB" class="launchPostText" readonly>${esc(fb)}</textarea><div class="launchPostLabel">IG貼文 <button class="launchPostCopy" type="button" aria-label="複製 IG 貼文" onclick="launchCopyPostText(this,'launchPostIG')">❏</button></div><textarea id="launchPostIG" class="launchPostText ig" readonly>${esc(ig)}</textarea>`);
 }
@@ -2197,11 +2199,50 @@ function launchDownloadPNG(blob,name){
  setTimeout(()=>URL.revokeObjectURL(url),60000);
  launchNotice('已下載 1080 × 1350 PNG · 200 dpi');
 }
+function launchPreviewPNG(blob,name){
+ const url=URL.createObjectURL(blob);
+ launchDialog(`<div class="launchExportHead"><h3>圖片輸出</h3><button class="launchExportClose" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><p style="font-size:14px;color:#777">長按下方圖片，選擇「儲存影像」加入相簿。</p><img src="${url}" alt="開團畫布" style="display:block;width:100%;height:auto;-webkit-touch-callout:default;user-select:auto">`);
+ const dialog=document.getElementById('launchDialog');
+ if(dialog){
+  dialog.addEventListener('close',()=>URL.revokeObjectURL(url),{once:true});
+  const file=typeof File==='function'?new File([blob],name,{type:'image/png'}):null;
+  if(file&&navigator.share&&navigator.canShare?.({files:[file]})){
+   const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='儲存圖片';
+   button.onclick=()=>{dialog.close();void launchSavePNG(blob,name,'export-'+launchId(),launchCurrent?.name||'開團畫布');};
+   dialog.appendChild(button);
+  }
+ }
+}
+async function launchSavePNG(blob,name,progressId,progressName){
+ const progress=(state,error='')=>launchMoveProgress(progressId,progressName,state,error,'圖片輸出');
+ try{
+  const file=new File([blob],name,{type:'image/png'});
+  if(navigator.share&&navigator.canShare?.({files:[file]})){
+   progress('開啟儲存選單');
+   try{await navigator.share({files:[file]});progress('完成');}
+   catch(error){
+    if(error.name==='AbortError'){launchMoveProgressJobs.delete(progressId);launchPaintMoveProgress();return;}
+    launchPreviewPNG(blob,name);progress('完成');
+   }
+  }else{launchPreviewPNG(blob,name);progress('完成');}
+ }catch(error){progress('失敗',error.message);launchCompletionToast('圖片輸出失敗：'+error.message,true);}
+}
 function launchExport(mode){
  if(launchBusy)return;
  const progressId='export-'+launchId(),progressName=launchCurrent?.name||'開團畫布';
  const progress=(state,error='')=>launchMoveProgress(progressId,progressName,state,error,mode==='copy'?'複製畫布圖片':'儲存畫布圖片');
  const paper=document.getElementById('launchPaper');
+ if(mode==='image'){
+  const name=(launchCurrent.name||'開團')+'.png';
+  if(paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
+   document.getElementById('launchDialog')?.close();
+   void launchSavePNG(launchPNGPrepared.blob,name,progressId,progressName);
+  }else{
+   progress('產生圖片中');
+   launchGetPNG().then(blob=>{launchPreviewPNG(blob,name);progress('完成');}).catch(error=>{progress('失敗',error.message);launchCompletionToast('圖片輸出失敗：'+error.message,true);});
+  }
+  return;
+ }
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
   document.getElementById('launchDialog').close();
   progress('儲存中');try{launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');progress('完成');}catch(e){progress('失敗',e.message);alert(e.message);}return;
@@ -2273,7 +2314,7 @@ let isFaceToFaceView=false;isStarredView=false;
 const apiReadActions=new Set(['backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={}){
-if(!apiReadActions.has(action))return backendTrackWrite(action,()=>apiRequest(action,params));
+if(!apiReadActions.has(action))return backendTrackWrite(action,()=>apiRequest(action,params),params);
 const key=JSON.stringify([action,authToken,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
@@ -2594,7 +2635,7 @@ function purchaseCheckOrderCard(event,orderIndex){
 function purchaseCheckKind(kind){const orders=purchaseVisibleOrders().filter(o=>purchaseContentCounts(o.contents)[kind]>0);if(!orders.length)return;const checked=!orders.every(o=>o.checkedKinds?.[kind]?.count===purchaseContentCounts(o.contents)[kind]&&o.checkedKinds[kind].signature===purchaseCheckSignature(o));purchaseQueueCheck({type:'kind',kind,checked,orders:purchaseVisibleOrders().map(o=>({number:o.number,signature:purchaseCheckSignature(o)}))});}
 async function purchaseDrainChecks(){
  if(purchaseCheckRunning)return;purchaseCheckRunning=true;
- try{while(purchaseCheckJobs.length){const job=purchaseCheckJobs[0];launchMoveProgress(job.id,'點貨確認','傳送中','','儲存點貨');try{await launchPost('purchaseCheck',{job:JSON.stringify(job)});purchaseCheckJobs.shift();purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','完成','','儲存點貨');}catch(e){launchMoveProgress(job.id,'點貨確認','失敗',e.message,'儲存點貨');purchaseEditToast('點貨確認尚未儲存：'+e.message,true);const retry=document.querySelector('#purchaseEditToast button');if(retry)retry.onclick=()=>purchaseDrainChecks();break;}}}finally{purchaseCheckRunning=false;purchaseRefreshChecks();}
+ try{while(purchaseCheckJobs.length){const job=purchaseCheckJobs[0];launchMoveProgress(job.id,'點貨確認','傳送中','','儲存點貨');try{await launchPost('purchaseCheck',{job:JSON.stringify(job)},job.id);purchaseCheckJobs.shift();purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','完成','','儲存點貨');}catch(e){launchMoveProgress(job.id,'點貨確認','失敗',e.message,'儲存點貨');purchaseEditToast('點貨確認尚未儲存：'+e.message,true);const retry=document.querySelector('#purchaseEditToast button');if(retry)retry.onclick=()=>purchaseDrainChecks();break;}}}finally{purchaseCheckRunning=false;purchaseRefreshChecks();}
 }
 setInterval(()=>{if(document.body.dataset.page==='purchase'&&purchaseView==='arrived'&&purchaseRegion==='cn'&&!document.getElementById('appDialog')){const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();}},10000);
 function purchasePackingPlan(orders){
@@ -3774,6 +3815,12 @@ renderStore();
 alert(e.message)
 }finally{cartOperationBusy=false;cartRevision++;}
 }
+function showStoreCheckoutNotice(){
+ let notice=document.getElementById('storeCheckoutNotice');
+ if(!notice){notice=document.createElement('div');notice.id='storeCheckoutNotice';notice.setAttribute('role','status');document.body.appendChild(notice);}
+ notice.textContent='結帳完成';notice.hidden=false;
+ clearTimeout(showStoreCheckoutNotice.timer);showStoreCheckoutNotice.timer=setTimeout(()=>notice.hidden=true,2000);
+}
 async function checkout(){
 if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再結帳');return;}
 if(!storeCart.length){
@@ -3831,9 +3878,7 @@ note,
 salesperson
 }
 );
-alert(
-'結帳完成'
-);
+showStoreCheckoutNotice();
 storeCart=[];
 payment='';
 ['received','last5','storeNote','barcode'].forEach(id=>{const input=document.getElementById(id);if(input)input.value='';});
@@ -3997,7 +4042,7 @@ const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
 if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
 const rows=selected.map(row=>Number(row.row));
 const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
-const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})});
+const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})},job.progressId);
 const server=result.online||await api('online',{compact:'0',fresh:'1'});
 const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
 const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
@@ -5343,12 +5388,40 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncLastRead=new Map();
 function backendSyncMutation(action){
- return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|store(?:CartSet|CartClear|Scan)|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape|Upload|CheckAvailability))/.test(action);
 }
-async function backendTrackWrite(action,run){
+function backendWriteLabel(action){
+ const labels={
+ storeCheckout:'店面結帳',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeScan:'加入購物車',
+ addStoreSale:'新增店面銷售',updateStoreSaleNote:'儲存銷售備註',updateStoreSalePayment:'儲存付款資料',
+ addOnlineOrder:'新增線上訂單',appendOnlineOrder:'新增訂單商品',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',
+ renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存匯款資料',setOnlineItemBadge:'儲存貨況',
+ setOnlineFaceToFace:'儲存面交狀態',setOnlineStar:'儲存星號',setOnlineReconciled:'儲存對帳狀態',
+ purchaseSave:'登記訂購',purchaseEdit:'儲存訂購資料',purchaseDelete:'刪除訂購資料',purchaseImage:'儲存商品圖片',purchaseRestock:'登記補貨',purchaseCheck:'儲存點貨',
+ addInventoryProduct:'新增庫存商品',updateInventoryProduct:'儲存商品資料',deleteInventoryProduct:'刪除庫存商品',
+ setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面庫存',setInventoryImage:'儲存商品圖片',reorderInventory:'儲存商品排序',checkInventoryAvailability:'更新官網貨況',
+ createShip:'建立出貨記錄',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨狀態',deleteShipOrder:'刪除出貨記錄',
+ launchSave:'儲存開團資料',launchDelete:'刪除開團',launchReorder:'儲存開團排序',launchUpload:'上傳首圖',launchImportInventory:'匯入商品庫存',
+ launchGroupWorkAdd:'新增開團工作',launchGroupWorkBatchSave:'儲存開團工作',launchSetProductHidden:'儲存商品顯示',
+ launchSetInventoryAvailability:'儲存缺貨狀態',launchFillFromInventory:'回填商品資料',launchScrape:'更新商品資料',launchCheckAvailability:'更新商品貨況',
+ saveLineChatContact:'儲存顧客對話',bindCustomerLineChat:'綁定顧客對話',saveCustomerLineChat:'儲存顧客對話'
+ };
+ return labels[action]||'儲存資料';
+}
+async function backendTrackWrite(action,run,params={},existingProgressId){
  if(!backendSyncMutation(action))return run();
+ const label=backendWriteLabel(action),progressId=existingProgressId||'write-'+launchId();
+ const name=String(params.customer||params.newName||params.name||params.group?.name||label);
+ if(!existingProgressId)launchMoveProgress(progressId,name,'傳送中','',label);
  backendSyncWrites++;backendSyncEpoch++;
- try{return await run();}finally{backendSyncWrites--;backendSyncEpoch++;setTimeout(()=>backendSyncPoll(),0);}
+ try{
+  const result=await run();
+  if(!existingProgressId)launchMoveProgress(progressId,name,'完成','',label);
+  return result;
+ }catch(error){
+  if(!existingProgressId)launchMoveProgress(progressId,name,'失敗',error.message,label);
+  throw error;
+ }finally{backendSyncWrites--;backendSyncEpoch++;setTimeout(()=>backendSyncPoll(),0);}
 }
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
 function backendSyncCanApply(page){
@@ -5553,6 +5626,25 @@ syncTitleRowBack();
  .launchDialog .titleRowBack{top:13px}
  .homeDesktopLabel{display:none}
  .homeMobileLabel{display:inline}
+}
+</style>
+<style>
+#launchCompletionToast,#purchaseEditToast,#purchaseRegistrationToast,#inventorySaveNotice{
+ top:auto!important;left:16px!important;right:auto!important;
+ bottom:calc(85px + var(--backend-progress-height,0px) + 8px)!important;
+ transform:none!important;max-width:calc(100vw - 32px)!important;
+}
+#storeCheckoutNotice{
+ position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:10030;
+ max-width:calc(100vw - 32px);box-sizing:border-box;border-radius:10px;
+ background:#344b3c;color:#fff;padding:10px 16px;font-size:14px;
+ box-shadow:0 4px 16px #0002;pointer-events:none;text-align:center;
+}
+#storeCheckoutNotice[hidden]{display:none}
+@media(max-width:850px){
+ #launchMoveProgress{width:min(260px,calc(100vw - 24px))!important;height:auto!important;min-height:90px;padding:10px!important}
+ #launchMoveProgress .progressMobileBrief{font-size:12px;gap:5px}
+ #launchCompletionToast,#purchaseEditToast,#purchaseRegistrationToast,#inventorySaveNotice{left:10px!important}
 }
 </style>
 </body>
