@@ -3908,7 +3908,13 @@ return [...new Set(onlineRows.map(row=>String(getOnlineData(row,['顧客名稱',
 function updateManualOnlineCustomerSuggestions(){
 const input=document.getElementById('manualOnlineCustomer'),box=document.getElementById('manualOnlineCustomerSuggestions');if(!input||!box)return;
 const names=manualOnlineCustomerMatches(input.value);box.replaceChildren();
-names.forEach(name=>{const button=document.createElement('button');button.type='button';button.textContent=name;button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',()=>{input.value=name;input.focus();box.hidden=true;input.setAttribute('aria-expanded','false');});box.appendChild(button);});
+names.forEach(name=>{
+const button=document.createElement('button');button.type='button';button.textContent=name;
+const selectName=()=>{input.value=name;box.hidden=true;input.setAttribute('aria-expanded','false');};
+button.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();selectName();});
+button.addEventListener('click',selectName);
+box.appendChild(button);
+});
 box.hidden=!names.length;input.setAttribute('aria-expanded',String(!!names.length));
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineName" placeholder="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('input').focus();}
