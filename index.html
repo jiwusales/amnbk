@@ -2630,6 +2630,13 @@ function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':
 function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?o.status==='已到貨':true;return area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;const results=document.getElementById('purchaseManagement');if(results)results.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
+document.addEventListener('click',event=>{
+ const input=event.target;
+ if(!input?.matches?.('#purchaseSearch,#purchaseOrderURL')||!input.value||event.isComposing||purchaseSearchComposing)return;
+ input.value='';
+ if(input.id==='purchaseSearch'){clearTimeout(purchaseSearchTimer);purchaseRunSearch('');}
+ else purchaseURLInput('');
+});
 function purchaseBindSearch(){
  const input=document.getElementById('purchaseSearch');if(!input)return;
  const schedule=()=>{clearTimeout(purchaseSearchTimer);purchaseSearchTimer=setTimeout(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);},160);};
@@ -2687,7 +2694,7 @@ function purchasePreviousImage(item,previous){
  }
  const images=[...new Set(matches.map(x=>x.image.trim()))];return images.length===1?images[0]:'';
 }
-function purchaseDailyTotals(orders){
+function purchaseDailyTotals(orders,mergeByName=false){
  const previous=purchaseOrders.flatMap(o=>o.items||[]);
  const days=new Map();
  orders.forEach(order=>{
@@ -2695,8 +2702,9 @@ function purchaseDailyTotals(orders){
   const day=days.get(order.date);day.numbers.add(order.number);
   (order.items||[]).forEach((item,itemIndex)=>{
    const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
-   // 無貨號的舊資料逐項保留，避免把不同商品合在一起。
-   const key=purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||Symbol();
+   // 未指定日期的商品統計按顯示名稱合併；指定日期時維持原有統計方式。
+   const name=String(item.name||item.originalName||'').trim()?purchaseProductName(item).normalize('NFKC').replace(/\s+/g,' ').trim():'';
+   const key=mergeByName&&name?'name:'+name:purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||Symbol();
    if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
    const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image){const image=item.image||purchasePreviousImage(item,previous);if(/^https?:\/\//i.test(image||''))product.image=image;}
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
@@ -2707,7 +2715,7 @@ function purchaseDailyTotals(orders){
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseNoMonths()||(purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate))).filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.items.length&&o.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000)&&!purchaseCheckJobs.some(job=>job.orders.some(x=>x.number===o.number)))).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
-function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders)[0]?.items||[];}
+function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseSelectedDate)[0]?.items||[];}
 function purchaseRecordsTitle(){return purchaseView==='packed'||purchaseView==='arrived'?`訂單記錄 (${purchaseVisibleOrders().length})`:'訂單紀錄';}
 function purchaseDailyView(){
  const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return (purchaseView==='packed'||purchaseView==='arrived'?'<h3>訂單記錄 (0)</h3>':'')+(purchaseRegion==='cn'&&purchaseView==='manage'?'<div class="purchaseDateTabs"><button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>':'')+'<p>尚無訂購紀錄</p>';
