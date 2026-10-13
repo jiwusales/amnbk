@@ -1752,7 +1752,7 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
@@ -1787,7 +1787,14 @@ function launchSaveClick(options={}){
    const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}});
    snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);
   }
-  const d=await launchPost('launchSave',{group:snapshot});
+  let d;
+  if(options.previousStatus){
+   if(options.needsSave){
+    const saved=await launchPost('launchSave',{group:{...snapshot,status:options.previousStatus},baseGroup:readBackendSnapshot('launchGroup_'+id)});
+    launchSavedRevisions.set(id,saved.group.revision);saveBackendSnapshot('launchGroup_'+id,saved.group);
+   }
+   d=await launchPost('launchMove',{id,status:snapshot.status,fromStatus:options.previousStatus});
+  }else d=await launchPost('launchSave',{group:snapshot,baseGroup:readBackendSnapshot('launchGroup_'+id)});
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('試算表尚未確認'+(options.actionLabel||'狀態變更')+'完成');
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
@@ -1822,12 +1829,13 @@ function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
   if(launchCurrent.status===status)return;
   const actionLabel=status==='最新開團'?'上架':'下架';
+  const needsSave=launchHasUnsentChanges()||launchFailedSaves.has(launchCurrent.id);
   const previousStatus=launchCurrent.status,original=structuredClone(launchCurrent),id=original.id,moveProgressId='move-'+launchId();
   launchCurrent.status=status;launchDirty=true;
   launchMoveProgress(moveProgressId,original.name,'排隊中','',actionLabel);
   launchPendingMoves.set(id,status);++launchLoad;
   launchMessage='正在背景'+actionLabel+'「'+original.name+'」…';
-  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
+  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,needsSave,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
    launchMoveProgress(moveProgressId,original.name,'完成','',actionLabel);
    launchPendingMoves.delete(id);++launchLoad;
    launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
