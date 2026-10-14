@@ -2911,7 +2911,7 @@ function purchaseQueueEdit(order,changed,defer=false){
  const previous=purchaseEditQueue.get(order.number)?.fields||{};
  const delta=Object.fromEntries(Object.entries(changed).filter(([key,value])=>['quantities','autoShipTracking','autoTransitWeight'].includes(key)||String(value??'')!==String(order[key]??'')));
  if(!Object.keys(delta).length)return;
- const fields={...previous,...delta};
+ const fields={...previous,...delta};if(previous.quantities!==undefined&&previous.expectedItems!==undefined&&delta.quantities!==undefined)fields.expectedItems=previous.expectedItems;
  Object.assign(order,fields);if(purchaseOrderRegion(order)!=='cn'&&!purchaseKindsComplete(order))order.items.forEach(item=>item.checkedAt=0);purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion});if(defer)return;purchaseKeepPending();
  if(document.body.dataset.page==='purchase'){const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;}purchaseDrainEdits();
 }
@@ -2919,7 +2919,14 @@ async function purchaseDrainEdits(){
  if(purchaseQueueRunning)return;purchaseQueueRunning=true;
  try{while(purchaseEditQueue.size){const [number,pending]=purchaseEditQueue.entries().next().value;if(purchaseRegistrationQueue.has(number))break;
   try{const result=await api('purchaseEdit',{number,...pending.fields});if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至試算表');if(result.merged)await purchaseLoad();}
-  catch(e){purchaseEditToast('未送出修改已保留：'+e.message,true);break;}
+  catch(e){purchaseEditToast('訂單 '+number+' 未送出修改已保留：'+e.message,true);
+   const toast=document.getElementById('purchaseEditToast');if(toast){const discard=document.createElement('button');discard.type='button';discard.textContent='放棄這筆修改';discard.style.marginLeft='10px';discard.onclick=async()=>{
+    if(purchaseQueueRunning){purchaseEditToast('正在儲存，請稍後再試',true);return;}
+    const current=purchaseEditQueue.get(number);if(!current||current.version!==pending.version){purchaseEditToast('這筆修改已更新，請先重試',true);return;}
+    purchaseEditQueue.delete(number);purchaseKeepPending();toast.remove();
+    if(document.querySelector('#appDialog form')?.dataset.orderNumber===number)closeDialog();
+    await purchaseLoad();
+   };toast.appendChild(discard);}break;}
  }}finally{purchaseQueueRunning=false;}
 }
 function purchaseSubmitEdit(event,i){
