@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://script.google.com">
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>JIWU吉物躺著賺後台</title>
+<script src="ship-market-export.js?v=20261014" defer></script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -658,8 +659,17 @@ flex-shrink:0;cursor:pointer;border:0;width:auto;min-width:18px;padding:0 3px!im
 /* 出貨 */
 .shipMarketActions{display:none}
 body[data-page="ship"] .shipMarketActions{display:flex;gap:6px}
-body[data-page="ship"] .top>span{max-width:calc(100% - 190px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-
+body[data-page="ship"] .top>span{max-width:calc(100% - 225px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.shipOrderCard{cursor:pointer}
+.shipOrderCard.shipMarketSelected{outline:2px solid var(--main);outline-offset:-2px}
+.shipMarketCheck{width:17px;height:17px;margin:0 3px 0 0;align-self:center;accent-color:var(--main);cursor:pointer;flex-shrink:0}
+.shipMarketTruck{margin-right:auto;color:#ccc;font-size:22px;line-height:1;background:none;flex-shrink:0}
+.shipMarketTruck.isListed{color:#2673C0}
+.shipMarketTruck svg{display:block;width:24px;height:24px;fill:currentColor}
+.shipMarketForm{display:grid;gap:12px}
+.shipMarketForm input{width:100%}
+.shipMarketForm p{margin:0;font-size:13px;color:#888;line-height:1.6}
+.shipMarketForm .dialogActions{display:flex;justify-content:flex-end;gap:8px}
 .shipPage{
 height:100%;
 overflow:auto
@@ -1288,6 +1298,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
 <div class="shipMarketActions">
+<button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">第一賣場</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">第二賣場</button>
 </div>
@@ -5173,6 +5184,57 @@ let shipLoadedAt=0;
 let shipLoadPromise=null;
 let shipRevision=0;
 let shipPendingWrites=0;
+const shipMarketSelection=new Set();
+const SHIP_MARKET_HISTORY_KEY='jiwu_ship_market_exports_v1';
+let shipMarketHistory={};
+try{shipMarketHistory=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(!shipMarketHistory||typeof shipMarketHistory!=='object'||Array.isArray(shipMarketHistory))shipMarketHistory={};}catch(_){}
+let shipMarketOrders=new Map(),shipMarketExportBusy=false;
+function shipMarketKey(rows){
+ const fields=['時間','客戶名稱','顧客名稱','客人名稱','姓名','貨號','名稱','商品名稱','售價','金額','訂金','運費'];
+ return JSON.stringify(rows.map(row=>fields.map(field=>String(row.data[field]??''))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
+}
+function shipMarketSetSelected(card,selected){
+ const key=card.dataset.marketKey;
+ if(selected)shipMarketSelection.add(key);else shipMarketSelection.delete(key);
+ card.classList.toggle('shipMarketSelected',selected);
+ card.querySelector('.shipMarketCheck').checked=selected;
+}
+function selectShipMarketCard(event,card){
+ if(card._shipSwiped){card._shipSwiped=false;return;}
+ if(event.target.closest('button,a,input,select,textarea,label'))return;
+ if(window.getSelection()?.toString())return;
+ shipMarketSetSelected(card,!shipMarketSelection.has(card.dataset.marketKey));
+}
+function openShipMarketExport(){void downloadShipMarketExport();}
+async function downloadShipMarketExport(){
+ if(shipMarketExportBusy)return;
+ const orders=[...shipMarketSelection].map(key=>shipMarketOrders.get(key)).filter(Boolean);
+ if(!orders.length)return showShipCopyNotice('請先勾選要上架的訂單卡');
+ if(orders.length>50)return showShipCopyNotice('每次最多上架 50 樣，請減少勾選數量');
+ const button=document.getElementById('shipMarketUpload');
+ shipMarketExportBusy=true;if(button){button.disabled=true;button.textContent='產生中';}
+ try{
+  if(typeof buildShipMarketWorkbook!=='function')throw new Error('上架元件尚未載入，請重新整理後再試');
+  const blob=await buildShipMarketWorkbook(orders);
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  const date=new Date(),stamp=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('');
+  link.href=url;link.download='賣貨便_客訂批次上架_'+stamp+'.xlsm';document.body.appendChild(link);
+  try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+  try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))Object.assign(shipMarketHistory,current);}catch(_){}
+  const exportedAt=new Date().toISOString();orders.forEach(order=>{shipMarketHistory[order.key]=exportedAt;});
+  let saved=true;try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){saved=false;}
+  document.querySelectorAll('.shipOrderCard').forEach(card=>{
+   const listed=!!shipMarketHistory[card.dataset.marketKey],truck=card.querySelector('.shipMarketTruck');
+   truck.classList.toggle('isListed',listed);truck.title=listed?'已下載上架檔':'尚未上架';truck.setAttribute('aria-label',truck.title);
+  });
+  showShipCopyNotice(saved?'已下載上架檔':'已下載上架檔；瀏覽器無法保存上架紀錄');
+ }catch(e){showShipCopyNotice(e.message);}
+ finally{shipMarketExportBusy=false;if(button){button.disabled=false;button.textContent='上架';}}
+}
+window.addEventListener('storage',event=>{
+ if(event.key!==SHIP_MARKET_HISTORY_KEY)return;
+ try{const value=JSON.parse(event.newValue||'{}');if(value&&typeof value==='object'&&!Array.isArray(value)){shipMarketHistory=value;if(document.body.dataset.page==='ship'&&shipDataCache)drawShip(shipDataCache);}}catch(_){}
+});
 const SHIP_HIDE_MS=5*60*1000;
 function shipRowExpired(row,now=Date.now()){
 const time=Date.parse(row.data['包貨完成時間']||'');
@@ -5204,6 +5266,7 @@ try{await request;}finally{if(shipLoadPromise===request)shipLoadPromise=null;}
 }
 function drawShip(source){
 warmCustomerLineChats();
+shipMarketOrders=new Map();
 const d={...source,rows:(source.rows||[]).filter(row=>!shipRowExpired(row))};
 shipHeadersCache=
 d.headers||[];
@@ -5296,17 +5359,22 @@ shippingSeen.add(key);
 return sum+shipping;
 },0);
 const balance=orderTotal+shippingTotal-depositTotal;
+const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=!!shipMarketHistory[marketKey];
+shipMarketOrders.set(marketKey,{key:marketKey,customer,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
 const now=new Date();
 const shipDate=String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0');
 return `
 <div
-class="card shipOrderCard ${packed?'shipPacked':''}"
+class="card shipOrderCard ${packed?'shipPacked':''} ${marketSelected?'shipMarketSelected':''}"
+data-market-key="${esc(marketKey)}"
+onclick="selectShipMarketCard(event,this)"
 data-rows="${g.map(x=>x.row).join(',')}"
 ontouchstart="startOrderSwipe(event,this)" ontouchend="endShipSwipe(event,this)"
 style="margin-bottom:10px">
 <button type="button" class="shipSwipeDelete" onclick="deleteShipOrder(this)">刪除</button>
 <div class="cardHead shipCardHead">
 <span class="shipCopyActions">
+<input type="checkbox" class="shipMarketCheck" aria-label="選取 ${esc(customer)} 的訂單" ${marketSelected?'checked':''} onchange="shipMarketSetSelected(this.closest('.shipOrderCard'),this.checked)">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer)}" onclick="copyShipText(this)" aria-label="複製名字" title="複製名字">名</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(String(balance))}" onclick="copyShipText(this)" aria-label="複製尾款金額" title="複製尾款金額">$</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer+'：'+g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製名字與品項" title="複製名字＋品項">全</button>
@@ -5329,6 +5397,7 @@ $${money(x.data[pi]||0)}
 </div>
 `).join('')}
 <div class="shipCardTotals">
+<span class="shipMarketTruck ${marketListed?'isListed':''}" role="img" aria-label="${marketListed?'已下載上架檔':'尚未上架'}" title="${marketListed?'已下載上架檔':'尚未上架'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4h14v3h4l4 5v7h-2.1a3 3 0 0 1-5.8 0H8.9a3 3 0 0 1-5.8 0H1V4zm2 2v11h.1a3 3 0 0 1 5.8 0H13V6H3zm12 3v8h.1a3 3 0 0 1 5.8 0h.1v-4h-6V9zm2 0v2h3.1l-1.6-2H17zM6 17a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm12 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></span>
 <span>總金額 $${money(orderTotal)}</span>
 ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 <span>訂金 $${money(depositTotal)}</span>
@@ -5376,7 +5445,7 @@ function endShipSwipe(event,card){
 const start=card._swipeStart;card._swipeStart=null;
 if(!start||!event.changedTouches.length)return;
 const dx=event.changedTouches[0].clientX-start.x,dy=event.changedTouches[0].clientY-start.y;
-if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)card.classList.toggle('showShipDelete',dx<0);
+if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){card._shipSwiped=true;card.classList.toggle('showShipDelete',dx<0);setTimeout(()=>{card._shipSwiped=false;},400);}
 }
 async function deleteShipOrder(button){
 if(shipPendingWrites||button.disabled)return;
