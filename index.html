@@ -3956,6 +3956,7 @@ app.innerHTML=`
 <div class="onlineToolbar">
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="未開單">未開單</option>
+<option value="未訂購">未訂購</option>
 <option value="受注">受注</option>
 <option value="補貨登記">補登</option>
 <option value="">全部</option>
@@ -4467,6 +4468,7 @@ let include=false;
 if(onlineCargo==='現貨')include=section==='現貨'&&items.every(row=>!isOpenedRow(row));
 else if(onlineCargo==='未開單')include=(section==='現貨'&&items.every(row=>!isOpenedRow(row)))||hasUnopenedPurchase;
 // 已訂購只收尚未開單的品項；同張訂單混有已開單與已訂購時，優先留在已訂購。
+else if(onlineCargo==='未訂購')include=items.some(row=>cargoDisplay(row).text==='未');
 else if(onlineCargo==='已訂購')include=hasUnopenedPurchase;
 else if(onlineCargo==='受注')include=section==='受注';
 else if(onlineCargo==='補貨登記')include=section==='補貨登記';
