@@ -656,6 +656,10 @@ color:#fff!important;
 flex-shrink:0;cursor:pointer;border:0;width:auto;min-width:18px;padding:0 3px!important;font-size:10px!important
 }
 /* 出貨 */
+.shipMarketActions{display:none}
+body[data-page="ship"] .shipMarketActions{display:flex;gap:6px}
+body[data-page="ship"] .top>span{max-width:calc(100% - 190px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
 .shipPage{
 height:100%;
 overflow:auto
@@ -1283,6 +1287,10 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
+<div class="shipMarketActions">
+<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">第一賣場</button>
+<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">第二賣場</button>
+</div>
 <div id="purchaseHeaderActions"></div>
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
 <button id="storeViewToggle" class="btn green topStoreToggle" onclick="toggleStoreView()" title="切換結帳／銷售畫面">結帳</button>
