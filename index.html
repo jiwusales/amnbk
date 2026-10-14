@@ -1654,26 +1654,49 @@ async function renderLaunch(){
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步試算表資料中…';launchRenderList();}
- try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
 
-let launchURLGroups=[];
+let launchURLGroups=[],launchURLBatch=null;
+const LAUNCH_URL_CACHE_KEY='jiwu_launch_urls_v1';
+function launchReadURLCache(){try{return JSON.parse(localStorage.getItem(LAUNCH_URL_CACHE_KEY)||'null');}catch(_){return null;}}
+function launchLoadURLs(){
+ const cached=launchReadURLCache();
+ if(cached&&Date.now()-cached.at<300000)return Promise.resolve(cached.urls);
+ if(launchURLBatch)return launchURLBatch;
+ // Read group settings in one request; no product detail requests.
+ const endpoint='https://docs.google.com/spreadsheets/d/10Q4EOGZPMsu9WOyabxZjU8j6QNuGduM8L-h_mZ10ypQ/gviz/tq';
+ const params=new URLSearchParams({tqx:'out:json',sheet:'最新開團',headers:'1',tq:"select Q,S,count(Q) where S is not null group by Q,S label count(Q) ''"});
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ launchURLBatch=fetch(endpoint+'?'+params,{signal:controller.signal}).then(r=>{if(!r.ok)throw new Error('讀取失敗');return r.text();}).then(raw=>{
+  const data=JSON.parse(raw.slice(raw.indexOf('{'),raw.lastIndexOf('}')+1));
+  if(data.status==='error'||!data.table)throw new Error('讀取失敗');
+  const urls={};
+  for(const row of data.table.rows||[]){const id=String(row.c?.[0]?.v||'');try{const settings=JSON.parse(row.c?.[1]?.v||'{}');launchNormalizeGroupURLs(settings);if(id)urls[id]=settings.shortUrl||'';}catch(_){}}
+  try{localStorage.setItem(LAUNCH_URL_CACHE_KEY,JSON.stringify({at:Date.now(),urls}));}catch(_){}
+  return urls;
+ }).finally(()=>{clearTimeout(timer);launchURLBatch=null;});
+ return launchURLBatch;
+}
 function launchGroupURLs(){
- launchURLGroups=launchGroups.map(g=>{const copy={...g};launchNormalizeGroupURLs(copy);return copy;});
- launchDialog(`<div class="launchTools"><h2 style="flex:1">團名網址</h2><button class="btn light" type="button" onclick="document.getElementById(\'launchDialog\').close()">關閉</button></div><p class="launchHelp">點擊團名複製「團名：短網址」</p><div id="launchURLList" style="display:grid;gap:8px"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
+ const cache=launchReadURLCache()?.urls||{};
+ launchURLGroups=launchGroups.map(g=>{
+  const copy={...g},snapshot=readBackendSnapshot('launchGroup_'+g.id);
+  copy.shortUrl=copy.shortUrl||snapshot?.shortUrl||cache[g.id]||'';launchNormalizeGroupURLs(copy);
+  return copy;
+ });
+ launchDialog(`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2>團名網址</h2><button type="button" aria-label="關閉" style="border:0;background:transparent;color:inherit;font:inherit;font-size:28px;line-height:1;padding:8px;cursor:pointer;align-self:flex-start" onclick="document.getElementById('launchDialog').close()">X</button></div><p class="launchHelp">點擊團名複製「團名：短網址」</p><div id="launchURLList" style="display:grid;gap:8px"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
  launchRenderGroupURLs();
- const queue=launchURLGroups.filter(g=>!launchSafeURL(g.shortUrl));
  const dialog=document.getElementById('launchDialog'),groups=launchURLGroups;
- async function resolve(){
-  while(queue.length&&dialog.open&&groups===launchURLGroups&&document.getElementById('launchURLList')){
-   const g=queue.shift();
-   try{const d=await api('launchGet',{id:g.id});const detail=d.group||{};launchNormalizeGroupURLs(detail);g.shortUrl=detail.shortUrl||'';g.urlLoaded=true;}
-   catch(_){g.urlError=true;}
-   if(dialog.open&&groups===launchURLGroups&&document.getElementById('launchURLList'))launchRenderGroupURLs();
-  }
- }
- void Promise.all(Array.from({length:Math.min(3,queue.length)},resolve));
+ void launchLoadURLs().then(urls=>{
+  if(!dialog.open||groups!==launchURLGroups)return;
+  groups.forEach(g=>{if(!g.shortUrl)g.shortUrl=urls[g.id]||'';g.urlLoaded=true;});
+  launchRenderGroupURLs();
+ }).catch(()=>{
+  if(!dialog.open||groups!==launchURLGroups)return;
+  groups.forEach(g=>g.urlError=true);launchRenderGroupURLs();
+ });
 }
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
