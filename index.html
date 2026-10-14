@@ -2876,7 +2876,13 @@ async function purchaseEditDialog(i){
    const recorded=!item.name?purchaseRecordedName(item,purchaseOrders.flatMap(order=>order.items)):null;
    if(recorded){row.querySelector('.purchaseEditName').value=recorded.name;row.purchaseCandidate=recorded;}
    if(recorded&&!candidates.some(c=>c.name===recorded.name&&String(c.role||'')===String(recorded.role||'')))candidates.unshift({...recorded,source:'訂購記錄'});
-   if(!candidates.length){select.innerHTML=`<option>${esc(item.code?'貨號 '+item.code+' 查無對應名稱':'此商品沒有貨號，無法比對名稱')}</option>`;return;}
+   if(!candidates.length){
+    if(!item.code){select.innerHTML='<option>此商品沒有貨號，無法比對名稱</option>';return;}
+    const copy=document.createElement('button');copy.type='button';copy.className='purchaseCopyMissingCode';copy.style.cssText=select.style.cssText;Object.assign(copy.style,{cursor:'pointer',background:'#fff',color:'#888',border:'1px solid #ddd',borderRadius:'8px',padding:'8px'});
+    copy.textContent='貨號 '+item.code+' 查無對應名稱';copy.title='點擊複製貨號數字';copy.setAttribute('aria-label','複製貨號 '+item.code);
+    copy.onclick=async()=>{const code=String(item.code).normalize('NFKC').replace(/\D/g,'');if(!code){purchaseEditToast('此貨號沒有可複製的數字',true);return;}try{await navigator.clipboard.writeText(code);purchaseEditToast('已複製貨號 '+code);}catch(e){purchaseEditToast('貨號複製失敗，請再試一次');}};
+    select.replaceWith(copy);return;
+   }
    select.disabled=false;
    select.innerHTML='<option value="">選擇對應名稱</option>'+candidates.map((c,j)=>`<option value="${j}">${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('');
    select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];row.querySelector('.purchaseEditName').value=c.name;row.purchaseCandidate=c;};
