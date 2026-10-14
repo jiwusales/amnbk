@@ -2517,7 +2517,7 @@ function openShipCustomerNotice(button){
   customerChatDrafts.set(customer,text);
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).catch(()=>{});
   closeDialog();
-  if(detail.items.length>7)showShipNoticeDetails(detail,button);else void openCustomerLineChat(button);
+  if(detail.items.length>6)showShipNoticeDetails(detail,button);else void openCustomerLineChat(button);
  });
 }
 function showShipNoticeDetails(order,chatButton){
