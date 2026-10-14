@@ -2669,6 +2669,10 @@ function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';p
 function purchaseBindSearch(){
  const input=document.getElementById('purchaseSearch');if(!input)return;
  const schedule=()=>{clearTimeout(purchaseSearchTimer);purchaseSearchTimer=setTimeout(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);},160);};
+ input.addEventListener('click',()=>{
+  if(purchaseSearchComposing||!input.value)return;
+  clearTimeout(purchaseSearchTimer);input.value='';purchaseRunSearch('');
+ });
  input.addEventListener('compositionstart',()=>{purchaseSearchComposing=true;clearTimeout(purchaseSearchTimer);});
  input.addEventListener('compositionend',()=>{purchaseSearchComposing=false;schedule();});
  input.addEventListener('input',event=>{if(!event.isComposing&&!purchaseSearchComposing)schedule();});
