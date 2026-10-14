@@ -2290,7 +2290,7 @@ let storeCart=[];
 let payment='';
 let salesperson='shared';
 let onlineSearchText='';
-let onlineCargo='現貨';
+let onlineCargo='未開單';
 let onlineLoadedAt=0;
 let onlineLoadPromise=null;
 let onlineMutationRevision=0;
@@ -3029,7 +3029,7 @@ isFaceToFaceView=false;isStarredView=false;
  * 都回到預設頁面
  */
 onlineSearchText='';
-onlineCargo='現貨';
+onlineCargo='未開單';
 isCustomerView=false;
 isGroupView=false;
 renderOnline();
@@ -3049,7 +3049,7 @@ inventoryCategory='全部';inventorySearch='';inventoryStatus='目錄';
 renderInventory();task=loadInventory(true);
 }
 else if(name==='online'){
-isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='現貨';isCustomerView=false;isGroupView=false;
+isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='未開單';isCustomerView=false;isGroupView=false;
 renderOnline();task=loadOnline(true);
 }
 else if(name==='ship')task=renderShip(true);
@@ -3902,8 +3902,6 @@ app.innerHTML=`
 <div class="onlineToolbar">
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="未開單">未開單</option>
-<option value="現貨">現貨</option>
-<option value="已訂購">已訂購</option>
 <option value="受注">受注</option>
 <option value="補貨登記">補登</option>
 <option value="">全部</option>
