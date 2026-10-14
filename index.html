@@ -4728,7 +4728,7 @@ return `
 <input
 class="check shipCheck"
 type="checkbox"
-value="${esc(x.row)}">
+value="${esc(x.row)}" ${isOpenedRow(x)?'disabled':''}>
 </td>
 <td>
 ${
@@ -4941,7 +4941,7 @@ ${esc(order.customer)}
 <div class="groupCardItems">
 ${order.items.map(row=>`
 <div class="groupCardItem ${isOpenedRow(row)?'opened':''}">
-<input class="check shipCheck" type="checkbox" value="${esc(row.row)}">
+<input class="check shipCheck" type="checkbox" value="${esc(row.row)}" ${isOpenedRow(row)?'disabled':''}>
 <button type="button" class="tag cargoTag" aria-label="修改商品狀態" aria-expanded="${activeCargoPickerRow===Number(row.row)}" title="點擊修改狀態" onclick="editCargoTag(${Number(row.row)})" style="background:${esc(cargoDisplay(row).color)};${cargoDisplay(row).opened?'color:#fff!important;background:#555!important':''}">${esc(cargoDisplay(row).text)}</button>
 <span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${String(getGroupName(row)||'').trim()?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(getGroupName(row)))})'>${esc(getGroupName(row))}</button>｜`:''}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
 <span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}${itemDeposits&&numberValue(getOnlineData(row,['訂金']))!==0?` <span class="groupCardItemDeposit">(${money(numberValue(getOnlineData(row,['訂金'])))})</span>`:''}</span>
@@ -5172,15 +5172,11 @@ const deposit=rows.reduce((sum,row)=>sum+numberValue(getOnlineData(row,['訂金'
 const rowsHtml=rows.map(row=>`<div class="groupCardItem"><span class="detailOrderDate">${esc(formatOnlineTime(getOnlineData(row,['購買時間','時間'])))}</span><span class="groupCardItemName">${esc(getOnlineData(row,['名稱','商品名稱']))}</span><span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}</span></div>`).join('');
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${rows.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(total)}｜訂金$${money(deposit)}｜尾款$${money(total-deposit)}</div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
 }
+let createShipPending=false;
 async function createSelectedShip(){
+if(createShipPending)return;
 if(onlineOrderEditPending)return alert('訂單正在背景儲存，完成後即可出貨');
-const rows=
-[
-...document
-.querySelectorAll(
-'.shipCheck:checked'
-)
-].map(x=>x.value);
+const rows=[...new Set([...document.querySelectorAll('.shipCheck:checked')].map(input=>Number(input.value)))];
 if(!rows.length){
 alert('請先勾選要出貨的商品');
 return
@@ -5188,6 +5184,10 @@ return
 const selected=new Set(rows.map(Number));
 const expected=onlineRows.filter(row=>selected.has(Number(row.row))).map(row=>({row:Number(row.row),data:row.data}));
 if(expected.length!==selected.size)return alert('勾選資料已變動，請重新整理後再選擇');
+if(onlineRows.some(row=>selected.has(Number(row.row))&&isOpenedRow(row)))return alert('勾選商品已產生出貨單，請取消勾選已開單商品');
+createShipPending=true;
+const buttons=[...document.querySelectorAll('button[onclick="createSelectedShip()"]')];
+buttons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true');});
 try{
 const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected)});
 alert(
@@ -5205,11 +5205,15 @@ if(!completedRows.has(Number(row.row)))return;
 if(openedHeader)row.data[openedHeader]=true;
 if(statusHeader)row.data[statusHeader]='已開單';
 });
+document.querySelectorAll('.shipCheck').forEach(input=>{if(completedRows.has(Number(input.value))){input.checked=false;input.disabled=true;}});
 saveOnlineSessionCache();onlineLoadedAt=0;
 sessionStorage.removeItem('jiwu_snapshot_ship');shipDataCache=null;shipLoadedAt=0;shipRevision++;
 if(document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
 }catch(e){
 alert(e.message)
+}finally{
+createShipPending=false;
+buttons.forEach(button=>{button.disabled=false;button.removeAttribute('aria-busy');});
 }
 }
 function getShipData(row,names){
