@@ -1656,7 +1656,43 @@ async function renderLaunch(){
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步試算表資料中…';launchRenderList();}
  try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；GAS 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
 }
-function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
+function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
+
+let launchURLGroups=[];
+function launchGroupURLs(){
+ launchURLGroups=launchGroups.map(g=>{const copy={...g};launchNormalizeGroupURLs(copy);return copy;});
+ launchDialog(`<div class="launchTools"><h2 style="flex:1">團名網址</h2><button class="btn light" type="button" onclick="document.getElementById(\'launchDialog\').close()">關閉</button></div><p class="launchHelp">點擊團名複製「團名：短網址」</p><div id="launchURLList" style="display:grid;gap:8px"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
+ launchRenderGroupURLs();
+ const queue=launchURLGroups.filter(g=>!launchSafeURL(g.shortUrl));
+ const dialog=document.getElementById('launchDialog'),groups=launchURLGroups;
+ async function resolve(){
+  while(queue.length&&dialog.open&&groups===launchURLGroups&&document.getElementById('launchURLList')){
+   const g=queue.shift();
+   try{const d=await api('launchGet',{id:g.id});const detail=d.group||{};launchNormalizeGroupURLs(detail);g.shortUrl=detail.shortUrl||'';g.urlLoaded=true;}
+   catch(_){g.urlError=true;}
+   if(dialog.open&&groups===launchURLGroups&&document.getElementById('launchURLList'))launchRenderGroupURLs();
+  }
+ }
+ void Promise.all(Array.from({length:Math.min(3,queue.length)},resolve));
+}
+function launchRenderGroupURLs(){
+ const list=document.getElementById('launchURLList');if(!list)return;
+ list.innerHTML=launchURLGroups.map((g,i)=>{
+  const url=launchSafeURL(g.shortUrl),note=url?'':g.urlError?'讀取失敗，請關閉後重試':g.urlLoaded?'尚未設定短網址':'讀取短網址中…';
+  return `<button class="btn light" type="button" style="text-align:left;white-space:normal" onclick="launchCopyGroupURL(${i})" ${url?'':'disabled'}>${esc(g.name||'未命名')}${note?`<small style="display:block">${esc(note)}</small>`:''}</button>`;
+ }).join('')||'<p class="launchHelp">目前沒有團。</p>';
+}
+async function launchCopyGroupURL(index){
+ const g=launchURLGroups[index],url=g&&launchSafeURL(g.shortUrl);if(!url)return;
+ const text=String(g.name||'').trim()+'：'+launchNormalizeURL(g.shortUrl),input=document.getElementById('launchURLCopy'),message=document.getElementById('launchURLMessage');
+ input.value=text;
+ try{
+  if(navigator.clipboard?.writeText)try{await navigator.clipboard.writeText(text);}catch(_){input.focus();input.select();input.setSelectionRange(0,text.length);if(!document.execCommand('copy'))throw new Error('copy');}
+  else{input.focus();input.select();input.setSelectionRange(0,text.length);if(!document.execCommand('copy'))throw new Error('copy');}
+  message.textContent='已複製：'+text;launchCompletionToast('已複製團名與短網址');
+ }catch(_){input.style.position='static';input.style.width='100%';input.focus();input.select();message.textContent='請長按文字複製';}
+}
+
 function launchTopSave(){if(launchCurrent)launchSaveClick();else launchSaveOrder();}
 function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}`;}
 async function launchOpenAux(kind){
@@ -1696,7 +1732,7 @@ function launchRenderList(){
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
  const joined=shown.filter(g=>g.joined===true).length,failed=shown.length-joined;
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
- document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}"><button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('')}</div>${shown.length?'':`<p class="launchHelp">${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p>`}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
+ document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}"><button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('')}</div>${shown.length?'':`<p class="launchHelp">${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p>`}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
 }
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
