@@ -663,7 +663,8 @@ body[data-page="ship"] .top>span{max-width:calc(100% - 225px);overflow:hidden;wh
 .shipOrderCard{cursor:pointer}
 .shipOrderCard.shipMarketSelected{outline:2px solid var(--main);outline-offset:-2px}
 .shipMarketCheck{width:17px;height:17px;margin:0 3px 0 0;align-self:center;accent-color:var(--main);cursor:pointer;flex-shrink:0}
-.shipMarketTruck{margin-right:auto;color:#ccc;font-size:22px;line-height:1;background:none;flex-shrink:0}
+.shipMarketTruck{margin-right:auto;color:#ccc;font-size:22px;line-height:1;background:none;border:0;padding:0;flex-shrink:0;cursor:pointer}
+.shipMarketTruck:focus-visible{outline:2px solid var(--main);outline-offset:3px}
 .shipMarketTruck.isListed{color:#2673C0}
 .shipMarketTruck svg{display:block;width:24px;height:24px;fill:currentColor}
 .shipMarketForm{display:grid;gap:12px}
@@ -5205,6 +5206,17 @@ function selectShipMarketCard(event,card){
  if(window.getSelection()?.toString())return;
  shipMarketSetSelected(card,!shipMarketSelection.has(card.dataset.marketKey));
 }
+function toggleShipMarketListed(button){
+ const key=button.closest('.shipOrderCard').dataset.marketKey;
+ try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))shipMarketHistory=current;}catch(_){}
+ const listed=!shipMarketHistory[key];
+ if(listed)shipMarketHistory[key]=new Date().toISOString();else delete shipMarketHistory[key];
+ button.classList.toggle('isListed',listed);
+ button.setAttribute('aria-pressed',String(listed));
+ button.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';
+ button.setAttribute('aria-label',button.title);
+ try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){showShipCopyNotice('瀏覽器無法保存上架紀錄');}
+}
 function openShipMarketExport(){void downloadShipMarketExport();}
 async function downloadShipMarketExport(){
  if(shipMarketExportBusy)return;
@@ -5225,7 +5237,7 @@ async function downloadShipMarketExport(){
   let saved=true;try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){saved=false;}
   document.querySelectorAll('.shipOrderCard').forEach(card=>{
    const listed=!!shipMarketHistory[card.dataset.marketKey],truck=card.querySelector('.shipMarketTruck');
-   truck.classList.toggle('isListed',listed);truck.title=listed?'已下載上架檔':'尚未上架';truck.setAttribute('aria-label',truck.title);
+   truck.classList.toggle('isListed',listed);truck.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';truck.setAttribute('aria-label',truck.title);truck.setAttribute('aria-pressed',String(listed));
   });
   showShipCopyNotice(saved?'已下載上架檔':'已下載上架檔；瀏覽器無法保存上架紀錄');
  }catch(e){showShipCopyNotice(e.message);}
@@ -5397,7 +5409,7 @@ $${money(x.data[pi]||0)}
 </div>
 `).join('')}
 <div class="shipCardTotals">
-<span class="shipMarketTruck ${marketListed?'isListed':''}" role="img" aria-label="${marketListed?'已下載上架檔':'尚未上架'}" title="${marketListed?'已下載上架檔':'尚未上架'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4h14v3h4l4 5v7h-2.1a3 3 0 0 1-5.8 0H8.9a3 3 0 0 1-5.8 0H1V4zm2 2v11h.1a3 3 0 0 1 5.8 0H13V6H3zm12 3v8h.1a3 3 0 0 1 5.8 0h.1v-4h-6V9zm2 0v2h3.1l-1.6-2H17zM6 17a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm12 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></span>
+<button type="button" class="shipMarketTruck ${marketListed?'isListed':''}" onclick="toggleShipMarketListed(this)" aria-pressed="${marketListed}" aria-label="${marketListed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架'}" title="${marketListed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4h14v3h4l4 5v7h-2.1a3 3 0 0 1-5.8 0H8.9a3 3 0 0 1-5.8 0H1V4zm2 2v11h.1a3 3 0 0 1 5.8 0H13V6H3zm12 3v8h.1a3 3 0 0 1 5.8 0h.1v-4h-6V9zm2 0v2h3.1l-1.6-2H17zM6 17a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm12 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></button>
 <span>總金額 $${money(orderTotal)}</span>
 ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 <span>訂金 $${money(depositTotal)}</span>
