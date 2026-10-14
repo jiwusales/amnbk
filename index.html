@@ -2507,6 +2507,7 @@ function openShipCustomerNotice(button){
  const card=button.closest('.shipOrderCard');
  const names=[...card.querySelectorAll('.shipItem')].map(item=>item.dataset.name).filter(Boolean);
  const customer=button.dataset.customer;
+ const detail={...shipMarketOrders.get(card.dataset.marketKey),items:[...card.querySelectorAll('.shipItem')].map(item=>({name:item.dataset.name,price:numberValue(item.dataset.price),date:item.querySelector('.shipOrderDate').textContent.trim()}))};
  closeDialog();
  document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(400px,100%)" role="dialog" aria-modal="true" aria-labelledby="shipNoticeTitle"><h3 id="shipNoticeTitle">選擇客訂賣場</h3><p>${esc(customer)}</p><div class="dialogActions"><button type="button" class="btn" data-market="0">第一賣場</button><button type="button" class="btn" data-market="1">第二賣場</button><button type="button" class="btn light" onclick="closeDialog()">取消</button></div></div></div>`);
  document.querySelectorAll('#appDialog [data-market]').forEach(choice=>choice.onclick=()=>{
@@ -2515,8 +2516,16 @@ function openShipCustomerNotice(button){
   const text='下單通知📢 感謝等待與購買💛\n若想加帶其他現貨 也可詢問(｡•̀ᴗ-)✧₊˚\n\n⚠️下單完請給我“訂單編號後四碼”以供核對唷～\n✨包裹內容物為'+names.join('＋')+'\n\n'+market;
   customerChatDrafts.set(customer,text);
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).catch(()=>{});
-  closeDialog();void openCustomerLineChat(button);
+  closeDialog();
+  if(detail.items.length>7)showShipNoticeDetails(detail,button);else void openCustomerLineChat(button);
  });
+}
+function showShipNoticeDetails(order,chatButton){
+ const rowsHtml=order.items.map(item=>`<div class="groupCardItem"><span class="detailOrderDate">${esc(item.date)}</span><span class="groupCardItemName">${esc(item.name)}</span><span class="groupCardItemPrice">$${money(item.price)}</span></div>`).join('');
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog" role="dialog" aria-modal="true" aria-label="出貨明細"><div class="groupCard"><div class="groupCardCustomer"><strong class="detailBrand"><img src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt="">JIWU寶寶明細</strong><span class="salesCount">${order.items.length} 件</span></div><div class="groupCardItems">${rowsHtml}</div><div class="detailTotals">共計$${money(order.orderTotal+order.shippingTotal)}｜訂金$${money(order.depositTotal)}｜尾款$${money(order.balance)}</div></div><div class="dialogActions"><button type="button" class="btn" data-ship-notice-close>關閉</button></div></div></div>`);
+ const close=document.querySelector('[data-ship-notice-close]');
+ close.onclick=()=>{closeDialog();void openCustomerLineChat(chatButton);};
+ close.focus();
 }
 function validCustomerLineChat(value){
 return /^https:\/\/chat\.line\.biz\/U[0-9a-f]{32}\/chat\/U[0-9a-f]{32}\/?$/i.test(String(value||'').trim());
@@ -5389,7 +5398,7 @@ return sum+shipping;
 },0);
 const balance=orderTotal+shippingTotal-depositTotal;
 const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=!!shipMarketHistory[marketKey];
-shipMarketOrders.set(marketKey,{key:marketKey,customer,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
+shipMarketOrders.set(marketKey,{key:marketKey,customer,orderTotal,depositTotal,shippingTotal,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
 const now=new Date();
 const shipDate=String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0');
 return `
