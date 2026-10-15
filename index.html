@@ -454,6 +454,7 @@ gap:10px
 .onlineToolbar{
 flex-shrink:0;
 display:flex;
+margin:0;
 gap:8px
 }
 .onlineToolbar input,
@@ -468,7 +469,8 @@ min-height:0;
 flex:1;
 overflow:auto
 }
-.onlineResult .orderCards>.groupCard{contain:layout style paint}
+.onlineResult .orderCards .groupCard,.onlineCardSlot{contain:layout style paint}
+.onlineCardSlot{min-width:0}
 .onlineTable{
 min-width:900px
 }
@@ -3155,6 +3157,7 @@ const repeated=document.body.dataset.page===name;
 if(repeated){
 refreshCurrentMobileTab(name,el);return;
 }
+resetOnlineCardLayout();
 if(name!=='store')stopStoreCartSync();
 document.body.dataset.page=name;
 setTimeout(()=>backendSyncPoll(),0);
@@ -4042,6 +4045,7 @@ console.error('結帳尚未確認，商品已保留：'+e.message);
 function restoreOnlineSessionCache(){if(onlineLoadedAt)return;try{const cached=JSON.parse(sessionStorage.getItem(ONLINE_SESSION_CACHE_KEY)||localStorage.getItem(ONLINE_SESSION_CACHE_KEY)||'null');if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;onlineRows=cached.rows;onlineHeaders=cached.headers;onlineLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
 function saveOnlineSessionCache(){try{const payload=JSON.stringify({savedAt:Date.now(),headers:onlineHeaders,rows:onlineRows});sessionStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);localStorage.setItem(ONLINE_SESSION_CACHE_KEY,payload);}catch(_){}}
 function renderOnline(){
+resetOnlineCardLayout();
 warmCustomerLineChats();
 isCustomerView=false;
 isGroupView=false;
@@ -4049,7 +4053,7 @@ restoreOnlineSessionCache();
 const app=document.getElementById('app');
 app.innerHTML=`
 <div class="onlinePage">
-<div class="onlineToolbar">
+<form id="onlineSearchForm" class="onlineToolbar" role="search" autocomplete="off" onsubmit="event.preventDefault();searchOnline()">
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="未開單">未開單</option>
 <option value="未訂購">未訂購</option>
@@ -4058,10 +4062,10 @@ app.innerHTML=`
 <option value="">全部</option>
 <option value="已開單">已開單</option>
 </select>
-<input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
-<button class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
-<button class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
-</div>
+<input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" name="q" aria-label="搜尋訂單" aria-controls="onlineResult" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
+<button type="button" class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
+<button type="button" class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
+</form>
 <div id="onlineResult" class="onlineResult">
 ${onlineLoadedAt?'':'<div class="card"><div class="loading">載入中…</div></div>'}
 </div>
@@ -4399,16 +4403,16 @@ const outer=[];
 for(let el=root;el;el=el.parentElement){outer.push({el,top:el.scrollTop,left:el.scrollLeft});}
 const pagePosition=page?{top:page.scrollTop,left:page.scrollLeft}:null;
 const cards=new Map();
-root?.querySelectorAll('.groupCard').forEach(card=>{
+(root?onlineQueryAll('.groupCard',root):[]).forEach(card=>{
 const key=card.querySelector('.groupCardMeta')?.dataset.rows;
 const items=card.querySelector('.groupCardItems');
-if(key&&items)cards.set(key,{top:items.scrollTop,left:items.scrollLeft});
+if(key&&items)cards.set(key,onlineScrollPosition(items));
 });
 showOnlineCurrentView();
-root?.querySelectorAll('.groupCard').forEach(card=>{
+(root?onlineQueryAll('.groupCard',root):[]).forEach(card=>{
 const saved=cards.get(card.querySelector('.groupCardMeta')?.dataset.rows);
 const items=card.querySelector('.groupCardItems');
-if(saved&&items){items.scrollTop=saved.top;items.scrollLeft=saved.left;}
+if(saved&&items)onlineRestoreScroll(items,saved.top,saved.left);
 });
 outer.forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
 if(page&&pagePosition){page.scrollTop=pagePosition.top;page.scrollLeft=pagePosition.left;}
@@ -4870,27 +4874,84 @@ onlineEditQueue.push({keys,items:[],note:'',delete:true});onlineOrderEditPending
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
 
-let onlineCardLayoutObserver=null;
+let onlineCardLayoutObserver=null,onlineCardVisibilityObserver=null,onlineCardLayoutRoot=null;
+const onlineCardSlots=new Map(),onlineCardRecords=new Map();
+function resetOnlineCardLayout(){
+onlineCardLayoutObserver?.disconnect();onlineCardVisibilityObserver?.disconnect();
+onlineCardLayoutObserver=null;onlineCardVisibilityObserver=null;onlineCardLayoutRoot=null;onlineCardSlots.clear();onlineCardRecords.clear();
+}
+function onlineScrollPosition(node){
+const item=onlineCardRecords.get(node.closest?.('.groupCard'));
+return !node.isConnected&&item&&node.matches('.groupCardItems')?{top:item.top,left:item.left}:{top:node.scrollTop,left:node.scrollLeft};
+}
+function onlineRestoreScroll(node,top,left){
+const item=onlineCardRecords.get(node.closest?.('.groupCard'));
+if(item&&node.matches('.groupCardItems')){item.top=top;item.left=left;}
+node.scrollTop=top;node.scrollLeft=left;
+}
+// 離開畫面的整張卡保留原節點；勾選、背景作業及卡內捲動仍使用同一筆資料。
+function onlineQueryAll(selector,root=document){
+const found=[...root.querySelectorAll(selector)];
+if(onlineCardLayoutRoot?.isConnected&&(root===document||root===onlineCardLayoutRoot||root.contains(onlineCardLayoutRoot))){
+ const nodes=new Set(found.filter(node=>!onlineCardRecords.has(node.closest('.groupCard'))));
+ for(const item of onlineCardSlots.values()){
+  if(item.card.matches(selector))nodes.add(item.card);
+  item.card.querySelectorAll(selector).forEach(node=>nodes.add(node));
+ }
+ return [...nodes];
+}
+return found;
+}
 function prepareOnlineCardLayout(root){
-onlineCardLayoutObserver?.disconnect();onlineCardLayoutObserver=null;
-if(typeof ResizeObserver!=='function'||typeof CSS==='undefined'||!CSS.supports('content-visibility','auto'))return;
+resetOnlineCardLayout();
+const cards=[...root.querySelectorAll('.orderCards>.groupCard')];
+if(cards.length<=80||typeof ResizeObserver!=='function'||typeof IntersectionObserver!=='function')return;
+onlineCardLayoutRoot=root;
+const byCard=new Map();
+const mount=item=>{
+ if(item.card.parentElement===item.slot)return;
+ item.slot.style.height='';item.slot.append(item.card);
+ const list=item.card.querySelector('.groupCardItems');if(list){list.scrollTop=item.top;list.scrollLeft=item.left;}
+};
+const update=item=>{
+ if(item.visible){mount(item);return;}
+ if(!item.height||item.card.contains(document.activeElement)||item.card.parentElement!==item.slot)return;
+ const list=item.card.querySelector('.groupCardItems');if(list){item.top=list.scrollTop;item.left=list.scrollLeft;}
+ item.slot.style.height=item.height+'px';item.card.remove();
+};
+let width=0;
 const observer=new ResizeObserver(entries=>{
- if(onlineCardLayoutObserver!==observer)return;
+ if(onlineCardLayoutObserver!==observer||!root.isConnected)return;
  for(const entry of entries){
-  const card=entry.target,height=entry.contentRect.height;
-  if(!card.isConnected||height<=0)continue;
-  // 使用已量到的實際高度，避免手機上的短訂單卡被預估高度撐大。
-  const size='auto '+height+'px';
-  if(card.style.containIntrinsicBlockSize!==size)card.style.containIntrinsicBlockSize=size;
-  if(card.style.contentVisibility!=='auto')card.style.contentVisibility='auto';
+  if(entry.target===root){
+   const next=entry.contentRect.width;
+   if(width&&next>0&&Math.abs(next-width)>1){for(const item of onlineCardSlots.values()){item.height=0;mount(item);}}
+   if(next>0)width=next;
+   continue;
+  }
+  const item=byCard.get(entry.target);
+  if(!item||!item.card.isConnected||entry.contentRect.height<=0)continue;
+  item.height=entry.borderBoxSize?.[0]?.blockSize||entry.contentRect.height+2;
+  update(item);
  }
 });
-onlineCardLayoutObserver=observer;
-root.querySelectorAll('.orderCards>.groupCard').forEach(card=>observer.observe(card));
+const visibility=new IntersectionObserver(entries=>{
+ if(onlineCardVisibilityObserver!==visibility||!root.isConnected)return;
+ for(const entry of entries){const item=onlineCardSlots.get(entry.target);if(item){item.visible=entry.isIntersecting;update(item);}}
+},{root,rootMargin:'600px 0px'});
+onlineCardLayoutObserver=observer;onlineCardVisibilityObserver=visibility;
+cards.forEach(card=>{
+ const slot=document.createElement('div');slot.className='onlineCardSlot';
+ card.replaceWith(slot);slot.append(card);
+ const item={slot,card,visible:true,height:0,top:0,left:0};onlineCardSlots.set(slot,item);onlineCardRecords.set(card,item);byCard.set(card,item);
+ observer.observe(card);visibility.observe(slot);
+});
+observer.observe(root);
 }
 function showOrderCards(rows,summary){
 const res=document.getElementById('onlineResult');
 if(!res)return;
+resetOnlineCardLayout();
 if(!rows.length){
 res.innerHTML='<div class="empty">沒有符合的資料</div>';
 return
@@ -5026,8 +5087,8 @@ let onlineCustomerHistory=[];
 function rememberOnlineCustomerOrigin(){
 const root=document.getElementById('onlineResult');
 const scroll=[];for(let el=root;el;el=el.parentElement)scroll.push({el,top:el.scrollTop,left:el.scrollLeft});
-const cards=new Map();root?.querySelectorAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows;const items=card.querySelector('.groupCardItems');if(key&&items)cards.set(key,items.scrollTop);});
-onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,star:isStarredView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...document.querySelectorAll('.shipCheck:checked')].map(el=>el.value)});
+const cards=new Map();(root?onlineQueryAll('.groupCard',root):[]).forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows;const items=card.querySelector('.groupCardItems');if(key&&items)cards.set(key,onlineScrollPosition(items).top);});
+onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,star:isStarredView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...onlineQueryAll('.shipCheck:checked')].map(el=>el.value)});
 }
 function syncOnlineBackButton(){const button=document.getElementById('onlineBackButton');if(button)button.hidden=!isCustomerView||!onlineCustomerHistory.length;}
 function backOnlineCustomer(){
@@ -5039,8 +5100,8 @@ if(saved.customer)showOrderCards(onlineRows.filter(row=>String(getCustomerName(r
 else if(saved.group)showOrderCards(onlineRows.filter(row=>String(getGroupName(row)||'').trim()===saved.search),saved.search);
 else applyOnlineFilter();
 syncOnlineBackButton();
-document.querySelectorAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows,items=card.querySelector('.groupCardItems');if(items&&saved.cards.has(key))items.scrollTop=saved.cards.get(key);});
-const checked=new Set(saved.checked);document.querySelectorAll('.shipCheck').forEach(el=>el.checked=checked.has(el.value));
+onlineQueryAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows,items=card.querySelector('.groupCardItems');if(items&&saved.cards.has(key))onlineRestoreScroll(items,saved.cards.get(key),0);});
+const checked=new Set(saved.checked);onlineQueryAll('.shipCheck').forEach(el=>el.checked=checked.has(el.value));
 saved.scroll.forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
 if(document.scrollingElement)document.scrollingElement.scrollTop=saved.pageTop;
 }
@@ -5105,7 +5166,7 @@ return findHeader(onlineHeaders,['備註','備註欄'])?note.includes('面交'):
 function syncFaceButtons(){
 const rowsById=new Map();
 onlineRows.forEach(row=>{const id=Number(row.row);if(!rowsById.has(id))rowsById.set(id,[]);rowsById.get(id).push(row);});
-document.querySelectorAll('[data-face-rows]').forEach(button=>{
+onlineQueryAll('[data-face-rows]').forEach(button=>{
 const ids=button.dataset.faceRows.split(',').map(Number);
 const items=ids.flatMap(id=>rowsById.get(id)||[]);
 button.classList.toggle('active',items.some(isFaceToFace));
@@ -5114,7 +5175,7 @@ button.setAttribute('aria-pressed',String(button.classList.contains('active')));
 });
 }
 async function toggleFaceToFace(button,rows){
-const visibleRows=[...document.querySelectorAll('.shipCheck')].map(input=>Number(input.value));
+const visibleRows=[...onlineQueryAll('.shipCheck')].map(input=>Number(input.value));
 rows=rows.map(Number);
 if(rows.some(row=>pendingFaceRows.has(row)))return;
 const enabled=!button.classList.contains('active');
@@ -5208,7 +5269,7 @@ alert('付款資料儲存失敗：'+e.message)
    出貨
 ========================================================= */
 function showSelectedOnlineDetails(){
-const ids=new Set([...document.querySelectorAll('.shipCheck:checked')].map(input=>Number(input.value)));
+const ids=new Set([...onlineQueryAll('.shipCheck:checked')].map(input=>Number(input.value)));
 const rows=onlineRows.filter(row=>ids.has(Number(row.row)));
 if(!rows.length){alert('請先勾選要查看的商品');return;}
 const total=rows.reduce((sum,row)=>sum+(isRestockRow(row)?0:numberValue(getOnlineData(row,['售價','價格']))+numberValue(getOnlineData(row,['運費']))),0);
@@ -5220,7 +5281,7 @@ let createShipPending=false;
 async function createSelectedShip(){
 if(createShipPending)return;
 if(onlineOrderEditPending)return alert('訂單正在背景儲存，完成後即可出貨');
-const rows=[...new Set([...document.querySelectorAll('.shipCheck:checked')].map(input=>Number(input.value)))];
+const rows=[...new Set([...onlineQueryAll('.shipCheck:checked')].map(input=>Number(input.value)))];
 if(!rows.length){
 alert('請先勾選要出貨的商品');
 return
@@ -5249,7 +5310,7 @@ if(!completedRows.has(Number(row.row)))return;
 if(openedHeader)row.data[openedHeader]=true;
 if(statusHeader)row.data[statusHeader]='已開單';
 });
-document.querySelectorAll('.shipCheck').forEach(input=>{if(completedRows.has(Number(input.value))){input.checked=false;input.disabled=true;}});
+onlineQueryAll('.shipCheck').forEach(input=>{if(completedRows.has(Number(input.value))){input.checked=false;input.disabled=true;}});
 saveOnlineSessionCache();onlineLoadedAt=0;
 sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');shipDataCache=null;shipLoadedAt=0;shipRevision++;
 if(document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
@@ -5729,7 +5790,7 @@ function backendSyncCanApply(page){
  if(active?.id==='inventorySearch'&&active.value!==inventorySearch)return false;
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
- if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeRows.size||pendingReconcileRows.size||activeCargoPickerRow||document.querySelector('.shipCheck:checked,.restockPurchaseCheck:checked')))return false;
+ if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeRows.size||pendingReconcileRows.size||activeCargoPickerRow||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
  if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderDirty||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
@@ -5737,10 +5798,10 @@ function backendSyncCanApply(page){
  return backendSyncPages.includes(page);
 }
 function backendSyncScrollSnapshot(){
- const nodes=[document.scrollingElement,...document.querySelectorAll('#app,#onlineResult,[id],.groupCardItems,.purchaseOrderContents,.purchaseProductScroll,.purchaseDateTabs')];
- return [...new Set(nodes)].filter(Boolean).map((node,index)=>({node,id:node.id,top:node.scrollTop,left:node.scrollLeft,index,order:node.closest('.groupCard')?.querySelector('.groupCardMeta')?.dataset.rows||'',purchase:node.closest('.purchaseOrderCard')?.dataset.purchaseNumber||'',className:node.className})).filter(x=>x.top||x.left||x.node.id==='app');
+ const nodes=[document.scrollingElement,...onlineQueryAll('#app,#onlineResult,[id],.groupCardItems,.purchaseOrderContents,.purchaseProductScroll,.purchaseDateTabs')];
+ return [...new Set(nodes)].filter(Boolean).map((node,index)=>({node,id:node.id,...onlineScrollPosition(node),index,order:node.closest('.groupCard')?.querySelector('.groupCardMeta')?.dataset.rows||'',purchase:node.closest('.purchaseOrderCard')?.dataset.purchaseNumber||'',className:node.className})).filter(x=>x.top||x.left||x.node.id==='app');
 }
-function backendSyncRestoreScroll(saved){saved.forEach(x=>{let node=x.node.isConnected?x.node:x.id?document.getElementById(x.id):null;if(!node&&x.order)node=[...document.querySelectorAll('.groupCard')].find(card=>card.querySelector('.groupCardMeta')?.dataset.rows===x.order)?.querySelector('.groupCardItems');if(!node&&x.purchase)node=[...document.querySelectorAll('.purchaseOrderCard')].find(card=>card.dataset.purchaseNumber===x.purchase)?.querySelector('.purchaseOrderContents');if(node){node.scrollTop=x.top;node.scrollLeft=x.left;}});}
+function backendSyncRestoreScroll(saved){saved.forEach(x=>{let node=x.node.isConnected?x.node:x.id?document.getElementById(x.id):null;if(!node&&x.order)node=[...onlineQueryAll('.groupCard')].find(card=>card.querySelector('.groupCardMeta')?.dataset.rows===x.order)?.querySelector('.groupCardItems');if(!node&&x.purchase)node=[...document.querySelectorAll('.purchaseOrderCard')].find(card=>card.dataset.purchaseNumber===x.purchase)?.querySelector('.purchaseOrderContents');if(node)onlineRestoreScroll(node,x.top,x.left);});}
 async function backendSyncRefreshCurrent(page){
  if(!backendSyncCanApply(page))return false;
  const epoch=backendSyncEpoch,key=backendSyncViewKey();
