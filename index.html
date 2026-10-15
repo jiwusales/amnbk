@@ -2239,7 +2239,7 @@ async function launchUpdateAllAvailability(){
  const job={busy:true,total:items.length,completed:0,failed:0};launchAvailabilityBatches.set(group.id,job);launchRefreshAvailabilityProgress(group.id);
  let next=0;
  const worker=async()=>{while(next<items.length){const item=items[next++];if(!await launchFetchProductAvailability(group,item))job.failed++;job.completed++;launchRefreshAvailabilityProgress(group.id);}};
- try{await Promise.all(Array.from({length:Math.min(3,items.length)},worker));}
+ try{await Promise.all(Array.from({length:Math.min(6,items.length)},worker));}
  finally{job.busy=false;launchRefreshAvailabilityProgress(group.id);}
 }
 function launchToggleProductStock(index,button){const item=launchCurrent?.items[index];if(!item||!launchCurrent?.id)return;const next=!item.stockOut,previous=item.stockOut;item.stockOut=next;button.classList.toggle('isShortage',next);button.textContent=next?'已缺貨':'缺貨';launchPost('launchSetInventoryAvailability',{out:next,groupId:launchCurrent.id,itemId:item.id}).catch(error=>{item.stockOut=previous;button.classList.toggle('isShortage',previous);button.textContent=previous?'已缺貨':'缺貨';alert(error.message);});}
