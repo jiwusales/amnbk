@@ -5819,11 +5819,11 @@ function purchaseCaptureSafariImport(){
 }
 async function purchaseResumeSafariImport(){
  if(!authToken||!appStarted||purchaseBusy)return;
- let incoming;try{const stored=sessionStorage.getItem(PURCHASE_SAFARI_KEY);if(!stored)return;incoming=purchaseValidateSafariImport(JSON.parse(stored));}catch(error){purchaseMessage='Safari 匯入失敗：'+error.message;sessionStorage.removeItem(PURCHASE_SAFARI_KEY);return;}
+ let incoming,captured;try{captured=sessionStorage.getItem(PURCHASE_SAFARI_KEY);if(!captured)return;incoming=purchaseValidateSafariImport(JSON.parse(captured));}catch(error){purchaseMessage='Safari 匯入失敗：'+error.message;sessionStorage.removeItem(PURCHASE_SAFARI_KEY);return;}
  purchaseRegion='';purchaseView='manage';purchaseOrderURL=incoming.url;
  await purchaseImport(incoming.page);
  // Keep a failed import across login/network retry; remove only a recognized draft or confirmed duplicate.
- if(purchaseDraft?.number===incoming.page.order.number||purchaseMessage==='已經登記過')sessionStorage.removeItem(PURCHASE_SAFARI_KEY);
+ if(sessionStorage.getItem(PURCHASE_SAFARI_KEY)===captured&&(purchaseDraft?.number===incoming.page.order.number||purchaseMessage==='已經登記過'))sessionStorage.removeItem(PURCHASE_SAFARI_KEY);
 }
 window.addEventListener('hashchange',()=>{purchaseCaptureSafariImport();if(authToken&&appStarted){tab('purchase',document.getElementById('btn-purchase'));void purchaseResumeSafariImport();}});
 // safari-order-import:end
