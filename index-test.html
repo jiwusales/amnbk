@@ -1632,6 +1632,27 @@ function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.rem
 function launchPost(action,params){return backendTrackWrite(action,()=>launchPostRequest(action,params));}
 async function launchPostRequest(action,params={}){return apiRequest(action,params);}
 
+async function launchFillFromInventory(){
+ if(!launchCurrent)return;
+ await launchRun(async()=>{
+  const data=await launchPost('launchFillFromInventory',{items:JSON.stringify(launchCurrent.items.map(item=>({id:item.id,code:item.code})))});
+  const matches=new Map((data.matches||[]).map(item=>[String(item.id),item]));
+  if(!matches.size){launchNotice('商品庫存沒有找到相同貨號');return;}
+  launchPushUndo();let changed=0;
+  launchCurrent.items.forEach(item=>{const found=matches.get(String(item.id));if(!found)return;if(found.price!==''&&item.price!==found.price){item.price=found.price;changed++;}if(found.size!==''&&item.size!==found.size){item.size=found.size;changed++;}});
+  if(changed)launchMark();
+  launchNotice(`已用貨號帶入 ${matches.size} 項庫存商品的售價／尺寸${changed?'，請按 SAVE 儲存':''}`);
+ });
+}
+async function launchRun(fn){if(launchBusy)return;launchBusy=true;document.querySelector('.launchPage')?.classList.add('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=true);try{await launchSaveTail;await fn();}catch(e){launchNotice(e.message);alert(e.message);}finally{launchBusy=false;document.querySelector('.launchPage')?.classList.remove('launchBusy');document.querySelectorAll('.launchTools button,.launchAdd').forEach(x=>x.disabled=false);if(launchCurrent&&document.body.dataset.page==='launch')launchRenderEditor();}}
+async function renderLaunch(){
+ if(launchAuxPage)return launchOpenAux(launchAuxPage);
+ const ticket=++launchLoad;launchCurrent=null;launchDirty=false;launchSyncTopActions();const openId=sessionStorage.getItem(LAUNCH_OPEN_KEY);
+ if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
+ const cached=launchListCache(launchStatus);let showingCache=false;
+ if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步資料庫資料中…';launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；資料庫 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
+}
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
 
 let launchURLGroups=[],launchURLBatch=null;
