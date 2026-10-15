@@ -1290,11 +1290,16 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .saveProgressBar{display:block;width:100%;height:7px;margin:5px 0 0;accent-color:var(--main,#a68b70)}
 .saveProgressFailed{color:#c33}
 .saveProgressClose{border:0;background:transparent;color:#888;font:inherit;font-weight:700;padding:0 2px;cursor:pointer}
+.saveProgressJob{background:#fff;border:1px solid #ddd;border-radius:9px;padding:8px;box-shadow:0 3px 12px #0002;margin:0 0 6px;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+.saveProgressStep{font:inherit;color:inherit;background:transparent;border:0;padding:0;text-align:left}
+.saveProgressTime{margin-top:4px;font-size:11px}
 @media(max-width:850px){
- #launchMoveProgress{width:20vw!important;height:20vw!important;max-height:none!important;box-sizing:border-box;padding:5px!important;overflow:hidden!important;border-radius:9px!important;left:10px!important;right:auto!important}
+ #launchMoveProgress{width:20vw!important;min-width:76px;height:auto!important;max-height:50vh!important;box-sizing:border-box;padding:0!important;overflow:auto!important;left:10px!important;right:auto!important}
  #launchMoveProgress .progressDesktopDetails{display:none}
  #launchMoveProgress .progressMobileBrief{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;text-align:center;font-size:clamp(9px,2.7vw,12px);line-height:1.2;overflow-wrap:anywhere}
  #launchMoveProgress .saveProgressBar{height:5px;margin:0;flex-shrink:0}
+ #launchMoveProgress .saveProgressJob{padding:6px;font-size:11px}
+ #launchMoveProgress .saveProgressTime{font-size:10px}
 }
 </style>
 </head>
@@ -1635,7 +1640,7 @@ function launchNotice(text){launchMessage=text;const n=document.getElementById('
 function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||localStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
 function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
 function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status);localStorage.removeItem(LAUNCH_CACHE_PREFIX+status);});}
-function launchPost(action,params,progressId){return backendTrackWrite(action,()=>launchPostRequest(action,params),params,progressId);}
+function launchPost(action,params={},progressId){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>launchPostRequest(action,snapshot),snapshot,progressId);}
 async function launchPostRequest(action,params={}){return apiRequest(action,params);}
 
 async function launchFillFromInventory(){
@@ -1906,25 +1911,19 @@ const launchMoveProgressJobs=new Map();
 let launchMoveProgressTimer;
 function launchMoveProgress(id,name,state,error='',action='下架'){
  const previous=launchMoveProgressJobs.get(id);
- const job={name,state,error,action,start:previous?.start||Date.now()};
+ const terminal=['完成','失敗'].includes(state),restarting=previous?.state==='失敗'&&!terminal;
+ const job={name,state,error,action,start:restarting?Date.now():previous?.start||Date.now(),end:terminal?Date.now():null};
  launchMoveProgressJobs.set(id,job);
  launchPaintMoveProgress();
- if(!launchMoveProgressTimer)launchMoveProgressTimer=setInterval(launchPaintMoveProgress,1000);
+ if([...launchMoveProgressJobs.values()].some(job=>!['完成','失敗'].includes(job.state))){if(!launchMoveProgressTimer)launchMoveProgressTimer=setInterval(launchPaintMoveProgress,1000);}else{clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;}
  if(state==='完成')setTimeout(()=>{if(launchMoveProgressJobs.get(id)===job){launchMoveProgressJobs.delete(id);launchPaintMoveProgress();}},2000);
 }
 function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
- if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
+ if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;width:min(240px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const host=document.querySelector('dialog[open]')||document.body;if(box.parentElement!==host)host.appendChild(box);
- const jobs=[...launchMoveProgressJobs.values()];
- const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.find(j=>j.state==='失敗')||jobs.at(-1);
- const currentId=[...launchMoveProgressJobs].find(([,job])=>job===current)?.[0];
- const pending=jobs.filter(j=>!['完成','失敗'].includes(j.state)).length;
- const bar=job=>`<progress class="saveProgressBar" aria-label="${esc(job.action)}${esc(job.state)}" ${job.state==='完成'?'max="1" value="1"':job.state==='失敗'?'max="1" value="0"':''}></progress>`;
- const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span class="${current.state==='失敗'?'saveProgressFailed':''}">${esc(current.state)}${pending>1?'・'+pending+'筆':''}${current.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(currentId)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</span>${bar(current)}<span>${Math.floor((Date.now()-current.start)/1000)} 秒</span></div>`;
- let waiting=0;
- box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${bar(j)}${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':'<small>等待資料庫確認，請勿重新整理頁面。</small>'}</div>`).join('')+'</div>';
+ box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -2403,8 +2402,8 @@ let inventoryPendingMoves=[];
 let inventoryStatus='目錄';
 const inventoryStatusCheckingRows=new Set();
 const INVENTORY_BROWSER_CACHE_MS=5*60*1000;
-const INVENTORY_SESSION_CACHE_KEY='jiwu_supabase_test_inventory_session_v2';
-const INVENTORY_PERSISTENT_CACHE_KEY='jiwu_supabase_test_inventory_session_v2_persist';
+const INVENTORY_SESSION_CACHE_KEY='jiwu_supabase_test_inventory_session_v3';
+const INVENTORY_PERSISTENT_CACHE_KEY='jiwu_supabase_test_inventory_session_v3_persist';
 let storeCart=[];
 let payment='';
 let salesperson='shared';
@@ -2417,7 +2416,7 @@ let onlineOrderEditPending=false;
 let onlineEditQueue=[],onlineEditBase=null,onlineEditKey=0;
 const pendingRestockRows=new Set();
 const ONLINE_CACHE_MS=5*60*1000;
-const ONLINE_SESSION_CACHE_KEY='jiwu_supabase_test_online_session_v1';
+const ONLINE_SESSION_CACHE_KEY='jiwu_supabase_test_online_session_v2';
 let isCustomerView=false;
 let isGroupView=false;
 let isStarredView=false;
@@ -2428,7 +2427,7 @@ let isFaceToFaceView=false;isStarredView=false;
 const apiReadActions=new Set(['backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
-if(!apiReadActions.has(action))return backendTrackWrite(action,()=>apiRequest(action,params),params,progressId);
+if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
 const key=JSON.stringify([action,authToken,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
@@ -2436,7 +2435,7 @@ apiPendingReads.set(key,request);
 return request;
 }
 async function apiRequest(action,params={}){
-const requestId=crypto.randomUUID(),controller=new AbortController();
+const requestId=params.requestId||crypto.randomUUID(),controller=new AbortController();
 const timer=setTimeout(()=>controller.abort(),90000);
 try{
 const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...(authToken?{token:authToken}:{}),...params,requestId}),signal:controller.signal});
@@ -2535,7 +2534,7 @@ const render=()=>{
 list.replaceChildren();const key=search.value.normalize('NFKC').toLocaleLowerCase();
 const visible=candidates.filter(item=>item.customer.normalize('NFKC').toLocaleLowerCase().includes(key));
 if(!visible.length){list.textContent='尚無對應資料，請先在官賴外掛儲存客人。';return;}
-visible.slice(0,80).forEach(item=>{const button=document.createElement('button');button.type='button';button.className='btn light';button.style.cssText='display:block;width:100%;margin:6px 0;text-align:left';button.textContent=item.customer+(item.uid?' ｜ '+item.uid.slice(-6):'');button.onclick=async()=>{button.disabled=true;try{const result=await api('bindCustomerLineChat',{customer,url:item.url});customerChatResolved.set(customer,result.url);showCustomerLineChatLink(customer,result.url);}catch(e){alert(e.message);button.disabled=false;}};list.append(button);});
+visible.slice(0,80).forEach(item=>{const button=document.createElement('button');button.type='button';button.className='btn light';button.style.cssText='display:block;width:100%;margin:6px 0;text-align:left';button.textContent=item.customer+(item.uid?' ｜ '+item.uid.slice(-6):'');button.onclick=async()=>{button.disabled=true;try{const result=await apiBackground('bindCustomerLineChat',{customer,url:item.url});customerChatResolved.set(customer,result.url);}catch(e){alert(e.message);button.disabled=false;}};list.append(button);});
 };search.oninput=render;render();
 }
 function showCustomerLineChatLink(customer,url){
@@ -2548,7 +2547,7 @@ async function saveCustomerLineChat(event){
 event.preventDefault();const form=event.currentTarget,url=form.elements.chatURL.value.trim(),customer=form.dataset.customer;
 if(!validCustomerLineChat(url)){alert('請貼上完整的官賴客人聊天網址');return;}
 const button=form.querySelector('[type=submit]');button.disabled=true;
-try{await api('saveCustomerLineChat',{customer,url});customerChatResolved.set(customer,url);showCustomerLineChatLink(customer,url);}catch(e){alert('聊天網址儲存失敗：'+e.message);button.disabled=false;}
+try{await apiBackground('saveCustomerLineChat',{customer,url});customerChatResolved.set(customer,url);}catch(e){console.error('聊天網址儲存失敗：'+e.message);button.disabled=false;}
 }
 function money(v){
 return numberValue(v).toLocaleString()
@@ -2943,14 +2942,14 @@ async function purchaseEditDialog(i){
   });
  }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>名稱讀取失敗，請重新開啟訂單</option>';});document.getElementById('purchaseEditError').textContent='名稱選單載入失敗：'+e.message;}}
 }
-async function purchaseDeleteOrder(i,button){
+async function purchaseDeleteOrder(i,button){const savedDialog=document.getElementById('appDialog');
  const order=purchaseOrders.find(o=>o.number===document.querySelector('#appDialog form').dataset.orderNumber),error=document.getElementById('purchaseEditError');
  if(!order){error.textContent='訂單已變更，請重新開啟';return;}
  if(purchaseEditQueue.has(order.number)||purchaseRegistrationQueue.has(order.number)){error.textContent='訂單正在同步，請稍後再刪除';return;}
  const indexes=button?JSON.parse(button.closest('.purchaseEditItem').querySelector('.purchaseEditQuantity').dataset.indexes):null;
  if(!confirm(indexes?'確定刪除此商品？尚未儲存的編輯將不會保留。':'確定刪除整筆訂單及所有商品？'))return;
  const dialog=document.getElementById('appDialog');dialog.querySelectorAll('button,input').forEach(el=>el.disabled=true);
- try{await api('purchaseDelete',{number:order.number,indexes:JSON.stringify(indexes),expectedItems:JSON.stringify(order.items.map(item=>[item.name||'',Number(item.quantity)||0]))});closeDialog();await purchaseLoad();purchaseEditToast(indexes?'商品已刪除':'訂單已刪除');}
+ try{await apiBackground('purchaseDelete',{number:order.number,indexes:JSON.stringify(indexes),expectedItems:JSON.stringify(order.items.map(item=>[item.name||'',Number(item.quantity)||0]))});savedDialog?.remove();await purchaseLoad();purchaseEditToast(indexes?'商品已刪除':'訂單已刪除');}
  catch(e){if(dialog.isConnected){dialog.querySelectorAll('button,input').forEach(el=>el.disabled=false);error.textContent='刪除失敗：'+e.message;}}
 }
 const purchaseEditQueue=new Map();let purchaseQueueRunning=false,purchaseQueueVersion=0,purchaseToastTimer=null;
@@ -2962,22 +2961,23 @@ function purchaseKeepPending(){try{sessionStorage.setItem('jiwu_supabase_test_pu
 try{const saved=JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_pending_edits')||'[]');saved.forEach(([key,value])=>{purchaseEditQueue.set(key,value);purchaseQueueVersion=Math.max(purchaseQueueVersion,value.version||0);});}catch(_){}
 function purchaseOverlayPending(){purchaseOrders.forEach(o=>{const pending=purchaseEditQueue.get(o.number);if(pending)Object.assign(o,pending.fields);});}
 function purchaseQueueEdit(order,changed,defer=false){
- const previous=purchaseEditQueue.get(order.number)?.fields||{};
+ const prior=purchaseEditQueue.get(order.number),previous=prior?.fields||{};
  const delta=Object.fromEntries(Object.entries(changed).filter(([key,value])=>['quantities','autoShipTracking','autoTransitWeight'].includes(key)||String(value??'')!==String(order[key]??'')));
  if(!Object.keys(delta).length)return;
  const fields={...previous,...delta};if(previous.quantities!==undefined&&previous.expectedItems!==undefined&&delta.quantities!==undefined)fields.expectedItems=previous.expectedItems;
- Object.assign(order,fields);if(purchaseOrderRegion(order)!=='cn'&&!purchaseKindsComplete(order))order.items.forEach(item=>item.checkedAt=0);purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion});if(defer)return;purchaseKeepPending();
+ Object.assign(order,fields);if(purchaseOrderRegion(order)!=='cn'&&!purchaseKindsComplete(order))order.items.forEach(item=>item.checkedAt=0);const progressId=prior?.progressId&&launchMoveProgressJobs.get(prior.progressId)?.state==='排隊中'?prior.progressId:'purchase-edit-'+launchId();purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion,progressId});launchMoveProgress(progressId,'訂購','排隊中','','儲存訂單');if(defer)return;purchaseKeepPending();
  if(document.body.dataset.page==='purchase'){const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;}purchaseDrainEdits();
 }
 async function purchaseDrainEdits(){
  if(purchaseQueueRunning)return;purchaseQueueRunning=true;
  try{while(purchaseEditQueue.size){const [number,pending]=purchaseEditQueue.entries().next().value;if(purchaseRegistrationQueue.has(number))break;
-  try{const result=await api('purchaseEdit',{number,...pending.fields});if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');if(result.merged)await purchaseLoad();}
-  catch(e){purchaseEditToast('訂單 '+number+' 未送出修改已保留：'+e.message,true);
+  pending.progressId||='purchase-edit-'+launchId();launchMoveProgress(pending.progressId,'訂購','傳送中','','儲存訂單');
+  try{const result=await api('purchaseEdit',{number,...pending.fields},pending.progressId);launchMoveProgress(pending.progressId,'訂購','完成','','儲存訂單');if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');if(result.merged)await purchaseLoad();}
+  catch(e){launchMoveProgress(pending.progressId,'訂購','失敗',e.message,'儲存訂單');purchaseEditToast('訂單 '+number+' 未送出修改已保留：'+e.message,true);
    const toast=document.getElementById('purchaseEditToast');if(toast){const discard=document.createElement('button');discard.type='button';discard.textContent='放棄這筆修改';discard.style.marginLeft='10px';discard.onclick=async()=>{
     if(purchaseQueueRunning){purchaseEditToast('正在儲存，請稍後再試',true);return;}
     const current=purchaseEditQueue.get(number);if(!current||current.version!==pending.version){purchaseEditToast('這筆修改已更新，請先重試',true);return;}
-    purchaseEditQueue.delete(number);purchaseKeepPending();toast.remove();
+    purchaseEditQueue.delete(number);if(current.progressId){launchMoveProgressJobs.delete(current.progressId);launchPaintMoveProgress();}purchaseKeepPending();toast.remove();
     if(document.querySelector('#appDialog form')?.dataset.orderNumber===number)closeDialog();
     await purchaseLoad();
    };toast.appendChild(discard);}break;}
@@ -3087,14 +3087,15 @@ function purchaseFetchURL(url){
  window.addEventListener('message',receive);window.postMessage({type:'jiwuPurchaseImport',id,url},'*');});
 }
 async function purchaseImport(){if(purchaseBusy)return;try{purchaseBusy=true;const url=purchaseOrderURL.trim();if(!purchaseOrderSite(url))throw new Error('請貼上正確的官網訂單網址');purchaseMessage='正在讀取官網訂單…';renderPurchase();const page=await purchaseFetchURL(url);if(page.invalidAmounts)throw new Error('有商品金額無法辨識，請確認官網訂單內容');const draft=page.order?{...page.order,items:page.order.items.map(x=>({...x,name:'',candidates:[],choice:''}))}:parsePurchaseText(page.text);if(page.missingCodes)throw new Error('有商品未顯示貨號，無法完整比對，請改用手動登記');if(new URL(url).hostname==='nagano-market.jp')draft.items.forEach(x=>{x.code=String(x.code||'').normalize('NFKC').replace(/\D/g,'');});draft.items.forEach(x=>{x.originalName=String(x.originalName||'').split(/\r?\n/).map(v=>v.trim()).find(Boolean)||'';});draft.tracking=page.tracking||((String(page.text||'').normalize('NFKC').match(/(?:ヤマト運輸|Yamato(?:\s*\(JA\))?|佐川急便|日本郵便|追跡番号|送り状番号|お問い合わせ番号)\s*[:：#]?\s*([0-9][0-9 -]{8,24})/i)||[])[1]||'').replace(/\D/g,'');draft.channel=purchaseChannelFromURL(url)||purchaseOrderSite(url).channel;draft.orderURL=url;draft.status=page.state==='発送済'?'已出貨':page.state==='未発送'?'未出貨':'';draft.number=purchaseNumericOrderNumber(draft.number);if(page.number&&draft.number!==purchaseNumericOrderNumber(page.number))throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseOrdersLoaded=true;if(draft.number&&(purchaseRegistrationQueue.has(draft.number.trim())||purchaseOrders.some(o=>o.number===draft.number.trim()))){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對貨號…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))])});draft.items.forEach(x=>{x.candidates=r.matches[x.code]||[];const recorded=purchaseRecordedName(x,purchaseOrders.flatMap(o=>o.items));if(recorded){x.candidates.unshift({...recorded,source:'訂購記錄'});Object.assign(x,recorded);x.choice='0';}else if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=e.message;}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
-const purchaseRegistrationQueue=new Map();let purchaseRegistrationRunning=false;
+const purchaseRegistrationQueue=new Map(),purchaseRegistrationProgress=new Map();let purchaseRegistrationRunning=false;
+function purchaseRegistrationProgressId(number){if(!purchaseRegistrationProgress.has(number)){const id='purchase-register-'+launchId();purchaseRegistrationProgress.set(number,id);launchMoveProgress(id,'訂購','排隊中','','新增訂單');}return purchaseRegistrationProgress.get(number);}
 try{JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_pending_registrations')||'[]').forEach(([number,payload])=>purchaseRegistrationQueue.set(number,payload));}catch(_){}
 function purchaseKeepRegistrations(){try{sessionStorage.setItem('jiwu_supabase_test_purchase_pending_registrations',JSON.stringify([...purchaseRegistrationQueue]));}catch(_) {}}
 async function purchaseDrainRegistrations(){
  if(purchaseRegistrationRunning)return;purchaseRegistrationRunning=true;
- try{while(purchaseRegistrationQueue.size){const [number,payload]=purchaseRegistrationQueue.entries().next().value;
-  try{const result=await api('purchaseSave',payload);purchaseRegistrationQueue.delete(number);purchaseKeepRegistrations();purchaseDrainEdits();purchaseRegistrationToast(result.merged?'相同出貨單號已合併':result.existing?'已經登記過':'登記完成');if(result.merged)await purchaseLoad();}
-  catch(e){purchaseRegistrationToast('未登記訂單已保留：'+e.message,true);break;}
+ try{purchaseRegistrationQueue.forEach((_,number)=>purchaseRegistrationProgressId(number));while(purchaseRegistrationQueue.size){const [number,payload]=purchaseRegistrationQueue.entries().next().value,progressId=purchaseRegistrationProgressId(number);
+  try{const result=await api('purchaseSave',payload,progressId);launchMoveProgress(progressId,'訂購','完成','','新增訂單');purchaseRegistrationProgress.delete(number);purchaseRegistrationQueue.delete(number);purchaseKeepRegistrations();purchaseDrainEdits();purchaseRegistrationToast(result.merged?'相同出貨單號已合併':result.existing?'已經登記過':'登記完成');if(result.merged)await purchaseLoad();}
+  catch(e){launchMoveProgress(progressId,'訂購','失敗',e.message,'新增訂單');purchaseRegistrationToast('未登記訂單已保留：'+e.message,true);break;}
  }}finally{purchaseRegistrationRunning=false;}
 }
 function purchaseRegistrationToast(message,error=false){
@@ -3109,7 +3110,7 @@ function purchaseSave(){
   if(draft.items.some(x=>x.candidates.length>0&&x.choice===''))throw new Error('請選擇商品對應資料');
   if(purchaseRegistrationQueue.has(number)||purchaseOrders.some(o=>o.number===number))throw new Error('已經登記過或正在背景登記');
   const items=draft.items.map(({candidates,choice,...x})=>x),payload={number,date:draft.date,tracking:draft.tracking||'',shipping:draft.shipping??'',contents:draft.contents||'',channel:draft.channel||'',manual:draft.manual===true,orderAmount:draft.orderAmount??'',status:draft.status||'未出貨',orderURL:draft.orderURL||'',items:JSON.stringify(items),registrationId:crypto.randomUUID()};
-  purchaseRegistrationQueue.set(number,payload);purchaseKeepRegistrations();
+  purchaseRegistrationQueue.set(number,payload);purchaseRegistrationProgressId(number);purchaseKeepRegistrations();
   purchaseOrders.unshift({number,date:draft.date,tracking:draft.tracking||'',shipping:draft.shipping??'',contents:draft.contents||'',channel:draft.channel||'',orderURL:draft.orderURL||'',status:draft.status||'未出貨',items});
   purchaseDraft=null;purchaseText='';purchaseOrderURL='';purchaseLastAutoURL='';purchaseMessage='';purchaseDateCollapsed=false;purchaseSelectedDate='';purchaseSelectedMonth=purchaseMonthKey(draft.date);
   renderPurchase();document.getElementById('purchaseOrderURL')?.focus();purchaseDrainRegistrations();
@@ -3206,7 +3207,7 @@ storeCart=[];
 renderCart();
 return;
 }
-if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
+if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy||backendWriteQueue.length)return;
 const requestUser=salesperson;
 const requestRevision=cartRevision;
 storeCartLoading=true;
@@ -3238,7 +3239,7 @@ const revision=++cartRevision;
 const items=JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual,note:x.note||''})));
 cartPendingWrites++;
 cartUnsaved=true;
-const request=cartWriteQueue.then(()=>api('storeCartSet',{salesperson:user,items}));
+const request=api('storeCartSet',{salesperson:user,items});
 cartWriteQueue=request.catch(()=>{});
 try{
 const result=await request;
@@ -3291,18 +3292,18 @@ const current=inventoryImageUrl(item);
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>更新商品圖片</h3><p class="salesHint">${esc(name)}</p><form onsubmit="submitInventoryImage(event)"><input id="inventoryImageUrlInput" type="url" inputmode="url" placeholder="直接圖片網址（https://…）" value="${esc(current)}" required style="width:100%"><input id="inventoryImageRow" type="hidden" value="${Number(row)}"><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">更新圖片</button></div></form></div></div>`);
 document.getElementById('inventoryImageUrlInput')?.focus();
 }
-async function submitInventoryImage(event){
+async function submitInventoryImage(event){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();
 const row=Number(document.getElementById('inventoryImageRow').value);
 const url=document.getElementById('inventoryImageUrlInput').value.trim();
 if(!/^https?:\/\//i.test(url))return alert('請輸入有效的 http/https 圖片網址');
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='更新中…';
 try{
-const result=await api('setInventoryImage',{row,url});
+const result=await apiBackground('setInventoryImage',{row,url});
 const item=inventoryRows.find(entry=>Number(entry.row)===row);
 if(item){const index=Number(result.imageCol);while(inventoryHeaders.length<=index)inventoryHeaders.push('');inventoryHeaders[index]=result.imageHeader||inventoryHeaders[index]||'圖片網址';while(item.values.length<=index)item.values.push('');item.values[index]=url;if(item.display){while(item.display.length<=index)item.display.push('');item.display[index]=url;}item.image=url;}
-inventoryLoadedAt=Date.now();saveInventorySessionCache();closeDialog();renderInventoryContent();
-}catch(error){alert('圖片更新失敗：'+error.message);button.disabled=false;button.textContent='更新圖片';}
+inventoryLoadedAt=Date.now();saveInventorySessionCache();savedDialog?.remove();renderInventoryContent();
+}catch(error){console.error('圖片更新失敗：'+error.message);button.disabled=false;button.textContent='更新圖片';}
 }
 function inventoryProductUrl(item){
 const i=inventoryHeaderIndex(['商品網址','官網網址','商品連結','官網連結','網址','URL','url','連結','商品頁面','商品URL','購買網址','官方連結','產品連結','產品網址','官網','商品官網','來源網址']);
@@ -3345,10 +3346,10 @@ const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)r
 const val=names=>String(inventoryValue(item,names)??'');
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label>IP<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label>角色<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label>種類<input id="inventoryEditKind" value="${esc(val(['種類','類型','商品種類','品項']))}"></label></div><label class="mobileFull">名稱<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label class="mobileFull">貨號<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label>原價<input id="inventoryEditOriginal" inputmode="decimal" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label>售價<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label><label>庫存<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label>店面<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label class="full stackField">網址<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label class="full stackField">備註<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteInventoryProductFromDialog(${Number(row)},this)">刪除商品</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 }
-async function deleteInventoryProductFromDialog(row,button){
+async function deleteInventoryProductFromDialog(row,button){const savedDialog=document.getElementById('appDialog');
 if(!confirm('確定刪除此庫存商品？'))return;
 button.disabled=true;
-try{await Promise.allSettled([...inventoryProductSaves.values()]);await api('deleteInventoryProduct',{row});inventoryRows=inventoryRows.filter(item=>Number(item.row)!==Number(row));prepareInventoryRows();saveInventorySessionCache();closeDialog();renderInventoryContent();inventoryLoadedAt=0;await loadInventory(true);}catch(error){alert('刪除失敗：'+error.message);button.disabled=false;}
+try{await apiBackground('deleteInventoryProduct',{row});inventoryRows=inventoryRows.filter(item=>Number(item.row)!==Number(row));prepareInventoryRows();saveInventorySessionCache();savedDialog?.remove();renderInventoryContent();inventoryLoadedAt=0;await loadInventory(true);}catch(error){console.error('刪除失敗：'+error.message);button.disabled=false;}
 }
 async function submitInventoryEdit(event,row){
 event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='SAVE…';
@@ -3381,7 +3382,7 @@ if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves
 if(inventoryLoadPromise)return inventoryLoadPromise;
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{const epoch=backendSyncEpoch;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==backendSyncEpoch||backendSyncWrites||inventoryOrderDirty)return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map(row=>({row:row[0],values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{const epoch=backendSyncEpoch;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==backendSyncEpoch||backendSyncWrites||inventoryOrderDirty)return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">載入失敗：${esc(e.message)}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -3501,14 +3502,14 @@ function openInventoryAddDialog(){
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px"><h3 style="margin:0">上架商品</h3><button type="button" class="btn light" style="flex-shrink:0" onclick="closeDialog();launchImportClosedProducts('inventory')">匯入開團商品</button></div><form onsubmit="submitInventoryAdd(event)"><div class="dialogGrid">${inventoryIpPicker('inventoryAddIp')}<input id="inventoryAddRole" class="full" placeholder="角色"><input id="inventoryAddName" class="full" placeholder="商品名稱" required><input id="inventoryAddUrl" class="full" type="url" placeholder="貼上商品網址" required></div><p class="salesHint">會嘗試從商品頁辨識貨號、圖片、尺寸與原價；上架後仍可到資料庫修正。</p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">上架</button></div></form></div></div>`);
 document.getElementById('inventoryAddName').focus();
 }
-async function submitInventoryClosedImport(event){
+async function submitInventoryClosedImport(event){const savedDialog=document.getElementById('launchDialog');
  event.preventDefault();
  const source=launchImportSource,selected=[...event.currentTarget.querySelectorAll('[data-launch-import-item]:checked')].map(input=>source?.items[Number(input.dataset.launchImportItem)]?.id);
  if(!source||!selected.length)return alert('請至少選一樣商品');
  const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='匯入中…';
- try{const ip=inventorySelectedIp('inventoryImportIp');const result=await launchPost('launchImportInventory',{id:source.id,itemIds:JSON.stringify(selected),ip});document.getElementById('launchDialog')?.close();inventoryLoaded=false;await loadInventory(true);alert('已匯入 '+result.count+' 樣商品');}catch(error){alert(error.message);button.disabled=false;button.textContent='匯入商品庫存';}
+ try{const ip=inventorySelectedIp('inventoryImportIp');const result=await launchPostBackground('launchImportInventory',{id:source.id,itemIds:JSON.stringify(selected),ip});savedDialog?.remove();inventoryLoaded=false;await loadInventory(true);}catch(error){console.error(error.message);button.disabled=false;button.textContent='匯入商品庫存';}
 }
-async function submitInventoryAdd(event){event.preventDefault();const form=event.currentTarget;const button=form.querySelector('[type=submit]');button.disabled=true;button.textContent='辨識中…';try{const ip=inventorySelectedIp('inventoryAddIp');const result=await api('addInventoryProduct',{ip,role:document.getElementById('inventoryAddRole').value.trim(),name:document.getElementById('inventoryAddName').value.trim(),url:document.getElementById('inventoryAddUrl').value.trim()});closeDialog();inventoryLoaded=false;await loadInventory(true);const d=result.detected||{};alert('上架完成'+(!d.code&&!d.image&&!d.size&&!d.originalPrice?'（網站未提供可辨識欄位，請到資料庫補填）':''));}catch(e){alert(e.message);button.disabled=false;button.textContent='上架';}}
+async function submitInventoryAdd(event){const savedDialog=document.getElementById('appDialog');event.preventDefault();const form=event.currentTarget;const button=form.querySelector('[type=submit]');button.disabled=true;button.textContent='辨識中…';try{const ip=inventorySelectedIp('inventoryAddIp');const result=await apiBackground('addInventoryProduct',{ip,role:document.getElementById('inventoryAddRole').value.trim(),name:document.getElementById('inventoryAddName').value.trim(),url:document.getElementById('inventoryAddUrl').value.trim()});savedDialog?.remove();inventoryLoaded=false;await loadInventory(true);const d=result.detected||{};}catch(e){console.error(e.message);button.disabled=false;button.textContent='上架';}}
 /* =========================================================
    店面
 ========================================================= */
@@ -3662,7 +3663,7 @@ else if(result)alert('更新失敗，保留上次資料：'+e.message);
 }
 function showStoreSalesMonth(){const today=(storeSalesData?.today||new Date().toISOString().slice(0,10));storeSalesDate=today.slice(5,7);drawStoreSales();}
 function openStoreSaleDialog(){document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動新增銷售</h3><form onsubmit="submitStoreSale(event)"><div class="dialogGrid"><input id="manualSaleName" placeholder="名稱" required><input id="manualSaleAmount" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this)" required><input id="manualSaleNote" class="full" placeholder="備註"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增</button></div></form></div></div>`);document.getElementById('manualSaleName').focus();}
-async function submitStoreSale(event){event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;try{await api('addStoreSale',{name:document.getElementById('manualSaleName').value.trim(),amount:normalizeMoneyInput(document.getElementById('manualSaleAmount')),note:document.getElementById('manualSaleNote').value.trim()});closeDialog();storeSalesLoadedAt=0;await renderStoreSales(true);}catch(e){alert(e.message);button.disabled=false;}}
+async function submitStoreSale(event){const savedDialog=document.getElementById('appDialog');event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;try{await apiBackground('addStoreSale',{name:document.getElementById('manualSaleName').value.trim(),amount:normalizeMoneyInput(document.getElementById('manualSaleAmount')),note:document.getElementById('manualSaleNote').value.trim()});savedDialog?.remove();storeSalesLoadedAt=0;if(document.body.dataset.page==='store')await renderStoreSales(true);}catch(e){console.error(e.message);button.disabled=false;}}
 async function updateSalesAfterCheckout(delta){
 // 先用結帳 API 已回傳的新增列即時更新畫面，避免再等全表查詢。
 storeSalesLoadedAt=0;
@@ -3702,9 +3703,9 @@ function editStoreSaleNote(row){
 const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(!item)return;
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>商品備註</h3><p>${esc(item.name)}</p><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 }
-async function saveStoreSaleNote(event,row){
+async function saveStoreSaleNote(event,row){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]'),note=document.getElementById('saleNoteInput').value.trim();button.disabled=true;
-try{await api('updateStoreSaleNote',{row,note});const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(item)item.note=note;closeDialog();drawStoreSales();}catch(error){alert('備註儲存失敗：'+error.message);button.disabled=false;}
+try{await apiBackground('updateStoreSaleNote',{row,note});const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(item)item.note=note;savedDialog?.remove();drawStoreSales();}catch(error){console.error('備註儲存失敗：'+error.message);button.disabled=false;}
 }
 function editStoreSalePayment(rows,method,last5=''){
 const selected=String(method||'').trim();
@@ -3712,11 +3713,11 @@ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogO
 const input=document.getElementById('editStoreSaleLast5');input.addEventListener('input',()=>{if(document.getElementById('editStoreSaleMethod').value!=='LP')input.value=toHalfWidthDigits(input.value).replace(/\D/g,'').slice(0,5);});toggleStoreSaleLast5();
 }
 function toggleStoreSaleLast5(){const method=document.getElementById('editStoreSaleMethod')?.value;const input=document.getElementById('editStoreSaleLast5');if(input){input.disabled=!['中信','LB','LP'].includes(method);input.inputMode=method==='LP'?'text':'numeric';if(method==='LP')input.removeAttribute('maxlength');else input.maxLength=5;input.placeholder=method==='LP'?'後五碼／中文（選填）':'後五碼（選填）';}}
-async function saveStoreSalePayment(event){
+async function saveStoreSalePayment(event){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
 const rows=document.getElementById('editStoreSaleRows').value.split(',').map(Number),method=document.getElementById('editStoreSaleMethod').value,last5=document.getElementById('editStoreSaleLast5').value.trim();
 if(['中信','LB'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
-try{await api('updateStoreSalePayment',{rows:JSON.stringify(rows),method,last5});closeDialog();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();drawStoreSales();}catch(error){alert('付款資料更新失敗：'+error.message);button.disabled=false;}
+try{await apiBackground('updateStoreSalePayment',{rows:JSON.stringify(rows),method,last5});savedDialog?.remove();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();drawStoreSales();}catch(error){console.error('付款資料更新失敗：'+error.message);button.disabled=false;}
 }
 function formatStoreSalesDate(date){
 const match=String(date||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -3777,7 +3778,7 @@ return `<div class="groupCard salesDayCard" data-sales-date="${esc(day.date)}">
 }).join('')+'</div>':'<div class="empty">沒有符合的銷售紀錄</div>');
 }
 async function scan(){
-if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再加入商品');return;}
+if(cartOperationBusy){alert('請先等購物車儲存完成，再加入商品');return;}
 const input=document.getElementById('barcode');
 const code=input.value.trim();
 if(!code){
@@ -3923,22 +3924,15 @@ input.value='';
 }
 }
 async function clearStoreCart(){
-if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再清空');return;}
-if(!storeCart.length)return;
-if(!confirm('確定清空全部商品？'))return;
-cartOperationBusy=true;
-cartRevision++;
-try{
-if(salesperson)await api('storeCartClear',{salesperson});
-storeCart=[];
-payment='';
-renderStore();
-}catch(e){
-alert(e.message)
-}finally{cartOperationBusy=false;cartRevision++;}
+ if(cartOperationBusy)return;
+ if(!storeCart.length||!confirm('確定清空全部商品？'))return;
+ const before={cart:structuredClone(storeCart),payment};cartRevision++;
+ const pending=salesperson?api('storeCartClear',{salesperson}):Promise.resolve();
+ storeCart=[];payment='';cartUnsaved=false;renderStore();
+ try{await pending;}catch(error){const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;if(document.body.dataset.page==='store')renderCart();console.error('清空尚未確認，商品已保留：'+error.message);}
 }
 async function checkout(){
-if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再結帳');return;}
+if(cartOperationBusy){alert('請先等購物車儲存完成，再結帳');return;}
 if(!storeCart.length){
 alert('沒有商品');
 return
@@ -3972,8 +3966,9 @@ cartOperationBusy=true;
 cartRevision++;
 const checkoutButton=document.getElementById('storeCheckoutButton');
 if(checkoutButton){checkoutButton.disabled=true;checkoutButton.textContent='記錄中⋯';}
+const before={cart:structuredClone(storeCart),payment,received:document.getElementById('received')?.value||'',last5:document.getElementById('last5')?.value||'',note};
 try{
-const d=await api(
+const pending=api(
 'storeCheckout',
 {
 items:JSON.stringify(
@@ -3994,25 +3989,21 @@ note,
 salesperson
 }
 );
-alert(
-'結帳完成'
-);
 storeCart=[];
-payment='';
+payment='';cartUnsaved=false;cartOperationBusy=false;cartRevision++;
+if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結帳';}
 ['received','last5','storeNote','barcode'].forEach(id=>{const input=document.getElementById(id);if(input)input.value='';});
 const last5Box=document.getElementById('last5Box');
 if(last5Box)last5Box.style.display='none';
 document.querySelectorAll('.payment button').forEach(button=>button.classList.remove('active'));
 renderCart();
+const d=await pending;
 // 已確認結帳成功；右側只加入新增紀錄，更新失敗不重送結帳。
 updateSalesAfterCheckout(d.salesDelta);
-const input=document.getElementById('barcode');
-if(input)input.focus();
 }catch(e){
-alert(e.message)
-}finally{
-cartOperationBusy=false;cartRevision++;
-if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結帳';}
+const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;
+if(document.body.dataset.page==='store'){renderCart();if(empty){for(const [id,value] of [['received',before.received],['last5',before.last5],['storeNote',before.note]]){const el=document.getElementById(id);if(el)el.value=value;}}}
+console.error('結帳尚未確認，商品已保留：'+e.message);
 }
 }
 /* =========================================================
@@ -4160,7 +4151,8 @@ const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
 const newPosition=row=>row+(row>last?added.length:0)-removed.filter(deleted=>deleted<row).length;
 const keyByRow=new Map(onlineEditBase.filter(row=>!removed.includes(Number(row.row))).map(row=>[newPosition(Number(row.row)),row.editKey]));
 added.forEach((item,i)=>keyByRow.set(last+1+i-removed.length,item.key));
-onlineHeaders=server.headers;onlineEditBase=server.rows.map(row=>({...row,editKey:keyByRow.get(Number(row.row))||'edit-'+(++onlineEditKey)}));
+const keyById=new Map(onlineEditBase.filter(row=>row.itemId).map(row=>[String(row.itemId),row.editKey]));
+onlineHeaders=server.headers;onlineEditBase=server.rows.map(row=>({...row,editKey:keyById.get(String(row.itemId))||keyByRow.get(Number(row.row))||'edit-'+(++onlineEditKey)}));
 if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'完成','','儲存訂單');
 }catch(e){if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'失敗',e.message+'（這筆畫面已還原）','儲存訂單');else alert((job.delete?'訂單刪除失敗':'訂單儲存失敗')+'，這筆畫面已還原：'+e.message);}
 onlineEditQueue.shift();onlineMutationRevision++;renderPendingOnlineEdits();
@@ -4178,7 +4170,7 @@ const month=Number(match[1]),day=Number(match[2]);
 if(month<1||month>12||day<1||day>[31,29,31,30,31,30,31,31,30,31,30,31][month-1])throw new Error('請輸入有效的月／日');
 return month+'/'+day;
 }
-async function submitOnlineOrder(event){event.preventDefault();let orderDate;try{const dateInput=document.getElementById('manualOnlineDate').value.trim();orderDate=dateInput?normalizeManualOrderDate(dateInput):'';document.getElementById('manualOnlineDate').value=orderDate;}catch(e){alert(e.message);return;}const items=[...document.querySelectorAll('#manualOnlineItems .manualOnlineItem')].map(row=>({name:row.querySelector('.manualOnlineName').value.trim(),cargo:row.querySelector('.manualOnlineCargo').value,price:Number(normalizeMoneyInput(row.querySelector('.manualOnlinePrice'))||0),deposit:normalizeMoneyInput(row.querySelector('.manualOnlineItemDeposit'))}));if(!items.length)return alert('請至少新增一項商品');const payment=document.getElementById('manualOnlinePayment').value,last5=document.getElementById('manualOnlineLast5').value;const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;try{await api('addOnlineOrder',{orderDate,source:document.getElementById('manualOnlineSource').value,customer:document.getElementById('manualOnlineCustomer').value.trim(),items:JSON.stringify(items),payment,last5,deposit:items.reduce((sum,item)=>sum+Number(item.deposit||0),0)});closeDialog();onlineLoadedAt=0;await loadOnline(true);}catch(e){alert(e.message);button.disabled=false;}}
+async function submitOnlineOrder(event){const savedDialog=document.getElementById('appDialog');event.preventDefault();let orderDate;try{const dateInput=document.getElementById('manualOnlineDate').value.trim();orderDate=dateInput?normalizeManualOrderDate(dateInput):'';document.getElementById('manualOnlineDate').value=orderDate;}catch(e){console.error(e.message);return;}const items=[...document.querySelectorAll('#manualOnlineItems .manualOnlineItem')].map(row=>({name:row.querySelector('.manualOnlineName').value.trim(),cargo:row.querySelector('.manualOnlineCargo').value,price:Number(normalizeMoneyInput(row.querySelector('.manualOnlinePrice'))||0),deposit:normalizeMoneyInput(row.querySelector('.manualOnlineItemDeposit'))}));if(!items.length)return console.error('請至少新增一項商品');const payment=document.getElementById('manualOnlinePayment').value,last5=document.getElementById('manualOnlineLast5').value;const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;try{await apiBackground('addOnlineOrder',{orderDate,source:document.getElementById('manualOnlineSource').value,customer:document.getElementById('manualOnlineCustomer').value.trim(),items:JSON.stringify(items),payment,last5,deposit:items.reduce((sum,item)=>sum+Number(item.deposit||0),0)});savedDialog?.remove();onlineLoadedAt=0;await loadOnline(true);}catch(e){console.error(e.message);button.disabled=false;}}
 async function loadOnline(force=false,background=false){
 try{
 // 手動重新整理等待既有請求結束，確保舊回應不會蓋掉新資料。
@@ -4199,7 +4191,7 @@ const request=(async()=>{
   if(revision!==onlineMutationRevision||epoch!==backendSyncEpoch||backendSyncWrites||pendingRestockRows.size||onlineOrderEditPending)return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
-    ?(d.rows||[]).map((r,i)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
+    ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
     :(d.rows||[]);
   onlineRows=rows;
   onlineHeaders=headers;
@@ -4407,14 +4399,14 @@ document.getElementById('appDialog')?.remove();
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard" style="width:min(380px,100%)"><h3>修改顧客名稱</h3><form data-old-name="${esc(current)}" onsubmit="submitOnlineCustomerName(event,this.dataset.oldName)"><input id="onlineCustomerNameInput" maxlength="100" value="${esc(current)}" placeholder="顧客名稱" required><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 document.getElementById('onlineCustomerNameInput')?.focus();document.getElementById('onlineCustomerNameInput')?.select();
 }
-async function submitOnlineCustomerName(event,oldName){
+async function submitOnlineCustomerName(event,oldName){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const newName=String(document.getElementById('onlineCustomerNameInput')?.value||'').trim();if(!newName)return;
-if(newName===oldName){closeDialog();return;}
+if(newName===oldName){savedDialog?.remove();return;}
 const customerRows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===oldName);const rows=customerRows.map(row=>Number(row.row)).filter(row=>row>=2);
 if(!rows.length){alert('找不到此顧客的訂單');return;}
 const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{await api('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);closeDialog();onlineSearchText=newName;saveOnlineSessionCache();const search=document.getElementById('customerSearch');if(search)search.value=newName;customerChatResolved.delete(oldName);customerChatResolved.delete(newName);showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===newName),newName);}
-catch(e){alert('顧客名稱修改失敗：'+e.message);button.disabled=false;}
+try{await apiBackground('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);savedDialog?.remove();saveOnlineSessionCache();const search=document.getElementById('customerSearch');const sameView=document.body.dataset.page==='online'&&String(search?.value||onlineSearchText).trim()===oldName;if(sameView){onlineSearchText=newName;if(search)search.value=newName;}customerChatResolved.delete(oldName);customerChatResolved.delete(newName);if(sameView)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===newName),newName);}
+catch(e){console.error('顧客名稱修改失敗：'+e.message);button.disabled=false;}
 }
 function showOnlineCurrentView(){if(isCustomerView){openCustomer(document.getElementById('customerSearch')?.value||'');}else if(isGroupView){openGroup(document.getElementById('customerSearch')?.value||'');}else applyOnlineFilter();}
 function getPaymentMethod(row){
@@ -5598,15 +5590,67 @@ function backendWriteProgressInfo(action,params={}){
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
-async function backendTrackWrite(action,run,params={},progressId){
+const backendWriteQueue=[],backendFailedDialogs=new Map();let backendWriteRunning=false;
+function backendRowTable(action){
+ if(/^(?:setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|checkInventoryAvailability)/.test(action))return 'inventory';
+ if(/^(?:setOnline|saveOnlinePayment|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|purchaseRestock|createShip)/.test(action))return 'online';
+ if(/^(?:setShip|deleteShipOrder)/.test(action))return 'ship';
+ if(/^updateStoreSale/.test(action))return 'store';
+ return '';
+}
+function backendPrepareWrite(action,params){
+ const snapshot=structuredClone(params),table=backendRowTable(action);if(!table||snapshot._rowRefs)return snapshot;
+ const rows=new Set();if(Number(snapshot.row)>=2)rows.add(Number(snapshot.row));
+ if(snapshot.rows){try{JSON.parse(snapshot.rows).forEach(row=>rows.add(Number(row)));}catch(_) {}}
+ if(action==='reorderInventory')String(snapshot.moves||'').split(',').filter(Boolean).forEach(move=>move.split('_').slice(0,2).forEach(row=>rows.add(parseInt(row,36))));
+ if(!rows.size)return snapshot;
+ const source=table==='inventory'?inventoryRows:table==='online'?[...(onlineEditBase||[]),...onlineRows]:table==='ship'?shipDataCache?.rows||[]:storeSalesData?.days?.flatMap(day=>day.items)||[];
+ snapshot._rowRefs=[...rows].map(row=>({row,id:source.find(item=>Number(item.row)===row)?.itemId||null}));return snapshot;
+}
+function apiBackground(action,params,dialog=document.getElementById('appDialog')){
+ if(dialog?.dataset.backendRowRefs)params={...params,_rowRefs:JSON.parse(dialog.dataset.backendRowRefs)};
+ params=backendPrepareWrite(action,params);const signature=JSON.stringify(params);if(dialog?.dataset.backendRequestBody===signature&&dialog.dataset.backendRequestId)params.requestId=dialog.dataset.backendRequestId;
+ const disabled=[...(dialog?.querySelectorAll('input,textarea,select')||[])].map(el=>[el,action==='purchaseDelete'?false:el.disabled]);
+ const request=api(action,params,{dialog,disabled,signature,page:document.body.dataset.page});dialog?.remove();return request;
+}
+function launchPostBackground(action,params,dialog=document.getElementById('launchDialog')){
+ const disabled=[...(dialog?.querySelectorAll('input,textarea,select')||[])].map(el=>[el,el.disabled]);
+ const request=launchPost(action,params,{dialog,disabled,page:document.body.dataset.page});
+ const box=dialog?.querySelector('#launchMoveProgress');if(box)document.body.appendChild(box);dialog?.close();dialog?.remove();launchPaintMoveProgress();return request;
+}
+function backendRestoreDialogControls(draft){draft.dialog.querySelectorAll('button').forEach(el=>el.disabled=false);for(const [el,disabled] of draft.disabled||[])el.disabled=disabled;}
+function backendRestoreFailedDialog(id){
+ const draft=backendFailedDialogs.get(id);if(!draft||document.getElementById('appDialog'))return;
+ if(document.body.dataset.page!==draft.page){tab(draft.page,document.getElementById('btn-'+draft.page));}
+ backendRestoreDialogControls(draft);
+ document.body.appendChild(draft.dialog);if(draft.dialog.tagName==='DIALOG')draft.dialog.showModal();backendFailedDialogs.delete(id);launchMoveProgressJobs.delete(id);launchPaintMoveProgress();
+}
+function backendDiscardFailedDialog(id){backendFailedDialogs.delete(id);}
+function backendTrackWrite(action,run,params={},progress){
  const mutation=backendSyncMutation(action),showProgress=mutation||['launchMove','launchUpload','storeScan','storeCartSet','storeCartClear'].includes(action);
- if(!mutation&&!showProgress)return run();
- const info=showProgress&&!progressId?backendWriteProgressInfo(action,params):null,id=info?'request-'+launchId():null;
- if(id)launchMoveProgress(id,info.name,'傳送中','',info.action);
+ if(!showProgress)return run();
+ const owned=typeof progress==='string'&&progress,info=owned?launchMoveProgressJobs.get(owned)||backendWriteProgressInfo(action,params):backendWriteProgressInfo(action,params),id=owned||'request-'+launchId();
+ const meta=typeof progress==='object'&&progress||{};
+ params.requestId||=crypto.randomUUID();
+ if(meta.dialog&&params._rowRefs?.length)meta.dialog.dataset.backendRowRefs=JSON.stringify(params._rowRefs);
+ if(meta.dialog&&meta.signature){meta.dialog.dataset.backendRequestBody=meta.signature;meta.dialog.dataset.backendRequestId=params.requestId;}
+ launchMoveProgress(id,info.name,'排隊中','',info.action);
  if(mutation){backendSyncWrites++;backendSyncEpoch++;}
- try{const result=await run();if(id)launchMoveProgress(id,info.name,'完成','',info.action);return result;}
- catch(error){if(id)launchMoveProgress(id,info.name,'失敗',error.message||'資料尚未確認儲存',info.action);throw error;}
- finally{if(mutation){backendSyncWrites--;backendSyncEpoch++;setTimeout(()=>backendSyncPoll(),0);}}
+ return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,run,resolve,reject,auth:authToken,meta});void backendDrainWrites();});
+}
+async function backendDrainWrites(){
+ if(backendWriteRunning)return;backendWriteRunning=true;
+ try{while(backendWriteQueue.length){const job=backendWriteQueue[0];
+  try{
+   if(job.auth!==authToken)throw Error('登入狀態已改變，這筆尚未送出');
+   launchMoveProgress(job.id,job.info.name,'傳送中','',job.info.action);
+   const result=await job.run();if(!job.owned)launchMoveProgress(job.id,job.info.name,'完成','',job.info.action);job.resolve(result);
+  }catch(error){
+   launchMoveProgress(job.id,job.info.name,'失敗',error.message||'資料尚未確認儲存',job.info.action);
+   if(job.meta.dialog)backendFailedDialogs.set(job.id,job.meta);
+   job.reject(error);
+  }finally{backendWriteQueue.shift();if(job.mutation){backendSyncWrites--;backendSyncEpoch++;}}
+ }}finally{backendWriteRunning=false;setTimeout(()=>backendSyncPoll(),0);}
 }
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
 function backendSyncCanApply(page){
@@ -5647,12 +5691,12 @@ async function backendSyncRefreshCurrent(page){
  if(page==='purchase'){
   const orders=data.orders||[];if(JSON.stringify(orders)!==JSON.stringify(purchaseOrders)){purchaseOrders=orders;purchaseOrdersLoaded=true;const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
  }else if(page==='online'){
-  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(data.mergeKeys||[])[index]||'',depositMergeKey:(data.mergeKeys||[])[index]||''})):(data.rows||[]);
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:(data.rowIds||[])[index]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(data.mergeKeys||[])[index]||'',depositMergeKey:(data.mergeKeys||[])[index]||''})):(data.rows||[]);
   const comparable=items=>items.map(({editKey,...item})=>item);
   if(JSON.stringify(headers)!==JSON.stringify(onlineHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(onlineRows))){onlineRows=rows;onlineHeaders=headers;refreshCargoViewKeepingScroll();}
   onlineLoadedAt=Date.now();saveOnlineSessionCache();
  }else if(page==='inventory'){
-  const rows=data.format==='inventory-matrix-v1'?(data.rows||[]).map(row=>({row:row[0],values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
+  const rows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
   const comparable=items=>items.map(({_searchText,...item})=>item);
   if(JSON.stringify(data.headers||[])!==JSON.stringify(inventoryHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(inventoryRows))){inventoryRows=rows;inventoryHeaders=data.headers||[];prepareInventoryRows();renderInventoryContent();}
   inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();
