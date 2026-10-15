@@ -468,6 +468,7 @@ min-height:0;
 flex:1;
 overflow:auto
 }
+.onlineResult .orderCards>.groupCard{contain:layout style paint}
 .onlineTable{
 min-width:900px
 }
@@ -4057,7 +4058,7 @@ app.innerHTML=`
 <option value="">全部</option>
 <option value="已開單">已開單</option>
 </select>
-<input id="customerSearch" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
+<input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
 <button class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
 <button class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
 </div>
@@ -4257,7 +4258,7 @@ const cargo=document.getElementById('cargoFilter');if(cargo)cargo.value='';
 if(!onlineLoadedAt)await loadOnline();
 applyOnlineFilter();
 }
-let onlineSearchRefresh=null;
+let onlineSearchRefresh=null,onlineInputFocusUntil=0;
 function bindOnlineSearchInput(input){
 let composing=false,timer=null,pasting=false,generation=0;
 const cancel=()=>{generation++;clearTimeout(timer);timer=null;};
@@ -4268,6 +4269,10 @@ if(composing)return;
 const ticket=generation;timer=setTimeout(()=>{timer=null;run(ticket);},delay);
 };
 onlineSearchRefresh=()=>schedule(250);
+// 在瀏覽器完成焦點與鍵盤動畫前，先讓背景讀取知道使用者準備輸入。
+input.addEventListener('pointerdown',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();},{passive:true});
+input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();});
+input.addEventListener('blur',()=>{onlineInputFocusUntil=0;});
 input.addEventListener('compositionstart',()=>{composing=true;cancel();});
 input.addEventListener('compositionend',()=>{composing=false;schedule(250);});
 input.addEventListener('paste',()=>{pasting=true;schedule(0);});
@@ -4865,6 +4870,24 @@ onlineEditQueue.push({keys,items:[],note:'',delete:true});onlineOrderEditPending
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
 
+let onlineCardLayoutObserver=null;
+function prepareOnlineCardLayout(root){
+onlineCardLayoutObserver?.disconnect();onlineCardLayoutObserver=null;
+if(typeof ResizeObserver!=='function'||typeof CSS==='undefined'||!CSS.supports('content-visibility','auto'))return;
+const observer=new ResizeObserver(entries=>{
+ if(onlineCardLayoutObserver!==observer)return;
+ for(const entry of entries){
+  const card=entry.target,height=entry.contentRect.height;
+  if(!card.isConnected||height<=0)continue;
+  // 使用已量到的實際高度，避免手機上的短訂單卡被預估高度撐大。
+  const size='auto '+height+'px';
+  if(card.style.containIntrinsicBlockSize!==size)card.style.containIntrinsicBlockSize=size;
+  if(card.style.contentVisibility!=='auto')card.style.contentVisibility='auto';
+ }
+});
+onlineCardLayoutObserver=observer;
+root.querySelectorAll('.orderCards>.groupCard').forEach(card=>observer.observe(card));
+}
 function showOrderCards(rows,summary){
 const res=document.getElementById('onlineResult');
 if(!res)return;
@@ -4995,6 +5018,7 @@ html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead"><s
 }
 html+=`${restockRows.length?renderRestockSection(restockRows):''}`;
 res.innerHTML=html;
+prepareOnlineCardLayout(res);
 syncFaceButtons();
 }
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
@@ -5079,9 +5103,11 @@ const note=String(getOnlineData(row,['備註','備註欄'])||'');
 return findHeader(onlineHeaders,['備註','備註欄'])?note.includes('面交'):getPaymentMethod(row)==='面交';
 }
 function syncFaceButtons(){
+const rowsById=new Map();
+onlineRows.forEach(row=>{const id=Number(row.row);if(!rowsById.has(id))rowsById.set(id,[]);rowsById.get(id).push(row);});
 document.querySelectorAll('[data-face-rows]').forEach(button=>{
 const ids=button.dataset.faceRows.split(',').map(Number);
-const items=onlineRows.filter(row=>ids.includes(Number(row.row)));
+const items=ids.flatMap(id=>rowsById.get(id)||[]);
 button.classList.toggle('active',items.some(isFaceToFace));
 button.disabled=ids.some(id=>pendingFaceRows.has(id));
 button.setAttribute('aria-pressed',String(button.classList.contains('active')));
@@ -5687,9 +5713,10 @@ async function backendDrainWrites(){
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
 function afterInputPaint(run){requestAnimationFrame(()=>setTimeout(run,0));}
 function backendInputFocused(){
+ if(typeof onlineInputFocusUntil!=='undefined'&&document.body?.dataset.page==='online'&&Date.now()<onlineInputFocusUntil)return true;
  const input=document.activeElement;return !!input?.matches('textarea,select,[contenteditable="true"],input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]):not([type="file"])');
 }
-function backendDeferRead(page,hasData){if(!hasData||!backendInputFocused())return false;backendSyncDirty.add(page);return true;}
+function backendDeferRead(page,hasData){if(!backendInputFocused()||(!hasData&&!(document.body?.dataset.page==='online'&&page!=='online')))return false;backendSyncDirty.add(page);return true;}
 function backendDeferPaint(page){backendSyncDirty.add(page);backendSyncPendingPaint.add(page);}
 function backendSyncCanApply(page){
  if(document.hidden||!navigator.onLine||!authToken||!appStarted||backendSyncWrites)return false;
