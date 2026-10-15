@@ -692,6 +692,7 @@ background:#ededed
 .shipPacked .shipProductName,.shipPacked .shipProductPrice,.shipPacked .shipCardTotals strong{color:#999}
 .shipCompleteButton,.shipDeleteButton{padding:4px 10px;font-size:12px}
 .shipCompleteButton[aria-pressed="true"]{background:#b9b9b9}
+.shipItemDelete{flex:0 0 24px;width:24px;height:24px;border:0;background:transparent!important;box-shadow:none;color:var(--red);padding:0;font-size:22px;line-height:1;display:inline-flex;align-items:center;justify-content:center}.shipItemDelete:disabled{opacity:.45;cursor:wait}
 .shipOrderDate{width:48px;flex-shrink:0;color:#777}
 .shipProductName{flex:1;min-width:0}
 .shipProductPrice{white-space:nowrap}
@@ -5398,7 +5399,8 @@ ${customerMessageButton(customer,true)}<strong>${esc(customer)}</strong>
 <span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
 </div>
 ${g.map(x=>`
-<div class="shipItem" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
+<div class="shipItem" data-row="${Number(x.row)}" data-item-id="${esc(x.itemId||'')}" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
+<button type="button" class="shipItemDelete" onclick="deleteShipItem(event,this)" aria-label="刪除 ${esc(x.data[ni]||'商品')}" title="刪除此商品">×</button>
 <span class="shipOrderDate">
 ${esc(formatOnlineTime(x.data[ti]||''))}
 </span>
@@ -5460,6 +5462,22 @@ const start=card._swipeStart;card._swipeStart=null;
 if(!start||!event.changedTouches.length)return;
 const dx=event.changedTouches[0].clientX-start.x,dy=event.changedTouches[0].clientY-start.y;
 if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){card._shipSwiped=true;card.classList.toggle('showShipDelete',dx<0);setTimeout(()=>{card._shipSwiped=false;},400);}
+}
+async function deleteShipItem(event,button){
+event.stopPropagation();
+if(shipPendingWrites||button.disabled)return;
+const item=button.closest('.shipItem'),itemId=String(item?.dataset.itemId||'');
+const target=shipDataCache?.rows.find(row=>String(row.itemId||'')===itemId&&Number(row.row)===Number(item?.dataset.row));
+if(!itemId||!target){await renderShip(true);alert('出貨資料已更新，請再點一次刪除');return;}
+if(!confirm('確定刪除「'+String(item.dataset.name||'此商品')+'」？'))return;
+button.disabled=true;shipPendingWrites++;shipRevision++;
+let deleted=false;
+try{
+await api('deleteShipOrder',{rows:JSON.stringify([Number(target.row)]),itemId,expected:JSON.stringify(target.data)});
+deleted=true;sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');localStorage.removeItem('jiwu_supabase_test_snapshot_ship');shipDataCache=null;shipLoadedAt=0;
+}catch(e){alert('商品刪除失敗：'+e.message);}
+finally{shipPendingWrites--;if(button.isConnected)button.disabled=false;}
+if(deleted)await renderShip(true);
 }
 async function deleteShipOrder(button){
 if(shipPendingWrites||button.disabled)return;
