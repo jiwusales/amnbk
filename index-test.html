@@ -2569,7 +2569,15 @@ names
 );
 return h?row.data[h]:''
 }
+function onlineSerialDate(value){
+const text=String(value??'').trim();
+if(!/^[0-9]+(?:\.[0-9]+)?$/.test(text))return null;
+const serial=Number(text);
+return serial>=1&&serial<=2958465?new Date(Date.UTC(1899,11,30)+Math.round(serial*86400000)):null;
+}
 function formatOnlineTime(v){
+const serialDate=onlineSerialDate(v);
+if(serialDate)return String(serialDate.getUTCMonth()+1).padStart(2,'0')+'/'+String(serialDate.getUTCDate()).padStart(2,'0');
 if(!v)return '';
 const s=String(v).trim();
 let m=s.match(
@@ -2591,6 +2599,8 @@ String(m[2]).padStart(2,'0')
 return s
 }
 function timeValue(v){
+const serialDate=onlineSerialDate(v);
+if(serialDate)return new Date(2000,serialDate.getUTCMonth(),serialDate.getUTCDate(),serialDate.getUTCHours(),serialDate.getUTCMinutes(),serialDate.getUTCSeconds()).getTime();
 if(!v)return 0;
 const s=String(v).trim();
 let m=s.match(
