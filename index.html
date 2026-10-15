@@ -1662,7 +1662,7 @@ async function renderLaunch(){
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步資料庫資料中…';launchRenderList();}
- try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage='目前顯示暫存資料；資料庫 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||backendDeferRead('launch',showingCache))return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);if(backendInputFocused()){backendDeferPaint('launch');const input=document.querySelector('.launchClosedSearch');if(input===document.activeElement)launchSearchClosed(input.value);}else launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){if(backendDeferRead('launch',true))return;launchMessage='目前顯示暫存資料；資料庫 連線失敗，可稍後重新整理。';launchRenderList();return;}launchMessage='背景同步失敗：'+e.message;launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
 
@@ -1752,12 +1752,13 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(cached){launchCompletionToast('目前顯示上次資料，連線恢復後可重新整理',true);return;}if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
 }
 const launchPendingMoves=new Map();
+function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}"><button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
 function launchRenderList(){
  launchGroups=launchGroups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus);
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
  const joined=shown.filter(g=>g.joined===true).length,failed=shown.length-joined;
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
- document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}"><button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('')}</div>${shown.length?'':`<p class="launchHelp">${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p>`}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
+ document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${launchListCards(shown)}</div><p class="launchHelp launchSearchEmpty" ${shown.length?'hidden':''}>${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
 }
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
@@ -1767,9 +1768,17 @@ function launchRequestRefresh(){
 }
 function launchDiscardAndRefresh(){document.getElementById('launchDialog')?.close();launchDirty=false;launchUndoStack=[];launchClearListCache();launchMessage='';renderLaunch();}
 function launchSaveAndRefresh(){document.getElementById('launchDialog')?.close();launchRun(async()=>{if(launchCurrent)await launchPersist();else await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchDirty=false;launchUndoStack=[];launchClearListCache();launchMessage='';await renderLaunch();});}
-function launchSearchClosed(value,apply=false){launchClosedSearch=value;const input=document.querySelector('.launchClosedSearch');if(!apply&&input&&document.activeElement===input)return;launchRenderList();const next=document.querySelector('.launchClosedSearch');if(next){next.focus();next.setSelectionRange(value.length,value.length);}}
-document.addEventListener('compositionend',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value,true);});
-document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value,true);});
+let launchSearchTimer=null,launchSearchGeneration=0;
+function launchSearchClosed(value){
+ launchClosedSearch=value;clearTimeout(launchSearchTimer);const ticket=++launchSearchGeneration,input=document.querySelector('.launchClosedSearch');
+ launchSearchTimer=setTimeout(()=>afterInputPaint(()=>{
+  if(ticket!==launchSearchGeneration||!input?.isConnected||input.dataset.composing||input.value!==value||launchStatus!=='已收單'||launchCurrent)return;
+  const shown=launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(value.toLocaleLowerCase())),grid=document.querySelector('.launchPreviewGrid');if(!grid)return;
+  grid.innerHTML=launchListCards(shown);const joined=shown.filter(g=>g.joined===true).length,hint=document.querySelector('.launchDragHint'),empty=document.querySelector('.launchSearchEmpty');
+  if(hint)hint.textContent=`開團(${joined})　流團(${shown.length-joined})`;if(empty)empty.hidden=shown.length>0;
+ }),160);
+}
+document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value);});
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.preventDefault();e.stopPropagation();const card=price.closest('.launchProduct'),index=Number(card?.dataset.launchIndex),item=launchCurrent.items[index];if(!item)return;const value=prompt('修改售價',String(item.price||launchSaleValue(item)||''));if(value===null)return;const number=launchNumber(value);if(number==null||number<0){alert('請輸入有效售價');return;}launchPushUndo();item.price=String(Math.ceil(number));launchMark();launchRenderEditor();},true);
 function launchChangeStatus(s){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
@@ -2697,7 +2706,7 @@ async function purchaseDrainChecks(){
  if(purchaseCheckRunning)return;purchaseCheckRunning=true;
  try{while(purchaseCheckJobs.length){const job=purchaseCheckJobs[0];launchMoveProgress(job.id,'點貨確認','傳送中','','儲存點貨');try{await launchPost('purchaseCheck',{job:JSON.stringify(job)},job.id);purchaseCheckJobs.shift();purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','完成','','儲存點貨');}catch(e){launchMoveProgress(job.id,'點貨確認','失敗',e.message,'儲存點貨');purchaseEditToast('點貨確認尚未儲存：'+e.message,true);const retry=document.querySelector('#purchaseEditToast button');if(retry)retry.onclick=()=>purchaseDrainChecks();break;}}}finally{purchaseCheckRunning=false;purchaseRefreshChecks();}
 }
-setInterval(()=>{if(document.body.dataset.page==='purchase'&&purchaseView==='arrived'&&purchaseRegion==='cn'&&!document.getElementById('appDialog')){const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();}},10000);
+setInterval(()=>{if(document.body.dataset.page==='purchase'&&purchaseView==='arrived'&&purchaseRegion==='cn'&&!document.getElementById('appDialog')&&!backendInputFocused()){const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();}},10000);
 function purchasePackingPlan(orders){
  // 輸入與輸出均為 kg；內部乘以 1000 以整數運算，避免小數誤差。
  const weighted=orders.map(o=>({order:o,grams:Math.round(Number(o.weight)*1000)})).filter(x=>String(x.order.weight??'').trim()!==''&&Number.isFinite(x.grams)&&x.grams>0);
@@ -2733,12 +2742,14 @@ let purchaseSearchComposing=false,purchaseSearchTimer=null;
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;const results=document.getElementById('purchaseManagement');if(results)results.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
 function purchaseBindSearch(){
  const input=document.getElementById('purchaseSearch');if(!input)return;
- const schedule=()=>{clearTimeout(purchaseSearchTimer);purchaseSearchTimer=setTimeout(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);},160);};
+ let generation=0;
+ const cancel=()=>{generation++;clearTimeout(purchaseSearchTimer);};
+ const schedule=()=>{cancel();const ticket=generation;purchaseSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===generation&&input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);}),160);};
  input.addEventListener('click',()=>{
   if(purchaseSearchComposing||!input.value)return;
-  clearTimeout(purchaseSearchTimer);input.value='';purchaseRunSearch('');
+  input.value='';schedule();
  });
- input.addEventListener('compositionstart',()=>{purchaseSearchComposing=true;clearTimeout(purchaseSearchTimer);});
+ input.addEventListener('compositionstart',()=>{purchaseSearchComposing=true;cancel();});
  input.addEventListener('compositionend',()=>{purchaseSearchComposing=false;schedule();});
  input.addEventListener('input',event=>{if(!event.isComposing&&!purchaseSearchComposing)schedule();});
 }
@@ -2803,10 +2814,13 @@ function purchaseRecordedName(item,previous){
  if(names.length!==1)return null;
  const selected=matches[matches.length-1];return {name:String(selected.name).trim(),role:selected.role||'',group:selected.group||'',source:selected.source||'',url:selected.url||'',image:selected.image||''};
 }
-function purchasePreviousImage(item,previous){
+function purchasePreviousImageIndex(previous){
+ const index=new Map();for(const item of previous){if(!/^https?:\/\//i.test(item.image||''))continue;const name=String(item.name||item.originalName||'').normalize('NFKC').trim();if(!index.has(name))index.set(name,[]);index.get(name).push(item);}return index;
+}
+function purchasePreviousImage(item,previous,index){
  const name=String(item.name||item.originalName||'').normalize('NFKC').trim();
  if(!name)return '';
- let matches=previous.filter(x=>String(x.name||x.originalName||'').normalize('NFKC').trim()===name&&/^https?:\/\//i.test(x.image||''));
+ let matches=index?index.get(name)||[]:previous.filter(x=>String(x.name||x.originalName||'').normalize('NFKC').trim()===name&&/^https?:\/\//i.test(x.image||''));
  for(const key of ['code','url','group','role']){
   const value=String(item[key]||'').trim();if(!value)continue;
   matches=matches.filter(x=>!String(x[key]||'').trim()||String(x[key]).trim()===value);
@@ -2816,6 +2830,7 @@ function purchasePreviousImage(item,previous){
 }
 function purchaseDailyTotals(orders,mergeMonth=false){
  const previous=purchaseOrders.flatMap(o=>o.items||[]);
+ const imageIndex=purchasePreviousImageIndex(previous);
  const days=new Map();
  orders.forEach(order=>{
   if(!days.has(order.date))days.set(order.date,{date:order.date,numbers:new Set(),products:new Map()});
@@ -2825,7 +2840,7 @@ function purchaseDailyTotals(orders,mergeMonth=false){
    // 無貨號的舊資料逐項保留，避免把不同商品合在一起。
    const key=mergeMonth?JSON.stringify([code||String(item.url||'').trim(),String(item.group||'').trim(),purchaseProductName(item),String(item.role||'').trim()]):purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||Symbol();
    if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
-   const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image){const image=item.image||purchasePreviousImage(item,previous);if(/^https?:\/\//i.test(image||''))product.image=image;}
+   const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image){const image=item.image||purchasePreviousImage(item,previous,imageIndex);if(/^https?:\/\//i.test(image||''))product.image=image;}
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
   });
  });
@@ -3056,7 +3071,7 @@ function renderPurchase(){
 }
 let purchaseLoadPromise=null,purchaseImageTicket=0;
 async function purchaseLoad(){if(purchaseLoadPromise)return purchaseLoadPromise;purchaseLoadPromise=purchaseLoadData().finally(()=>purchaseLoadPromise=null);return purchaseLoadPromise;}
-async function purchaseLoadData(){try{const r=await api('purchaseOrders');purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase')renderPurchase();purchaseLoadImages();}
+async function purchaseLoadData(){try{const r=await api('purchaseOrders');if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
 async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
@@ -3123,7 +3138,11 @@ let storeView='checkout';
 let storeSalesData=null;
 let storeSalesLoadedAt=0;
 let storeSalesPromise=null;
-let storeSalesDate=null;
+let storeSalesDate=null,storeSalesSearchTimer=null,storeSalesSearchComposing=false,storeSalesSearchGeneration=0;
+function scheduleStoreSalesSearch(input,event){
+ storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;if(storeSalesSearchComposing||event?.isComposing)return;const query=input.value;
+ storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing&&input.value===query)drawStoreSales();}),160);
+}
 function tab(name,el){
 if(document.body.dataset.page==='launch'&&(launchBusy||(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
 if(document.body.dataset.page==='launch'){launchDirty=false;launchLoad++;}
@@ -3382,7 +3401,7 @@ if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves
 if(inventoryLoadPromise)return inventoryLoadPromise;
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{const epoch=backendSyncEpoch;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==backendSyncEpoch||backendSyncWrites||inventoryOrderDirty)return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{const epoch=backendSyncEpoch;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==backendSyncEpoch||backendSyncWrites||inventoryOrderDirty||backendDeferRead('inventory',inventoryLoaded))return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">載入失敗：${esc(e.message)}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -3402,8 +3421,12 @@ if(inventoryLoaded)renderInventoryContent();
 loadInventory();
 }
 let inventoryComposing=false;
-function scheduleInventorySearch(value){if(inventoryComposing)return;clearTimeout(inventorySearchTimer);inventorySearchTimer=setTimeout(()=>{inventorySearch=String(value||'').trim();renderInventoryContent();},160);}
-function runInventorySearchNow(){if(inventoryComposing)return;clearTimeout(inventorySearchTimer);const input=document.getElementById('inventorySearch');inventorySearch=String(input?.value||'').trim();renderInventoryContent();}
+let inventorySearchGeneration=0;
+function scheduleInventorySearch(value,delay=160){
+ if(inventoryComposing)return;clearTimeout(inventorySearchTimer);const ticket=++inventorySearchGeneration,input=document.getElementById('inventorySearch'),query=String(value||'');
+ inventorySearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket!==inventorySearchGeneration||inventoryComposing||!input?.isConnected||input.value!==query)return;inventorySearch=query.trim();renderInventoryContent();}),delay);
+}
+function runInventorySearchNow(){if(inventoryComposing)return;const input=document.getElementById('inventorySearch');scheduleInventorySearch(input?.value||'',0);}
 async function refreshInventoryUnknownStatuses(){
 const button=document.getElementById('inventoryRefreshButton');if(!button)return;
 const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknown');
@@ -3460,14 +3483,17 @@ const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" t
 return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" draggable="true" data-row="${Number(item.row)}" ondragstart="inventoryDragStart(event)" ondragover="inventoryDragOver(event)" ondragleave="this.classList.remove('dragTarget','insertBefore','insertAfter')" ondrop="inventoryDrop(event)" ondragend="inventoryDragEnd(event)" ontouchstart="inventoryTouchStart(event)" ontouchmove="inventoryTouchMove(event)" ontouchend="inventoryTouchEnd(event)">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))?'disabled':''} title="點擊更新商品網址狀態" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}<button type="button" class="inventoryEditButton" title="編輯商品" aria-label="編輯 ${esc(name)}" onclick="openInventoryEditDialog(${Number(item.row)})"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button><div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div><div class="inventoryCode">${esc(code||'')}</div><div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
 }
+let inventoryCardSizing=null;
 function resizeInventoryCards(){
 const grid=document.getElementById('inventoryGrid');
 if(!grid)return;
 const width=grid.clientWidth;
 if(!width)return;
+const mobile=matchMedia('(max-width:850px)').matches;
+if(inventoryCardSizing?.grid===grid&&inventoryCardSizing.width===width&&inventoryCardSizing.mobile===mobile)return;
+inventoryCardSizing={grid,width,mobile};
 const styles=getComputedStyle(grid);
 const gap=Number.parseFloat(styles.columnGap)||0;
-const mobile=matchMedia('(max-width:850px)').matches;
 const columns=mobile?4:Math.max(1,Math.floor((width+gap)/(112+gap)));
 const cardWidth=(width-gap*(columns-1))/columns;
 grid.style.setProperty('--inventory-card-height',Math.max(1,Math.round(cardWidth/.65))+'px');
@@ -3641,7 +3667,7 @@ if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
-<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／日期（0911、09）" aria-label="搜尋商品名稱或日期" oninput="storeSalesDate=this.value;drawStoreSales()"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／日期（0911、09）" aria-label="搜尋商品名稱或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="storeSalesSearchComposing=false;scheduleStoreSalesSearch(this,event)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
@@ -3652,9 +3678,9 @@ if(!storeSalesPromise)storeSalesPromise=api('storeSales');
 const request=storeSalesPromise;
 let data;
 try{data=await request;}finally{if(storeSalesPromise===request)storeSalesPromise=null;}
-storeSalesData=data;storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
+if(backendDeferRead('store',!!storeSalesData))return;storeSalesData=data;storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
 if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
-if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
+if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }catch(e){
 const result=document.getElementById('storeSalesResult');
 if(result&&!storeSalesData)result.innerHTML='<div class="empty">'+esc(e.message)+'</div>';
@@ -3673,7 +3699,7 @@ let day=storeSalesData.days.find(item=>item.date===delta.date);
 if(!day){day={date:delta.date,total:0,cash:0,transfer:0,other:0,items:[]};storeSalesData.days.push(day);}
 const known=new Set(day.items.map(item=>item.row));
 delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);const pickup=['面交','自取'].includes(String(item.name||'').trim());if(!pickup)day.total+=item.amount;if(pickup||item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
-if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
+if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }else if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){
 renderStoreSales(true);
 }
@@ -3685,7 +3711,7 @@ if(storeSalesPromise)await storeSalesPromise;
 const data=await api('storeSales');
 storeSalesData=data;storeSalesLoadedAt=Date.now();
 if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
-if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales'))drawStoreSales();
+if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }catch(_){/* 結帳已完成，保留即時資料並讓使用者可手動重新整理 */}
 },0);
 }
@@ -4188,7 +4214,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision,epoch=backendSyncEpoch;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==backendSyncEpoch||backendSyncWrites||pendingRestockRows.size||onlineOrderEditPending)return;
+  if(revision!==onlineMutationRevision||epoch!==backendSyncEpoch||backendSyncWrites||pendingRestockRows.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -4198,7 +4224,7 @@ const request=(async()=>{
   onlineLoadedAt=Date.now();
   saveOnlineSessionCache();
   if(document.getElementById('onlineResult')){
-    applyOnlineFilter();
+    if(backendInputFocused()){backendDeferPaint('online');const input=document.getElementById('customerSearch');if(input===document.activeElement&&input.value.trim())onlineSearchRefresh?.();}else applyOnlineFilter();
   }
 })();
 onlineLoadPromise=request;
@@ -4228,14 +4254,17 @@ const cargo=document.getElementById('cargoFilter');if(cargo)cargo.value='';
 if(!onlineLoadedAt)await loadOnline();
 applyOnlineFilter();
 }
+let onlineSearchRefresh=null;
 function bindOnlineSearchInput(input){
-let composing=false,timer=null,pasting=false;
-const cancel=()=>{clearTimeout(timer);timer=null;};
+let composing=false,timer=null,pasting=false,generation=0;
+const cancel=()=>{generation++;clearTimeout(timer);timer=null;};
+const run=ticket=>afterInputPaint(()=>{if(ticket===generation&&input.isConnected&&!composing)searchOnline();});
 const schedule=delay=>{
 cancel();
 if(composing)return;
-timer=setTimeout(()=>{timer=null;if(input.isConnected&&!composing)searchOnline();},delay);
+const ticket=generation;timer=setTimeout(()=>{timer=null;run(ticket);},delay);
 };
+onlineSearchRefresh=()=>schedule(250);
 input.addEventListener('compositionstart',()=>{composing=true;cancel();});
 input.addEventListener('compositionend',()=>{composing=false;schedule(250);});
 input.addEventListener('paste',()=>{pasting=true;schedule(0);});
@@ -4245,7 +4274,7 @@ const pasted=pasting||event.inputType==='insertFromPaste';pasting=false;
 schedule(pasted?0:250);
 });
 input.addEventListener('keydown',event=>{
-if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){event.preventDefault();cancel();searchOnline();}
+if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){event.preventDefault();cancel();run(generation);}
 });
 }
 async function searchOnline(){
@@ -4471,6 +4500,8 @@ if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
 const monthMatch=key.match(/^(\d{1,2})月$/);
 const wantedMonth=monthMatch?Number(monthMatch[1]):0;
+const searchDate=/^[0-9０-９\s/.-]+$/.test(key)?toHalfWidthDigits(key).replace(/\D/g,''):'';
+const searchDigits=/^(?:(?:中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
 rows=rows.filter(x=>{
 const customer=
 String(
@@ -4503,10 +4534,8 @@ if(wantedMonth){
 return onlineMonthNumber(time)===wantedMonth;
 }
 const dateKey=time.replace(/\D/g,'');
-const searchDate=/^[0-9０-９\s/.-]+$/.test(key)?toHalfWidthDigits(key).replace(/\D/g,''):'';
 const last5Source=String(getLast5(x)||getPaymentMethod(x)||'');
 const last5=toHalfWidthDigits(last5Source).replace(/\D/g,'');
-const searchDigits=/^(?:(?:中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
 return(
 customer.includes(key)||
 productName.includes(key)||
@@ -5580,7 +5609,7 @@ calcChange();
 ========================================================= */
 const backendSyncPages=['purchase','online','inventory','ship','store','launch'];
 let backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
-const backendSyncDirty=new Set(backendSyncPages),backendSyncLastRead=new Map();
+const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map();
 function backendSyncMutation(action){
  return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
@@ -5653,9 +5682,16 @@ async function backendDrainWrites(){
  }}finally{backendWriteRunning=false;setTimeout(()=>backendSyncPoll(),0);}
 }
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
+function afterInputPaint(run){requestAnimationFrame(()=>setTimeout(run,0));}
+function backendInputFocused(){
+ const input=document.activeElement;return !!input?.matches('textarea,select,[contenteditable="true"],input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]):not([type="file"])');
+}
+function backendDeferRead(page,hasData){if(!hasData||!backendInputFocused())return false;backendSyncDirty.add(page);return true;}
+function backendDeferPaint(page){backendSyncDirty.add(page);backendSyncPendingPaint.add(page);}
 function backendSyncCanApply(page){
  if(document.hidden||!navigator.onLine||!authToken||!appStarted||backendSyncWrites)return false;
  if(document.getElementById('appDialog')||document.getElementById('launchDialog')?.open)return false;
+ if(backendInputFocused())return false;
  const active=document.activeElement,search=active?.matches('#purchaseSearch,#customerSearch,#inventorySearch,#storeSalesDate')||(page==='store'&&active?.closest('.storeCheckoutPane,.storePage'));
  if(backendSyncComposing||purchaseSearchComposing)return false;
  if(active?.matches('input,textarea,select,[contenteditable="true"]')&&!search&&active.getClientRects().length)return false;
@@ -5689,27 +5725,27 @@ async function backendSyncRefreshCurrent(page){
  if(!valid())return false;
  const scroll=backendSyncScrollSnapshot();
  if(page==='purchase'){
-  const orders=data.orders||[];if(JSON.stringify(orders)!==JSON.stringify(purchaseOrders)){purchaseOrders=orders;purchaseOrdersLoaded=true;const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
+  const orders=data.orders||[];if(backendSyncPendingPaint.has(page)||JSON.stringify(orders)!==JSON.stringify(purchaseOrders)){purchaseOrders=orders;purchaseOrdersLoaded=true;const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
  }else if(page==='online'){
   const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:(data.rowIds||[])[index]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(data.mergeKeys||[])[index]||'',depositMergeKey:(data.mergeKeys||[])[index]||''})):(data.rows||[]);
   const comparable=items=>items.map(({editKey,...item})=>item);
-  if(JSON.stringify(headers)!==JSON.stringify(onlineHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(onlineRows))){onlineRows=rows;onlineHeaders=headers;refreshCargoViewKeepingScroll();}
+  if(backendSyncPendingPaint.has(page)||JSON.stringify(headers)!==JSON.stringify(onlineHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(onlineRows))){onlineRows=rows;onlineHeaders=headers;refreshCargoViewKeepingScroll();}
   onlineLoadedAt=Date.now();saveOnlineSessionCache();
  }else if(page==='inventory'){
   const rows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
   const comparable=items=>items.map(({_searchText,...item})=>item);
-  if(JSON.stringify(data.headers||[])!==JSON.stringify(inventoryHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(inventoryRows))){inventoryRows=rows;inventoryHeaders=data.headers||[];prepareInventoryRows();renderInventoryContent();}
+  if(backendSyncPendingPaint.has(page)||JSON.stringify(data.headers||[])!==JSON.stringify(inventoryHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(inventoryRows))){inventoryRows=rows;inventoryHeaders=data.headers||[];prepareInventoryRows();renderInventoryContent();}
   inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();
  }else if(page==='ship'){
   if(JSON.stringify(data)!==JSON.stringify(shipDataCache)){shipDataCache=data;drawShip(data);}shipLoadedAt=Date.now();saveBackendSnapshot('ship',data);
  }else if(page==='store'){
-  if(JSON.stringify(data)!==JSON.stringify(storeSalesData)){storeSalesData=data;if(document.getElementById('storeSalesResult'))drawStoreSales();}storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
+  if(backendSyncPendingPaint.has(page)||JSON.stringify(data)!==JSON.stringify(storeSalesData)){storeSalesData=data;if(document.getElementById('storeSalesResult'))drawStoreSales();}storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
  }else if(page==='launch'){
   if(launchAuxPage){if(JSON.stringify(data)!==JSON.stringify(launchAuxData)){launchAuxData=data;saveBackendSnapshot('launchAux_'+launchAuxPage,data);launchRenderAux();}}
   else if(launchCurrent){if(JSON.stringify(data.group)!==JSON.stringify(launchCurrent)){launchCurrent=data.group;launchStatus=launchCurrent.status;launchPanelIndex=Math.min(launchPanelIndex,Math.max(0,(launchCurrent.panels?.length||1)-1));saveBackendSnapshot('launchGroup_'+launchCurrent.id,launchCurrent);launchRenderEditor();}}
-  else if(JSON.stringify(data.groups||[])!==JSON.stringify(launchGroups)){launchGroups=data.groups||[];launchSaveListCache(launchStatus,launchGroups);launchRenderList();}
+  else if(backendSyncPendingPaint.has(page)||JSON.stringify(data.groups||[])!==JSON.stringify(launchGroups)){launchGroups=data.groups||[];launchSaveListCache(launchStatus,launchGroups);launchRenderList();}
  }
- backendSyncRestoreScroll(scroll);return true;
+ backendSyncRestoreScroll(scroll);backendSyncPendingPaint.delete(page);return true;
 }
 async function backendSyncPoll(){
  if(backendSyncRunning||!authToken||!appStarted||document.hidden||!navigator.onLine)return;
@@ -5733,13 +5769,13 @@ document.addEventListener('focusout',()=>setTimeout(()=>backendSyncPoll(),200));
 
 let backendPreloadRunning=false,backendPreloadAt=0,backendPreloadAuth='';
 async function preloadBackendPages(){
- if(backendPreloadRunning||!authToken||!appStarted||document.hidden||!navigator.onLine||backendSyncWrites)return;
+ if(backendPreloadRunning||!authToken||!appStarted||document.hidden||!navigator.onLine||backendSyncWrites||backendInputFocused())return;
  const now=Date.now();
  if(backendPreloadAuth===authToken&&backendPreloadAt&&now-backendPreloadAt<120000)return;
  backendPreloadRunning=true;
  backendPreloadAt=now;backendPreloadAuth=authToken;
  const epoch=backendSyncEpoch,auth=authToken,currentPage=document.body.dataset.page;
- const valid=()=>authToken===auth&&backendSyncEpoch===epoch&&!backendSyncWrites;
+ const valid=()=>authToken===auth&&backendSyncEpoch===epoch&&!backendSyncWrites&&!backendInputFocused();
  const tasks=[{page:'online',run:()=>loadOnline(false,true)},{page:'inventory',run:()=>loadInventory(false)},
   {page:'ship',run:async()=>{const revision=shipRevision,data=await api('ship');if(!valid()||revision!==shipRevision||shipPendingWrites)return;shipDataCache=data;shipLoadedAt=Date.now();saveBackendSnapshot('ship',data);}},
   {page:'store',run:async()=>{const data=await api('storeSales');if(!valid())return;saveBackendSnapshot('storeSales',data);if(!storeSalesData){storeSalesData=data;storeSalesLoadedAt=Date.now();}}},
