@@ -2207,7 +2207,7 @@ function launchRefreshAvailabilityControls(key){
 }
 function launchAvailabilityToolbar(){
  const job=launchAvailabilityBatches.get(launchCurrent?.id);
- return `<div class="launchTools" style="margin:12px 0"><button class="btn light" type="button" data-launch-status-update ${job?.busy?'disabled':''} onclick="launchUpdateAllAvailability()">狀態更新</button><span data-launch-status-progress role="status" aria-live="polite">${job?`${job.busy?'更新中':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件失敗':''}`:''}</span></div>`;
+ return `<div class="launchTools" style="margin:12px 0;align-items:center;flex-wrap:nowrap"><button class="btn light" type="button" data-launch-status-update ${job?.busy?'disabled':''} onclick="launchUpdateAllAvailability()">狀態更新</button><span data-launch-status-progress role="status" aria-live="polite">${job?`${job.busy?'更新中':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件失敗':''}`:''}</span></div>`;
 }
 function launchRefreshAvailabilityProgress(groupId){
  if(launchCurrent?.id!==groupId)return;
