@@ -2437,7 +2437,7 @@ const apiReadActions=new Set(['backendSync','purchaseChannels','purchaseOrders',
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
-const key=JSON.stringify([action,authToken,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
+const key=JSON.stringify([action,authToken,backendSyncEpoch,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
 apiPendingReads.set(key,request);
@@ -3069,9 +3069,12 @@ function renderPurchase(){
  purchaseBindSearch();
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
-let purchaseLoadPromise=null,purchaseImageTicket=0;
-async function purchaseLoad(){if(purchaseLoadPromise)return purchaseLoadPromise;purchaseLoadPromise=purchaseLoadData().finally(()=>purchaseLoadPromise=null);return purchaseLoadPromise;}
-async function purchaseLoadData(){try{const r=await api('purchaseOrders');if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
+let purchaseLoadPromise=null,purchaseLoadEpoch=-1,purchaseImageTicket=0;
+async function purchaseLoad(){
+ const epoch=backendSyncEpoch;if(purchaseLoadPromise&&purchaseLoadEpoch===epoch)return purchaseLoadPromise;
+ purchaseLoadEpoch=epoch;const task=purchaseLoadData(epoch).finally(()=>{if(purchaseLoadPromise===task)purchaseLoadPromise=null;});purchaseLoadPromise=task;return task;
+}
+async function purchaseLoadData(epoch=backendSyncEpoch){const auth=authToken,valid=()=>epoch===backendSyncEpoch&&auth===authToken&&!backendSyncWrites;try{const r=await api('purchaseOrders');if(!valid()){backendSyncDirty.add('purchase');return;}if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){if(!valid()){backendSyncDirty.add('purchase');return;}purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
 async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
@@ -3109,7 +3112,7 @@ function purchaseKeepRegistrations(){try{sessionStorage.setItem('jiwu_supabase_t
 async function purchaseDrainRegistrations(){
  if(purchaseRegistrationRunning)return;purchaseRegistrationRunning=true;
  try{purchaseRegistrationQueue.forEach((_,number)=>purchaseRegistrationProgressId(number));while(purchaseRegistrationQueue.size){const [number,payload]=purchaseRegistrationQueue.entries().next().value,progressId=purchaseRegistrationProgressId(number);
-  try{const result=await api('purchaseSave',payload,progressId);launchMoveProgress(progressId,'訂購','完成','','新增訂單');purchaseRegistrationProgress.delete(number);purchaseRegistrationQueue.delete(number);purchaseKeepRegistrations();purchaseDrainEdits();purchaseRegistrationToast(result.merged?'相同出貨單號已合併':result.existing?'已經登記過':'登記完成');if(result.merged)await purchaseLoad();}
+  try{const result=await api('purchaseSave',payload,progressId);launchMoveProgress(progressId,'訂購','完成','','新增訂單');purchaseRegistrationProgress.delete(number);purchaseRegistrationQueue.delete(number);purchaseKeepRegistrations();purchaseDrainEdits();if(result.merged)await purchaseLoad();const mergedOrder=result.merged&&purchaseOrders.find(order=>order.number!==number&&String(order.tracking||'').trim()===String(payload.tracking||'').trim());purchaseRegistrationToast(result.merged?`已併入${mergedOrder?purchaseDateLabel(mergedOrder.date)+' 的訂單，':''}出貨單號 ${payload.tracking||''}，商品已保留`:result.existing?'已經登記過':'登記完成');}
   catch(e){launchMoveProgress(progressId,'訂購','失敗',e.message,'新增訂單');purchaseRegistrationToast('未登記訂單已保留：'+e.message,true);break;}
  }}finally{purchaseRegistrationRunning=false;}
 }
