@@ -6072,7 +6072,7 @@ restoreLogin();
 <script>
 function syncTitleRowBack(){
  const button=document.getElementById('launchHeaderBack');
- const show=document.body.dataset.page==='launch'&&!!document.querySelector('#app .launchEditor');
+ const show=document.body.dataset.page==='launch'&&!!document.querySelector('#app .launchEditor,#app .launchProductListPage');
  if(button.hidden===show)button.hidden=!show;
  document.querySelectorAll('.launchDialog button').forEach(back=>{
   if(back.textContent.trim()==='返回'){
