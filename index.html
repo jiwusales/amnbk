@@ -1184,7 +1184,8 @@ body[data-page="store"] .topStoreToggle{display:none}
 .orderDelete{background:#eb8190;color:white;border:0;border-radius:7px;cursor:pointer}
 .orderSwipeDelete{display:none}
 @media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
-.orderEditItem>button:first-child{background:transparent;border:0;color:#888;padding:0}
+.orderEditItem>button:first-child,.btn.launchURLClose{background:transparent;border:0;color:#888;padding:0}
+.launchURLClose{appearance:none;outline:none;box-shadow:none;flex:0 0 32px;width:32px;height:32px;line-height:1;align-self:flex-start}
 .inventoryCard.relisted{border-color:#B1DEC1!important}
 .storeWorkDay{font-size:13px;font-weight:700;color:#F94A66;white-space:nowrap}
 .salesPurchaseInfo.salesBankLP{gap:6px}
@@ -1678,7 +1679,7 @@ function launchGroupURLs(){
   copy.shortUrl=copy.shortUrl||snapshot?.shortUrl||cache[g.id]||'';launchNormalizeGroupURLs(copy);
   return copy;
  });
- launchDialog(`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2>團名網址</h2><button type="button" aria-label="關閉" style="border:0;background:transparent;color:inherit;font:inherit;font-size:28px;line-height:1;padding:8px;cursor:pointer;align-self:flex-start" onclick="document.getElementById('launchDialog').close()">X</button></div><p class="launchHelp">點擊團名複製「團名：短網址」</p><div id="launchURLList" style="display:grid;gap:8px"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
+ launchDialog(`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2>團名網址</h2><button type="button" class="btn light launchURLClose" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">×</button></div><p class="launchHelp">點擊團名複製「團名：短網址」</p><div id="launchURLList" style="display:grid;gap:8px"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
  launchRenderGroupURLs();
  const dialog=document.getElementById('launchDialog'),groups=launchURLGroups;
  void launchLoadURLs().then(urls=>{
