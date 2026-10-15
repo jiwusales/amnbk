@@ -1287,10 +1287,14 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 </style>
 <style>
 .progressMobileBrief{display:none}
+.saveProgressBar{display:block;width:100%;height:7px;margin:5px 0 0;accent-color:var(--main,#a68b70)}
+.saveProgressFailed{color:#c33}
+.saveProgressClose{border:0;background:transparent;color:#888;font:inherit;font-weight:700;padding:0 2px;cursor:pointer}
 @media(max-width:850px){
  #launchMoveProgress{width:20vw!important;height:20vw!important;max-height:none!important;box-sizing:border-box;padding:5px!important;overflow:hidden!important;border-radius:9px!important;left:10px!important;right:auto!important}
  #launchMoveProgress .progressDesktopDetails{display:none}
  #launchMoveProgress .progressMobileBrief{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;text-align:center;font-size:clamp(9px,2.7vw,12px);line-height:1.2;overflow-wrap:anywhere}
+ #launchMoveProgress .saveProgressBar{height:5px;margin:0;flex-shrink:0}
 }
 </style>
 </head>
@@ -1631,7 +1635,7 @@ function launchNotice(text){launchMessage=text;const n=document.getElementById('
 function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||localStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
 function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
 function launchClearListCache(){launchStates.forEach(status=>{sessionStorage.removeItem(LAUNCH_CACHE_PREFIX+status);localStorage.removeItem(LAUNCH_CACHE_PREFIX+status);});}
-function launchPost(action,params){return backendTrackWrite(action,()=>launchPostRequest(action,params));}
+function launchPost(action,params,progressId){return backendTrackWrite(action,()=>launchPostRequest(action,params),params,progressId);}
 async function launchPostRequest(action,params={}){return apiRequest(action,params);}
 
 async function launchFillFromInventory(){
@@ -1868,25 +1872,25 @@ function launchSaveClick(options={}){
   for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['canvasTitle','畫布標題'],['footer','底部文字'],['tags','標籤'],['shortUrl','短網址'],['shipDate','出荷日期'],['closeDate','收單日期'],['domesticShipping','境內運'],['secondShipping','二補運費']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
  }
  const completed=parts.length?parts.join('、'):'畫布修改';
- const progressId=options.previousStatus?null:'save-'+launchId();
- const saveProgress=(state,error='')=>{if(progressId)launchMoveProgress(progressId,snapshot.name,state,error,'儲存・'+completed);};
+ const progressId=options.progressId||(options.previousStatus?null:'save-'+launchId());
+ const saveProgress=(state,error='')=>{if(progressId)launchMoveProgress(progressId,snapshot.name,state,error,options.actionLabel||'儲存・'+completed);};
  saveProgress('排隊中');
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
   snapshot.revision=launchSavedRevisions.get(id);
   if(options.previousStatus&&!snapshot.revision){
-   const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}});
+   const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}},progressId);
    snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);
   }
   let d;
   if(options.previousStatus){
    if(options.needsSave){
-    const saved=await launchPost('launchSave',{group:{...snapshot,status:options.previousStatus},baseGroup:readBackendSnapshot('launchGroup_'+id)});
+    const saved=await launchPost('launchSave',{group:{...snapshot,status:options.previousStatus},baseGroup:readBackendSnapshot('launchGroup_'+id)},progressId);
     launchSavedRevisions.set(id,saved.group.revision);saveBackendSnapshot('launchGroup_'+id,saved.group);
    }
-   d=await launchPost('launchMove',{id,status:snapshot.status,fromStatus:options.previousStatus});
-  }else d=await launchPost('launchSave',{group:snapshot,baseGroup:readBackendSnapshot('launchGroup_'+id)});
+   d=await launchPost('launchMove',{id,status:snapshot.status,fromStatus:options.previousStatus},progressId);
+  }else d=await launchPost('launchSave',{group:snapshot,baseGroup:readBackendSnapshot('launchGroup_'+id)},progressId);
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('資料庫尚未確認'+(options.actionLabel||'狀態變更')+'完成');
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
@@ -1902,20 +1906,25 @@ const launchMoveProgressJobs=new Map();
 let launchMoveProgressTimer;
 function launchMoveProgress(id,name,state,error='',action='下架'){
  const previous=launchMoveProgressJobs.get(id);
- launchMoveProgressJobs.set(id,{name,state,error,action,start:previous?.start||Date.now()});
+ const job={name,state,error,action,start:previous?.start||Date.now()};
+ launchMoveProgressJobs.set(id,job);
  launchPaintMoveProgress();
  if(!launchMoveProgressTimer)launchMoveProgressTimer=setInterval(launchPaintMoveProgress,1000);
- if(state==='完成')setTimeout(()=>{launchMoveProgressJobs.delete(id);launchPaintMoveProgress();},2000);
+ if(state==='完成')setTimeout(()=>{if(launchMoveProgressJobs.get(id)===job){launchMoveProgressJobs.delete(id);launchPaintMoveProgress();}},2000);
 }
 function launchPaintMoveProgress(){
  let box=document.getElementById('launchMoveProgress');
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;background:white;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 3px 16px #0002;width:min(360px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
+ const host=document.querySelector('dialog[open]')||document.body;if(box.parentElement!==host)host.appendChild(box);
  const jobs=[...launchMoveProgressJobs.values()];
- const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.at(-1);
- const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span>${Math.floor((Date.now()-current.start)/1000)} 秒</span></div>`;
+ const current=jobs.find(j=>!['排隊中','完成','失敗'].includes(j.state))||jobs.find(j=>j.state==='排隊中')||jobs.find(j=>j.state==='失敗')||jobs.at(-1);
+ const currentId=[...launchMoveProgressJobs].find(([,job])=>job===current)?.[0];
+ const pending=jobs.filter(j=>!['完成','失敗'].includes(j.state)).length;
+ const bar=job=>`<progress class="saveProgressBar" aria-label="${esc(job.action)}${esc(job.state)}" ${job.state==='完成'?'max="1" value="1"':job.state==='失敗'?'max="1" value="0"':''}></progress>`;
+ const compact=`<div class="progressMobileBrief"><span>${esc(current.action)}</span><span class="${current.state==='失敗'?'saveProgressFailed':''}">${esc(current.state)}${pending>1?'・'+pending+'筆':''}${current.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(currentId)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</span>${bar(current)}<span>${Math.floor((Date.now()-current.start)/1000)} 秒</span></div>`;
  let waiting=0;
- box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':` ${j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':`<progress aria-label="${esc(j.action)}${esc(j.state)}" style="width:100%"></progress><small>等待資料庫確認，請勿重新整理頁面。</small>`}`}</div>`).join('')+'</div>';
+ box.innerHTML=compact+'<div class="progressDesktopDetails"><strong>背景作業</strong>'+[...launchMoveProgressJobs].map(([id,j])=>`<div style="margin:10px 0 0;padding:10px 0 0;border-top:1px solid #eee"><strong>${esc(j.name)}</strong><div>${esc(j.action)} · ${j.state==='排隊中'?'排隊中（第 '+(++waiting)+' 筆）':esc(j.state)} · 已等待 ${Math.floor((Date.now()-j.start)/1000)} 秒</div>${bar(j)}${j.state==='失敗'?`<p style="color:#c33">${esc(j.error)}</p><button class="btn light" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);launchPaintMoveProgress()">關閉</button>`:j.state==='完成'?'':j.state==='排隊中'?'<small>前一筆完成後自動處理</small>':'<small>等待資料庫確認，請勿重新整理頁面。</small>'}</div>`).join('')+'</div>';
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -1927,7 +1936,7 @@ function launchMove(status){
   launchMoveProgress(moveProgressId,original.name,'排隊中','',actionLabel);
   launchPendingMoves.set(id,status);++launchLoad;
   launchMessage='正在背景'+actionLabel+'「'+original.name+'」…';
-  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,needsSave,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
+  const pending=launchSaveClick({successMessage:actionLabel+'完成',actionLabel,previousStatus,needsSave,progressId:moveProgressId,onStart:()=>launchMoveProgress(moveProgressId,original.name,'傳送中','',actionLabel),onSuccess:()=>{
    launchMoveProgress(moveProgressId,original.name,'完成','',actionLabel);
    launchPendingMoves.delete(id);++launchLoad;
    launchGroups=launchGroups.filter(g=>g.id!==id);launchMessage='';
@@ -1961,7 +1970,7 @@ function launchDelete(){
  launchSaveTail=launchSaveTail.then(async()=>{
   launchMoveProgress(progressId,group.name,'傳送中','','刪除');
   const revision=launchSavedRevisions.get(id)||group.revision;
-  if(revision)await launchPost('launchDelete',{id,revision});
+  if(revision)await launchPost('launchDelete',{id,revision},progressId);
   launchPendingMoves.delete(id);++launchLoad;launchGroups=launchGroups.filter(g=>g.id!==id);
   launchClearListCache();sessionStorage.removeItem('jiwu_supabase_test_snapshot_launchGroup_'+id);launchSavedRevisions.delete(id);launchFailedSaves.delete(id);launchSubmittedSignatures.delete(id);
   launchMoveProgress(progressId,group.name,'完成','','刪除');launchCompletionToast('已刪除「'+group.name+'」');
@@ -2418,8 +2427,8 @@ let isFaceToFaceView=false;isStarredView=false;
 ========================================================= */
 const apiReadActions=new Set(['backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
-function api(action,params={}){
-if(!apiReadActions.has(action))return backendTrackWrite(action,()=>apiRequest(action,params));
+function api(action,params={},progressId){
+if(!apiReadActions.has(action))return backendTrackWrite(action,()=>apiRequest(action,params),params,progressId);
 const key=JSON.stringify([action,authToken,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
@@ -2687,7 +2696,7 @@ function purchaseCheckOrderCard(event,orderIndex){
 function purchaseCheckKind(kind){const orders=purchaseVisibleOrders().filter(o=>purchaseContentCounts(o.contents)[kind]>0);if(!orders.length)return;const checked=!orders.every(o=>o.checkedKinds?.[kind]?.count===purchaseContentCounts(o.contents)[kind]&&o.checkedKinds[kind].signature===purchaseCheckSignature(o));purchaseQueueCheck({type:'kind',kind,checked,orders:purchaseVisibleOrders().map(o=>({number:o.number,signature:purchaseCheckSignature(o)}))});}
 async function purchaseDrainChecks(){
  if(purchaseCheckRunning)return;purchaseCheckRunning=true;
- try{while(purchaseCheckJobs.length){const job=purchaseCheckJobs[0];launchMoveProgress(job.id,'點貨確認','傳送中','','儲存點貨');try{await launchPost('purchaseCheck',{job:JSON.stringify(job)});purchaseCheckJobs.shift();purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','完成','','儲存點貨');}catch(e){launchMoveProgress(job.id,'點貨確認','失敗',e.message,'儲存點貨');purchaseEditToast('點貨確認尚未儲存：'+e.message,true);const retry=document.querySelector('#purchaseEditToast button');if(retry)retry.onclick=()=>purchaseDrainChecks();break;}}}finally{purchaseCheckRunning=false;purchaseRefreshChecks();}
+ try{while(purchaseCheckJobs.length){const job=purchaseCheckJobs[0];launchMoveProgress(job.id,'點貨確認','傳送中','','儲存點貨');try{await launchPost('purchaseCheck',{job:JSON.stringify(job)},job.id);purchaseCheckJobs.shift();purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','完成','','儲存點貨');}catch(e){launchMoveProgress(job.id,'點貨確認','失敗',e.message,'儲存點貨');purchaseEditToast('點貨確認尚未儲存：'+e.message,true);const retry=document.querySelector('#purchaseEditToast button');if(retry)retry.onclick=()=>purchaseDrainChecks();break;}}}finally{purchaseCheckRunning=false;purchaseRefreshChecks();}
 }
 setInterval(()=>{if(document.body.dataset.page==='purchase'&&purchaseView==='arrived'&&purchaseRegion==='cn'&&!document.getElementById('appDialog')){const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();}},10000);
 function purchasePackingPlan(orders){
@@ -4144,7 +4153,7 @@ const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
 if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
 const rows=selected.map(row=>Number(row.row));
 const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
-const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})});
+const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})},job.progressId);
 const server=result.online||await api('online',{compact:'0',fresh:'1'});
 const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
 const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
@@ -5583,10 +5592,21 @@ const backendSyncDirty=new Set(backendSyncPages),backendSyncLastRead=new Map();
 function backendSyncMutation(action){
  return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
-async function backendTrackWrite(action,run){
- if(!backendSyncMutation(action))return run();
- backendSyncWrites++;backendSyncEpoch++;
- try{return await run();}finally{backendSyncWrites--;backendSyncEpoch++;setTimeout(()=>backendSyncPoll(),0);}
+function backendWriteProgressInfo(action,params={}){
+ const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
+ const labels={purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售'};
+ const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
+ return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
+}
+async function backendTrackWrite(action,run,params={},progressId){
+ const mutation=backendSyncMutation(action),showProgress=mutation||['launchMove','launchUpload','storeScan','storeCartSet','storeCartClear'].includes(action);
+ if(!mutation&&!showProgress)return run();
+ const info=showProgress&&!progressId?backendWriteProgressInfo(action,params):null,id=info?'request-'+launchId():null;
+ if(id)launchMoveProgress(id,info.name,'傳送中','',info.action);
+ if(mutation){backendSyncWrites++;backendSyncEpoch++;}
+ try{const result=await run();if(id)launchMoveProgress(id,info.name,'完成','',info.action);return result;}
+ catch(error){if(id)launchMoveProgress(id,info.name,'失敗',error.message||'資料尚未確認儲存',info.action);throw error;}
+ finally{if(mutation){backendSyncWrites--;backendSyncEpoch++;setTimeout(()=>backendSyncPoll(),0);}}
 }
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
 function backendSyncCanApply(page){
