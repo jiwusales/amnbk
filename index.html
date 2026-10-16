@@ -1208,6 +1208,8 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .orderStarButton.active{background:#E24C60;color:#fff}
 .topStarButton svg{width:16px;height:16px;display:block;fill:currentColor;flex:none}
 .orderStarButton,.topStarButton{font-weight:900;-webkit-text-stroke:.45px currentColor}
+
+.launchTile{position:relative}.launchTile>button.launchDraftGroupDelete{position:absolute;z-index:2;left:7px;top:7px;width:28px;height:28px;border:0;border-radius:50%;background:#d9544d;color:#fff;font:700 24px/1 system-ui;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:0 1px 4px #0002}
 </style>
 <style>
 .purchaseManualTop,.purchaseManualItem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;margin-bottom:12px}
@@ -1763,7 +1765,7 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(cached){launchCompletionToast('目前顯示上次資料，連線恢復後可重新整理',true);return;}if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
 }
 const launchPendingMoves=new Map();
-function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}"><button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
+function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
 function launchRenderList(){
  launchGroups=launchGroups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus);
  const shown=launchStatus==='已收單'&&launchClosedSearch?launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())):launchGroups;
@@ -1978,9 +1980,9 @@ function launchMove(status){
  }
  launchRun(async()=>{if(!launchCurrent.revision)await launchPersist();const previous=launchCurrent.status;launchCurrent.status=status;try{await launchPersist();}catch(e){launchCurrent.status=previous;throw e;}});
 }
-function launchDelete(){
- if(!launchCurrent||launchBusy||!confirm('確定刪除整團及其資料庫商品資料？'))return;
- const group=structuredClone(launchCurrent),id=group.id,previousStatus=group.status||launchStatus,progressId='delete-'+launchId();
+function launchDelete(target=launchCurrent,ask=true){
+ if(!target||launchBusy||(ask&&!confirm('確定刪除整團及其資料庫商品資料？')))return;
+ const group=structuredClone(target),id=group.id,previousStatus=group.status||launchStatus,progressId='delete-'+launchId();
  launchMoveProgress(progressId,group.name,'排隊中','','刪除');
  launchPendingMoves.set(id,'刪除中');++launchLoad;
  document.getElementById('launchDialog')?.close();
@@ -1990,8 +1992,12 @@ function launchDelete(){
  launchSyncTopActions();launchRenderList();
  launchSaveTail=launchSaveTail.then(async()=>{
   launchMoveProgress(progressId,group.name,'傳送中','','刪除');
-  const revision=launchSavedRevisions.get(id)||group.revision;
-  if(revision)await launchPost('launchDelete',{id,revision},progressId);
+  let revision=launchSavedRevisions.get(id)||group.revision;
+  if(group.summary||!revision){
+   const detail=await api('launchGet',{id});revision=detail.group?.revision;
+   if(!revision)throw Error('無法取得這團的最新版本，請重新整理後再試');
+  }
+  await launchPost('launchDelete',{id,revision},progressId);
   launchPendingMoves.delete(id);++launchLoad;launchGroups=launchGroups.filter(g=>g.id!==id);
   launchClearListCache();sessionStorage.removeItem('jiwu_supabase_test_snapshot_launchGroup_'+id);launchSavedRevisions.delete(id);launchFailedSaves.delete(id);launchSubmittedSignatures.delete(id);
   launchMoveProgress(progressId,group.name,'完成','','刪除');launchCompletionToast('已刪除「'+group.name+'」');
