@@ -1757,7 +1757,7 @@ function launchSaveWorkChanges(){if(!launchWorkDirty)return;const payload=launch
 function launchEditWork(id){if(launchTakePress())return;const data=launchAuxData||{},entry=(data.entries||[]).find(item=>String(item.id)===String(id));if(!entry)return;const statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=data.categories||[],suggestion=entry.category||launchSuggestWorkCategory(entry.name,categories),selected=statuses.includes(entry.status)?entry.status:'尚未結單',position=launchBannerSettings(entry),image=launchSafeURL(entry.image)||launchPreviewFallback;launchDialog(`<form data-work-id="${esc(entry.id)}" onsubmit="launchSaveWork(event,'${esc(entry.id)}')"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><h2>${esc(entry.name)}</h2><div class="launchPositionPreview"><img src="${launchImage(image)}" alt="首圖預覽" style="${launchBannerStyle(entry)}"></div><div class="launchPositionControls"><label>放大<input name="imageScale" type="range" min="1" max="3" step="0.05" value="${position.zoom}" oninput="launchPreviewWorkImage(this.form)"><output>${Math.round(position.zoom*100)}%</output></label><label>左右<input name="imageX" type="range" min="0" max="100" value="${position.x}" oninput="launchPreviewWorkImage(this.form)"><output>${position.x}%</output></label><label>上下<input name="imageY" type="range" min="0" max="100" value="${position.y}" oninput="launchPreviewWorkImage(this.form)"><output>${position.y}%</output></label></div><input name="status" type="hidden" value="${esc(selected)}"><div class="launchWorkStatuses launchWorkEditStatuses">${statuses.map(status=>`<button class="btn light ${status===selected?'selected':''}" type="button" onclick="launchChooseWorkStatus(this,'${esc(status)}')">${status}</button>`).join('')}</div><div class="launchPair"><label>IP<input name="category" value="${esc(suggestion)}" list="launchWorkCategories" placeholder="例如：寶可夢"></label><label>時間<input name="arrival" value="${esc(entry.arrival||'')}" placeholder="例如：10月下"></label></div><datalist id="launchWorkCategories">${categories.map(category=>`<option value="${esc(category)}">`).join('')}</datalist><label>運送備註<textarea name="note" rows="4">${esc(entry.note||'')}</textarea></label></form>`);}
 function launchPreviewWorkImage(form){const zoom=Number(form.imageScale.value),x=Number(form.imageX.value),y=Number(form.imageY.value),img=form.querySelector('.launchPositionPreview img'),outputs=form.querySelectorAll('.launchPositionControls output');img.style.objectPosition=`${x}% ${y}%`;img.style.transformOrigin=`${x}% ${y}%`;img.style.transform=`scale(${zoom})`;outputs[0].value=Math.round(zoom*100)+'%';outputs[1].value=x+'%';outputs[2].value=y+'%';}
 function launchChooseWorkStatus(button,status){const form=button.closest('form');form.elements.status.value=status;form.querySelectorAll('.launchWorkEditStatuses button').forEach(item=>item.classList.toggle('selected',item===button));if(form.dataset.workId)form.requestSubmit();}
-function launchSaveWork(event,id){event.preventDefault();const form=new FormData(event.target),entry=(launchAuxData?.entries||[]).find(item=>String(item.id)===String(id));if(!entry)return;entry.status=String(form.get('status')||'尚未結單');entry.category=String(form.get('category')||'').trim();entry.arrival=String(form.get('arrival')||'').trim();entry.note=String(form.get('note')||'').trim();entry.imageScale=Math.max(1,Math.min(3,Number(form.get('imageScale'))||1));entry.imageX=Math.max(0,Math.min(100,Number(form.get('imageX'))||0));entry.imageY=Math.max(0,Math.min(100,Number(form.get('imageY'))||0));const params={id:entry.id,status:entry.status,category:entry.category,arrival:entry.arrival,note:entry.note,imageScale:entry.imageScale,imageX:entry.imageX,imageY:entry.imageY};
+function launchSaveWork(event,id){event.preventDefault();const form=new FormData(event.target),entry=(launchAuxData?.entries||[]).find(item=>String(item.id)===String(id));if(!entry)return;const before=structuredClone(entry);entry.status=String(form.get('status')||'尚未結單');entry.category=String(form.get('category')||'').trim();entry.arrival=String(form.get('arrival')||'').trim();entry.note=String(form.get('note')||'').trim();entry.imageScale=Math.max(1,Math.min(3,Number(form.get('imageScale'))||1));entry.imageX=Math.max(0,Math.min(100,Number(form.get('imageX'))||0));entry.imageY=Math.max(0,Math.min(100,Number(form.get('imageY'))||0));const params={id:entry.id,...Object.fromEntries(['status','category','arrival','note','imageScale','imageX','imageY'].filter(key=>String(entry[key]??'')!==String(event.target.elements[key]?.defaultValue??before[key]??'')).map(key=>[key,entry[key]]))};for(const key of ['status','category','arrival','note','imageScale','imageX','imageY'])if(!Object.hasOwn(params,key))entry[key]=before[key];if(Object.keys(params).length===1){document.getElementById('launchDialog')?.close();return;}
  for(const [jobId,retry] of backendFailedRetries){if(retry.action==='launchGroupWork'&&String(retry.params.id)===String(id)){backendDiscardFailedDialog(jobId);launchMoveProgressJobs.delete(jobId);}}
  document.getElementById('launchDialog')?.close();launchRenderAux();
  launchPost('launchGroupWork',params).then(data=>{saveBackendSnapshot('launchAux_group-work',data);launchCompletionToast('已儲存「'+entry.name+'」的團務狀態');}).catch(error=>{launchCompletionToast('團務儲存失敗，請點左下角「重試」：'+error.message,true);});
@@ -3291,10 +3291,10 @@ function renderPurchase(){
 }
 let purchaseLoadPromise=null,purchaseLoadEpoch=-1,purchaseImageTicket=0;
 async function purchaseLoad(){
- const epoch=backendSyncEpoch;if(purchaseLoadPromise&&purchaseLoadEpoch===epoch)return purchaseLoadPromise;
+ const epoch=backendSyncPageEpochs.get('purchase')||0;if(purchaseLoadPromise&&purchaseLoadEpoch===epoch)return purchaseLoadPromise;
  purchaseLoadEpoch=epoch;const task=purchaseLoadData(epoch).finally(()=>{if(purchaseLoadPromise===task)purchaseLoadPromise=null;});purchaseLoadPromise=task;return task;
 }
-async function purchaseLoadData(epoch=backendSyncEpoch){const auth=authToken,valid=()=>epoch===backendSyncEpoch&&auth===authToken&&!backendSyncWrites;try{const r=await api('purchaseOrders');if(!valid()){backendSyncDirty.add('purchase');return;}if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){if(!valid()){backendSyncDirty.add('purchase');return;}purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
+async function purchaseLoadData(epoch=backendSyncPageEpochs.get('purchase')||0){const auth=authToken,valid=()=>epoch===(backendSyncPageEpochs.get('purchase')||0)&&auth===authToken&&!backendSyncPageBusy('purchase');try{const r=await api('purchaseOrders');if(!valid()){backendSyncDirty.add('purchase');return;}if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){if(!valid()){backendSyncDirty.add('purchase');return;}purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
 async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
@@ -3450,7 +3450,7 @@ storeCart=[];
 renderCart();
 return;
 }
-if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy||backendWriteQueue.length)return;
+if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy||backendSyncPageBusy('store'))return;
 const requestUser=salesperson;
 const requestRevision=cartRevision;
 storeCartLoading=true;
@@ -3594,18 +3594,21 @@ if(!confirm('確定刪除此庫存商品？'))return;
 button.disabled=true;
 try{await apiBackground('deleteInventoryProduct',{row});inventoryRows=inventoryRows.filter(item=>Number(item.row)!==Number(row));prepareInventoryRows();saveInventorySessionCache();savedDialog?.remove();renderInventoryContent();inventoryLoadedAt=0;await loadInventory(true);}catch(error){console.error('刪除失敗：'+error.message);button.disabled=false;}
 }
+function inventoryEditFieldValue(key,value){let text=toHalfWidthDigits(String(value??'')).trim();if(['original','price'].includes(key))return text.replace(/[，,\s]/g,'');if(key==='stock')return text.toLowerCase()||'0';if(key==='store')return text||'0';return text;}
 async function submitInventoryEdit(event,row){
 event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='SAVE…';
 const data={row,ip:document.getElementById('inventoryEditIp').value.trim(),role:document.getElementById('inventoryEditRole').value.trim(),kind:document.getElementById('inventoryEditKind').value.trim(),name:document.getElementById('inventoryEditName').value.trim(),code:document.getElementById('inventoryEditCode').value.trim(),original:normalizeMoneyInput(document.getElementById('inventoryEditOriginal')).replace(/[，,\s]/g,''),price:normalizeMoneyInput(document.getElementById('inventoryEditPrice')).replace(/[，,\s]/g,''),stock:toHalfWidthDigits(document.getElementById('inventoryEditStock').value).trim().toLowerCase()||'0',store:toHalfWidthDigits(document.getElementById('inventoryEditStore').value).trim()||'0',url:document.getElementById('inventoryEditUrl').value.trim(),note:document.getElementById('inventoryEditNote').value.trim()};
 if(!/^\d+$/.test(data.stock)&&!['x','?'].includes(data.stock)){alert('庫存請輸入整數、x 或 ?');button.disabled=false;button.textContent='SAVE';return;}if(!/^\d+$/.test(data.store)){alert('店面數量請輸入非負整數');button.disabled=false;button.textContent='SAVE';return;}for(const [label,value] of [['原價',data.original],['售價',data.price]])if(value!==''&&!/^\d+(?:\.\d+)?$/.test(value)){alert(label+'請輸入有效數字');button.disabled=false;button.textContent='SAVE';return;}
 const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)return;
 const fields={ip:['IP','IP分類','IP類別'],role:['角色'],kind:['種類','類型','商品種類','品項'],name:['名稱','商品名稱','品名','商品'],code:['貨號','商品貨號','條碼','SN'],original:['原價','定價','原售價','牌價'],price:['售價','價格','銷售價'],stock:['庫存','總庫存','數量','庫存量','商品庫存'],store:['店面','店面庫存','店鋪庫存','店面數量'],url:['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址'],note:['備註','備註欄','說明']};
+for(const key of Object.keys(fields)){const input=document.getElementById('inventoryEdit'+key[0].toUpperCase()+key.slice(1));if(input&&inventoryEditFieldValue(key,input.defaultValue)===String(data[key]??''))delete data[key];}
+if(Object.keys(data).length===1){closeDialog();return;}
 const previous=[];
-for(const [key,names] of Object.entries(fields)){const col=inventoryHeaderIndex(names);if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
+for(const [key,names] of Object.entries(fields)){if(!Object.hasOwn(data,key))continue;const col=inventoryHeaderIndex(names);if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
 closeDialog();prepareInventoryRows();renderInventoryContent();
 const pending=(async()=>{
 try{await api('updateInventoryProduct',data);inventoryLoadedAt=Date.now();}
-catch(error){for(const old of previous){item.values[old.col]=old.value;if(item.display)item.display[old.col]=old.display;}inventoryLoadedAt=0;alert('「'+data.name+'」儲存失敗，畫面已還原，請重新編輯儲存：'+error.message);}
+catch(error){for(const old of previous){item.values[old.col]=old.value;if(item.display)item.display[old.col]=old.display;}inventoryLoadedAt=0;alert('「'+(data.name||inventoryValue(item,['名稱','商品名稱']))+'」儲存失敗，畫面已還原，請重新編輯儲存：'+error.message);}
 finally{inventoryProductSaves.delete(Number(row));prepareInventoryRows();if(!inventoryProductSaves.size)saveInventorySessionCache();renderInventoryContent();inventorySaveNotice(inventoryProductSaves.size?'商品背景儲存中…':'背景儲存作業已結束');}
 })();
 inventoryProductSaves.set(Number(row),pending);inventorySaveNotice('已關閉編輯，商品背景儲存中…');
@@ -3625,7 +3628,7 @@ if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves
 if(inventoryLoadPromise)return inventoryLoadPromise;
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{const epoch=backendSyncEpoch;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==backendSyncEpoch||backendSyncWrites||inventoryOrderDirty||backendDeferRead('inventory',inventoryLoaded))return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{const epoch=backendSyncPageEpochs.get('inventory')||0;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==(backendSyncPageEpochs.get('inventory')||0)||backendSyncPageBusy('inventory')||inventoryOrderDirty||backendDeferRead('inventory',inventoryLoaded))return;inventoryRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryHeaders=data.headers||[];prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">載入失敗：${esc(e.message)}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -4386,6 +4389,10 @@ onlineRows=onlineEditQueue.reduce(applyOnlineEditJob,structuredClone(onlineEditB
 refreshCargoViewKeepingScroll();
 }
 let onlineEditWorkerRunning=false;
+function applyOnlineDelta(base,delta){
+ const changed=new Map(delta.rows.map(row=>[String(row.itemId),row]));
+ return {headers:delta.headers,rows:base.map(row=>{const update=changed.get(String(row.itemId));return update?{...row,...update,data:{...row.data,...update.data},editKey:row.editKey}:row;})};
+}
 async function processOnlineEditQueue(){
 if(onlineEditWorkerRunning)return;onlineEditWorkerRunning=true;
 try{while(onlineEditQueue.length){
@@ -4397,7 +4404,7 @@ if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動')
 const rows=selected.map(row=>Number(row.row));
 const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
 const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})},job.progressId);
-const server=result.online||await api('online',{compact:'0',fresh:'1'});
+const server=result.onlineDelta?applyOnlineDelta(onlineEditBase,result.onlineDelta):result.online||await api('online',{compact:'0',fresh:'1'});
 const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
 const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
 const newPosition=row=>row+(row>last?added.length:0)-removed.filter(deleted=>deleted<row).length;
@@ -4438,9 +4445,9 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
   return;
 }
 const request=(async()=>{
-  const revision=onlineMutationRevision,epoch=backendSyncEpoch;
+  const revision=onlineMutationRevision,epoch=backendSyncPageEpochs.get('online')||0;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==backendSyncEpoch||backendSyncWrites||pendingRestockRows.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
+  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -5917,8 +5924,8 @@ calcChange();
    啟動
 ========================================================= */
 const backendSyncPages=['purchase','online','inventory','ship','store','launch'];
-let backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
-const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map();
+let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
+const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
  return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
@@ -5928,7 +5935,7 @@ function backendWriteProgressInfo(action,params={}){
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
-const backendWriteQueue=[],backendFailedDialogs=new Map(),backendFailedRetries=new Map();let backendWriteRunning=false;
+const backendWriteQueue=[],backendFailedDialogs=new Map(),backendFailedRetries=new Map();let backendWriteRunning=false;const backendWriteLanes=new Set();
 function backendRowTable(action){
  if(/^(?:setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|checkInventoryAvailability)/.test(action))return 'inventory';
  if(/^(?:setOnline|saveOnlinePayment|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|purchaseRestock|createShip)/.test(action))return 'online';
@@ -5989,12 +5996,24 @@ function backendTrackWrite(action,run,params={},progress){
  if(meta.dialog&&params._rowRefs?.length)meta.dialog.dataset.backendRowRefs=JSON.stringify(params._rowRefs);
  if(meta.dialog&&meta.signature){meta.dialog.dataset.backendRequestBody=meta.signature;meta.dialog.dataset.backendRequestId=params.requestId;}
  launchMoveProgress(id,info.name,'排隊中','',info.action);
- if(mutation){backendSyncWrites++;backendSyncEpoch++;}
+ if(mutation){backendSyncWrites++;backendSyncEpoch++;const lane=backendWriteLane(action);backendSyncWriteCounts.set(lane,(backendSyncWriteCounts.get(lane)||0)+1);backendSyncPageEpochs.set(lane,(backendSyncPageEpochs.get(lane)||0)+1);}
  return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,run,resolve,reject,auth:authToken,meta,action,params});void backendDrainWrites();});
 }
+function backendWriteLane(action){
+ if(/^purchase/.test(action)&&action!=='purchaseRestock')return 'purchase';
+ if(/^launch/.test(action))return 'launch';
+ if(/Inventory/.test(action))return 'inventory';
+ if(/Ship/.test(action))return 'ship';
+ if(/^store|StoreSale/.test(action))return 'store';
+ return 'online';
+}
+function backendSyncPageBusy(page){return (backendSyncWriteCounts.get(page)||0)>0;}
 async function backendDrainWrites(){
- if(backendWriteRunning)return;backendWriteRunning=true;
- try{while(backendWriteQueue.length){const job=backendWriteQueue[0];
+ const started=[];
+ for(const job of backendWriteQueue.slice()){
+  const lane=backendWriteLane(job.action);if(job.running||backendWriteLanes.has(lane)||backendWriteLanes.size>=4)continue;
+  job.running=true;backendWriteLanes.add(lane);backendWriteRunning=true;
+  started.push((async()=>{
   try{
    if(job.auth!==authToken)throw Error('登入狀態已改變，這筆尚未送出');
    launchMoveProgress(job.id,job.info.name,'傳送中','',job.info.action);
@@ -6004,9 +6023,17 @@ async function backendDrainWrites(){
    if(['launchGroupWorkBatchSave','launchGroupWork'].includes(job.action))backendFailedRetries.set(job.id,{action:job.action,run:job.run,params:job.params,running:false});
    if(job.meta.dialog)backendFailedDialogs.set(job.id,job.meta);
    launchPaintMoveProgress();job.reject(error);
-  }finally{backendWriteQueue.shift();if(job.mutation){backendSyncWrites--;backendSyncEpoch++;}}
- }}finally{backendWriteRunning=false;setTimeout(()=>backendSyncPoll(),0);}
+  }finally{
+   const index=backendWriteQueue.indexOf(job);if(index>=0)backendWriteQueue.splice(index,1);
+   backendWriteLanes.delete(lane);backendWriteRunning=backendWriteLanes.size>0;
+   if(job.mutation){backendSyncWrites--;backendSyncEpoch++;backendSyncWriteCounts.set(lane,Math.max(0,(backendSyncWriteCounts.get(lane)||1)-1));backendSyncPageEpochs.set(lane,(backendSyncPageEpochs.get(lane)||0)+1);}
+   void backendDrainWrites();setTimeout(()=>backendSyncPoll(),0);
+  }
+  })());
+ }
+ await Promise.allSettled(started);
 }
+
 function backendSyncViewKey(){return JSON.stringify([onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView,inventoryStatus,inventoryCategory,inventorySearch,document.body.dataset.page,purchaseView,purchaseRegion,purchaseSearch,purchaseSelectedMonth,purchaseSelectedDate,launchStatus,launchCurrent?.id||'',launchAuxPage,storeView]);}
 function afterInputPaint(run){requestAnimationFrame(()=>setTimeout(run,0));}
 function backendInputFocused(){
@@ -6016,7 +6043,7 @@ function backendInputFocused(){
 function backendDeferRead(page,hasData){if(!backendInputFocused()||(!hasData&&!(document.body?.dataset.page==='online'&&page!=='online')))return false;backendSyncDirty.add(page);return true;}
 function backendDeferPaint(page){backendSyncDirty.add(page);backendSyncPendingPaint.add(page);}
 function backendSyncCanApply(page){
- if(document.hidden||!navigator.onLine||!authToken||!appStarted||backendSyncWrites)return false;
+ if(document.hidden||!navigator.onLine||!authToken||!appStarted||backendSyncPageBusy(page))return false;
  if(document.getElementById('appDialog')||document.getElementById('launchDialog')?.open)return false;
  if(backendInputFocused())return false;
  const active=document.activeElement,search=active?.matches('#purchaseSearch,#customerSearch,#inventorySearch,#storeSalesDate')||(page==='store'&&active?.closest('.storeCheckoutPane,.storePage'));
@@ -6040,8 +6067,8 @@ function backendSyncScrollSnapshot(){
 function backendSyncRestoreScroll(saved){saved.forEach(x=>{let node=x.node.isConnected?x.node:x.id?document.getElementById(x.id):null;if(!node&&x.order)node=[...onlineQueryAll('.groupCard')].find(card=>card.querySelector('.groupCardMeta')?.dataset.rows===x.order)?.querySelector('.groupCardItems');if(!node&&x.purchase)node=[...document.querySelectorAll('.purchaseOrderCard')].find(card=>card.dataset.purchaseNumber===x.purchase)?.querySelector('.purchaseOrderContents');if(node)onlineRestoreScroll(node,x.top,x.left);});}
 async function backendSyncRefreshCurrent(page){
  if(!backendSyncCanApply(page))return false;
- const epoch=backendSyncEpoch,key=backendSyncViewKey();
- const valid=()=>backendSyncEpoch===epoch&&backendSyncViewKey()===key&&backendSyncCanApply(page);
+ const epoch=backendSyncPageEpochs.get(page)||0,key=backendSyncViewKey();
+ const valid=()=>(backendSyncPageEpochs.get(page)||0)===epoch&&backendSyncViewKey()===key&&backendSyncCanApply(page);
  let data;
  if(page==='purchase')data=await api('purchaseOrders');
  else if(page==='online')data=await api('online',{compact:'1',fresh:'1'});
@@ -6079,7 +6106,11 @@ async function backendSyncPoll(){
  backendSyncRunning=true;
  try{
   const state=await api('backendSync');
-  if(state.revision!==backendSyncRevision){backendSyncRevision=state.revision;backendSyncPages.forEach(page=>backendSyncDirty.add(page));if(onlineLoadedAt)onlineLoadedAt=1;if(inventoryLoadedAt)inventoryLoadedAt=1;shipLoadedAt=1;storeSalesLoadedAt=1;}
+  if(state.revision!==backendSyncRevision){
+   const legacyChanged=backendSyncLegacyRevision!==null&&state.legacyRevision!==undefined&&backendSyncLegacyRevision!==state.legacyRevision,scoped=!legacyChanged&&state.pageRevisions&&Object.keys(state.pageRevisions).length>0,changed=scoped?backendSyncPages.filter(page=>backendSyncPageVersions.get(page)!==(state.pageRevisions[page]||'')):backendSyncPages;
+   backendSyncRevision=state.revision;backendSyncLegacyRevision=state.legacyRevision??null;for(const page of backendSyncPages)backendSyncPageVersions.set(page,state.pageRevisions?.[page]||'');
+   changed.forEach(page=>backendSyncDirty.add(page));if(changed.includes('online')&&onlineLoadedAt)onlineLoadedAt=1;if(changed.includes('inventory')&&inventoryLoadedAt)inventoryLoadedAt=1;if(changed.includes('ship'))shipLoadedAt=1;if(changed.includes('store'))storeSalesLoadedAt=1;
+  }
   const page=document.body.dataset.page;
   // Refresh once per minute too, so edits made outside this web app are eventually read.
   if(backendSyncDirty.has(page)||Date.now()-(backendSyncLastRead.get(page)||0)>=60000){const revision=backendSyncRevision;if(await backendSyncRefreshCurrent(page)){if(revision===backendSyncRevision)backendSyncDirty.delete(page);backendSyncLastRead.set(page,Date.now());}}
