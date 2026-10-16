@@ -1752,7 +1752,8 @@ function launchFitWorkNames(){document.querySelectorAll('.launchWorkTile .launch
 function launchSuggestWorkCategory(name,categories){const normalized=String(name||'').toLocaleLowerCase();return (categories||[]).filter(category=>normalized.includes(String(category).toLocaleLowerCase())).sort((a,b)=>String(b).length-String(a).length)[0]||'';}
 function launchWorkPressStart(e,id){if(launchBusy||e.button!==0)return;const card=e.currentTarget,pointId=e.pointerId;let active=false,target=id;const move=ev=>{if(!active)return;const hit=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('[data-work-id]');if(hit)target=hit.dataset.workId;};const end=()=>{clearTimeout(timer);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);if(!active)return;launchPressConsumed=true;card.classList.remove('launchDragging');launchMoveWork(id,target);};const timer=setTimeout(()=>{active=true;launchPressConsumed=true;card.classList.add('launchDragging');try{card.setPointerCapture(pointId);}catch(_){}window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});},380);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});}
 function launchMoveWork(fromId,toId){if(fromId===toId)return;const data=launchAuxData||{},visible=(data.entries||[]).filter(entry=>launchWorkFilter==='全部'||(launchWorkFilter==='未分類'?!String(entry.category||'').trim():entry.category===launchWorkFilter)).sort(launchWorkNewestFirst),from=visible.findIndex(entry=>String(entry.id)===String(fromId)),to=visible.findIndex(entry=>String(entry.id)===String(toId));if(from<0||to<0)return;visible.splice(to,0,visible.splice(from,1)[0]);visible.forEach((entry,index)=>entry.workOrder=index+1);launchWorkDirty=true;launchRenderAux();}
-function launchSaveWorkChanges(){if(!launchWorkDirty)return;const entries=(launchAuxData?.entries||[]).slice().sort(launchWorkNewestFirst),payload=JSON.stringify(entries.map(entry=>({id:entry.id,status:entry.status,category:entry.category,arrival:entry.arrival,note:entry.note,imageScale:entry.imageScale,imageX:entry.imageX,imageY:entry.imageY})));launchWorkDirty=false;launchRenderAux();launchPost('launchGroupWorkBatchSave',{entries:payload}).then(data=>{launchAuxData=data;launchRenderAux();}).catch(error=>{launchWorkDirty=true;launchRenderAux();alert('儲存失敗：'+error.message);});}
+function launchWorkPayload(){return JSON.stringify((launchAuxData?.entries||[]).slice().sort(launchWorkNewestFirst).map(entry=>({id:entry.id,status:entry.status,category:entry.category,arrival:entry.arrival,note:entry.note,imageScale:entry.imageScale,imageX:entry.imageX,imageY:entry.imageY})));}
+function launchSaveWorkChanges(){if(!launchWorkDirty)return;const payload=launchWorkPayload();launchWorkDirty=false;launchRenderAux();launchPost('launchGroupWorkBatchSave',{entries:payload}).then(data=>{launchAuxData=data;launchRenderAux();}).catch(error=>{launchWorkDirty=true;launchRenderAux();alert('儲存失敗：'+error.message);});}
 function launchEditWork(id){if(launchTakePress())return;const data=launchAuxData||{},entry=(data.entries||[]).find(item=>String(item.id)===String(id));if(!entry)return;const statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=data.categories||[],suggestion=entry.category||launchSuggestWorkCategory(entry.name,categories),selected=statuses.includes(entry.status)?entry.status:'尚未結單',position=launchBannerSettings(entry),image=launchSafeURL(entry.image)||launchPreviewFallback;launchDialog(`<form onsubmit="launchSaveWork(event,'${esc(entry.id)}')"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><h2>${esc(entry.name)}</h2><div class="launchPositionPreview"><img src="${launchImage(image)}" alt="首圖預覽" style="${launchBannerStyle(entry)}"></div><div class="launchPositionControls"><label>放大<input name="imageScale" type="range" min="1" max="3" step="0.05" value="${position.zoom}" oninput="launchPreviewWorkImage(this.form)"><output>${Math.round(position.zoom*100)}%</output></label><label>左右<input name="imageX" type="range" min="0" max="100" value="${position.x}" oninput="launchPreviewWorkImage(this.form)"><output>${position.x}%</output></label><label>上下<input name="imageY" type="range" min="0" max="100" value="${position.y}" oninput="launchPreviewWorkImage(this.form)"><output>${position.y}%</output></label></div><input name="status" type="hidden" value="${esc(selected)}"><div class="launchWorkStatuses launchWorkEditStatuses">${statuses.map(status=>`<button class="btn light ${status===selected?'selected':''}" type="button" onclick="launchChooseWorkStatus(this,'${esc(status)}')">${status}</button>`).join('')}</div><div class="launchPair"><label>IP<input name="category" value="${esc(suggestion)}" list="launchWorkCategories" placeholder="例如：寶可夢"></label><label>時間<input name="arrival" value="${esc(entry.arrival||'')}" placeholder="例如：10月下"></label></div><datalist id="launchWorkCategories">${categories.map(category=>`<option value="${esc(category)}">`).join('')}</datalist><label>運送備註<textarea name="note" rows="4">${esc(entry.note||'')}</textarea></label></form>`);}
 function launchPreviewWorkImage(form){const zoom=Number(form.imageScale.value),x=Number(form.imageX.value),y=Number(form.imageY.value),img=form.querySelector('.launchPositionPreview img'),outputs=form.querySelectorAll('.launchPositionControls output');img.style.objectPosition=`${x}% ${y}%`;img.style.transformOrigin=`${x}% ${y}%`;img.style.transform=`scale(${zoom})`;outputs[0].value=Math.round(zoom*100)+'%';outputs[1].value=x+'%';outputs[2].value=y+'%';}
 function launchChooseWorkStatus(button,status){const form=button.closest('form');form.elements.status.value=status;form.querySelectorAll('.launchWorkEditStatuses button').forEach(item=>item.classList.toggle('selected',item===button));}
@@ -1949,7 +1950,7 @@ function launchPaintMoveProgress(){
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;width:min(240px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const host=document.querySelector('dialog[open]')||document.body;if(box.parentElement!==host)host.appendChild(box);
- box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
+ box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'&&backendFailedRetries.has(id)?` <button type="button" class="saveProgressRetry" onclick="backendRetryFailedWrite(this.closest('.saveProgressJob').dataset.progressId)">重試</button>`:''}${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -5905,7 +5906,7 @@ function backendWriteProgressInfo(action,params={}){
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
-const backendWriteQueue=[],backendFailedDialogs=new Map();let backendWriteRunning=false;
+const backendWriteQueue=[],backendFailedDialogs=new Map(),backendFailedRetries=new Map();let backendWriteRunning=false;
 function backendRowTable(action){
  if(/^(?:setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|checkInventoryAvailability)/.test(action))return 'inventory';
  if(/^(?:setOnline|saveOnlinePayment|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|purchaseRestock|createShip)/.test(action))return 'online';
@@ -5935,12 +5936,27 @@ function launchPostBackground(action,params,dialog=document.getElementById('laun
 }
 function backendRestoreDialogControls(draft){draft.dialog.querySelectorAll('button').forEach(el=>el.disabled=false);for(const [el,disabled] of draft.disabled||[])el.disabled=disabled;}
 function backendRestoreFailedDialog(id){
+ if(backendFailedRetries.has(id)){void backendRetryFailedWrite(id);return;}
  const draft=backendFailedDialogs.get(id);if(!draft||document.getElementById('appDialog'))return;
  if(document.body.dataset.page!==draft.page){tab(draft.page,document.getElementById('btn-'+draft.page));}
  backendRestoreDialogControls(draft);
  document.body.appendChild(draft.dialog);if(draft.dialog.tagName==='DIALOG')draft.dialog.showModal();backendFailedDialogs.delete(id);launchMoveProgressJobs.delete(id);launchPaintMoveProgress();
 }
-function backendDiscardFailedDialog(id){backendFailedDialogs.delete(id);}
+async function backendRetryFailedWrite(id){
+ const retry=backendFailedRetries.get(id);if(!retry||retry.running)return;
+ retry.running=true;launchPaintMoveProgress();
+ try{
+  const data=await backendTrackWrite(retry.action,retry.run,retry.params,id);
+  backendFailedRetries.delete(id);
+  if(retry.action==='launchGroupWorkBatchSave'){
+   saveBackendSnapshot('launchAux_group-work',data);
+   if(document.body.dataset.page==='launch'&&launchAuxPage==='group-work'&&(!launchWorkDirty||launchWorkPayload()===retry.params.entries)){launchWorkDirty=false;launchAuxData=data;launchRenderAux();}
+  }
+  launchMoveProgress(id,'','完成','','儲存團務');launchCompletionToast('團務已重新儲存成功');
+ }catch(error){launchCompletionToast('重試失敗：'+error.message,true);}
+ finally{retry.running=false;launchPaintMoveProgress();}
+}
+function backendDiscardFailedDialog(id){backendFailedDialogs.delete(id);backendFailedRetries.delete(id);}
 function backendTrackWrite(action,run,params={},progress){
  const mutation=backendSyncMutation(action),showProgress=mutation||['launchMove','launchUpload','storeScan','storeCartSet','storeCartClear'].includes(action);
  if(!showProgress)return run();
@@ -5951,7 +5967,7 @@ function backendTrackWrite(action,run,params={},progress){
  if(meta.dialog&&meta.signature){meta.dialog.dataset.backendRequestBody=meta.signature;meta.dialog.dataset.backendRequestId=params.requestId;}
  launchMoveProgress(id,info.name,'排隊中','',info.action);
  if(mutation){backendSyncWrites++;backendSyncEpoch++;}
- return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,run,resolve,reject,auth:authToken,meta});void backendDrainWrites();});
+ return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,run,resolve,reject,auth:authToken,meta,action,params});void backendDrainWrites();});
 }
 async function backendDrainWrites(){
  if(backendWriteRunning)return;backendWriteRunning=true;
@@ -5962,8 +5978,9 @@ async function backendDrainWrites(){
    const result=await job.run();if(!job.owned)launchMoveProgress(job.id,job.info.name,'完成','',job.info.action);job.resolve(result);
   }catch(error){
    launchMoveProgress(job.id,job.info.name,'失敗',error.message||'資料尚未確認儲存',job.info.action);
+   if(job.action==='launchGroupWorkBatchSave')backendFailedRetries.set(job.id,{action:job.action,run:job.run,params:job.params,running:false});
    if(job.meta.dialog)backendFailedDialogs.set(job.id,job.meta);
-   job.reject(error);
+   launchPaintMoveProgress();job.reject(error);
   }finally{backendWriteQueue.shift();if(job.mutation){backendSyncWrites--;backendSyncEpoch++;}}
  }}finally{backendWriteRunning=false;setTimeout(()=>backendSyncPoll(),0);}
 }
