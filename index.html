@@ -3964,7 +3964,18 @@ return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row
 }
 function editStoreSaleNote(row){
 const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(!item)return;
-closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>商品備註</h3><p>${esc(item.name)}</p><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>商品備註</h3><p>${esc(item.name)}</p><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn" style="background:#d9544d;margin-right:auto" onclick="deleteStoreSaleItem(${Number(row)})">刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+const dialog=document.getElementById('appDialog');dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);dialog.dataset.storeSaleExpected=JSON.stringify({name:item.name,code:item.code,note:item.note,amount:item.amount});
+}
+async function deleteStoreSaleItem(row){
+ const dialog=document.getElementById('appDialog');if(!dialog||dialog.dataset.deleting==='1')return;
+ const expected=JSON.parse(dialog.dataset.storeSaleExpected||'null');if(!expected||!confirm('刪除這筆銷售「'+expected.name+'」？'))return;
+ dialog.dataset.deleting='1';
+ try{
+  const result=await apiBackground('deleteStoreSale',{row,expected},dialog);
+  storeSalesData=result.sales||await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);
+  if(document.body.dataset.page==='store'&&document.getElementById('storeSalesResult')){const scroll=backendSyncScrollSnapshot();drawStoreSales();backendSyncRestoreScroll(scroll);}
+ }catch(error){dialog.dataset.deleting='';console.error('銷售刪除失敗：'+error.message);}
 }
 async function saveStoreSaleNote(event,row){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]'),note=document.getElementById('saleNoteInput').value.trim();button.disabled=true;
@@ -5938,11 +5949,11 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
- return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
- const labels={purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售'};
+ const labels={purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售',deleteStoreSale:'刪除銷售'};
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
@@ -5951,7 +5962,7 @@ function backendRowTable(action){
  if(/^(?:setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|checkInventoryAvailability)/.test(action))return 'inventory';
  if(/^(?:setOnline|saveOnlinePayment|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|purchaseRestock|createShip)/.test(action))return 'online';
  if(/^(?:setShip|deleteShipOrder)/.test(action))return 'ship';
- if(/^updateStoreSale/.test(action))return 'store';
+ if(/^(?:updateStoreSale|deleteStoreSale)/.test(action))return 'store';
  return '';
 }
 function backendPrepareWrite(action,params){
