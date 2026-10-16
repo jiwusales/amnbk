@@ -5121,7 +5121,8 @@ let faceToFaceHtml='';
 let faceToFaceCount=0;
 const faceSectionCards={'現貨':[],'預訂':[],'受注':[],'補貨登記':[]};
 const ordersToRender=[...orders.values()];
-if(isFaceToFaceView)ordersToRender.sort((a,b)=>Number(faceToFaceOrderIsOrdered(a))-Number(faceToFaceOrderIsOrdered(b))||orderNewestTime(a)-orderNewestTime(b));
+const orderTimes=new Map(ordersToRender.map(order=>[order,orderNewestTime(order)]));
+ordersToRender.sort((a,b)=>orderTimes.get(b)-orderTimes.get(a)||(isFaceToFaceView?Number(faceToFaceOrderIsOrdered(a))-Number(faceToFaceOrderIsOrdered(b)):0));
 ordersToRender.forEach(order=>{
 let orderTotal=0;
 let orderShipping=0;
