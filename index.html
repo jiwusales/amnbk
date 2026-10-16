@@ -1766,10 +1766,20 @@ function launchAddWork(){const statuses=['尚未結單','未出貨','集運中',
 function launchSaveNewWork(event){event.preventDefault();const form=new FormData(event.target);document.getElementById('launchDialog')?.close();launchPost('launchGroupWorkAdd',{name:String(form.get('name')||'').trim(),status:String(form.get('status')||''),category:String(form.get('category')||'').trim(),arrival:String(form.get('arrival')||'').trim(),image:String(form.get('image')||'').trim(),note:String(form.get('note')||'').trim()}).then(data=>{launchAuxData=data;launchRenderAux();}).catch(error=>{alert('新增失敗：'+error.message);launchOpenAux('group-work');});}
 async function launchLoadGroup(id,ticket=++launchLoad){
  launchCanvasEditing=false;
- const cached=readBackendSnapshot('launchGroup_'+id);
- if(cached&&document.body.dataset.page==='launch'){launchCurrent=cached;launchStatus=cached.status;launchRenderEditor();}
-
- try{const detail=await api('launchGet',{id});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();}catch(e){if(cached){launchCompletionToast('目前顯示上次資料，連線恢復後可重新整理',true);return;}if(ticket===launchLoad&&document.body.dataset.page==='launch')document.getElementById('app').innerHTML=`<div class="launchPage"><p>${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button></div>`;}
+ // Cached details are only a save baseline; never expose them as editable current data.
+ launchCurrent=null;
+ document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">讀取資料庫最新商品內容中…</div></div>';
+ try{
+  const detail=await api('launchGet',{id});
+  if(ticket!==launchLoad||document.body.dataset.page!=='launch'||launchDirty||launchPendingSaves)return;
+  launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);
+  launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;
+  sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();
+ }catch(e){
+  if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;
+  launchCurrent=null;
+  document.getElementById('app').innerHTML=`<div class="launchPage"><p role="alert">無法取得資料庫最新商品內容：${esc(e.message)}</p><button class="btn" onclick="renderLaunch()">重試</button><button class="btn light" onclick="launchBack()">返回清單</button></div>`;
+ }
 }
 const launchPendingMoves=new Map();
 function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
@@ -1802,7 +1812,7 @@ document.addEventListener('change',event=>{if(event.target instanceof HTMLInputE
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.preventDefault();e.stopPropagation();const card=price.closest('.launchProduct'),index=Number(card?.dataset.launchIndex),item=launchCurrent.items[index];if(!item)return;const value=prompt('修改售價',String(item.price||launchSaleValue(item)||''));if(value===null)return;const number=launchNumber(value);if(number==null||number<0){alert('請輸入有效售價');return;}launchPushUndo();item.price=String(Math.ceil(number));launchMark();launchRenderEditor();},true);
 function launchChangeStatus(s){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;if(group.summary||['最新開團','已收單'].includes(group.status)){launchCurrent=null;document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';launchLoadGroup(group.id);return;}launchCurrent=structuredClone(group);launchUndoStack=[];launchRenderEditor();}
+function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;launchLoadGroup(group.id);}
 function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="text" placeholder="例如：2月、2月上、2月中、2月下"></label><label>境內運<input name="domesticShipping" placeholder="$220同車平分（滿額免）"></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
 function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,closeDate:'',domesticShipping,secondShipping:'',footer:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
 function launchApplyZoom(){const editor=document.querySelector('.launchEditor');if(editor)editor.style.zoom=String(launchZoom);}
@@ -4273,7 +4283,7 @@ restoreOnlineSessionCache();
 const app=document.getElementById('app');
 app.innerHTML=`
 <div class="onlinePage">
-<form id="onlineSearchForm" class="onlineToolbar" role="search" autocomplete="off" onsubmit="event.preventDefault();searchOnline()">
+<form id="onlineSearchForm" class="onlineToolbar" role="search" autocomplete="off" onsubmit="event.preventDefault();searchOnline(true)">
 <select id="cargoFilter" onchange="filterCargo()">
 <option value="未開單">未開單</option>
 <option value="未訂購">未訂購</option>
@@ -4284,7 +4294,7 @@ app.innerHTML=`
 <option value="已開單">已開單</option>
 </select>
 <input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" name="q" aria-label="搜尋訂單" aria-controls="onlineResult" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
-<button type="button" class="btn onlineIconButton onlineSearchButton" onclick="searchOnline()" aria-label="搜尋">搜尋</button>
+<button type="button" class="btn onlineIconButton onlineSearchButton" onclick="searchOnline(true)" aria-label="搜尋">搜尋</button>
 <button type="button" class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
 </form>
 <div id="onlineResult" class="onlineResult">
@@ -4491,7 +4501,7 @@ let onlineSearchRefresh=null,onlineInputFocusUntil=0;
 function bindOnlineSearchInput(input){
 let composing=false,timer=null,pasting=false,generation=0;
 const cancel=()=>{generation++;clearTimeout(timer);timer=null;};
-const run=ticket=>afterInputPaint(()=>{if(ticket===generation&&input.isConnected&&!composing)searchOnline();});
+const run=(ticket,refresh=false)=>afterInputPaint(()=>{if(ticket===generation&&input.isConnected&&!composing)searchOnline(refresh);});
 const schedule=delay=>{
 cancel();
 if(composing)return;
@@ -4511,10 +4521,10 @@ const pasted=pasting||event.inputType==='insertFromPaste';pasting=false;
 schedule(pasted?0:250);
 });
 input.addEventListener('keydown',event=>{
-if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){event.preventDefault();cancel();run(generation);}
+if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){event.preventDefault();cancel();run(generation,true);}
 });
 }
-async function searchOnline(){
+async function searchOnline(refresh=false){
 isCustomerView=false;
 isGroupView=false;
 isFaceToFaceView=false;isStarredView=false;
@@ -4533,7 +4543,8 @@ if(f)f.value='';
 if(!onlineRows.length){
 await loadOnline();
 }
-applyOnlineFilter()
+applyOnlineFilter();
+if(refresh)await loadOnline(true);
 }
 function filterCargo(){
 isCustomerView=false;
