@@ -4725,7 +4725,7 @@ let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(
 const previous={...row.data};
 if(type==='cargo'){const h=findHeader(onlineHeaders,['貨況']);if(h)row.data[h]=value;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='';const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph&&typeof row.data[ph]==='boolean')row.data[ph]=false;const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
 else if(type==='opened'){const h=findHeader(onlineHeaders,['已開單','開單']);if(h)row.data[h]=true;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='已開單';}
-else{const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]=value;const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph)row.data[ph]=choice==='ordered';const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
+else{const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]=value;const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph)row.data[ph]=choice==='ordered';const cargoh=findHeader(onlineHeaders,['貨況']);if(cargoh&&cargoCategory(row.data[cargoh])==='補貨登記')row.data[cargoh]='';const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
 activeCargoPickerRow=0;pendingBadgeRows.add(id);refreshCargoViewKeepingScroll();
 try{await api('setOnlineItemBadge',{row:id,type,value});saveOnlineSessionCache();}
 catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert('標籤更新失敗，已還原：'+e.message);}
