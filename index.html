@@ -6202,26 +6202,8 @@ window.addEventListener('online',()=>backendSyncPoll());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){backendSyncPoll();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();}});
 document.addEventListener('focusout',()=>setTimeout(()=>backendSyncPoll(),200));
 
-let backendPreloadRunning=false,backendPreloadAt=0,backendPreloadAuth='';
-async function preloadBackendPages(){
- if(backendPreloadRunning||!authToken||!appStarted||document.hidden||!navigator.onLine||backendSyncWrites||backendInputFocused())return;
- const now=Date.now();
- if(backendPreloadAuth===authToken&&backendPreloadAt&&now-backendPreloadAt<120000)return;
- backendPreloadRunning=true;
- backendPreloadAt=now;backendPreloadAuth=authToken;
- const epoch=backendSyncEpoch,auth=authToken,currentPage=document.body.dataset.page;
- const valid=()=>authToken===auth&&backendSyncEpoch===epoch&&!backendSyncWrites&&!backendInputFocused();
- const tasks=[{page:'online',run:()=>loadOnline(false,true)},{page:'inventory',run:()=>loadInventory(false)},
-  {page:'ship',run:async()=>{const revision=shipRevision,data=await api('ship');if(!valid()||revision!==shipRevision||shipPendingWrites)return;shipDataCache=data;shipLoadedAt=Date.now();saveBackendSnapshot('ship',data);}},
-  {page:'store',run:async()=>{const data=await api('storeSales');if(!valid())return;saveBackendSnapshot('storeSales',data);if(!storeSalesData){storeSalesData=data;storeSalesLoadedAt=Date.now();}}},
-  ...launchStates.map(status=>({page:'launch',run:async()=>{const data=await api('launchList',{status});if(valid())launchSaveListCache(status,data.groups||[]);}})),
-  {page:'launch',run:async()=>{const data=await api('launchAuxSheet',{kind:'group-work'});if(valid())saveBackendSnapshot('launchAux_group-work',data);}}].filter(task=>task.page!==currentPage);
- let next=0;
- const worker=async()=>{while(next<tasks.length&&valid()&&!document.hidden){const task=tasks[next++];try{await task.run();}catch(_){}}};
- try{await worker();}finally{backendPreloadRunning=false;}
-}
-window.addEventListener('online',()=>{preloadBackendPages();});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&appStarted)preloadBackendPages();});
+// Only load the page the operator is viewing.  Loading every page in the
+// background caused concurrent full-table reads to starve checkout and publish.
 // safari-order-import:start
 const PURCHASE_SAFARI_KEY='jiwu_safari_order_import_v1';
 function purchaseValidateSafariImport(input){
@@ -6267,7 +6249,7 @@ detectSalesperson();
 const savedTab=sessionStorage.getItem(PURCHASE_SAFARI_KEY)?'purchase':sessionStorage.getItem('jiwu_supabase_test_current_tab')||'launch';
 const targetBtn=document.getElementById('btn-'+savedTab)||document.getElementById('btn-store');
 tab(savedTab,targetBtn);
-setTimeout(preloadBackendPages,0);backendSyncStart();void purchaseResumeSafariImport();
+backendSyncStart();void purchaseResumeSafariImport();
 }
 function showLogin(){
 authToken='';
