@@ -3575,7 +3575,7 @@ return /^https?:\/\//i.test(value)?value:'';
 }
 function inventoryCellState(item,names){const value=String(inventoryValue(item,names,false)??'').trim().toLowerCase();if(value==='x')return 'x';const n=Number(value.replace(/,/g,''));return Number.isFinite(n)?n:null;}
 function inventoryQty(item,names){const state=inventoryCellState(item,names);return typeof state==='number'?state:0;}
-function inventoryAvailabilityState(item){const value=String(inventoryValue(item,['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'])||'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
+function inventoryAvailabilityState(item){const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
 function inventoryIsShortage(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
 function inventoryMatchesStatus(item){
 const stock=inventoryCellState(item,['庫存','總庫存','數量']);
