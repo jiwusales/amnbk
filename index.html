@@ -2219,11 +2219,12 @@ async function launchGenerateShortURL(button){
  if(!launchCurrent||button.disabled)return;const group=launchCurrent,id=group.id;button.disabled=true;button.textContent='產生中…';
  try{
   if(launchPendingSaves)await launchSaveTail;
-  if(launchHasUnsentChanges()){await launchSaveClick();if(launchFailedSaves.has(id)||launchHasUnsentChanges())throw new Error('請先完成儲存再產生短網址');}
-  const signature=launchSaveSignature(group),result=await launchPost('launchCreateShortUrl',{id});
+  if(!readBackendSnapshot('launchGroup_'+id)&&!group.revision){await launchSaveClick();if(launchFailedSaves.has(id)||launchHasUnsentChanges())throw new Error('請先完成儲存再產生短網址');}
+  if(launchCurrent?.id!==id)throw new Error('已切換開團，請在目前團重新產生短網址');
+  const signature=launchSaveSignature(group),wasDirty=launchDirty,result=await launchPost('launchCreateShortUrl',{id});
   if(!result.group||!result.shortUrl)throw new Error('短網址尚未建立，請重試');
   saveBackendSnapshot('launchGroup_'+id,result.group);launchSavedRevisions.set(id,result.group.revision);launchClearListCache();
-  if(launchCurrent?.id===id){const changed=launchSaveSignature(launchCurrent)!==signature;launchCurrent.shortUrl=result.shortUrl;launchCurrent.revision=result.group.revision;if(!changed)launchDirty=false;document.querySelectorAll('input[name="shortUrl"]').forEach(input=>input.value=result.shortUrl);}
+  if(launchCurrent?.id===id){const changed=launchSaveSignature(launchCurrent)!==signature;launchCurrent.shortUrl=result.shortUrl;launchCurrent.revision=result.group.revision;if(!changed)launchDirty=wasDirty;document.querySelectorAll('input[name="shortUrl"]').forEach(input=>input.value=result.shortUrl);}
   launchCompletionToast(result.existing?'已保留原短網址':'短網址已產生並儲存');
  }catch(error){launchCompletionToast(error.message||'短網址建立失敗',true);}
  finally{button.disabled=false;button.textContent='產生';}
