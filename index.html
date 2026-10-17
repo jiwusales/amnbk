@@ -3804,6 +3804,15 @@ if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車�
 location.href='shortcuts://run-shortcut?name='+encodeURIComponent(STORE_SCAN_SHORTCUT);
 }
 function toHalfWidthDigits(value){return String(value==null?'':value).replace(/[０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0));}
+function normalizeInventoryQuantityInput(input){
+ if(!input)return '';
+ const value=toHalfWidthDigits(input.value),start=input.selectionStart,end=input.selectionEnd;
+ if(value!==input.value){input.value=value;if(start!=null)input.setSelectionRange(start,end??start);}
+ return value;
+}
+function isInventoryQuantityInput(input){return !!input?.matches?.('.inventoryStockInput,#inventoryEditStock,#inventoryEditStore');}
+document.addEventListener('input',event=>{if(!event.isComposing&&isInventoryQuantityInput(event.target))normalizeInventoryQuantityInput(event.target);});
+document.addEventListener('compositionend',event=>{if(isInventoryQuantityInput(event.target))normalizeInventoryQuantityInput(event.target);});
 function normalizeMoneyInput(input){
 if(!input)return '';
 const start=input.selectionStart;
