@@ -1720,7 +1720,7 @@ function launchGroupURLs(){
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
  const opened=new Set([...list.querySelectorAll('details[open]')].map(node=>node.dataset.groupIndex));
- list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary>${esc(g.name||'未命名')}</summary><div class="launchGroupExportActions">${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}<button class="btn" type="button" onclick="launchDownloadGroupImage(${i},this)">下載圖片</button></div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
+ list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary>${esc(g.name||'未命名')}</summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchDownloadGroupImage(${i},this)">下載圖片</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
 async function launchCopyGroupPost(index,type,button){
  const g=launchURLGroups[index];if(!g?.postReady)return;
