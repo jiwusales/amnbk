@@ -3441,6 +3441,7 @@ Promise.resolve(task).catch(()=>{}).finally(()=>{if(button){button.classList.rem
 let storeCartSyncTimer=null;
 let storeCartLoading=false;
 let cartRevision=0;
+let storeCartBase=[];
 let cartPendingWrites=0;
 let cartWriteQueue=Promise.resolve();
 let cartUnsaved=false;
@@ -3469,6 +3470,7 @@ const d=await api(
 );
 if(requestUser!==salesperson||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 const nextCart=Array.isArray(d.cart)?d.cart:[];
+storeCartBase=structuredClone(nextCart);
 if(cartContentsKey(nextCart)!==cartContentsKey(storeCart)){
 storeCart=nextCart;
 renderCart();
@@ -3490,11 +3492,16 @@ const revision=++cartRevision;
 const items=JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual,note:x.note||''})));
 cartPendingWrites++;
 cartUnsaved=true;
-const request=api('storeCartSet',{salesperson:user,items});
+const request=cartWriteQueue.catch(()=>{}).then(async()=>{
+ const baseItems=JSON.stringify(storeCartBase);
+ const result=await api('storeCartSet',{salesperson:user,items,baseItems});
+ storeCartBase=JSON.parse(items);
+ return result;
+});
 cartWriteQueue=request.catch(()=>{});
 try{
 const result=await request;
-if(revision===cartRevision){cartUnsaved=false;if(Array.isArray(result.cart)){storeCart=result.cart;renderCart();}}
+if(revision===cartRevision){cartUnsaved=false;if(Array.isArray(result.cart)){storeCart=result.cart;storeCartBase=structuredClone(result.cart);renderCart();}}
 }catch(e){
 alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
 }finally{cartPendingWrites--;}
@@ -4069,7 +4076,7 @@ const d=await api('storeScan',{
 barcode:code,
 salesperson
 });
-storeCart=Array.isArray(d.cart)?d.cart:[];
+storeCart=Array.isArray(d.cart)?d.cart:[];storeCartBase=structuredClone(storeCart);
 input.value='';
 input.focus();
 renderCart();
@@ -4216,7 +4223,7 @@ async function clearStoreCart(){
  if(!storeCart.length||!confirm('確定清空全部商品？'))return;
  const before={cart:structuredClone(storeCart),payment};cartRevision++;
  const pending=salesperson?api('storeCartClear',{salesperson}):Promise.resolve();
- storeCart=[];payment='';cartUnsaved=false;renderStore();
+ storeCart=[];storeCartBase=[];payment='';cartUnsaved=false;renderStore();
  try{await pending;}catch(error){const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;if(document.body.dataset.page==='store')renderCart();console.error('清空尚未確認，商品已保留：'+error.message);}
 }
 async function checkout(){
@@ -4277,7 +4284,7 @@ note,
 salesperson
 }
 );
-storeCart=[];
+storeCart=[];storeCartBase=[];
 payment='';cartUnsaved=false;cartOperationBusy=false;cartRevision++;
 if(checkoutButton){checkoutButton.disabled=false;checkoutButton.textContent='結帳';}
 ['received','last5','storeNote','barcode'].forEach(id=>{const input=document.getElementById(id);if(input)input.value='';});
@@ -6156,9 +6163,10 @@ async function backendSyncPoll(){
 function backendSyncStart(){if(!backendSyncTimer)backendSyncTimer=setInterval(backendSyncPoll,5000);void backendSyncPoll();}
 document.addEventListener('compositionstart',()=>backendSyncComposing=true);
 document.addEventListener('compositionend',()=>{backendSyncComposing=false;});
-window.addEventListener('focus',()=>backendSyncPoll());
+window.addEventListener('focus',()=>{backendSyncPoll();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
+window.addEventListener('pageshow',()=>{if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
 window.addEventListener('online',()=>backendSyncPoll());
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)backendSyncPoll();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){backendSyncPoll();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();}});
 document.addEventListener('focusout',()=>setTimeout(()=>backendSyncPoll(),200));
 
 let backendPreloadRunning=false,backendPreloadAt=0,backendPreloadAuth='';
