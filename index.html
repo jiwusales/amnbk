@@ -2538,7 +2538,7 @@ async function launchBuildPNG(){
  const drawBox=(el,{fill=true,stroke=true}={})=>{const r=rect(el),style=getComputedStyle(el),line=cssNumber(el,'borderTopWidth')*scale,radius=cssNumber(el,'borderTopLeftRadius')*scale;roundedRect(r,radius);if(fill){ctx.fillStyle=style.backgroundColor==='rgba(0, 0, 0, 0)'?'#fff':style.backgroundColor;ctx.fill();}if(stroke&&line){ctx.lineWidth=line;ctx.strokeStyle=style.borderTopColor;ctx.stroke();}return r;};
  const main=launchColor(group.mainColor),header=paper.querySelector('.launchHeading');if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchProduct')){if(el.style.display==='none'||el.style.visibility==='hidden')continue;drawBox(el);}
- for(const [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],r=rect(el),isBanner=!!el.closest('.launchBanner');if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
+ for(const [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],banner=el.closest('.launchBanner'),isBanner=!!banner,r=rect(banner||el);if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
  for(const el of paper.querySelectorAll('.launchProductPictures .launchPlaceholder')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el);ctx.fillStyle='#edf0e8';ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchColorSwatch')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el),radius=Math.min(r.w,r.h)/2;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,radius,0,Math.PI*2);ctx.fillStyle=getComputedStyle(el).backgroundColor;ctx.fill();ctx.lineWidth=Math.max(1,scale);ctx.strokeStyle='#c7c7c7';ctx.stroke();}
  function drawText(el){
@@ -2702,7 +2702,7 @@ return urls.length===1&&validCustomerLineChat(urls[0])?urls[0]:'';
 const customerChatDrafts=new Map();
 function customerChatDraftURL(customer,url){const text=customerChatDrafts.get(customer);return text?url.replace(/#.*$/,'')+'#jiwuDraft='+encodeURIComponent(text):url;}
 function openCustomerChatURL(customer,url){url=customerChatDraftURL(customer,url);const tab=window.open(url,'_blank');if(tab)tab.opener=null;else showCustomerLineChatLink(customer,url);}
-window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats(true);});
+window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats();});
 function customerMessageButton(customer,ship=false){
 return `<button type="button" class="customerMessageButton" data-customer="${esc(customer)}" onclick="${ship?'openShipCustomerNotice(this)':'customerChatDrafts.delete(this.dataset.customer);openCustomerLineChat(this)'}" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="開啟官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">💬</button>`;
 }
@@ -3560,7 +3560,6 @@ clearInterval(storeCartSyncTimer);
 storeCartSyncTimer=null;
 }
 }
-window.addEventListener('focus',()=>{if(document.body.dataset.page==='store')void syncActiveStoreSalesperson();});
 function inventoryHeaderIndex(names){
 if(names.includes('庫存'))names=[...names,'庫存量','商品庫存'];
 if(names.includes('店面'))names=[...names,'店面數量','店面庫存量'];
@@ -6178,18 +6177,22 @@ function backendSyncScrollSnapshot(){
  return [...new Set(nodes)].filter(Boolean).map((node,index)=>({node,id:node.id,...onlineScrollPosition(node),index,order:node.closest('.groupCard')?.querySelector('.groupCardMeta')?.dataset.rows||'',purchase:node.closest('.purchaseOrderCard')?.dataset.purchaseNumber||'',className:node.className})).filter(x=>x.top||x.left||x.node.id==='app');
 }
 function backendSyncRestoreScroll(saved){saved.forEach(x=>{let node=x.node.isConnected?x.node:x.id?document.getElementById(x.id):null;if(!node&&x.order)node=[...onlineQueryAll('.groupCard')].find(card=>card.querySelector('.groupCardMeta')?.dataset.rows===x.order)?.querySelector('.groupCardItems');if(!node&&x.purchase)node=[...document.querySelectorAll('.purchaseOrderCard')].find(card=>card.dataset.purchaseNumber===x.purchase)?.querySelector('.purchaseOrderContents');if(node)onlineRestoreScroll(node,x.top,x.left);});}
+const backendSyncReadVersions=new Map();
 async function backendSyncRefreshCurrent(page){
  if(!backendSyncCanApply(page))return false;
  const epoch=backendSyncPageEpochs.get(page)||0,key=backendSyncViewKey();
+ const readKey=JSON.stringify([authToken,key,epoch]),ifRevision=backendSyncPendingPaint.has(page)?'':backendSyncReadVersions.get(readKey)||'';
  const valid=()=>(backendSyncPageEpochs.get(page)||0)===epoch&&backendSyncViewKey()===key&&backendSyncCanApply(page);
  let data;
- if(page==='purchase')data=await api('purchaseOrders');
- else if(page==='online')data=await api('online',{compact:'1',fresh:'1'});
- else if(page==='inventory')data=await api('inventory',{compact:'1',fresh:'1'});
- else if(page==='ship')data=await api('ship');
- else if(page==='store')data=await api('storeSales');
- else if(page==='launch')data=await api(launchAuxPage?'launchAuxSheet':launchCurrent?'launchGet':'launchList',launchAuxPage?{kind:launchAuxPage}:launchCurrent?{id:launchCurrent.id}:{status:launchStatus});
+ if(page==='purchase')data=await api('purchaseOrders',{ifRevision});
+ else if(page==='online')data=await api('online',{compact:'1',fresh:'1',ifRevision});
+ else if(page==='inventory')data=await api('inventory',{compact:'1',fresh:'1',ifRevision});
+ else if(page==='ship')data=await api('ship',{ifRevision});
+ else if(page==='store')data=await api('storeSales',{ifRevision});
+ else if(page==='launch')data=await api(launchAuxPage?'launchAuxSheet':launchCurrent?'launchGet':'launchList',{...(launchAuxPage?{kind:launchAuxPage}:launchCurrent?{id:launchCurrent.id,status:launchCurrent.status}:{status:launchStatus}),ifRevision});
  if(!valid())return false;
+ if(data._readRevision){if(backendSyncReadVersions.size>100)backendSyncReadVersions.clear();backendSyncReadVersions.set(readKey,data._readRevision);}
+ if(data.notModified)return true;
  const scroll=backendSyncScrollSnapshot();
  if(page==='purchase'){
   const orders=data.orders||[];if(backendSyncPendingPaint.has(page)||JSON.stringify(orders)!==JSON.stringify(purchaseOrders)){purchaseOrders=orders;purchaseOrdersLoaded=true;const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
