@@ -1727,7 +1727,7 @@ function launchGroupURLs(){
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
  const opened=new Set([...list.querySelectorAll('details[open]')].map(node=>node.dataset.groupIndex));
- list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchDownloadGroupImage(${i},this)">下載圖片</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
+ list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchDownloadGroupImage(${i},this)">下載圖片</button><button class="btn light" type="button" onclick="launchDownloadGroupImage(${i},this,'copy')">複製圖片</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
 async function launchCopyGroupPost(index,type,button){
  const g=launchURLGroups[index];if(!g?.postReady)return;
@@ -1741,21 +1741,35 @@ async function launchCopyGroupPost(index,type,button){
   message.textContent='已複製：'+g.name+'／'+({line:'賴群',community:'社團',fb:'FB',ig:'IG'}[type]);
  }catch(_){message.textContent='無法複製，請允許剪貼簿權限後重試。';}
 }
-async function launchDownloadGroupImage(index,button){
+async function launchDownloadGroupImage(index,button,mode='download'){
  const g=launchURLGroups[index];if(!g||launchExportBusy||launchBusy)return;
+ const copying=mode==='copy';
+ if(copying&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){launchCompletionToast('此瀏覽器不支援複製圖片，請改用下載圖片。',true);return;}
  const dialog=document.getElementById('launchDialog'),label=button.textContent;
  const previous={group:launchCurrent,panel:launchPanelIndex,canvas:launchCanvasEditing,dirty:launchDirty};
- let exporting=null;launchExportBusy=true;launchBusy=true;button.disabled=true;button.textContent='準備圖片中…';
+ let exporting=null,imagePromise;launchExportBusy=true;launchBusy=true;button.disabled=true;button.textContent='準備圖片中…';
  try{
-  const result=await api('launchGet',{id:g.id,status:'最新開團'});
-  if(!dialog?.open||document.body.dataset.page!=='launch')return;
-  if(!result.group)throw Error('找不到此團');
-  exporting=result.group;launchCurrent=exporting;launchPanelIndex=0;launchCanvasEditing=false;launchPNGPrepared=null;
-  button.textContent='圖片製作中…';
-  const blob=await launchGetPNG();launchDownloadPNG(blob,(g.name||'開團')+'.png');
-  launchCompletionToast('已下載：'+g.name);
- }catch(error){launchCompletionToast(error.message||'圖片輸出失敗',true);}
+  imagePromise=(async()=>{
+   const result=await api('launchGet',{id:g.id,status:'最新開團'});
+   if(!dialog?.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
+   if(!result.group)throw Error('找不到此團');
+   exporting=result.group;launchCurrent=exporting;launchPanelIndex=0;launchCanvasEditing=false;launchPNGPrepared=null;
+   if(button.isConnected)button.textContent='圖片製作中…';
+   return launchGetPNG();
+  })();
+  imagePromise.catch(()=>{});
+  if(copying){
+   // 點擊時立即交出圖片 Promise，保留 Safari 的剪貼簿手勢授權。
+   await navigator.clipboard.write([new ClipboardItem({'image/png':imagePromise})]);
+   launchCompletionToast('已複製圖片：'+g.name);
+  }else{
+   const blob=await imagePromise;launchDownloadPNG(blob,(g.name||'開團')+'.png');
+   launchCompletionToast('已下載：'+g.name);
+  }
+ }catch(error){launchCompletionToast(copying&&error.name==='NotAllowedError'?'無法複製圖片，請允許剪貼簿權限後重試，或使用下載圖片。':error.message||'圖片輸出失敗',true);}
  finally{
+  // 剪貼簿可能提前拒絕；等製圖結束再恢復畫面，避免背景工作覆蓋狀態。
+  if(imagePromise)await imagePromise.catch(()=>{});
   clearTimeout(launchPNGTimer);document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
   if(exporting&&launchCurrent===exporting){launchCurrent=previous.group;launchPanelIndex=previous.panel;launchCanvasEditing=previous.canvas;launchDirty=previous.dirty;}
   launchBusy=false;launchExportBusy=false;launchSyncTopActions();
