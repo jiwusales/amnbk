@@ -3963,7 +3963,7 @@ return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row
 }
 function editStoreSaleNote(row){
 const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(!item)return;
-closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>商品備註</h3><p>${esc(item.name)}</p><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn" style="background:#d9544d;margin-right:auto" onclick="deleteStoreSaleItem(${Number(row)})">刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>修改銷售商品</h3><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><div class="dialogGrid"><label class="full">名稱<input id="saleNameInput" value="${esc(item.name)}" required></label><label>金額<input id="saleAmountInput" type="number" step="any" value="${esc(item.amount)}" required></label></div><label>備註</label><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn" style="background:#d9544d;margin-right:auto" onclick="deleteStoreSaleItem(${Number(row)})">刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 const dialog=document.getElementById('appDialog');dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);dialog.dataset.storeSaleExpected=JSON.stringify({name:item.name,code:item.code,note:item.note,amount:item.amount});
 }
 async function deleteStoreSaleItem(row){
@@ -3977,8 +3977,9 @@ async function deleteStoreSaleItem(row){
  }catch(error){dialog.dataset.deleting='';console.error('銷售刪除失敗：'+error.message);}
 }
 async function saveStoreSaleNote(event,row){const savedDialog=document.getElementById('appDialog');
-event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]'),note=document.getElementById('saleNoteInput').value.trim();button.disabled=true;
-try{await apiBackground('updateStoreSaleNote',{row,note});const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(item)item.note=note;savedDialog?.remove();drawStoreSales();}catch(error){console.error('備註儲存失敗：'+error.message);button.disabled=false;}
+event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]'),note=document.getElementById('saleNoteInput').value.trim(),name=document.getElementById('saleNameInput').value.trim(),rawAmount=document.getElementById('saleAmountInput').value.trim(),amount=Number(rawAmount);
+if(!name||!rawAmount||!Number.isFinite(amount)){alert('請輸入商品名稱與有效金額');return;}button.disabled=true;
+try{await apiBackground('updateStoreSaleNote',{row,note,name,amount});savedDialog?.remove();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();}catch(error){console.error('銷售資料儲存失敗：'+error.message);button.disabled=false;}
 }
 function editStoreSalePayment(rows,method,last5=''){
 const selected=String(method||'').trim();
@@ -4115,7 +4116,22 @@ if(!enabled)return {total:qty*price/100,groups:0,size:0,offer:0,saving:0};
 const groups=Math.floor(qty/size),remainder=qty-groups*size;
 return {total:(groups*offer+remainder*price)/100,groups,size:enabled?size:0,offer:offer/100,saving:(qty*price-groups*offer-remainder*price)/100};
 }
+function cartQuantityOffers(items){
+ const pools=new Map();
+ const results=items.map(item=>{const offer=quantityOffer(item),qty=Math.max(0,Math.floor(Number(item.qty)||0));
+  if(!offer.size)return {...offer,offset:0,pooledQty:qty};
+  const key=JSON.stringify([Math.round(Number(item.price)*100),offer.size,Math.round(offer.offer*100)]);
+  if(!pools.has(key))pools.set(key,{qty:0,entries:[],item});
+  const pool=pools.get(key),result={...offer,offset:pool.qty,pooledQty:0};pool.entries.push({result,qty});pool.qty+=qty;return result;
+ });
+ pools.forEach(pool=>{const offer=quantityOffer({...pool.item,qty:pool.qty}),price=Math.round(Number(pool.item.price)*100),cents=Math.round(offer.offer*100),base=Math.floor(cents/offer.size),extra=cents%offer.size,discounted=offer.groups*offer.size;
+  const prefix=n=>{const d=Math.min(n,discounted);return Math.floor(d/offer.size)*cents+(d%offer.size)*base+Math.min(d%offer.size,extra)+(n-d)*price;};
+  pool.entries.forEach(({result,qty})=>{const total=prefix(result.offset+qty)-prefix(result.offset);Object.assign(result,{total:total/100,saving:(qty*price-total)/100,groups:offer.groups,pooledQty:pool.qty});});
+ });return results;
+}
+function cartOfferTotal(items){return cartQuantityOffers(items).reduce((sum,offer)=>sum+Math.round(offer.total*100),0)/100;}
 function renderCart(){
+const cartOffers=cartQuantityOffers(storeCart);
 const count=document.getElementById('storeCartCount');
 if(count)count.textContent=storeCart.length+' 項';
 const box=document.getElementById('storeCart');
@@ -4134,8 +4150,8 @@ box.innerHTML=storeCart.map((x,i)=>`
 <b>${esc(x.name)}</b>
 <div class="cartSub">
 ${x.manual?'手動商品':esc(x.code)}
-單價 <b class="cartMoney">$${money(x.price)}</b>${quantityOffer(x).size?` · 小計 <b class="cartMoney">$${money(quantityOffer(x).total)}</b>`:''}
-${quantityOffer(x).size?`<div class="cartOffer">${quantityOffer(x).size} 件 <b class="cartMoney">$${money(quantityOffer(x).offer)}</b>${quantityOffer(x).groups?` · 已套用 ${quantityOffer(x).groups} 組，省 $${money(quantityOffer(x).saving)}`:' · 滿件自動優惠'}</div>`:''}
+單價 <b class="cartMoney">$${money(x.price)}</b>${cartOffers[i].size?` · 小計 <b class="cartMoney">$${money(cartOffers[i].total)}</b>`:''}
+${cartOffers[i].size?`<div class="cartOffer">${cartOffers[i].size} 件 <b class="cartMoney">$${money(cartOffers[i].offer)}</b>${cartOffers[i].groups?` · 同優惠合併 ${cartOffers[i].pooledQty} 件，已套用 ${cartOffers[i].groups} 組，省 $${money(cartOffers[i].saving)}`:' · 滿件自動優惠'}</div>`:''}
 </div>${x.note?`<div class="cartItemNote">${esc(x.note)}</div>`:''}
 </div>
 <div class="qty">
@@ -4146,7 +4162,7 @@ ${quantityOffer(x).size?`<div class="cartOffer">${quantityOffer(x).size} 件 <b 
 </div>
 </div>
 `).join('');
-const total=storeCart.reduce((sum,item)=>sum+Math.round(quantityOffer(item).total*100),0)/100;
+const total=cartOfferTotal(storeCart);
 const totalEl=document.getElementById('storeTotal');
 if(totalEl)totalEl.textContent='$'+money(total);
 calcChange()
@@ -4166,7 +4182,7 @@ renderCart();
 await saveStoreCart();
 }
 function calcChange(){
-const total=storeCart.reduce((sum,item)=>sum+Math.round(quantityOffer(item).total*100),0)/100;
+const total=cartOfferTotal(storeCart);
 const receivedEl=document.getElementById('received');
 const el=document.getElementById('changeText');
 if(!receivedEl||!el)return;
@@ -4218,7 +4234,7 @@ if(!payment){
 alert('請選擇付款方式');
 return
 }
-const total=storeCart.reduce((sum,item)=>sum+Math.round(quantityOffer(item).total*100),0)/100;
+const total=cartOfferTotal(storeCart);
 const receivedInput=normalizeMoneyInput(document.getElementById('received'));
 const received=receivedInput===''?'':Number(receivedInput);
 const change=received===''?'':received-total;
