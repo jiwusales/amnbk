@@ -2682,7 +2682,7 @@ let onlineOrderEditPending=false;
 let onlineEditQueue=[],onlineEditBase=null,onlineEditKey=0;
 const pendingRestockRows=new Set();
 const ONLINE_CACHE_MS=5*60*1000;
-const ONLINE_SESSION_CACHE_KEY='jiwu_supabase_test_online_session_v2';
+const ONLINE_SESSION_CACHE_KEY='jiwu_supabase_test_online_session_v3';
 let isCustomerView=false;
 let isGroupView=false;
 let isStarredView=false;
@@ -4567,7 +4567,7 @@ const request=(async()=>{
   if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
-    ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
+    ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(d.orderTimes||[])[i],orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
     :(d.rows||[]);
   onlineRows=rows;
   onlineHeaders=headers;
@@ -4689,7 +4689,11 @@ return cargoCategory(cargo)==='已訂購'||isOrderPurchased(row);
 });
 }
 function orderNewestTime(order){
-return Math.max(0,...order.items.map(row=>timeValue(getOnlineData(row,['時間','購買時間']))));
+return Math.max(0,...order.items.map(row=>timeValue(onlineRowOrderTime(row))));
+}
+function onlineRowOrderTime(row){
+const original=row.orderTime;
+return original!==undefined&&original!==null&&String(original).trim()!==''?original:getOnlineData(row,['時間','購買時間']);
 }
 function onlineOrderDay(value){
 const serial=onlineSerialDate(value);
@@ -4712,7 +4716,7 @@ const parent=new Map(),identities=new Map(),keys=new Map();
 const root=key=>{let result=key;while(parent.get(result)!==result)result=parent.get(result);while(key!==result){const next=parent.get(key);parent.set(key,result);key=next;}return result;};
 rows.forEach((row,index)=>{
  const customer=String(getCustomerName(row)||'').trim();
- const day=onlineOrderDay(getOnlineData(row,['時間','購買時間']));
+ const day=onlineOrderDay(onlineRowOrderTime(row));
  const key=String(index);parent.set(key,key);keys.set(row,key);
  if(!customer)return;
  const merge=String(row.orderMergeKey||row.depositMergeKey||'');
@@ -5371,7 +5375,7 @@ const last5=order.items.map(row=>getLast5(row)).find(v=>v!==''&&v!=null)||'';
 const last5Display=String(last5).trim()==='現金'?'💰':last5;
 const orderDates=new Set(order.items.map(row=>formatOnlineTime(getOnlineData(row,['時間','購買時間']))).filter(Boolean));
 const showItemDates=!!order.depositMergeKey&&orderDates.size>1;
-const latestOrderDate=order.items.map(row=>getOnlineData(row,['時間','購買時間'])).filter(Boolean).reduce((latest,value)=>timeValue(value)>=timeValue(latest)?value:latest,order.time||'');
+const latestOrderDate=order.items.map(onlineRowOrderTime).filter(value=>value!==undefined&&value!==null&&value!=='').reduce((latest,value)=>timeValue(value)>=timeValue(latest)?value:latest,order.time||'');
 const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
 const payment=storedPayment==='面交'?'LB':(storedPayment||'LB');
 const acceptsLast5=payment==='中信'||payment==='LB';
@@ -6210,7 +6214,7 @@ async function backendSyncRefreshCurrent(page){
  if(page==='purchase'){
   const orders=data.orders||[];if(backendSyncPendingPaint.has(page)||JSON.stringify(orders)!==JSON.stringify(purchaseOrders)){purchaseOrders=orders;purchaseOrdersLoaded=true;const box=document.getElementById('purchaseManagement');if(box)box.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
  }else if(page==='online'){
-  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:(data.rowIds||[])[index]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderMergeKey:(data.mergeKeys||[])[index]||'',depositMergeKey:(data.mergeKeys||[])[index]||''})):(data.rows||[]);
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:(data.rowIds||[])[index]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(data.orderTimes||[])[index],orderMergeKey:(data.mergeKeys||[])[index]||'',depositMergeKey:(data.mergeKeys||[])[index]||''})):(data.rows||[]);
   const comparable=items=>items.map(({editKey,...item})=>item);
   if(backendSyncPendingPaint.has(page)||JSON.stringify(headers)!==JSON.stringify(onlineHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(onlineRows))){onlineRows=rows;onlineHeaders=headers;refreshCargoViewKeepingScroll();}
   onlineLoadedAt=Date.now();saveOnlineSessionCache();
