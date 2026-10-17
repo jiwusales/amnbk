@@ -2581,11 +2581,10 @@ function launchExport(mode){
  if(launchBusy)return;
  const paper=document.getElementById('launchPaper');
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
-  document.getElementById('launchDialog').close();
   launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
  }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
- document.getElementById('launchDialog').close();
+ if(mode!=='download')document.getElementById('launchDialog').close();
  launchRun(async()=>{
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
