@@ -4662,20 +4662,19 @@ function orderHasUnopenedPurchase(items){
 return items.some(row=>isOrderPurchased(row)&&!isOpenedRow(row));
 }
 function cargoDisplay(row){
-const raw=String(getOnlineData(row,['貨況'])||'').trim();
+const raw=String(getOnlineData(row,['貨況'])||'').normalize('NFKC').trim();
 const status=getOrderStatus(row);
 const statusRaw=getOnlineData(row,['狀態','訂購狀態','已訂購','購買','訂購']);
 const category=cargoCategory(raw);
 if(isOpenedRow(row))return {text:'完',color:'#555',opened:true};
+const month=raw.match(/^(0?[1-9]|1[0-2])\s*月$/);
+if(month)return {text:month[1].padStart(2,'0'),color:'#85C2D0'};
 if(status==='未訂購'||statusRaw===false)return {text:'未',color:'#E78790'};
 if(status==='已訂購'||isTruthy(status))return {text:'訂',color:'#FBB550'};
 if(category==='預訂'){
 return isTruthy(status)||status==='已訂購'
 ?{text:'訂',color:'#FBB550'}
 :{text:'未',color:'#E78790'}
-}
-if(/^\d{1,2}月$/.test(raw)){
-return {text:raw.replace('月','').padStart(2,'0'),color:'#85C2D0'}
 }
 if(category==='補貨登記')return {text:raw.match(/^補登(\d+)$/)?'補'+raw.match(/^補登(\d+)$/)[1]:'補',color:'#7E88A0'};
 if(category==='現貨')return {text:'現',color:'#DABBD8'};
