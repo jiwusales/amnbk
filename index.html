@@ -3476,7 +3476,7 @@ storeCart=[];
 renderCart();
 return;
 }
-if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy||backendSyncPageBusy('store'))return;
+if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
 const requestUser=salesperson;
 const requestRevision=cartRevision;
 storeCartLoading=true;
