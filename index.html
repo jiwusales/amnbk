@@ -4650,6 +4650,43 @@ return cargoCategory(cargo)==='已訂購'||isOrderPurchased(row);
 function orderNewestTime(order){
 return Math.max(0,...order.items.map(row=>timeValue(getOnlineData(row,['時間','購買時間']))));
 }
+function onlineOrderDay(value){
+const serial=onlineSerialDate(value);
+if(serial)return serial.toISOString().slice(0,10);
+const text=String(value??'').trim();
+if(/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)){
+ const date=new Date(text);
+ if(Number.isFinite(date.getTime()))return new Date(date.getTime()+8*60*60*1000).toISOString().slice(0,10);
+}
+const match=text.match(/^(?:(\d{4})[-\/])?(\d{1,2})[-\/](\d{1,2})(?:\s|T|$)/);
+if(!match)return '';
+const year=Number(match[1]||new Date().getFullYear()),month=Number(match[2]),day=Number(match[3]);
+const date=new Date(Date.UTC(year,month-1,day));
+if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)return '';
+return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+function groupOnlineOrders(rows){
+// Combine one customer's orders by Taiwan calendar day, retaining explicit merges.
+const parent=new Map(),identities=new Map(),keys=new Map();
+const root=key=>{let result=key;while(parent.get(result)!==result)result=parent.get(result);while(key!==result){const next=parent.get(key);parent.set(key,result);key=next;}return result;};
+rows.forEach((row,index)=>{
+ const customer=String(getCustomerName(row)||'').trim();
+ const day=onlineOrderDay(getOnlineData(row,['時間','購買時間']));
+ const key=String(index);parent.set(key,key);keys.set(row,key);
+ if(!customer)return;
+ const merge=String(row.orderMergeKey||row.depositMergeKey||'');
+ const tokens=[...(day?[JSON.stringify([customer,'day',day])]:[]),...(merge?[JSON.stringify([customer,'merge',merge])]:[])];
+ tokens.forEach(token=>{if(identities.has(token))parent.set(root(key),root(identities.get(token)));else identities.set(token,key);});
+});
+const orders=new Map();
+rows.forEach(row=>{
+ const key=root(keys.get(row));
+ if(!orders.has(key))orders.set(key,{customer:String(getCustomerName(row)||'未填姓名').trim(),time:String(getOnlineData(row,['時間','購買時間'])||'').trim(),items:[],depositMergeKey:''});
+ const order=orders.get(key);order.items.push(row);
+ order.depositMergeKey ||= String(row.orderMergeKey||row.depositMergeKey||'');
+});
+return orders;
+}
 function cargoCategory(cargo){
 cargo=String(cargo||'').trim();
 if(
@@ -4807,7 +4844,7 @@ return '全部'
 function applyOnlineFilter(){
 syncOnlineBackButton();
 let rows=[...onlineRows];
-if(isStarredView){const keys=new Set(rows.filter(isStarredOrderRow).map(starredOrderKey));showOrderCards(rows.filter(row=>keys.has(starredOrderKey(row))),'✱ 標記訂單');return;}
+if(isStarredView){const included=new Set([...groupOnlineOrders(rows).values()].filter(order=>order.items.some(isStarredOrderRow)).flatMap(order=>order.items));showOrderCards(rows.filter(row=>included.has(row)),'✱ 標記訂單');return;}
 if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
@@ -4860,17 +4897,9 @@ group.includes(key)||
 }
 if(onlineCargo){
 // 貨況篩選以整筆訂單判斷，混合貨況商品不會被切成另一張卡。
-const orderGroups=new Map();
-onlineRows.forEach(row=>{
-const customer=String(getCustomerName(row)||'未填姓名').trim();
-const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
-const mergeKey=String(row.orderMergeKey||row.depositMergeKey||'');
-const key=mergeKey?'order:'+mergeKey:customer+'\u0000'+time;
-if(!orderGroups.has(key))orderGroups.set(key,[]);
-orderGroups.get(key).push(row);
-});
+const orderGroups=groupOnlineOrders(onlineRows);
 const includedRows=new Set();
-orderGroups.forEach(items=>{
+orderGroups.forEach(({items})=>{
 const section=faceToFaceOrderSection({items});
 const hasUnopenedPurchase=orderHasUnopenedPurchase(items);
 let include=false;
@@ -5134,7 +5163,7 @@ onclick="createSelectedShip()">
 `;
 }
 /* =========================================================
-   訂單卡：同一顧客、同一時間下單的商品合併成一張卡
+   訂單卡：同一顧客、同一天的商品自動合併成一張卡
 ========================================================= */
 function isRestockRow(row){
 return cargoCategory(getOnlineData(row,['貨況','狀態']))==='補貨登記';
@@ -5260,17 +5289,7 @@ return
 const customerNames=new Set(rows.map(row=>String(getCustomerName(row)||'未填姓名').trim()));
 const singleCustomerView=isCustomerView&&customerNames.size===1;
 const normalRows=rows;
-const orders=new Map();
-normalRows.forEach(row=>{
-const customer=String(getCustomerName(row)||'未填姓名').trim();
-const time=String(getOnlineData(row,['時間','購買時間'])||'').trim();
-const depositMergeKey=String(row.orderMergeKey||row.depositMergeKey||'');
-const key=depositMergeKey
-  ?'order:'+depositMergeKey
-  :customer+'\u0000'+time;
-if(!orders.has(key))orders.set(key,{customer,time,items:[],depositMergeKey});
-orders.get(key).items.push(row);
-});
+const orders=groupOnlineOrders(normalRows);
 const restockRows=[];
 if(singleCustomerView){
   for(const [key,order] of orders){
@@ -5422,7 +5441,7 @@ const input=document.getElementById('customerSearch');
 if(input)input.value=target;
 showOrderCards(rows,target);syncOnlineBackButton();
 }
-/* 點擊團名後，同一團內仍依顧客與下單時間各自成卡。 */
+/* 點擊團名後，同一團內依顧客與下單日期成卡。 */
 function openGroup(group){
 isFaceToFaceView=false;isStarredView=false;
 const target=String(group).trim();
@@ -5436,10 +5455,6 @@ if(input)input.value=target;
 const f=document.getElementById('cargoFilter');
 if(f)f.value='';
 showOrderCards(rows,target)
-}
-function starredOrderKey(row){
-const merged=String(row.orderMergeKey||row.depositMergeKey||'');
-return merged?'order:'+merged:String(getCustomerName(row)||'未填姓名').trim()+'\u0000'+String(getOnlineData(row,['時間','購買時間'])||'').trim();
 }
 function isStarredOrderRow(row){return isTruthy(getOnlineData(row,['星號標記']));}
 async function showStarredOrders(){
