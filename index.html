@@ -3742,6 +3742,7 @@ const app=document.getElementById('app');
 app.innerHTML=`<div class="inventoryPage"><div id="inventoryCategories" class="inventoryCategory"></div><div class="inventoryTools"><select id="inventoryStatus" class="inventoryStatusSelect" aria-label="庫存狀態" onchange="inventoryStatus=this.value;fitSelectWidth(this);renderInventoryContent()"><option value="目錄">目錄</option><option value="有庫存">有庫存</option><option value="無庫存">無庫存</option><option value="缺貨">缺貨</option><option value="全部">全部</option></select><form class="inventorySearch" onsubmit="event.preventDefault();runInventorySearchNow()"><input id="inventorySearch" placeholder="搜尋角色、名稱、貨號或種類" value="${esc(inventorySearch)}" ></form><button id="inventoryRefreshButton" class="btn light inventoryRefreshButton" type="button" title="重新檢查所有⚠️商品貨況" aria-label="重新檢查所有⚠️商品貨況" onclick="refreshInventoryUnknownStatuses()">↻</button><button id="inventorySaveOrderButton" class="btn inventorySaveOrderButton ${inventoryOrderDirty?'isVisible':''}" onclick="saveInventoryOrder()">SAVE</button></div><div id="inventoryGrid" class="inventoryGrid"><div class="loading">載入商品庫存中…</div></div></div>`;
 const searchInput=document.getElementById('inventorySearch');
 inventoryComposing=false;
+searchInput.addEventListener('focus',()=>{if(!inventoryComposing&&searchInput.value){searchInput.value='';scheduleInventorySearch('',0);}});
 searchInput.addEventListener('compositionstart',()=>{inventoryComposing=true;clearTimeout(inventorySearchTimer);});
 searchInput.addEventListener('compositionend',()=>{inventoryComposing=false;scheduleInventorySearch(searchInput.value);});
 searchInput.addEventListener('input',event=>{if(!event.isComposing&&!inventoryComposing)scheduleInventorySearch(searchInput.value);});
@@ -4639,7 +4640,7 @@ const ticket=generation;timer=setTimeout(()=>{timer=null;run(ticket);},delay);
 onlineSearchRefresh=()=>schedule(250);
 // 在瀏覽器完成焦點與鍵盤動畫前，先讓背景讀取知道使用者準備輸入。
 input.addEventListener('pointerdown',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();},{passive:true});
-input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();});
+input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();if(!composing&&input.value){input.value='';pasting=false;schedule(0);}});
 input.addEventListener('blur',()=>{onlineInputFocusUntil=0;});
 input.addEventListener('compositionstart',()=>{composing=true;cancel();});
 input.addEventListener('compositionend',()=>{composing=false;schedule(250);});
