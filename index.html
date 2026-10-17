@@ -1769,7 +1769,7 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  launchCurrent=null;
  document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">讀取資料庫最新商品內容中…</div><button class="btn light" onclick="launchBack()">返回清單</button></div>';
  try{
-  const detail=await api('launchGet',{id});
+  const detail=await api('launchGet',{id,status:launchStatus});
   if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;
   if(launchDirty||launchPendingSaves)throw new Error('背景儲存尚未完成，請稍候按重試');
   if(!detail.group)throw new Error('找不到此團，請返回清單重新載入');
@@ -2577,22 +2577,27 @@ function launchDownloadPNG(blob,name){
  setTimeout(()=>URL.revokeObjectURL(url),60000);
  launchNotice('已下載 1080 × 1350 PNG · 200 dpi');
 }
-function launchExport(mode){
- if(launchBusy)return;
+let launchExportBusy=false;
+async function launchExport(mode){
+ if(launchExportBusy)return;
  const paper=document.getElementById('launchPaper');
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
   launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
  }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  if(mode!=='download')document.getElementById('launchDialog').close();
- launchRun(async()=>{
+ const button=document.querySelector('.launchExportHead .btn'),label=button?.textContent;
+ launchExportBusy=true;
+ if(button){button.disabled=true;button.textContent='圖片製作中…';}
+ try{
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
    const promise=launchGetPNG();promise.catch(()=>{});
    try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
    launchNotice('已複製圖片（1080 × 1350 PNG）');
   }else{const blob=await launchGetPNG(),name=(launchCurrent.name||'開團')+'.png';launchDownloadPNG(blob,name);}
- });
+ }catch(error){launchCompletionToast(error.message||'圖片輸出失敗',true);}
+ finally{launchExportBusy=false;if(button?.isConnected){button.disabled=false;button.textContent=label;}}
 }
 </script>
 
@@ -2643,7 +2648,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
@@ -3555,6 +3560,7 @@ clearInterval(storeCartSyncTimer);
 storeCartSyncTimer=null;
 }
 }
+window.addEventListener('focus',()=>{if(document.body.dataset.page==='store')void syncActiveStoreSalesperson();});
 function inventoryHeaderIndex(names){
 if(names.includes('庫存'))names=[...names,'庫存量','商品庫存'];
 if(names.includes('店面'))names=[...names,'店面數量','店面庫存量'];
