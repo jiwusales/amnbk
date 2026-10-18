@@ -3854,7 +3854,7 @@ const availability=inventoryAvailabilityState(item);
 const relisted=stockState==='x'&&availability==='yes';
 const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!inventoryNoteHasUrl(item)&&!relisted;
 const borderClass=relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
-const availabilityMark=availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
+const availabilityMark=String(stock??'').trim()===''?'':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
 const originalText=inventoryOriginalDisplay(item,original);
 const pricesMarkup=originalText?`<span class="inventoryOriginal">${originalText}</span><span class="inventoryPriceDivider">｜</span><button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`:`<button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`;
 const linkMarkup=`<div class="inventoryLinks">${productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}${/^https?:\/\//i.test(note)?`<a class="inventoryChannelButton" href="${esc(note)}" target="_blank" rel="noopener">其他通路</a>`:''}</div>`;
