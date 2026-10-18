@@ -617,6 +617,8 @@ text-align:center
 .orderLast5 input:disabled{background:#f2f2f2;color:#aaa}
 .groupCardTotal{white-space:nowrap;color:#555;font-size:13px}
 .faceToFaceTag,.faceToggle{
+white-space:nowrap;
+flex-shrink:0;
 border:1px dashed #CBC3BC;
 border-radius:5px;
 padding:2px 5px;
@@ -6584,7 +6586,9 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .customerIdentityName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .customerSourceIcon{display:inline-block;width:16px;height:16px;flex:0 0 16px;object-fit:contain;border-radius:50%;vertical-align:middle}
 .customerNameTitle>.customerIdentity{flex:0 1 auto}
-.groupCardCustomer>.customerLink{min-width:0}
+.groupCardCustomer>.customerLink{min-width:0;flex:0 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.groupCardCustomer>.customerLink>.customerIdentity{display:flex}
+.groupCardCustomer>.groupCardTotal{flex-shrink:0}
 .shipCardHead>strong{min-width:0}
 </style>
 </body>
