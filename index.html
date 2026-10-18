@@ -4440,7 +4440,7 @@ return [...new Set(onlineRows.map(row=>String(getOnlineData(row,['顧客名稱',
 function updateManualOnlineCustomerSuggestions(){
 const input=document.getElementById('manualOnlineCustomer'),box=document.getElementById('manualOnlineCustomerSuggestions');if(!input||!box)return;
 const names=manualOnlineCustomerMatches(input.value);box.replaceChildren();
-names.forEach(name=>{const button=document.createElement('button');button.type='button';button.textContent=name;button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',()=>{input.value=name;input.focus();box.hidden=true;input.setAttribute('aria-expanded','false');});box.appendChild(button);});
+names.forEach(name=>{const button=document.createElement('button');button.type='button';button.innerHTML=customerIdentity(name,onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===name));button.addEventListener('pointerdown',event=>event.preventDefault());button.addEventListener('click',()=>{input.value=name;input.focus();box.hidden=true;input.setAttribute('aria-expanded','false');});box.appendChild(button);});
 box.hidden=!names.length;input.setAttribute('aria-expanded',String(!!names.length));
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('input').focus();}
@@ -5001,6 +5001,25 @@ return [
 '後五碼'
 ]
 }
+function customerSourceBadges(rows){
+ const badges=new Map();
+ for(const row of rows||[]){
+  const data=row?.data||{};
+  const source=String(['來源','通路','平台'].map(key=>data[key]).find(value=>String(value??'').trim())||'').trim();
+  const normalized=source.normalize('NFKC').toLowerCase();
+  const kind=['ig','instagram'].includes(normalized)?'instagram':['@','脆','threads','脆(@)','脆（@）'].includes(normalized)?'threads':['本帳','熊帳','蟲帳'].includes(normalized)?'facebook':'';
+  if(!kind)continue;
+  if(!badges.has(kind))badges.set(kind,new Set());
+  badges.get(kind).add(source);
+ }
+ return [...badges].map(([kind,sources])=>{
+  const label=[...sources].join('、');
+  return `<img class="customerSourceIcon" src="assets/customer-source/${kind}.png" alt="${esc(label)}" title="來源：${esc(label)}" width="16" height="16" decoding="async">`;
+ }).join('');
+}
+function customerIdentity(name,rows){
+ return `<span class="customerIdentity"><span class="customerIdentityName">${esc(name)}</span>${customerSourceBadges(rows)}</span>`;
+}
 function getCustomerName(row){
 return getOnlineData(
 row,
@@ -5146,7 +5165,7 @@ customer
 `<button
 class="customerLink"
 onclick='openCustomer(${JSON.stringify(String(customer))})'>
-${esc(customer)}
+${customerIdentity(customer,[x])}
 </button>`
 :''
 }
@@ -5359,7 +5378,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`${customerMessageButton(summary)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${esc(summary||'未填姓名')}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${customerIdentity(summary||'未填姓名',rows)}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -5403,7 +5422,7 @@ ${singleCustomerView?`
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
 ${customerMessageButton(order.customer)}<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
-${esc(order.customer)}
+${customerIdentity(order.customer,order.items)}
 </button>
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
@@ -5903,7 +5922,7 @@ style="margin-bottom:10px">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer+'：'+g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製名字與品項" title="複製名字＋品項">全</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製品項" title="複製品項">物</button>
 </span>
-${customerMessageButton(customer,true)}<strong>${esc(customer)}</strong>
+${customerMessageButton(customer,true)}<strong>${customerIdentity(customer,g)}</strong>
 <span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
 </div>
 ${g.map(x=>`
@@ -6467,6 +6486,14 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 @media(prefers-reduced-motion:reduce){
  button,input,select,textarea{transition:none}
 }
+</style>
+<style id="customer-source-badges">
+.customerIdentity{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;vertical-align:middle}
+.customerIdentityName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customerSourceIcon{display:inline-block;width:16px;height:16px;flex:0 0 16px;object-fit:contain;border-radius:50%;vertical-align:middle}
+.customerNameTitle>.customerIdentity{flex:0 1 auto}
+.groupCardCustomer>.customerLink{min-width:0}
+.shipCardHead>strong{min-width:0}
 </style>
 </body>
 </html>
