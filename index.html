@@ -2125,7 +2125,15 @@ function launchDelete(target=launchCurrent,ask=true){
  return launchSaveTail;
 }
 function launchSaveOrder(){launchRun(async()=>{await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchClearListCache();launchDirty=false;launchMessage='排序已儲存';launchRenderList();});}
-function launchGrab(){launchRun(async()=>{await launchPersist();const ids=launchCurrent.items.map(x=>x.id),results=[];for(let i=0;i<ids.length;i++){launchNotice(`資料抓抓 ${i+1} / ${ids.length}…`);const d=await launchPost('launchScrape',{id:launchCurrent.id,itemId:ids[i],revision:launchCurrent.revision});launchCurrent=d.group;results.push(`${i+1}. ${d.message}`);}launchClearListCache();launchMessage=results.join('\n')||'尚無商品';});}
+function launchGrabNeedsData(item){const empty=value=>value==null||String(value).trim()==='';return empty(item.code)||empty(item.original)||empty(item.size)||!Array.isArray(item.images)||!item.images.some(image=>!empty(image));}
+function launchGrab(){return launchRun(async()=>{
+ const pending=launchCurrent.items.filter(launchGrabNeedsData),targets=pending.filter(item=>String(item.url||'').trim()),noURL=pending.length-targets.length;
+ if(!targets.length){launchMessage=pending.length?'缺資料的商品尚未填商品網址，請先補上網址':'商品資料已完整，無需抓取';return;}
+ await launchPersist();
+ const ids=targets.map(item=>item.id),results=[];
+ for(let i=0;i<ids.length;i++){launchNotice(`資料抓抓 ${i+1} / ${ids.length}…`);const d=await launchPost('launchScrape',{id:launchCurrent.id,itemId:ids[i],revision:launchCurrent.revision});launchCurrent=d.group;results.push(`${i+1}. ${d.message}`);}
+ launchClearListCache();launchMessage=results.join('\n')+(noURL?`\n另有 ${noURL} 項缺少商品網址，未抓取`:'');
+});}
 function launchDialog(content){
  document.getElementById('launchDialog')?.remove();
  document.body.insertAdjacentHTML('beforeend',`<dialog id="launchDialog" class="launchDialog">${content}</dialog>`);
