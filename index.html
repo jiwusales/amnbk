@@ -2127,14 +2127,20 @@ function launchDialog(content){
 }
 function launchParseMultiProducts(value){
  const rows=[];
+ const isAmount=value=>/^(?:[Rr]\s*)?\d[\d,]*(?:\.\d+)?(?:\s*[Rr])?$/.test(String(value||'').normalize('NFKC'));
  String(value||'').split(/\r\n?|\n/).forEach((line,index)=>{
   if(!line.trim())return;
   const fields=line.split('、').map(field=>field.trim()),error=message=>{throw Error(`第 ${index+1} 行：${message}`);};
-  if(fields.length<2||fields.length>4)error('請用「、」分隔名稱、角色、原價、網址；角色與網址可省略');
-  let [name,role='',amount='',url='']=fields;
-  if(fields.length===2){amount=role;role='';}
-  else if(fields.length===3&&(launchSafeURL(fields[2])||(!fields[2]&&/^(?:[Rr]\s*)?\d[\d,]*(?:\.\d+)?(?:\s*[Rr])?$/.test(fields[1].normalize('NFKC'))))){url=fields[2];amount=role;role='';}
-  rows.push({name,role,amount,url,line:index+1});
+  if(fields.length<2||fields.length>5)error('請用「、」分隔名稱、角色、原價、尺寸、網址；角色、尺寸與網址可省略');
+  const name=fields.shift();let role='',amount='',size='',url='';
+  if(isAmount(fields[0]))amount=fields.shift();
+  else {role=fields.shift()||'';amount=fields.shift()||'';}
+  if(fields.length&&launchSafeURL(fields[0]))url=fields.shift();
+  else if(fields.length)size=fields.shift();
+  if(fields.length)url=fields.shift();
+  if(fields.length)error('欄位過多');
+  if(size&&/^[a-z][a-z0-9+.-]*:/i.test(size))error('網址請填有效的 http/https 網址');
+  rows.push({name,role,amount,size,url,line:index+1});
  });
  return rows;
 }
@@ -2147,7 +2153,7 @@ function launchExpandMultiProducts(rows,start=0){
   if(amount&&!/^(?:[Rr]\s*)?\d[\d,]*(?:\.\d+)?(?:\s*[Rr])?$/.test(amount))error('原價請輸入數字，人民幣可填 R99');
   if(url&&!launchSafeURL(url))error('網址請填有效的 http/https 網址');
   const roles=role?role.split(/\s+/u):[''];
-  for(const value of roles)products.push({id:launchId(),name,role:value,url,images:[],code:'',original:amount,price:'',size:'',note:'',stockQuantity:'',panel:launchPanelIndex,visible:start+products.length<31,showCost:true,scale:1});
+  for(const value of roles)products.push({id:launchId(),name,role:value,url,images:[],code:'',original:amount,price:'',size:String(row.size||'').trim(),note:'',stockQuantity:'',panel:launchPanelIndex,visible:start+products.length<31,showCost:true,scale:1});
  }
  if(!products.length)throw Error('請至少新增一項商品');
  if(start+products.length>200)throw Error('每團最多 200 項商品');
@@ -2178,7 +2184,7 @@ function launchSetProductKind(index,value){
 function launchProductDialog(index=-1,mode='single'){
  if(launchTakePress()||launchBusy)return;
  const p=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
- launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、網址選填；沒有角色可填「名稱、原價」。</p>`:`<div class="launchProductFields"><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>種　　類</span><select name="kind" aria-label="種類">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>貨　　號</span><input name="code" aria-label="貨號" value="${esc(p.code||'')}"></label><label><span>尺　　寸</span><input name="size" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label><span>圖片網址</span><textarea name="images" aria-label="圖片網址" rows="3" placeholder="每行一張">${esc((p.images||[]).join('\n'))}</textarea></label><label><span>商品網址</span><input name="url" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
+ launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可只填「名稱、原價」。</p>`:`<div class="launchProductFields"><input type="hidden" name="code" value="${esc(p.code||'')}"><label><span>種　　類</span><select name="kind" aria-label="種類">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>尺　　寸</span><input name="size" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label class="launchProductUrl"><span>圖片網址</span><input name="images" aria-label="圖片網址" value="${esc((p.images||[]).join(' '))}" placeholder="多張圖片以空格分隔"></label><label class="launchProductUrl"><span>商品網址</span><input name="url" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
  if(mode==='single')void launchLoadProductKinds(document.getElementById('launchDialog'));
 }
 
@@ -2197,7 +2203,7 @@ function launchProductSubmit(e,index,mode){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
  }
- else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=launchLines(p.images).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
+ else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=String(p.images||'').trim().split(/\s+/).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
  if(index<0&&launchCurrent.status==='最新開團'){
   launchPushUndo();
   if(f.get('canvasTarget')==='new'){
@@ -6640,8 +6646,10 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .groupCardCustomer>.customerLink>.customerIdentity{display:flex}
 .groupCardCustomer>.groupCardTotal{flex-shrink:0}
 .shipCardHead>strong{min-width:0}
+.launchDialog .launchProductFields{grid-template-columns:repeat(6,minmax(0,1fr))}.launchDialog .launchProductFields>label{grid-column:span 2}.launchDialog .launchProductFields>.launchProductUrl{grid-column:span 3}.launchDialog .launchProductFields>.launchProductNote{grid-column:1/-1}@media(max-width:600px){.launchDialog .launchProductFields{gap:10px 8px}.launchDialog .launchProductFields>label{flex-direction:column;align-items:stretch}.launchDialog .launchProductFields input,.launchDialog .launchProductFields select,.launchDialog .launchProductFields textarea{width:100%;box-sizing:border-box}}
 </style>
 </body>
 </html>
+
 
 
