@@ -2225,17 +2225,31 @@ async function launchLoadProductKinds(root){
   root.querySelectorAll('select[name="kind"],select[data-launch-kind]').forEach(select=>{
    const item=select.hasAttribute('data-launch-kind')?launchCurrent?.items[Number(select.dataset.launchKind)]:null;
    if(item&&!item.kind){const kind=launchInferProductKind(item,launchProductKindCatalog);if(kind){item.kind=kind;launchMark();}}
-   select.innerHTML=launchKindOptions(item?.kind||select.value);
+   const value=item?.kind||select.value;select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;
   });
   launchSuggestFormKind(root.querySelector('form'));
  }catch(error){const hint=root.querySelector('[data-kind-status]');if(hint)hint.textContent='種類讀取失敗，請關閉後重開重試';}
 }
-function launchKindOptions(current=''){
- const kinds=[...new Set([...launchProductKinds,current].map(value=>String(value||'').trim()).filter(Boolean))];
- const ordered=['吊娃','娃'].filter(kind=>kinds.includes(kind)).concat(kinds.filter(kind=>kind!=='吊娃'&&kind!=='娃'));
- return '<option value="">未設定</option>'+ordered.map(kind=>`<option value="${esc(kind)}" ${kind===current?'selected':''}>${esc(kind)}</option>`).join('');
+function launchCustomKinds(){try{const value=JSON.parse(localStorage.getItem('jiwu_launch_custom_kinds')||'[]');return Array.isArray(value)?value.filter(kind=>typeof kind==='string'):[];}catch(_){return [];}}
+function launchChooseKind(select,index=-1){
+ const prior=select.dataset.kindValue||(index>=0?launchCurrent?.items[index]?.kind:'')||'';
+ let value=select.value;
+ if(value==='__jiwu_new_kind__'){
+  const entered=prompt('輸入新的商品種類');
+  if(entered===null||!entered.trim()){select.innerHTML=launchKindOptions(prior);return;}
+  value=entered.trim();if(value==='__jiwu_new_kind__'){select.innerHTML=launchKindOptions(prior);return;}
+  launchProductKinds=[...new Set([...launchProductKinds,value])];
+  try{localStorage.setItem('jiwu_launch_custom_kinds',JSON.stringify([...new Set([...launchCustomKinds(),value])]))}catch(_){}
+ }
+ select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;select.dataset.manual='true';
+ if(index>=0)launchSetProductKind(index,value);
 }
-function launchKindSelect(p,i){return `<select class="launchListKind" data-launch-kind="${i}" aria-label="${esc(launchDisplayName(p))} 種類" onchange="launchSetProductKind(${i},this.value)">${launchKindOptions(p.kind||'')}</select>`;}
+function launchKindOptions(current=''){
+ const kinds=[...new Set([...launchProductKinds,...launchCustomKinds(),current].map(value=>String(value||'').trim()).filter(Boolean))];
+ const ordered=['吊娃','娃'].filter(kind=>kinds.includes(kind)).concat(kinds.filter(kind=>kind!=='吊娃'&&kind!=='娃'));
+ return '<option value="">未設定</option>'+ordered.map(kind=>`<option value="${esc(kind)}" ${kind===current?'selected':''}>${esc(kind)}</option>`).join('')+'<option value="__jiwu_new_kind__">新增種類…</option>';
+}
+function launchKindSelect(p,i){return `<select class="launchListKind" data-launch-kind="${i}" aria-label="${esc(launchDisplayName(p))} 種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this,${i})">${launchKindOptions(p.kind||'')}</select>`;}
 function launchSetProductKind(index,value){
  const item=launchCurrent?.items[index];if(!item||String(item.kind||'')===value)return;
  launchPushUndo();item.kind=String(value||'').trim();launchMark();
@@ -2249,12 +2263,12 @@ function launchSuggestFormKind(form){
  const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));
  // Draw markers work immediately even before the inventory request finishes.
  const kind=/單抽|抱盒/.test(field('size'))?'抽抽':launchInferProductKind({name:field('name'),size:field('size'),code:field('code'),url:field('url')},catalog);
- select.innerHTML=launchKindOptions(kind);select.dataset.autoKind=kind;
+ select.innerHTML=launchKindOptions(kind);select.dataset.autoKind=kind;select.dataset.kindValue=kind;
 }
 function launchProductDialog(index=-1,mode='single'){
  if(launchTakePress()||launchBusy)return;
  const p=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
- launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可只填「名稱、原價」。</p>`:`<div class="launchProductFields"><input type="hidden" name="code" value="${esc(p.code||'')}"><label><span>種　　類</span><select name="kind" aria-label="種類" onchange="this.dataset.manual='true'">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>尺　　寸</span><input name="size" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label class="launchProductUrl"><span>圖片網址</span><input name="images" aria-label="圖片網址" value="${esc((p.images||[]).join(' '))}" placeholder="多張圖片以空格分隔"></label><label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
+ launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可只填「名稱、原價」。</p>`:`<div class="launchProductFields"><input type="hidden" name="code" value="${esc(p.code||'')}"><label><span>種　　類</span><select name="kind" aria-label="種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this)">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>尺　　寸</span><input name="size" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label class="launchProductUrl"><span>圖片網址</span><input name="images" aria-label="圖片網址" value="${esc((p.images||[]).join(' '))}" placeholder="多張圖片以空格分隔"></label><label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
  if(mode==='single'){const root=document.getElementById('launchDialog');launchSuggestFormKind(root.querySelector('form'));void launchLoadProductKinds(root);}
 }
 
@@ -6721,6 +6735,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 </body>
 </html>
+
 
 
 
