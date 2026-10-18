@@ -559,7 +559,7 @@ word-break:break-word
 white-space:nowrap
 }
 .groupCardNote{padding:7px 0;color:#8b8077;font-size:12px;line-height:1.4;word-break:break-word}
-.orderAddButton{position:static;z-index:2;width:18px;height:18px;flex:0 0 18px;border:0;border-radius:50%;padding:0;background:var(--main);color:#fff;font-size:16px;line-height:17px;font-weight:400}
+.orderAddButton{position:static;z-index:2;width:18px;height:18px;flex:0 0 18px;border:0;padding:0;background:transparent;color:var(--main);font-size:20px;line-height:18px;font-weight:400}
 .orderAddButton:hover{filter:brightness(.94)}
 .orderItemDate{white-space:nowrap}
 .groupCardBottom{
@@ -664,7 +664,7 @@ flex-shrink:0;cursor:pointer;border:0;width:auto;min-width:18px;padding:0 3px!im
 body[data-page="ship"] .shipMarketActions{display:flex;gap:6px}
 body[data-page="ship"] .top>span{max-width:calc(100% - 225px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .shipOrderCard{cursor:pointer}
-.shipOrderCard.shipMarketSelected{outline:2px solid var(--main);outline-offset:-2px}
+.shipOrderCard.shipMarketSelected{border-color:var(--main)}
 .shipMarketCheck{width:17px;height:17px;margin:0 3px 0 0;align-self:center;accent-color:var(--main);cursor:pointer;flex-shrink:0}
 .shipMarketTruck{margin-right:auto;color:#ccc;font-size:22px;line-height:1;background:none;border:0;padding:0;flex-shrink:0;cursor:pointer}
 .shipMarketTruck:focus-visible{outline:2px solid var(--main);outline-offset:3px}
@@ -1860,8 +1860,17 @@ document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e
 document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.preventDefault();e.stopPropagation();const card=price.closest('.launchProduct'),index=Number(card?.dataset.launchIndex),item=launchCurrent.items[index];if(!item)return;const value=prompt('修改售價',String(item.price||launchSaleValue(item)||''));if(value===null)return;const number=launchNumber(value);if(number==null||number<0){alert('請輸入有效售價');return;}launchPushUndo();item.price=String(Math.ceil(number));launchMark();launchRenderEditor();},true);
 function launchChangeStatus(s){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;launchLoadGroup(group.id);}
-function launchNew(){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" type="text" placeholder="例如：2月、2月上、2月中、2月下"></label><label>境內運<input name="domesticShipping" placeholder="$220同車平分（滿額免）"></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);}
-function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),domesticShipping=String(form.get('domesticShipping')||'').trim();if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,closeDate:'',domesticShipping,secondShipping:'',footer:'',storefrontNote:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
+function launchNew(){
+ if(launchBusy)return;
+ if(launchDirty&&!confirm('尚未儲存，要放棄目前變更並開新團嗎？'))return;
+ launchDialog(`<form onsubmit="launchCreateNew(event)"><h2>建立新團</h2><label>團名<input name="name" aria-label="團名" required autofocus placeholder="例如：1002白熊新品"></label><div class="launchPair"><label>出荷日期<input name="shipDate" aria-label="出荷日期" type="text" placeholder="例如：2月、2月上、2月中、2月下"></label><label>收單時間<input name="closeDate" aria-label="收單時間" placeholder="選填，例如：10/20 21:00"></label></div><label>境內運<div class="launchNewShipping"><input name="domesticShipping" aria-label="境內運" placeholder="$220同車平分（滿額免）"><input name="noFreeShipping" type="checkbox" hidden><button type="button" class="launchFreeShippingToggle" aria-label="沒有免運門檻" aria-pressed="false" title="紅色代表沒有免運門檻" onclick="launchToggleNewFreeShipping(this)">✖︎</button></div></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">建立開團頁</button></div></form>`);
+}
+function launchToggleNewFreeShipping(button){
+ const input=button.form.elements.noFreeShipping;
+ input.checked=!input.checked;
+ button.setAttribute('aria-pressed',String(input.checked));
+}
+function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),closeDate=String(form.get('closeDate')||'').trim(),domesticShipping=String(form.get('domesticShipping')||'').trim(),noFreeShipping=form.get('noFreeShipping')==='on';if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,closeDate,domesticShipping,noFreeShipping,secondShipping:'',footer:'',storefrontNote:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
 function launchApplyZoom(){const editor=document.querySelector('.launchEditor');if(editor)editor.style.zoom=String(launchZoom);}
 function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});}
 function launchRenderEditor(){
@@ -1944,7 +1953,7 @@ function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm
 async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
-function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined});}
+function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>key==='paused'?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){
  let toast=document.getElementById('launchCompletionToast');
@@ -2011,7 +2020,7 @@ function launchPaintMoveProgress(){
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;width:min(240px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const host=document.querySelector('dialog[open]')||document.body;if(box.parentElement!==host)host.appendChild(box);
- box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'&&backendFailedRetries.has(id)?` <button type="button" class="saveProgressRetry" onclick="backendRetryFailedWrite(this.closest('.saveProgressJob').dataset.progressId)">重試</button>`:''}${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
+ box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'&&backendFailedRetries.has(id)?` <button type="button" class="saveProgressRetry" onclick="backendRetryFailedWrite(this.closest('.saveProgressJob').dataset.progressId)">重試</button>`:''}${typeof inventoryAvailabilityBatch!=='undefined'&&inventoryAvailabilityBatch?.id===id&&!['完成','失敗'].includes(j.state)?` <button type="button" class="saveProgressStop" onclick="stopInventoryAvailabilityBatch()" ${inventoryAvailabilityBatch.stop?'disabled':''}>${inventoryAvailabilityBatch.stop?'停止中':'停止檢查'}</button>`:''}${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -2144,7 +2153,7 @@ function launchProductSubmit(e,index,mode){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
  }
- else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=launchLines(p.images).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
+ else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=launchLines(p.images).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
  if(index<0&&launchCurrent.status==='最新開團'){
   launchPushUndo();
   if(f.get('canvasTarget')==='new'){
@@ -2260,7 +2269,7 @@ function launchListNamePrice(p,i){
  const url=launchOtherChannelURL(p.note);
  return `<div class="launchListNamePrice">${content}${url?`<a class="launchOtherChannel" href="${esc(url)}" target="_blank" rel="noopener noreferrer">其他通路</a>`:''}</div>`;
 }
-function launchListRows(){return `<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent">${launchListThumbnail(p)}${launchListNamePrice(p,i)}<input class="launchListStockInput" type="text" inputmode="numeric" aria-label="${esc(launchDisplayName(p))} 庫存數量" data-launch-stock="${i}" value="${esc(p.stockQuantity??'')}" onchange="launchSetProductQuantity(${i},this)">${launchAvailabilityButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`;}
+function launchListRows(){return `<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent">${launchListThumbnail(p)}${launchListNamePrice(p,i)}<input class="launchListStockInput" type="text" inputmode="numeric" aria-label="${esc(launchDisplayName(p))} 庫存數量" data-launch-stock="${i}" value="${esc(p.stockQuantity??'')}" onchange="launchSetProductQuantity(${i},this)">${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`;}
 async function launchGenerateShortURL(button){
  if(!launchCurrent||button.disabled)return;if(launchCurrent.status!=='最新開團'){launchCompletionToast('上架到最新開團後才能產生短網址',true);return;}const group=launchCurrent,id=group.id;button.disabled=true;button.textContent='產生中…';
  try{
@@ -2301,7 +2310,7 @@ function launchRenderProductList(){
  document.getElementById('app').innerHTML=`<section class="launchPage launchProductListPage ${launchBusy?'launchBusy':''}"><div class="launchTools launchProductListActions">${statusAction}<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn light" type="button" onclick="launchRequestRefresh()">↻</button><button class="btn ${g.status==='最新開團'?'launchLatestInlineSave':''}" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button></div><div class="launchAllHeading"><label class="launchSelectAll"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>${esc(g.name)}（${g.items.length}）</h2></div>${launchAvailabilityToolbar()}${launchListRows()}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
  launchUpdateSelectAll();
 }
-function launchAllProducts(){if(launchListMode()){launchRenderProductList();return;}launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>收單日期</span><input aria-label="收單日期" placeholder="選填" value="${esc(launchCurrent.closeDate||'')}" onchange="launchSetShipping('closeDate',this.value.trim())"></label></div><div class="launchPair"><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label><label><span>二補運費</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="二補運費" placeholder="選填" value="${esc(launchCurrent.secondShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('secondShipping',this.value.trim())"><button type="button" aria-label="需二補" title="紅色代表需二補，金額填在二補運費欄位" aria-pressed="${!!launchCurrent.needsSecondPayment}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.needsSecondPayment?'#d9544d':'#777'}" onclick="launchToggleSecondPayment(this)">○</button></div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>備註</span><textarea name="storefrontNote" aria-label="前端備註" rows="2" placeholder="有填寫時，前端網頁優先顯示此內容；留空使用原本說明" onchange="launchSetGroupText('storefrontNote',this.value)">${esc(launchCurrent.storefrontNote||'')}</textarea></label><label><span>短網址</span><div style="display:flex;gap:8px;align-items:center"><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" style="flex:1;min-width:0" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"><button type="button" class="btn light" style="flex:none;white-space:nowrap" onclick="launchGenerateShortURL(this)" ${launchCurrent.status!=='最新開團'?'disabled title="上架到最新開團後才能產生"':''}>${launchCurrent.status==='最新開團'?'產生':'上架後產生'}</button></div></label></div>${launchAvailabilityToolbar()}<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${launchSafeURL(p.images?.[0])?`<img class="launchAllProductThumb" src="${launchImage(p.images[0])}" alt="" width="36" height="36" decoding="async" onerror="this.hidden=true">`:'<span class="launchAllProductThumb launchAllProductThumbBlank" aria-hidden="true"></span>'}<span class="launchAllProductName">${i+1}. ${esc(launchDisplayName(p))}</span></button>${launchAvailabilityButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
+function launchAllProducts(){if(launchListMode()){launchRenderProductList();return;}launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>全部商品（${launchCurrent.items.length}）</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label><label><span>收單日期</span><input aria-label="收單日期" placeholder="選填" value="${esc(launchCurrent.closeDate||'')}" onchange="launchSetShipping('closeDate',this.value.trim())"></label></div><div class="launchPair"><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label><label><span>二補運費</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="二補運費" placeholder="選填" value="${esc(launchCurrent.secondShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('secondShipping',this.value.trim())"><button type="button" aria-label="需二補" title="紅色代表需二補，金額填在二補運費欄位" aria-pressed="${!!launchCurrent.needsSecondPayment}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.needsSecondPayment?'#d9544d':'#777'}" onclick="launchToggleSecondPayment(this)">○</button></div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>備註</span><textarea name="storefrontNote" aria-label="前端備註" rows="2" placeholder="有填寫時，前端網頁優先顯示此內容；留空使用原本說明" onchange="launchSetGroupText('storefrontNote',this.value)">${esc(launchCurrent.storefrontNote||'')}</textarea></label><label><span>短網址</span><div style="display:flex;gap:8px;align-items:center"><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" style="flex:1;min-width:0" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"><button type="button" class="btn light" style="flex:none;white-space:nowrap" onclick="launchGenerateShortURL(this)" ${launchCurrent.status!=='最新開團'?'disabled title="上架到最新開團後才能產生"':''}>${launchCurrent.status==='最新開團'?'產生':'上架後產生'}</button></div></label></div>${launchAvailabilityToolbar()}<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${p.visible!==false?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent"><button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})">${launchSafeURL(p.images?.[0])?`<img class="launchAllProductThumb" src="${launchImage(p.images[0])}" alt="" width="36" height="36" decoding="async" onerror="this.hidden=true">`:'<span class="launchAllProductThumb launchAllProductThumbBlank" aria-hidden="true"></span>'}<span class="launchAllProductName">${i+1}. ${esc(launchDisplayName(p))}</span></button>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`);launchUpdateSelectAll();}
 let launchImportTarget='launch';
 let launchImportSource=null,launchImportGroups=[],launchImportCategories=[],launchImportCategory='吉伊卡哇&白熊',launchImportSearch='',launchImportSearchTimer=null;
 async function launchImportClosedProducts(target='launch'){
@@ -2424,6 +2433,23 @@ async function launchSetProductQuantity(index,input){
   if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=control.parentElement.querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent=result.out?'已缺貨':'缺貨';}}});
  }catch(error){input.value=previous;alert('庫存儲存失敗：'+error.message);}
  finally{input.disabled=false;}
+}
+function launchPauseButton(item,index){
+ if(launchCurrent?.status!=='最新開團')return '';
+ return `<button class="launchPauseToggle" type="button" aria-label="${item.paused?'恢復收單':'暫停收單'} ${esc(launchDisplayName(item))}" aria-pressed="${!!item.paused}" title="${item.paused?'恢復收單':'暫停收單'}" onclick="launchToggleProductPause(${index},this)">⏸︎</button>`;
+}
+async function launchToggleProductPause(index,button){
+ const group=launchCurrent,item=group?.items[index];
+ if(group?.status!=='最新開團'||!item?.id||button.disabled)return;
+ button.disabled=true;
+ try{
+  const result=await launchPost('launchSetInventoryAvailability',{groupId:group.id,groupStatus:group.status,itemId:item.id,paused:!item.paused});
+  item.paused=result.paused;
+  button.setAttribute('aria-pressed',String(item.paused));
+  button.setAttribute('aria-label',(item.paused?'恢復收單':'暫停收單')+' '+launchDisplayName(item));
+  button.title=item.paused?'恢復收單':'暫停收單';
+ }catch(error){alert('暫停收單設定失敗：'+error.message);}
+ finally{button.disabled=false;}
 }
 function launchToggleProductStock(index,button){
  const group=launchCurrent,item=group?.items[index];if(!item||!group?.id)return;
@@ -2745,7 +2771,8 @@ const customerChatDrafts=new Map();
 function customerChatDraftURL(customer,url){const text=customerChatDrafts.get(customer);return text?url.replace(/#.*$/,'')+'#jiwuDraft='+encodeURIComponent(text):url;}
 function openCustomerChatURL(customer,url){url=customerChatDraftURL(customer,url);const tab=window.open(url,'_blank');if(tab)tab.opener=null;else showCustomerLineChatLink(customer,url);}
 window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats();});
-function customerMessageButton(customer,ship=false){
+function customerMessageButton(customer,ship=false,rows=[]){
+if(customerSourceBadges(rows))return '';
 return `<button type="button" class="customerMessageButton" data-customer="${esc(customer)}" onclick="${ship?'openShipCustomerNotice(this)':'customerChatDrafts.delete(this.dataset.customer);openCustomerLineChat(this)'}" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="開啟官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">💬</button>`;
 }
 function openShipCustomerNotice(button){
@@ -3742,14 +3769,21 @@ function scheduleInventorySearch(value,delay=160){
  inventorySearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket!==inventorySearchGeneration||inventoryComposing||!input?.isConnected||input.value!==query)return;inventorySearch=query.trim();renderInventoryContent();}),delay);
 }
 function runInventorySearchNow(){if(inventoryComposing)return;const input=document.getElementById('inventorySearch');scheduleInventorySearch(input?.value||'',0);}
+let inventoryAvailabilityBatch=null;
+function stopInventoryAvailabilityBatch(){if(!inventoryAvailabilityBatch)return;inventoryAvailabilityBatch.stop=true;launchPaintMoveProgress();}
 async function refreshInventoryUnknownStatuses(){
+if(inventoryAvailabilityBatch){stopInventoryAvailabilityBatch();return;}
 const button=document.getElementById('inventoryRefreshButton');if(!button)return;
 const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknown');
 if(!rows.length){alert('目前沒有⚠️待確認商品');return;}
-button.disabled=true;button.textContent='☺︎';button.title='正在重新檢查貨況';
+const batch={id:'inventory-status-'+launchId(),stop:false,total:rows.length};inventoryAvailabilityBatch=batch;
+button.textContent='停止';button.title='停止後續貨況檢查';
 let completed=0,failed=0;
-for(const item of rows){if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();}}
-inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';if(failed)alert(`完成 ${completed} 筆，${failed} 筆檢查失敗`);
+launchMoveProgress(batch.id,'','傳送中','','更新貨況 0/'+rows.length);
+for(const item of rows){if(batch.stop)break;if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row},batch.id);const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();launchMoveProgress(batch.id,'','傳送中','',`更新貨況 ${completed+failed}/${rows.length}`);}}
+inventoryAvailabilityBatch=null;
+launchMoveProgress(batch.id,'','完成','',`${batch.stop?'已停止':'貨況完成'} ${completed+failed}/${rows.length}${failed?'，'+failed+' 件失敗':''}`);
+inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';
 }
 function fitSelectWidth(select){if(!select)return;const text=select.options[select.selectedIndex]?.text||'';select.style.width=Math.max(2,text.length)+'em';select.style.boxSizing='content-box';}
 function renderInventoryContent(){
@@ -4391,8 +4425,6 @@ function saveOnlineSessionCache(){try{const payload=JSON.stringify({savedAt:Date
 function renderOnline(){
 resetOnlineCardLayout();
 warmCustomerLineChats();
-isCustomerView=false;
-isGroupView=false;
 restoreOnlineSessionCache();
 const app=document.getElementById('app');
 app.innerHTML=`
@@ -4422,7 +4454,7 @@ const f=document.getElementById('cargoFilter');
 f.value=onlineCargo;
 bindOnlineSearchInput(input);
 if(onlineLoadedAt){
-applyOnlineFilter();
+showOnlineCurrentView();
 loadOnline(false,true);
 }else{
 loadOnline();
@@ -4581,7 +4613,7 @@ const request=(async()=>{
   onlineLoadedAt=Date.now();
   saveOnlineSessionCache();
   if(document.getElementById('onlineResult')){
-    if(backendInputFocused()){backendDeferPaint('online');const input=document.getElementById('customerSearch');if(input===document.activeElement&&input.value.trim())onlineSearchRefresh?.();}else applyOnlineFilter();
+    if(backendInputFocused())backendDeferPaint('online');else refreshCargoViewKeepingScroll();
   }
 })();
 onlineLoadPromise=request;
@@ -4621,10 +4653,10 @@ cancel();
 if(composing)return;
 const ticket=generation;timer=setTimeout(()=>{timer=null;run(ticket);},delay);
 };
-onlineSearchRefresh=()=>schedule(250);
+onlineSearchRefresh=()=>backendDeferPaint('online');
 // 在瀏覽器完成焦點與鍵盤動畫前，先讓背景讀取知道使用者準備輸入。
 input.addEventListener('pointerdown',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();},{passive:true});
-input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();if(!composing&&input.value){input.value='';pasting=false;schedule(0);}});
+input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();});
 input.addEventListener('blur',()=>{onlineInputFocusUntil=0;});
 input.addEventListener('compositionstart',()=>{composing=true;cancel();});
 input.addEventListener('compositionend',()=>{composing=false;schedule(250);});
@@ -4839,7 +4871,11 @@ const button=event.currentTarget.querySelector('[type=submit]');button.disabled=
 try{await apiBackground('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);savedDialog?.remove();saveOnlineSessionCache();const search=document.getElementById('customerSearch');const sameView=document.body.dataset.page==='online'&&String(search?.value||onlineSearchText).trim()===oldName;if(sameView){onlineSearchText=newName;if(search)search.value=newName;}customerChatResolved.delete(oldName);customerChatResolved.delete(newName);if(sameView)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===newName),newName);}
 catch(e){console.error('顧客名稱修改失敗：'+e.message);button.disabled=false;}
 }
-function showOnlineCurrentView(){if(isCustomerView){openCustomer(document.getElementById('customerSearch')?.value||'');}else if(isGroupView){openGroup(document.getElementById('customerSearch')?.value||'');}else applyOnlineFilter();}
+function showOnlineCurrentView(){
+ if(isCustomerView)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===onlineSearchText),onlineSearchText);
+ else if(isGroupView)showOrderCards(onlineRows.filter(row=>String(getGroupName(row)||'').trim()===onlineSearchText),onlineSearchText);
+ else applyOnlineFilter();
+}
 function getPaymentMethod(row){
 const direct=String(
 getOnlineData(row,['付款方式','支付方式','付款','收款方式'])||''
@@ -5378,7 +5414,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`${customerMessageButton(summary)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${customerIdentity(summary||'未填姓名',rows)}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary,false,rows)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${customerIdentity(summary||'未填姓名',rows)}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -5421,7 +5457,7 @@ ${singleCustomerView?`
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="faceToggle ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `:`
-${customerMessageButton(order.customer)}<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
+${customerMessageButton(order.customer,false,order.items)}<button class="customerLink" onclick='openCustomer(${JSON.stringify(order.customer)})'>
 ${customerIdentity(order.customer,order.items)}
 </button>
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
@@ -5922,7 +5958,7 @@ style="margin-bottom:10px">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer+'：'+g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製名字與品項" title="複製名字＋品項">全</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製品項" title="複製品項">物</button>
 </span>
-${customerMessageButton(customer,true)}<strong>${customerIdentity(customer,g)}</strong>
+${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
 <span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
 </div>
 ${g.map(x=>`
@@ -6446,16 +6482,14 @@ button{transition:filter .16s ease,box-shadow .16s ease,opacity .16s ease}
 .btn.light{box-shadow:inset 0 1px 0 #ffffff70}
 button:disabled{cursor:default;opacity:.45;box-shadow:none}
 button:not(:disabled):active{filter:brightness(.92)}
-:where(button,a,input,select,textarea):focus-visible{outline:2px solid var(--main);outline-offset:3px}
+:is(button,a,input,select,textarea):focus-visible{outline:none}
 input:not([type=checkbox]):not([type=radio]),select,textarea{border-radius:12px;transition:border-color .16s ease,box-shadow .16s ease}
-input:not([type=checkbox]):not([type=radio]):focus,select:focus,textarea:focus{border-color:var(--main);box-shadow:0 0 0 3px #a68c731a}
+input:not([type=checkbox]):not([type=radio]):focus,select:focus,textarea:focus{border-color:var(--main);box-shadow:none;outline:none}
 input[type=checkbox],input[type=radio]{accent-color:var(--main)}
 .top{font-weight:700;letter-spacing:.015em}
 .card{border-radius:18px;box-shadow:0 3px 14px #00000005}
 .cardHead{font-weight:600}
-.nav{padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px));height:calc(62px + env(safe-area-inset-bottom,0px));gap:4px}
-.nav button,.nav a{border-radius:14px;min-width:0;font-weight:600}
-.nav button.active{background:var(--soft);box-shadow:inset 0 0 0 1px var(--border);color:var(--main)}
+.nav{padding-bottom:env(safe-area-inset-bottom,0px);height:calc(62px + env(safe-area-inset-bottom,0px))}
 body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-inset-bottom,0px))}
 .page{height:calc(100dvh - 120px - env(safe-area-inset-bottom,0px))}
 .salesperson,.payment{border-radius:14px}
@@ -6466,18 +6500,24 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .launchDialog::backdrop{background:rgba(0,0,0,.28)}
 .loginForm input:not([type=checkbox]){min-height:48px;background:var(--soft);border-color:var(--border);border-radius:16px}
 .loginRemember{margin-top:18px}
+.launchNewShipping{display:flex;align-items:center;gap:6px}
+.launchNewShipping>input:not([type=checkbox]){min-width:0;flex:1}
+.launchNewShipping>input[type=checkbox]{display:none}
+.launchFreeShippingToggle{flex:none;border:0;background:transparent;color:#777;padding:6px;font-size:20px}
+.launchFreeShippingToggle[aria-pressed="true"]{color:#d9544d}
+.launchPauseToggle{flex:none;align-self:center;border:0;background:transparent;color:#777;font-size:20px;padding:4px;line-height:1.2;cursor:pointer}
+.launchPauseToggle[aria-pressed="true"]{color:var(--red)}
+.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:40px minmax(0,1fr) 76px 64px 32px 28px 64px}
+@media(max-width:600px){.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:28px minmax(0,1fr) 44px 34px 22px 24px 44px;gap:3px}.launchPauseToggle{padding:2px;font-size:18px}}
 @supports(backdrop-filter:blur(20px)){
- .nav{background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
  .dialogOverlay{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
  .launchDialog::backdrop{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 }
 @media(hover:hover){
  button:not(:disabled):hover{filter:brightness(.97)}
- .nav a:hover{background:var(--soft)}
 }
 @media(max-width:850px){
  .page{height:calc(100dvh - 114px - env(safe-area-inset-bottom,0px))}
- .nav button,.nav a{padding:0 2px;font-size:12px}
  .card{border-radius:15px}
  .dialogCard,.launchDialog{border-radius:20px}
  .dialogOverlay{padding:max(8px,env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
