@@ -1834,7 +1834,7 @@ const launchPendingMoves=new Map();
 function launchSizePreviewGrids(){
  document.querySelectorAll('.launchPreviewGrid').forEach(grid=>{
   grid.style.gridTemplateColumns='';
-  if(window.innerWidth<=850||!grid.children.length||grid.children.length>3)return;
+  if(window.innerWidth<=850||!grid.children.length||grid.children.length>8)return;
   const base=parseFloat(getComputedStyle(grid).gridTemplateColumns);
   if(Number.isFinite(base)&&base>0)grid.style.gridTemplateColumns=`repeat(auto-fill,${base*1.5}px)`;
  });
