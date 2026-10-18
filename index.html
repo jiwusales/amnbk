@@ -1321,6 +1321,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 }
 </style>
 <style>.purchaseSplitItem{display:grid;grid-template-columns:24px minmax(0,1fr) auto 64px;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.purchaseSplitItem input{min-width:0;width:100%;margin:0}.purchaseSplitItem input[type=checkbox]{width:20px;height:20px}.purchaseSplitItem span{overflow-wrap:anywhere}</style>
+<link rel="stylesheet" href="profit-dashboard.css?v=20261018-1">
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -1352,6 +1353,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 </div>
 </div>
 <div class="nav">
+<button id="btn-profit" onclick="openProfitPage()" aria-label="私人獲利報表">☺</button>
 <button id="btn-purchase" onclick="tab('purchase',this)">訂購</button>
 <button id="btn-launch" onclick="tab('launch',this)">開團</button>
 <button id="btn-inventory" onclick="tab('inventory',this)">庫存</button>
@@ -3614,6 +3616,7 @@ function scheduleStoreSalesSearch(input,event){
  storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing&&input.value===query)drawStoreSales();}),160);
 }
 function tab(name,el){
+if(name==='profit'&&!profitToken){openProfitPage();return;}
 if(document.body.dataset.page==='launch'&&(launchBusy||(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
 if(document.body.dataset.page==='launch'){launchDirty=false;launchLoad++;}
 
@@ -3621,6 +3624,7 @@ const repeated=document.body.dataset.page===name;
 if(repeated){
 refreshCurrentMobileTab(name,el);return;
 }
+if(document.body.dataset.page==='profit'&&name!=='profit')profitLock(false);
 resetOnlineCardLayout();
 if(name!=='store')stopStoreCartSync();
 document.body.dataset.page=name;
@@ -3639,6 +3643,7 @@ document.getElementById('app').innerHTML='<iframe title="敗家" src="https://ji
 if(name==='store'){
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 }
+if(name==='profit')void profitLoad();
 if(name==='purchase')renderPurchase();
 if(name==='launch')renderLaunch();
 if(name==='inventory')renderInventory();
@@ -3659,6 +3664,7 @@ renderShip();
 }
 }
 function refreshCurrentMobileTab(name,el){
+if(name==='profit'){openProfitPage();return;}
 const button=el||document.getElementById('btn-'+name);
 if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy','true');}
 let task;
@@ -6567,6 +6573,7 @@ tab(savedTab,targetBtn);
 backendSyncStart();void purchaseResumeSafariImport();
 }
 function showLogin(){
+if(typeof profitLock==='function')profitLock(false);
 authToken='';
 appStarted=false;
 sessionStorage.removeItem(AUTH_TOKEN_KEY);
@@ -6740,5 +6747,6 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .shipCardHead>strong{min-width:0}
 .launchDialog .launchProductFields{grid-template-columns:repeat(6,minmax(0,1fr))}.launchDialog .launchProductFields>label{grid-column:span 2}.launchDialog .launchProductFields>.launchProductUrl{grid-column:span 3}.launchDialog .launchProductFields>.launchProductNote{grid-column:1/-1}@media(max-width:600px){.launchDialog .launchProductFields{gap:10px 8px}.launchDialog .launchProductFields>label{flex-direction:column;align-items:stretch}.launchDialog .launchProductFields input,.launchDialog .launchProductFields select,.launchDialog .launchProductFields textarea{width:100%;box-sizing:border-box}}
 </style>
+<script src="profit-dashboard.js?v=20261018-1"></script>
 </body>
 </html>
