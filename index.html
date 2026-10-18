@@ -5063,6 +5063,14 @@ if(include)items.forEach(row=>includedRows.add(Number(row.row)));
 });
 rows=rows.filter(row=>includedRows.has(Number(row.row)));
 }
+if(onlineSearchText){
+const matchedRows=new Set(rows);
+const completeRows=new Set();
+groupOnlineOrders(onlineRows).forEach(({items})=>{
+if(items.some(row=>matchedRows.has(row)))items.forEach(row=>completeRows.add(row));
+});
+rows=onlineRows.filter(row=>completeRows.has(row));
+}
 showOnlineRows(rows)
 }
 function onlineSourceMatches(row,query){
