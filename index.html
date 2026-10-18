@@ -2159,16 +2159,48 @@ function launchExpandMultiProducts(rows,start=0){
  if(start+products.length>200)throw Error('每團最多 200 項商品');
  return products;
 }
-let launchProductKinds=[];
+let launchProductKinds=[],launchProductKindCatalog=[];
+function launchInferProductKind(item,catalog){
+ if(String(item.kind||'').trim())return item.kind;
+ const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'').trim();
+ const name=normalize(item.name),size=normalize(item.size),kinds=new Set(catalog.map(x=>x.kind).filter(Boolean));
+ if(/單抽|抱盒/.test(size)&&kinds.has('抽抽'))return '抽抽';
+ const unique=rows=>{const values=[...new Set(rows.map(x=>x.kind).filter(Boolean))];return values.length===1?values[0]:'';};
+ const code=normalize(item.code),url=normalize(item.url).replace(/[?#].*$/,'').replace(/\/$/,'');
+ const exact=catalog.filter(x=>(code&&normalize(x.code)===code)||(url&&normalize(x.url).replace(/[?#].*$/,'').replace(/\/$/,'')===url));
+ if(exact.length)return unique(exact);
+ const names=catalog.filter(x=>name.length>=2&&normalize(x.name)===name);
+ if(names.length){const kind=unique(names);if(kind)return kind;}
+ // Specific compound products must be tested before the broad "娃" label.
+ const rules=[
+ ['抽抽',/單抽|抱盒|盲抽|盲盒/],['包袋',/娃包|痛包|托特包|手提袋|束口袋|收納包|收納袋|背包|肩背包|購物袋|化妝包/],
+ ['零錢包',/零錢包/],['娃徽章',/娃徽章/],['吊娃',/吊娃|ぬいぐるみマスコット|マスコット/],
+ ['娃',/趴娃|坐姿娃|坐坐娃|抱娃|絨毛玩偶|毛絨玩偶|ぬいぐるみ|(?:^|[^包])娃$/],
+ ['鑰匙圈',/鑰匙圈|钥匙扣|キーホルダー/],['立牌',/立牌|アクリルスタンド/],['徽章',/徽章|缶バッジ/],
+ ['吊飾',/吊飾|チャーム/],['公仔',/公仔|フィギュア/],['貼紙',/貼紙|ステッカー/],['磁鐵',/磁鐵|マグネット/],['御守',/御守/],
+ ['毛巾',/毛巾|浴巾|手帕|タオル/],['頭飾',/髮箍|髮夾|髮圈|髮束|ヘア/],['飾品',/耳環|項鍊|戒指|手鍊|胸針/],
+ ['服飾',/外套|毛衣|長袖|短袖|上衣|圍巾|帽子|襪子|tシャツ|polo/],
+ ['文具',/資料夾|卡片組|便條|筆記本|原子筆|鉛筆|文具|クリアファイル/],['餐廚',/馬克杯|杯墊|餐盤|碗|筷子|湯匙|便當盒/],
+ ['3C',/手機殼|手機掛|滑鼠墊|充電|耳機/],['居家',/抱枕|收納毯|毛毯|地墊|桌墊/]
+ ];
+ for(const [kind,pattern] of rules)if(kinds.has(kind)&&pattern.test(name))return kind;
+ const matches=[...kinds].filter(kind=>!['其他','生活','小物','娃'].includes(kind)&&normalize(kind).length>=2&&name.includes(normalize(kind))).sort((a,b)=>b.length-a.length);
+ return matches.length&&(!matches[1]||matches[0].length>matches[1].length)?matches[0]:'';
+}
+
 async function launchLoadProductKinds(root){
  if(!root)return;
  try{
   const data=await api('launchAuxSheet',{kind:'product-kinds'});
   launchProductKinds=Array.isArray(data.kinds)?data.kinds:[];
+  launchProductKindCatalog=Array.isArray(data.catalog)?data.catalog:launchProductKinds.map(kind=>({kind}));
   if(!root.isConnected||(root.tagName==='DIALOG'&&!root.open))return;
   root.querySelectorAll('select[name="kind"],select[data-launch-kind]').forEach(select=>{
-   select.innerHTML=launchKindOptions(select.value);
+   const item=select.hasAttribute('data-launch-kind')?launchCurrent?.items[Number(select.dataset.launchKind)]:null;
+   if(item&&!item.kind){const kind=launchInferProductKind(item,launchProductKindCatalog);if(kind){item.kind=kind;launchMark();}}
+   select.innerHTML=launchKindOptions(item?.kind||select.value);
   });
+  launchSuggestFormKind(root.querySelector('form'));
  }catch(error){const hint=root.querySelector('[data-kind-status]');if(hint)hint.textContent='種類讀取失敗，請關閉後重開重試';}
 }
 function launchKindOptions(current=''){
@@ -2181,11 +2213,22 @@ function launchSetProductKind(index,value){
  const item=launchCurrent?.items[index];if(!item||String(item.kind||'')===value)return;
  launchPushUndo();item.kind=String(value||'').trim();launchMark();
 }
+function launchSuggestFormKind(form){
+ if(!form)return;
+ const select=form.querySelector('select[name="kind"]');if(!select||select.dataset.manual==='true')return;
+ const field=name=>form.querySelector(`[name="${name}"]`)?.value||'';
+ const previous=select.dataset.autoKind||'';
+ if(select.value&&select.value!==previous)return;
+ const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));
+ // Draw markers work immediately even before the inventory request finishes.
+ const kind=/單抽|抱盒/.test(field('size'))?'抽抽':launchInferProductKind({name:field('name'),size:field('size'),code:field('code'),url:field('url')},catalog);
+ select.innerHTML=launchKindOptions(kind);select.dataset.autoKind=kind;
+}
 function launchProductDialog(index=-1,mode='single'){
  if(launchTakePress()||launchBusy)return;
  const p=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
- launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可只填「名稱、原價」。</p>`:`<div class="launchProductFields"><input type="hidden" name="code" value="${esc(p.code||'')}"><label><span>種　　類</span><select name="kind" aria-label="種類">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>尺　　寸</span><input name="size" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label class="launchProductUrl"><span>圖片網址</span><input name="images" aria-label="圖片網址" value="${esc((p.images||[]).join(' '))}" placeholder="多張圖片以空格分隔"></label><label class="launchProductUrl"><span>商品網址</span><input name="url" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
- if(mode==='single')void launchLoadProductKinds(document.getElementById('launchDialog'));
+ launchDialog(`<form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div>${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增商品放置位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可只填「名稱、原價」。</p>`:`<div class="launchProductFields"><input type="hidden" name="code" value="${esc(p.code||'')}"><label><span>種　　類</span><select name="kind" aria-label="種類" onchange="this.dataset.manual='true'">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label><span>角　　色</span><input name="role" aria-label="角色" value="${esc(p.role||'')}"></label><label><span>名　　稱</span><input name="name" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required></label><label><span>原　　價</span><input name="original" aria-label="原價" value="${esc(p.original||'')}"></label><label><span>售　　價</span><input name="price" aria-label="售價" value="${esc(p.price||'')}"></label><label><span>尺　　寸</span><input name="size" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(jiwuClothingSize(p.size))}"></label><label class="launchProductUrl"><span>圖片網址</span><input name="images" aria-label="圖片網址" value="${esc((p.images||[]).join(' '))}" placeholder="多張圖片以空格分隔"></label><label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index});document.getElementById('launchDialog').close()">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" style="${p.visible===false?'background:#d9544d;color:#fff':''}" aria-pressed="${p.visible===false}" onclick="launchToggleProductHidden(${index},this)">隱藏</button>`:''}`:''}<button type="button" class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
+ if(mode==='single'){const root=document.getElementById('launchDialog');launchSuggestFormKind(root.querySelector('form'));void launchLoadProductKinds(root);}
 }
 
 function launchLines(value){return value.replace(/\r/g,'').trim().split('\n').map(x=>x.trim());}
@@ -2217,6 +2260,7 @@ function launchProductSubmit(e,index,mode){
   }
   items.forEach(item=>{item.panel=launchPanelIndex;item.visible=true;});
  }
+ items.forEach(item=>{if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(item.size||'')?'抽抽':launchInferProductKind(item,catalog);}});
  if(index>=0)launchCurrent.items.splice(index,1,...items);else launchCurrent.items.unshift(...items);launchMark();document.getElementById('launchDialog').close();launchRenderEditor();
 }
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image??launchCurrent.images?.[launchPanelIndex]??'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
@@ -6650,6 +6694,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 </body>
 </html>
+
 
 
 
