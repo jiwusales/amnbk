@@ -5591,6 +5591,12 @@ cards.forEach(card=>{
 });
 observer.observe(root);
 }
+function onlineSearchCounts(rows,orders){
+const key=String(onlineSearchText||'').normalize('NFKC').trim().toLowerCase();
+const productRows=key&&!isCustomerView&&!isGroupView&&!isFaceToFaceView&&!isStarredView
+?rows.filter(row=>[['名稱','商品名稱','品名','商品'],['團名','團組','團']].some(names=>String(getOnlineData(row,names)||'').normalize('NFKC').toLowerCase().includes(key))):[];
+return {orderCount:orders.size,itemCount:productRows.length||rows.length};
+}
 function showOrderCards(rows,summary,limit=40){
 const res=document.getElementById('onlineResult');
 if(!res)return;
@@ -5615,9 +5621,10 @@ if(singleCustomerView){
 }
 let totalAmount=0;
 rows.forEach(row=>{if(isRestockRow(row))return;totalAmount+=numberValue(getOnlineData(row,['售價','價格']))+numberValue(getOnlineData(row,['運費']));});
+const searchCounts=onlineSearchCounts(rows,orders);
 const summaryStats=isGroupView
 ?`${customerNames.size}人｜${rows.length}件｜共計 $${money(totalAmount)}`
-:`${orders.size} 筆訂單(${rows.length})｜總金額 $${money(totalAmount)}`;
+:`${searchCounts.orderCount} 筆訂單(${searchCounts.itemCount})｜總金額 $${money(totalAmount)}`;
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
