@@ -1953,7 +1953,7 @@ function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm
 async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
-function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>key==='paused'?undefined:value);}
+function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus'].includes(key)?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){
  let toast=document.getElementById('launchCompletionToast');
@@ -2374,10 +2374,12 @@ function launchCopyClosedProducts(event){
 const launchAvailabilityChecks=new Map();
 function launchAvailabilityKey(group,item){return JSON.stringify([group.id,item.id,item.url||'']);}
 function launchAvailabilityButton(item,index){
- const state=launchAvailabilityChecks.get(launchAvailabilityKey(launchCurrent,item));
- const mark=state?.busy?'☺︎':state?.available===true?'⭕️':state?.available===false?'❌':'⚠️';
- const title=state?.busy?'正在偵測官網貨況':state?`${state.available===true?'官網有貨':state.available===false?'官網缺貨':'待確認'}${state.detail?'：'+state.detail:''}；點擊重新偵測`:'尚未偵測官網貨況，點擊偵測';
- return `<button class="launchAvailability" data-launch-availability="${index}" type="button" title="${esc(title)}" aria-label="${esc(title)}" ${state?.busy?'disabled':''} onclick="launchCheckProductAvailability(${index},this)">${mark}</button>`;
+ const cached=launchAvailabilityChecks.get(launchAvailabilityKey(launchCurrent,item)),saved=String(item.availabilityStatus||'');
+ const state=cached||{available:/⭕/.test(saved)?true:/❌/.test(saved)?false:null};
+ const mark=state.available===true?'⭕️':state.available===false?'❌':'⚠️';
+ const hasStock=Number(item.stockQuantity)>0;
+ const title=hasStock?'已有現貨，不需檢查':state?.busy?'正在偵測官網貨況（保留上次結果）':state?`${state.available===true?'官網有貨':state.available===false?'官網缺貨':'待確認'}${state.detail?'：'+state.detail:''}；點擊重新偵測`:'尚未偵測官網貨況，點擊偵測';
+ return `<button class="launchAvailability" data-launch-availability="${index}" type="button" title="${esc(title)}" aria-label="${esc(title)}" ${state?.busy||hasStock?'disabled':''} onclick="launchCheckProductAvailability(${index},this)">${mark}</button>`;
 }
 const launchAvailabilityPending=new Map(),launchAvailabilityBatches=new Map();
 function launchRefreshAvailabilityControls(key){
@@ -2394,15 +2396,19 @@ function launchRefreshAvailabilityProgress(groupId){
  if(label)label.textContent=job?`${job.busy?'更新中':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件失敗':''}`:'';
 }
 function launchFetchProductAvailability(group,item){
+ if(Number(item.stockQuantity)>0)return Promise.resolve(true);
  const key=launchAvailabilityKey(group,item);if(launchAvailabilityPending.has(key))return launchAvailabilityPending.get(key);
- const previous=launchAvailabilityChecks.get(key);launchAvailabilityChecks.set(key,{...previous,busy:true});launchRefreshAvailabilityControls(key);
+ const saved=String(item.availabilityStatus||''),previous=launchAvailabilityChecks.get(key)||{available:/⭕/.test(saved)?true:/❌/.test(saved)?false:null};launchAvailabilityChecks.set(key,{...previous,busy:true});launchRefreshAvailabilityControls(key);
  const pending=(async()=>{
   try{
-   const result=await launchPost('launchCheckAvailability',{id:group.id,itemId:item.id});
+   const result=await launchPost('launchCheckAvailability',{id:group.id,itemId:item.id},{silent:true});
    if(result.ok===false)throw Error(result.error||'偵測失敗');
-   launchAvailabilityChecks.set(key,{available:result.available===true?true:result.available===false?false:null,detail:result.detail||'',busy:false});
+   if(result.skipped){launchAvailabilityChecks.set(key,{...previous,busy:false});return true;}
+   if(result.status){item.availabilityStatus=result.status;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityStatus=result.status;}
+   const available=result.available===true?true:result.available===false?false:result.lastAvailable??previous?.available??null;
+   launchAvailabilityChecks.set(key,{available,detail:result.detail||'',busy:false});
    return true;
-  }catch(error){launchAvailabilityChecks.set(key,{available:null,detail:error.message||'偵測失敗',busy:false});return false;}
+  }catch(error){launchAvailabilityChecks.set(key,{...previous,detail:error.message||'偵測失敗',busy:false});return false;}
   finally{launchAvailabilityPending.delete(key);launchRefreshAvailabilityControls(key);}
  })();launchAvailabilityPending.set(key,pending);return pending;
 }
@@ -2413,7 +2419,7 @@ async function launchCheckProductAvailability(index,button){
 }
 async function launchUpdateAllAvailability(){
  const group=launchCurrent;if(!group?.id||launchAvailabilityBatches.get(group.id)?.busy)return;
- const items=group.items.map(item=>({id:item.id,url:item.url||''}));
+ const items=group.items.filter(item=>!(Number(item.stockQuantity)>0)).map(item=>({id:item.id,url:item.url||'',availabilityStatus:item.availabilityStatus||''}));
  const job={busy:true,total:items.length,completed:0,failed:0};launchAvailabilityBatches.set(group.id,job);launchRefreshAvailabilityProgress(group.id);
  let next=0;
  const worker=async()=>{while(next<items.length){const item=items[next++];if(!await launchFetchProductAvailability(group,item))job.failed++;job.completed++;launchRefreshAvailabilityProgress(group.id);}};
@@ -3676,9 +3682,10 @@ if(inventoryStatus==='無庫存')return noStock;
 if(inventoryStatus==='缺貨')return inventoryIsShortage(item);
 return true;
 }
+function inventoryHasPhysicalStock(item){return [inventoryCellState(item,['庫存','總庫存','數量']),inventoryCellState(item,['店面','店面庫存','店面數量'])].some(value=>typeof value==='number'&&value>0);}
 function inventoryHasZeroOrX(item,names){const value=inventoryCellState(item,names);return value==='x'||value===0;}
 function inventoryNoteHasUrl(item){return /(?:https?:\/\/|www\.)\S+/i.test(String(inventoryValue(item,['備註','備註欄','說明'])||'').trim());}
-async function checkInventoryUrl(row){if(inventoryStatusCheckingRows.has(Number(row)))return;inventoryStatusCheckingRows.add(Number(row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(item){while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}if(result.stock==='x'){const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}}}inventoryLoadedAt=Date.now();saveInventorySessionCache();if(result.available==null)alert(result.detail||'網站無法辨識貨況，已標示為待確認');}catch(e){alert('貨況更新失敗：'+e.message);}finally{inventoryStatusCheckingRows.delete(Number(row));renderInventoryContent();}}
+async function checkInventoryUrl(row){const current=inventoryRows.find(item=>Number(item.row)===Number(row));if(!current||inventoryHasPhysicalStock(current)||inventoryStatusCheckingRows.has(Number(row)))return;inventoryStatusCheckingRows.add(Number(row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row});const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(item){while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}if(result.stock==='x'){const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}}}inventoryLoadedAt=Date.now();saveInventorySessionCache();if(!result.skipped&&result.available==null)alert(result.detail||'網站無法辨識貨況，已保留上次結果');}catch(e){alert('貨況更新失敗：'+e.message);}finally{inventoryStatusCheckingRows.delete(Number(row));renderInventoryContent();}}
 function inventoryOriginalUnit(item){const row=(item.values||[]).map(x=>String(x??'')).join(' ');return /天貓|天猫|tmall/i.test(row)?'R':'¥';}
 function inventoryOriginalDisplay(item,value){const text=String(value??'').trim();if(!text)return '';if(/[^0-9,.]/.test(text))return text;return inventoryOriginalUnit(item)+money(text);}
 const inventoryProductSaves=new Map();
@@ -3774,13 +3781,13 @@ function stopInventoryAvailabilityBatch(){if(!inventoryAvailabilityBatch)return;
 async function refreshInventoryUnknownStatuses(){
 if(inventoryAvailabilityBatch){stopInventoryAvailabilityBatch();return;}
 const button=document.getElementById('inventoryRefreshButton');if(!button)return;
-const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknown');
+const rows=inventoryRows.filter(item=>inventoryAvailabilityState(item)==='unknown'&&!inventoryHasPhysicalStock(item));
 if(!rows.length){alert('目前沒有⚠️待確認商品');return;}
 const batch={id:'inventory-status-'+launchId(),stop:false,total:rows.length};inventoryAvailabilityBatch=batch;
 button.textContent='停止';button.title='停止後續貨況檢查';
 let completed=0,failed=0;
 launchMoveProgress(batch.id,'','傳送中','','更新貨況 0/'+rows.length);
-for(const item of rows){if(batch.stop)break;if(inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row},batch.id);const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();launchMoveProgress(batch.id,'','傳送中','',`更新貨況 ${completed+failed}/${rows.length}`);}}
+for(const item of rows){if(batch.stop)break;if(inventoryHasPhysicalStock(item)||inventoryStatusCheckingRows.has(Number(item.row)))continue;inventoryStatusCheckingRows.add(Number(item.row));renderInventoryContent();try{const result=await api('checkInventoryAvailability',{row:item.row},batch.id);const statusCol=Number(result.statusCol);if(Number.isInteger(statusCol)&&statusCol>=0){while(inventoryHeaders.length<=statusCol)inventoryHeaders.push('');inventoryHeaders[statusCol]=result.statusHeader||'官網貨況';while(item.values.length<=statusCol)item.values.push('');item.values[statusCol]=result.status;if(item.display){while(item.display.length<=statusCol)item.display.push('');item.display[statusCol]=result.status;}const stockCol=inventoryHeaderIndex(['庫存','總庫存','數量']);if(result.stock==='x'&&stockCol>=0){item.values[stockCol]='x';if(item.display)item.display[stockCol]='x';}}completed++;}catch(_){failed++;}finally{inventoryStatusCheckingRows.delete(Number(item.row));saveInventorySessionCache();renderInventoryContent();launchMoveProgress(batch.id,'','傳送中','',`更新貨況 ${completed+failed}/${rows.length}`);}}
 inventoryAvailabilityBatch=null;
 launchMoveProgress(batch.id,'','完成','',`${batch.stop?'已停止':'貨況完成'} ${completed+failed}/${rows.length}${failed?'，'+failed+' 件失敗':''}`);
 inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';
@@ -3824,12 +3831,12 @@ const availability=inventoryAvailabilityState(item);
 const relisted=stockState==='x'&&availability==='yes';
 const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!inventoryNoteHasUrl(item)&&!relisted;
 const borderClass=relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
-const availabilityMark=inventoryStatusCheckingRows.has(Number(item.row))?'☺︎':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
+const availabilityMark=availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
 const originalText=inventoryOriginalDisplay(item,original);
 const pricesMarkup=originalText?`<span class="inventoryOriginal">${originalText}</span><span class="inventoryPriceDivider">｜</span><button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`:`<button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`;
 const linkMarkup=`<div class="inventoryLinks">${productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}${/^https?:\/\//i.test(note)?`<a class="inventoryChannelButton" href="${esc(note)}" target="_blank" rel="noopener">其他通路</a>`:''}</div>`;
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
-return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" draggable="true" data-row="${Number(item.row)}" ondragstart="inventoryDragStart(event)" ondragover="inventoryDragOver(event)" ondragleave="this.classList.remove('dragTarget','insertBefore','insertAfter')" ondrop="inventoryDrop(event)" ondragend="inventoryDragEnd(event)" ontouchstart="inventoryTouchStart(event)" ontouchmove="inventoryTouchMove(event)" ontouchend="inventoryTouchEnd(event)">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))?'disabled':''} title="點擊更新商品網址狀態" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}<button type="button" class="inventoryEditButton" title="編輯商品" aria-label="編輯 ${esc(name)}" onclick="openInventoryEditDialog(${Number(item.row)})"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button><div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
+return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" draggable="true" data-row="${Number(item.row)}" ondragstart="inventoryDragStart(event)" ondragover="inventoryDragOver(event)" ondragleave="this.classList.remove('dragTarget','insertBefore','insertAfter')" ondrop="inventoryDrop(event)" ondragend="inventoryDragEnd(event)" ontouchstart="inventoryTouchStart(event)" ontouchmove="inventoryTouchMove(event)" ontouchend="inventoryTouchEnd(event)">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':'點擊更新商品網址狀態'}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}<button type="button" class="inventoryEditButton" title="編輯商品" aria-label="編輯 ${esc(name)}" onclick="openInventoryEditDialog(${Number(item.row)})"><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button><div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
 }
 let inventoryCardSizing=null;
@@ -6118,7 +6125,7 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
- return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
@@ -6182,13 +6189,13 @@ function backendTrackWrite(action,run,params={},progress){
  const mutation=backendSyncMutation(action),showProgress=mutation||['launchMove','launchUpload','storeScan','storeCartSet','storeCartClear'].includes(action);
  if(!showProgress)return run();
  const owned=typeof progress==='string'&&progress,info=owned?launchMoveProgressJobs.get(owned)||backendWriteProgressInfo(action,params):backendWriteProgressInfo(action,params),id=owned||'request-'+launchId();
- const meta=typeof progress==='object'&&progress||{};
+ const meta=typeof progress==='object'&&progress||{},silent=meta.silent===true;
  params.requestId||=crypto.randomUUID();
  if(meta.dialog&&params._rowRefs?.length)meta.dialog.dataset.backendRowRefs=JSON.stringify(params._rowRefs);
  if(meta.dialog&&meta.signature){meta.dialog.dataset.backendRequestBody=meta.signature;meta.dialog.dataset.backendRequestId=params.requestId;}
- launchMoveProgress(id,info.name,'排隊中','',info.action);
+ if(!silent)launchMoveProgress(id,info.name,'排隊中','',info.action);
  if(mutation){backendSyncWrites++;backendSyncEpoch++;const lane=backendWriteLane(action);backendSyncWriteCounts.set(lane,(backendSyncWriteCounts.get(lane)||0)+1);backendSyncPageEpochs.set(lane,(backendSyncPageEpochs.get(lane)||0)+1);}
- return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,run,resolve,reject,auth:authToken,meta,action,params});void backendDrainWrites();});
+ return new Promise((resolve,reject)=>{backendWriteQueue.push({id,info,owned,mutation,silent,run,resolve,reject,auth:authToken,meta,action,params});void backendDrainWrites();});
 }
 function backendWriteLane(action){
  if(/^purchase/.test(action)&&action!=='purchaseRestock')return 'purchase';
@@ -6207,10 +6214,10 @@ async function backendDrainWrites(){
   started.push((async()=>{
   try{
    if(job.auth!==authToken)throw Error('登入狀態已改變，這筆尚未送出');
-   launchMoveProgress(job.id,job.info.name,'傳送中','',job.info.action);
-   const result=await job.run();if(!job.owned)launchMoveProgress(job.id,job.info.name,'完成','',job.info.action);job.resolve(result);
+   if(!job.silent)launchMoveProgress(job.id,job.info.name,'傳送中','',job.info.action);
+   const result=await job.run();if(!job.owned&&!job.silent)launchMoveProgress(job.id,job.info.name,'完成','',job.info.action);job.resolve(result);
   }catch(error){
-   launchMoveProgress(job.id,job.info.name,'失敗',error.message||'資料尚未確認儲存',job.info.action);
+   if(!job.silent)launchMoveProgress(job.id,job.info.name,'失敗',error.message||'資料尚未確認儲存',job.info.action);
    if(['launchGroupWorkBatchSave','launchGroupWork'].includes(job.action))backendFailedRetries.set(job.id,{action:job.action,run:job.run,params:job.params,running:false});
    if(job.meta.dialog)backendFailedDialogs.set(job.id,job.meta);
    launchPaintMoveProgress();job.reject(error);
