@@ -5976,14 +5976,8 @@ g[0].data[ci]||
 const packed=!!packedHeader&&g.every(x=>isTruthy(x.data[packedHeader]));
 const orderTotal=g.reduce((sum,x)=>sum+numberValue(x.data[pi]),0);
 const depositTotal=g.reduce((sum,x)=>sum+numberValue(x.data[di]),0);
-const shippingSeen=new Set();
-const shippingTotal=g.reduce((sum,x)=>{
-const shipping=numberValue(x.data[shi]);
-const key=String(x.data[ti]||'')+'|'+shipping;
-if(!shipping||shippingSeen.has(key))return sum;
-shippingSeen.add(key);
-return sum+shipping;
-},0);
+// Each row stores its own shipping charge, including equal charges on the same order.
+const shippingTotal=g.reduce((sum,x)=>sum+numberValue(x.data[shi]),0);
 const balance=orderTotal+shippingTotal-depositTotal;
 const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=!!shipMarketHistory[marketKey];
 shipMarketOrders.set(marketKey,{key:marketKey,customer,orderTotal,depositTotal,shippingTotal,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
