@@ -6417,5 +6417,56 @@ syncTitleRowBack();
  .homeMobileLabel{display:inline}
 }
 </style>
+<style id="iphone-finish">
+/* iPhone-inspired finish; existing palette and application layout preserved. */
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Noto Sans TC",sans-serif;-webkit-font-smoothing:antialiased}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+button,a{touch-action:manipulation}
+button{transition:filter .16s ease,box-shadow .16s ease,opacity .16s ease}
+.btn{border-radius:12px;font-weight:600;box-shadow:inset 0 1px 0 #ffffff24,0 2px 4px #00000008}
+.btn.light{box-shadow:inset 0 1px 0 #ffffff70}
+button:disabled{cursor:default;opacity:.45;box-shadow:none}
+button:not(:disabled):active{filter:brightness(.92)}
+:where(button,a,input,select,textarea):focus-visible{outline:2px solid var(--main);outline-offset:3px}
+input:not([type=checkbox]):not([type=radio]),select,textarea{border-radius:12px;transition:border-color .16s ease,box-shadow .16s ease}
+input:not([type=checkbox]):not([type=radio]):focus,select:focus,textarea:focus{border-color:var(--main);box-shadow:0 0 0 3px #a68c731a}
+input[type=checkbox],input[type=radio]{accent-color:var(--main)}
+.top{font-weight:700;letter-spacing:.015em}
+.card{border-radius:18px;box-shadow:0 3px 14px #00000005}
+.cardHead{font-weight:600}
+.nav{padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px));height:calc(62px + env(safe-area-inset-bottom,0px));gap:4px}
+.nav button,.nav a{border-radius:14px;min-width:0;font-weight:600}
+.nav button.active{background:var(--soft);box-shadow:inset 0 0 0 1px var(--border);color:var(--main)}
+body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-inset-bottom,0px))}
+.page{height:calc(100dvh - 120px - env(safe-area-inset-bottom,0px))}
+.salesperson,.payment{border-radius:14px}
+.salesperson button,.payment button{border-radius:10px;font-weight:600}
+.qty button{border-radius:9px}
+.dialogCard,.launchDialog{border-radius:22px;box-shadow:0 16px 60px #00000026}
+.dialogOverlay{background:rgba(0,0,0,.28)}
+.launchDialog::backdrop{background:rgba(0,0,0,.28)}
+.loginForm input:not([type=checkbox]){min-height:48px;background:var(--soft);border-color:var(--border);border-radius:16px}
+.loginRemember{margin-top:18px}
+@supports(backdrop-filter:blur(20px)){
+ .nav{background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+ .dialogOverlay{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+ .launchDialog::backdrop{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+}
+@media(hover:hover){
+ button:not(:disabled):hover{filter:brightness(.97)}
+ .nav a:hover{background:var(--soft)}
+}
+@media(max-width:850px){
+ .page{height:calc(100dvh - 114px - env(safe-area-inset-bottom,0px))}
+ .nav button,.nav a{padding:0 2px;font-size:12px}
+ .card{border-radius:15px}
+ .dialogCard,.launchDialog{border-radius:20px}
+ .dialogOverlay{padding:max(8px,env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+ .dialogCard{max-height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+}
+@media(prefers-reduced-motion:reduce){
+ button,input,select,textarea{transition:none}
+}
+</style>
 </body>
 </html>
