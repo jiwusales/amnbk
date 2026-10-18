@@ -2064,7 +2064,7 @@ function launchPaintMoveProgress(){
  if(!launchMoveProgressJobs.size){box?.remove();clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;return;}
  if(!box){box=document.createElement('div');box.id='launchMoveProgress';box.setAttribute('role','status');box.style.cssText='position:fixed;left:16px;bottom:85px;z-index:10020;width:min(240px,85vw);max-height:50vh;overflow:auto';document.body.appendChild(box);}
  const host=document.querySelector('dialog[open]')||document.body;if(box.parentElement!==host)host.appendChild(box);
- box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'&&backendFailedRetries.has(id)?` <button type="button" class="saveProgressRetry" onclick="backendRetryFailedWrite(this.closest('.saveProgressJob').dataset.progressId)">重試</button>`:''}${typeof inventoryAvailabilityBatch!=='undefined'&&inventoryAvailabilityBatch?.id===id&&!['完成','失敗'].includes(j.state)?` <button type="button" class="saveProgressStop" onclick="stopInventoryAvailabilityBatch()" ${inventoryAvailabilityBatch.stop?'disabled':''}>${inventoryAvailabilityBatch.stop?'停止中':'停止檢查'}</button>`:''}${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div></div>`).join('');
+ box.innerHTML=[...launchMoveProgressJobs].map(([id,j])=>`<div class="saveProgressJob" data-progress-id="${esc(id)}"><button type="button" class="saveProgressStep" ${j.state==='失敗'?'onclick="backendRestoreFailedDialog(this.parentElement.dataset.progressId)"':''} title="${esc(j.error||'')}">${esc(j.action)}</button><progress class="saveProgressBar" aria-label="${esc(j.action)}${esc(j.state)}" ${j.state==='完成'?'max="1" value="1"':j.state==='失敗'?'max="1" value="0"':''}></progress><div class="saveProgressTime ${j.state==='失敗'?'saveProgressFailed':''}">${esc(j.state)} · ${Math.floor(((j.end||Date.now())-j.start)/1000)}秒${j.state==='失敗'&&backendFailedRetries.has(id)?` <button type="button" class="saveProgressRetry" onclick="backendRetryFailedWrite(this.closest('.saveProgressJob').dataset.progressId)">重試</button>`:''}${typeof inventoryAvailabilityBatch!=='undefined'&&inventoryAvailabilityBatch?.id===id&&!['完成','失敗'].includes(j.state)?` <button type="button" class="saveProgressStop" onclick="stopInventoryAvailabilityBatch()" ${inventoryAvailabilityBatch.stop?'disabled':''}>${inventoryAvailabilityBatch.stop?'停止中':'停止檢查'}</button>`:''}${j.state==='失敗'?` <button type="button" class="saveProgressClose" aria-label="關閉失敗提示" data-id="${esc(id)}" onclick="launchMoveProgressJobs.delete(this.dataset.id);backendDiscardFailedDialog(this.dataset.id);launchPaintMoveProgress()">×</button>`:''}</div>${j.state==='失敗'&&j.error?`<div class="saveProgressError" style="font-size:10px;line-height:1.4;color:#b54b58;white-space:normal;overflow-wrap:anywhere;margin-top:4px">${esc(j.error)}</div>`:''}</div>`).join('');
 }
 function launchMove(status){
  if(['已收單','最新開團'].includes(status)&&launchCurrent){
@@ -4693,7 +4693,7 @@ if(timeInput.value.trim()!==event.target.dataset.originalTime){
 }
 const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));const depositInput=item.querySelector('.orderEditDeposit');const deposit=depositInput.dataset.changed?normalizeMoneyInput(depositInput):depositInput.dataset.original;return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping),deposit};});
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
-if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
+if(!items.length)return deleteWholeOnlineOrder(rows,event.submitter);
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
 const note=document.getElementById('orderEditNote').value.trim();
 const selected=new Set(rows);
@@ -4739,7 +4739,7 @@ async function processOnlineEditQueue(){
 if(onlineEditWorkerRunning)return;onlineEditWorkerRunning=true;
 try{while(onlineEditQueue.length){
 const job=onlineEditQueue[0];
-if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'傳送中','','儲存訂單');
+if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'傳送中','',job.delete?'刪除訂單':'儲存訂單');
 try{
 const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
 if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
@@ -4754,8 +4754,9 @@ const keyByRow=new Map(onlineEditBase.filter(row=>!removed.includes(Number(row.r
 added.forEach((item,i)=>keyByRow.set(last+1+i-removed.length,item.key));
 const keyById=new Map(onlineEditBase.filter(row=>row.itemId).map(row=>[String(row.itemId),row.editKey]));
 onlineHeaders=server.headers;onlineEditBase=server.rows.map(row=>({...row,editKey:keyById.get(String(row.itemId))||keyByRow.get(Number(row.row))||'edit-'+(++onlineEditKey)}));
-if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'完成','','儲存訂單');
-}catch(e){if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'失敗',e.message+'（這筆畫面已還原）','儲存訂單');else alert((job.delete?'訂單刪除失敗':'訂單儲存失敗')+'，這筆畫面已還原：'+e.message);}
+if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'完成','',job.delete?'刪除訂單':'儲存訂單');
+if(result.stockRestorePending?.length)launchCompletionToast('商品已刪除；'+result.stockRestorePending.map(item=>'庫存「'+item.stockMarker+'」已保留，'+item.quantity+' 件待確認還原（'+item.sku+'）').join('；'),true);
+}catch(e){if(job.progressId)launchMoveProgress(job.progressId,job.progressName,'失敗',e.message+'（這筆畫面已還原）',job.delete?'刪除訂單':'儲存訂單');else alert((job.delete?'訂單刪除失敗':'訂單儲存失敗')+'，這筆畫面已還原：'+e.message);}
 onlineEditQueue.shift();onlineMutationRevision++;renderPendingOnlineEdits();
 }}
 finally{onlineEditWorkerRunning=false;onlineOrderEditPending=false;onlineRows=onlineEditBase||onlineRows;onlineLoadedAt=Date.now();saveOnlineSessionCache();}
@@ -5513,7 +5514,7 @@ const dialogRows=document.getElementById('orderEditRows');
 const keys=dialogRows?JSON.parse(dialogRows.dataset.editKeys||'[]'):onlineRows.filter(row=>rows.map(Number).includes(Number(row.row))).map(row=>row.editKey);
 if(!keys.length)return alert('找不到原訂單');
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
-onlineEditQueue.push({keys,items:[],note:'',delete:true});onlineOrderEditPending=true;onlineMutationRevision++;
+const job={keys,items:[],note:'',delete:true,progressId:'online-delete-'+launchId(),progressName:'刪除訂單'};onlineEditQueue.push(job);onlineOrderEditPending=true;onlineMutationRevision++;launchMoveProgress(job.progressId,job.progressName,'排隊中','','刪除訂單');
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
 
