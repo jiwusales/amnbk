@@ -3243,9 +3243,9 @@ function purchaseDailyTotals(orders,mergeMonth=false){
  const imageIndex=purchasePreviousImageIndex(previous);
  const days=new Map();
  orders.forEach(order=>{
-  if(order.status==='砍單')return;
   if(!days.has(order.date))days.set(order.date,{date:order.date,numbers:new Set(),products:new Map()});
   const day=days.get(order.date);day.numbers.add(order.number);
+  if(order.status==='砍單')return;
   (order.items||[]).forEach((item,itemIndex)=>{
    const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
    // 無貨號的舊資料逐項保留，避免把不同商品合在一起。
