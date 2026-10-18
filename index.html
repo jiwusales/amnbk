@@ -1791,7 +1791,7 @@ function launchRenderAux(){
  const data=launchAuxData||{entries:[],categories:[]},statuses=['尚未結單','未出貨','集運中','路上','點貨中','出貨中','下班！'],categories=['全部','未分類',...(data.categories||[]).filter(category=>category!=='未分類')],shown=(data.entries||[]).filter(entry=>launchWorkFilter==='全部'||(launchWorkFilter==='未分類'?!String(entry.category||'').trim():entry.category===launchWorkFilter)).sort(launchWorkNewestFirst),active=shown.filter(entry=>entry.status!=='下班！'),completed=shown.filter(entry=>entry.status==='下班！');
  const cards=entries=>entries.map(entry=>{const image=launchSafeURL(entry.image)||launchPreviewFallback;return `<button class="launchPreviewTile launchWorkTile" data-work-id="${esc(entry.id)}" onpointerdown="launchWorkPressStart(event,'${esc(entry.id)}')" onclick="launchEditWork('${esc(entry.id)}')"><span class="launchPreviewBanner"><img src="${launchImage(image)}" style="${launchBannerStyle(entry)}" alt="" loading="lazy"></span><strong class="launchPreviewName">${esc(entry.name)}</strong><small>${esc(entry.status)}${entry.arrival?'｜'+esc(entry.arrival):''}</small></button>`;}).join('');
  document.getElementById('app').innerHTML=`<section class="launchPage"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}</div><div class="launchListActions"><button class="btn launchSaveWord" onclick="launchSaveWorkChanges()">SAVE${launchWorkDirty?' *':''}</button></div></div><div class="launchWorkStatuses">${statuses.map(status=>`<button class="btn light" aria-pressed="false" type="button">${status}</button>`).join('')}</div><div class="launchWorkCategories"><button class="btn light launchWorkAdd" type="button" aria-label="手動新增團" onclick="launchAddWork()">＋</button>${categories.map(category=>`<button class="btn light" aria-selected="${category===launchWorkFilter}" onclick="launchSetWorkFilter('${esc(category)}')">${esc(category)}</button>`).join('')}</div><p class="launchDragHint">長按並拖移卡片可調整排列；每次變更團務狀態會自動儲存；排列調整後按 SAVE。點選團名可更新運送狀態、IP 與運送備註。</p><div class="launchGrid launchPreviewGrid launchWorkGrid">${cards(active)}</div>${completed.length?`<h2 class="launchWorkCompleteTitle">出貨完畢</h2><div class="launchGrid launchPreviewGrid launchWorkGrid">${cards(completed)}</div>`:''}${shown.length?'':'<p class="launchHelp">目前沒有符合的團務資料。</p>'}</section>`;
- requestAnimationFrame(launchFitWorkNames);
+ launchSizePreviewGrids();requestAnimationFrame(launchFitWorkNames);
 }
 function launchWorkNewestFirst(a,b){const ao=Number(a.workOrder),bo=Number(b.workOrder),hasA=Number.isFinite(ao)&&ao>0,hasB=Number.isFinite(bo)&&bo>0;if(hasA||hasB){if(hasA&&hasB)return ao-bo;return hasA?-1:1;}const date=name=>{const match=String(name||'').match(/^(\d{2})(\d{2})/);return match?Number(match[1])*32+Number(match[2]):-1;};return date(b.name)-date(a.name);}
 function launchSetWorkFilter(category){launchWorkFilter=category;launchRenderAux();}
@@ -1831,6 +1831,15 @@ async function launchLoadGroup(id,ticket=++launchLoad){
  }
 }
 const launchPendingMoves=new Map();
+function launchSizePreviewGrids(){
+ document.querySelectorAll('.launchPreviewGrid').forEach(grid=>{
+  grid.style.gridTemplateColumns='';
+  if(window.innerWidth<=850||!grid.children.length||grid.children.length>3)return;
+  const base=parseFloat(getComputedStyle(grid).gridTemplateColumns);
+  if(Number.isFinite(base)&&base>0)grid.style.gridTemplateColumns=`repeat(auto-fill,${base*1.5}px)`;
+ });
+}
+window.addEventListener('resize',()=>requestAnimationFrame(launchSizePreviewGrids));
 function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
 function launchRenderList(){
  launchGroups=launchGroups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus);
@@ -1838,6 +1847,7 @@ function launchRenderList(){
  const joined=shown.filter(g=>g.joined===true).length,failed=shown.length-joined;
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
  document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">輸出</button>":''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${launchListCards(shown)}</div><p class="launchHelp launchSearchEmpty" ${shown.length?'hidden':''}>${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
+ launchSizePreviewGrids();
 }
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
@@ -1853,7 +1863,7 @@ function launchSearchClosed(value){
  launchSearchTimer=setTimeout(()=>afterInputPaint(()=>{
   if(ticket!==launchSearchGeneration||!input?.isConnected||input.dataset.composing||input.value!==value||launchStatus!=='已收單'||launchCurrent)return;
   const shown=launchGroups.filter(g=>g.name.toLocaleLowerCase().includes(value.toLocaleLowerCase())),grid=document.querySelector('.launchPreviewGrid');if(!grid)return;
-  grid.innerHTML=launchListCards(shown);const joined=shown.filter(g=>g.joined===true).length,hint=document.querySelector('.launchDragHint'),empty=document.querySelector('.launchSearchEmpty');
+  grid.innerHTML=launchListCards(shown);launchSizePreviewGrids();const joined=shown.filter(g=>g.joined===true).length,hint=document.querySelector('.launchDragHint'),empty=document.querySelector('.launchSearchEmpty');
   if(hint)hint.textContent=`開團(${joined})　流團(${shown.length-joined})`;if(empty)empty.hidden=shown.length>0;
  }),160);
 }
