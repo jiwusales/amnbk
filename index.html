@@ -2153,7 +2153,7 @@ function launchProductSubmit(e,index,mode){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
  }
- else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=launchLines(p.images).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
+ else{const p=Object.fromEntries(f);delete p.canvasTarget;p.name=p.name.trim();p.url=String(p.url||'').trim();p.images=launchLines(p.images).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?Number(launchCurrent.items[index].panel)||0:launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
  if(index<0&&launchCurrent.status==='最新開團'){
   launchPushUndo();
   if(f.get('canvasTarget')==='new'){
@@ -2360,7 +2360,7 @@ function launchSetImportAvailability(itemId,available){
 }
 async function launchRefreshImportAvailability(source){
  const items=(source?.items||[]).filter(item=>item?.id),workers=Math.min(3,items.length);let next=0;
- const check=async()=>{while(next<items.length){const item=items[next++];try{const result=await launchPost('launchCheckAvailability',{id:source.id,itemId:item.id});launchSetImportAvailability(item.id,result.available);}catch(_){launchSetImportAvailability(item.id,null);}}};
+ const check=async()=>{while(next<items.length){const item=items[next++];try{const result=await launchPost('launchCheckAvailability',{id:source.id,itemId:item.id},{silent:true});launchSetImportAvailability(item.id,result.available);}catch(_){launchSetImportAvailability(item.id,null);}}};
  await Promise.all(Array.from({length:workers},check));
 }
 function launchCopyClosedProducts(event){
