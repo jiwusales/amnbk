@@ -4446,7 +4446,7 @@ app.innerHTML=`
 <option value="">全部</option>
 <option value="已開單">已開單</option>
 </select>
-<input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" name="q" aria-label="搜尋訂單" aria-controls="onlineResult" placeholder="搜尋顧客名稱／商品名稱／團名／月份／後五碼">
+<input id="customerSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" name="q" aria-label="搜尋訂單" aria-controls="onlineResult" placeholder="搜尋顧客名稱／顧客來源／商品名稱／團名／月份／後五碼">
 <button type="button" class="btn onlineIconButton onlineSearchButton" onclick="searchOnline(true)" aria-label="搜尋">搜尋</button>
 <button type="button" class="btn onlineAddButton" onclick="openOnlineOrderDialog()" aria-label="手動輸入訂單" title="手動輸入訂單">+</button>
 </form>
@@ -5002,6 +5002,7 @@ return(
 customer.includes(key)||
 productName.includes(key)||
 group.includes(key)||
+onlineSourceMatches(x,key)||
 (searchDate.length>=3&&dateKey.includes(searchDate))||
 (searchDigits.length>0&&last5.includes(searchDigits))
 );
@@ -5031,6 +5032,13 @@ if(include)items.forEach(row=>includedRows.add(Number(row.row)));
 rows=rows.filter(row=>includedRows.has(Number(row.row)));
 }
 showOnlineRows(rows)
+}
+function onlineSourceMatches(row,query){
+ const data=row?.data||{},normalize=value=>String(value??'').normalize('NFKC').trim().toLowerCase();
+ const source=normalize(['來源','通路','平台'].map(name=>data[name]).find(value=>String(value??'').trim()));
+ const key=normalize(query);if(!source||!key)return false;
+ const aliases=[['ig','哀居','instagram'],['脆','@','threads','脆(@)']];
+ return source.includes(key)||aliases.some(group=>group.includes(source)&&group.includes(key));
 }
 function isTruthy(v){
 if(v===true)return true;
