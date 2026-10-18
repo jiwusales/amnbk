@@ -4489,6 +4489,14 @@ function orderEditTimeValue(items){
  const latest=items.map(onlineRowOrderTime).reduce((current,value)=>timeValue(value)>timeValue(current)?value:current,'');
  const timestamp=timeValue(latest);return timestamp?new Date(timestamp).toISOString().slice(0,19):'';
 }
+function orderEditDateTime(value,original){
+ const text=String(value||'').normalize('NFKC').trim(),match=text.match(/^(\d{1,2})\/(\d{1,2})$/)||text.match(/^(\d{2})(\d{2})$/);
+ if(!match)throw Error('日期請輸入月/日，例如 10/18');
+ const year=Number(original?.slice(0,4)||new Date(Date.now()+8*3600000).getUTCFullYear()),month=Number(match[1]),day=Number(match[2]);
+ const date=new Date(Date.UTC(year,month-1,day));
+ if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)throw Error('請輸入有效的月/日');
+ return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}${original?.slice(10)||'T00:00:00'}`;
+}
 function openOrderEditDialog(rows){
 onlineRows.forEach(row=>{if(!row.editKey)row.editKey='edit-'+(++onlineEditKey);});
 const orderRows=(rows||[]).map(Number).filter(row=>row>=2);
@@ -4497,8 +4505,8 @@ if(!items.length)return;
 const storedMethod=normalizePayment(getPaymentMethod(items[0]));
 const payment=storedMethod==='面交'?'LB':storedMethod||'LB';
 const last5=items.map(getLast5).find(value=>String(value||'').trim())||'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><input id="orderEditTime" type="datetime-local" step="1" aria-label="時間" title="時間" value="${esc(orderEditTimeValue(items))}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['中信','LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['中信','LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
-const form=document.querySelector('#appDialog form');form.dataset.originalTime=document.getElementById('orderEditTime').value;form.dataset.originalPayment=payment;form.dataset.originalLast5=document.getElementById('orderEditLast5').value;
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['中信','LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['中信','LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+const form=document.querySelector('#appDialog form');form.dataset.originalTimestamp=orderEditTimeValue(items);form.dataset.originalTime=document.getElementById('orderEditTime').value;form.dataset.originalPayment=payment;form.dataset.originalLast5=document.getElementById('orderEditLast5').value;
 document.querySelector('.orderEditName')?.focus();
 }
 function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['中信','LB'].includes(document.getElementById('orderEditPayment').value);}
@@ -4517,9 +4525,10 @@ empty.deposit=String(remaining);
 }
 async function submitOrderEdit(event){
 event.preventDefault();
-const timeInput=document.getElementById('orderEditTime'),orderTime=timeInput.value;
-const timeChanged=orderTime!==event.target.dataset.originalTime;
-if(timeChanged&&(!orderTime||!timeInput.checkValidity()))return alert('請填寫有效的時間');
+const timeInput=document.getElementById('orderEditTime');let orderTime,timeChanged=false;
+if(timeInput.value.trim()!==event.target.dataset.originalTime){
+ try{orderTime=orderEditDateTime(timeInput.value,event.target.dataset.originalTimestamp);timeChanged=orderTime!==event.target.dataset.originalTimestamp;}catch(error){return alert(error.message);}
+}
 const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));const depositInput=item.querySelector('.orderEditDeposit');const deposit=depositInput.dataset.changed?normalizeMoneyInput(depositInput):depositInput.dataset.original;return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping),deposit};});
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
 if(!items.length)return alert('若要刪除整張訂單，請使用整筆刪除');
