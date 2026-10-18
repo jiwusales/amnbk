@@ -4990,8 +4990,11 @@ group.includes(key)||
 );
 });
 }
-if(onlineCargo){
-// 貨況篩選以整筆訂單判斷，混合貨況商品不會被切成另一張卡。
+if(onlineCargo==='未訂購'){
+// 只顯示仍未訂購的品項，不讓同日其他團的待購商品帶回已訂購品項。
+rows=rows.filter(row=>cargoDisplay(row).text==='未');
+}else if(onlineCargo){
+// 其餘貨況沿用整筆訂單的篩選規則。
 const orderGroups=groupOnlineOrders(onlineRows);
 const includedRows=new Set();
 orderGroups.forEach(({items})=>{
@@ -5001,7 +5004,6 @@ let include=false;
 if(onlineCargo==='現貨')include=section==='現貨'&&items.every(row=>!isOpenedRow(row));
 else if(onlineCargo==='未開單')include=(section==='現貨'&&items.every(row=>!isOpenedRow(row)))||hasUnopenedPurchase;
 // 已訂購只收尚未開單的品項；同張訂單混有已開單與已訂購時，優先留在已訂購。
-else if(onlineCargo==='未訂購')include=items.some(row=>cargoDisplay(row).text==='未');
 else if(onlineCargo==='已訂購')include=hasUnopenedPurchase;
 else if(onlineCargo==='受注')include=section==='受注';
 else if(onlineCargo==='補貨登記')include=section==='補貨登記';
