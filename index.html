@@ -3149,7 +3149,7 @@ function purchaseOrderSite(url){
 let purchaseOrdersLoaded=false;
 let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',purchaseMessage='',purchaseBusy=false;
 let purchaseSearch='',purchaseRegion='';
-function purchaseOrderRegion(order){const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅]/.test(channel)?'cn':'';}
+function purchaseOrderRegion(order){const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅京]/.test(channel)?'cn':'';}
 function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':region;purchaseSelectedMonth='';purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?o.status==='已到貨'&&!purchaseOrderComplete(o):(purchaseRecordStatus?purchaseDisplayStatus(o)===purchaseRecordStatus:true);return area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
