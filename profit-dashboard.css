@@ -37,3 +37,5 @@ body[data-page="profit"] #app{background:var(--bg,#f3f3f3)}
 .profitUnlockIcon{font-size:26px;line-height:1.5;white-space:pre-wrap;color:var(--main,#a68c73)}
 
 .profitUnlockIcon{font-weight:700}
+
+.profitUnlock input{display:block;margin:24px 0 0}.profitUnlock .profitFormError:empty{display:none}.profitUnlock .profitFormError{min-height:0;margin:8px 0 0}.profitUnlock .dialogActions{margin-top:8px}
