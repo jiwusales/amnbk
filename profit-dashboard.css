@@ -4,3 +4,30 @@ body[data-page="profit"] #app{background:#f7f7f2;padding:0 0 100px;overflow:auto
 
 /* Keep captions readable on the light report palette. */
 .profitKpis small,.profitKpis article>span,.profitHero p,.profitFilters label,.profitRate,.profitChartLegend,.profitBarValue,.profitBarColumn,.profitChannelBottom,.profitChannelTop>span:last-child,.profitTable th,.profitTable td>small,.profitEditCost,.profitMethod,.profitSectionHeading>small{color:#6e806f}.profitTable th,.profitKpis small,.profitChannelBottom small{font-size:11px}.profitBarValue{color:#728470}.profitMethod{font-size:12px}
+/* Match the admin's neutral and warm brown palette. */
+body[data-page="profit"] #app{background:var(--bg,#f3f3f3)}
+.profitDashboard{color:var(--text,#555)}
+.profitHero,.profitHero h1{color:var(--text,#555)}
+.profitHero h1{font-size:24px;margin:0}
+.profitHeroActions button{color:var(--text,#555);border-color:var(--border,#e2e2e2);background:white}
+.profitSegments button[aria-pressed="true"]{background:#eee5dc;color:#80664f}
+.profitKpis article,.profitPanel,.profitChannelCard{border-color:var(--border,#e2e2e2)}
+.profitKpis strong,.profitSectionHeading h2,.profitChannelCard>strong,.profitCostDialog h2,.profitUnlock h2{color:var(--main,#a68c73)}
+.profitKpis .profitKpiHighlight{background:#eee5dc;border-color:#e3d6c9}
+.profitCoverage i,.profitShare i,.gain{background:#a68c73}
+.revenue{background:#dfd2c5}
+.profitBarValue.revenueValue{color:#a68c73}.profitBarValue.gainValue{color:#71583f}
+.profitChartLegend,.profitKpis article>span,.profitKpis small,.profitTable td,.profitTable th,.profitMethod,.profitChannelBottom,.profitCostFields label{color:var(--text,#555)}
+.profitProgress{display:block;text-align:left;border:0;padding:0;background:none;width:100%;font:inherit;color:inherit;cursor:pointer}
+.profitProgress>span{font-size:12px}
+.profitGroupButton{white-space:normal;min-width:150px;max-width:260px;text-align:left;color:#80664f;font:inherit;font-weight:700;background:none;border:0;cursor:pointer;padding:8px 0}
+.profitTable{min-width:0;table-layout:fixed}.profitTable th:first-child{width:27%}.profitTable th:last-child{width:28%}.profitTable td:nth-child(2){white-space:normal;text-align:left}.profitTable th:nth-child(2){text-align:left}.profitTable .profitGroupButton{min-width:0;max-width:100%;overflow-wrap:anywhere}.profitTable th,.profitTable td{padding-left:8px;padding-right:8px}.profitTable th,.profitTable td{white-space:nowrap}.profitTable td:first-child strong{min-width:0}
+.profitCostDialog,.profitCostDialog *,.profitUnlock input{box-sizing:border-box}
+.profitCostDialog{width:min(530px,calc(100vw - 28px));max-height:85dvh;overflow-y:auto}
+.profitCostFields{grid-template-columns:minmax(0,1fr)}
+.profitMissingList{display:grid;gap:10px}.profitMissingList button{padding:12px;text-align:left;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;color:#555;cursor:pointer}.profitMissingList small{display:block;margin-top:6px}
+@media(max-width:560px){.profitHero{display:flex;align-items:center;gap:10px}.profitHeroActions{margin-top:0}.profitFilters>select{max-width:none;flex:1 1 130px}.profitFilters input{flex:1 1 100%;width:100%}.profitBars{gap:10px}.profitBarColumn{min-width:72px}.profitBars{height:260px}.profitCostDialog{padding:20px}.profitHero h1{font-size:22px}}
+.profitFilters select,.profitFilters input,.profitCostFields input,.profitCostFields textarea{color:var(--text,#555);border-color:var(--border,#e2e2e2)}
+.profitSegments button,.profitCostDialog p,.profitChannelBottom b{color:#806b58}
+
+.profitStoreExpensePanel{margin-bottom:24px}.profitExpenseList{display:grid;gap:8px}.profitExpenseList>button{display:flex;justify-content:space-between;gap:12px;align-items:center;width:100%;padding:12px;border:1px solid var(--border,#e2e2e2);border-radius:8px;background:#fafafa;color:var(--text,#555);text-align:left;cursor:pointer}.profitExpenseList small{display:block;margin-top:6px;font-size:11px}.profitExpenseList b{white-space:nowrap;color:var(--main,#a68c73)}.profitExpenseList>p{font-size:12px;color:#777}.profitCostFields select{box-sizing:border-box;max-width:100%}
