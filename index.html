@@ -5620,9 +5620,11 @@ const productRows=key&&!isCustomerView&&!isGroupView&&!isFaceToFaceView&&!isStar
 ?rows.filter(row=>[['名稱','商品名稱','品名','商品'],['團名','團組','團']].some(names=>String(getOnlineData(row,names)||'').normalize('NFKC').toLowerCase().includes(key))):[];
 return {orderCount:orders.size,itemCount:productRows.length||rows.length};
 }
-function showOrderCards(rows,summary,limit=40){
+function showOrderCards(rows,summary,pageNumber){
 const res=document.getElementById('onlineResult');
 if(!res)return;
+const previousPage=res.onlineOrderPage;
+const viewKey=JSON.stringify([summary,onlineSearchText,onlineCargo,isCustomerView,isGroupView,isFaceToFaceView,isStarredView]);
 res.onlineOrderPage=null;
 resetOnlineCardLayout();
 if(!rows.length){
@@ -5659,7 +5661,11 @@ const faceSectionCards={'現貨':[],'預訂':[],'受注':[],'補貨登記':[]};
 const ordersToRender=[...orders.values()];
 const orderTimes=new Map(ordersToRender.map(order=>[order,orderNewestTime(order)]));
 ordersToRender.sort((a,b)=>orderTimes.get(b)-orderTimes.get(a)||(isFaceToFaceView?Number(faceToFaceOrderIsOrdered(a))-Number(faceToFaceOrderIsOrdered(b)):0));
-const visibleOrders=isFaceToFaceView||isCustomerView?ordersToRender:ordersToRender.slice(0,limit);
+const pageSize=typeof matchMedia==='function'&&matchMedia('(max-width:850px)').matches?40:60;
+const pageCount=Math.max(1,Math.ceil(ordersToRender.length/pageSize));
+const currentPage=Math.max(1,Math.min(pageCount,Math.floor(Number(pageNumber??(previousPage?.viewKey===viewKey?previousPage.currentPage:1)))||1));
+const visibleOrders=ordersToRender.slice((currentPage-1)*pageSize,currentPage*pageSize);
+res.onlineOrderPage={rows,summary,viewKey,currentPage,pageCount,pageSize};
 visibleOrders.forEach(order=>{
 let orderTotal=0;
 let orderShipping=0;
@@ -5738,24 +5744,17 @@ html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead ${h
 });
 }
 html+=`${restockRows.length?renderRestockSection(restockRows):''}`;
-if(visibleOrders.length<ordersToRender.length){
-res.onlineOrderPage={rows,summary,limit};
-html+=`<div class="onlineMoreOrders" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:18px;font-size:12px;color:#777"><span>已顯示 ${visibleOrders.length} / ${ordersToRender.length} 筆訂單，統計包含全部結果</span><button type="button" class="btn light" onclick="showMoreOnlineOrders(this)">顯示更多訂單</button></div>`;
+if(pageCount>1){
+html+=`<nav class="onlineOrderPager" aria-label="訂單分頁" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;padding:18px;font-size:12px;color:#777"><button type="button" class="btn light" onclick="changeOnlineOrderPage(${currentPage-1})" ${currentPage===1?'disabled':''}>上一頁</button><label>第 <select aria-label="訂單頁數" onchange="changeOnlineOrderPage(this.value)">${Array.from({length:pageCount},(_,i)=>`<option value="${i+1}" ${i+1===currentPage?'selected':''}>${i+1}</option>`).join('')}</select> / ${pageCount} 頁</label><button type="button" class="btn light" onclick="changeOnlineOrderPage(${currentPage+1})" ${currentPage===pageCount?'disabled':''}>下一頁</button><span>每頁 ${pageSize} 筆｜共 ${ordersToRender.length} 筆訂單，統計包含全部結果</span></nav>`;
 }
 res.innerHTML=html;
 prepareOnlineCardLayout(res);
 syncFaceButtons();
 }
-function showMoreOnlineOrders(button){
+function changeOnlineOrderPage(number){
 const res=document.getElementById('onlineResult'),page=res?.onlineOrderPage;if(!page)return;
-const selected=new Set(onlineQueryAll('.shipCheck:checked',res).map(input=>input.value));
-const top=res.scrollTop;button.disabled=true;
-afterInputPaint(()=>{
- if(!button.isConnected||res.onlineOrderPage!==page)return;
- showOrderCards(page.rows,page.summary,page.limit+40);
- onlineQueryAll('.shipCheck',res).forEach(input=>{if(selected.has(input.value)&&!input.disabled)input.checked=true;});
- res.scrollTop=top;
-});
+showOrderCards(page.rows,page.summary,number);
+res.scrollTop=0;
 }
 /* 點擊顧客名稱後，以每個下單時間分成不同卡片。 */
 let onlineCustomerHistory=[];
@@ -5763,7 +5762,7 @@ function rememberOnlineCustomerOrigin(){
 const root=document.getElementById('onlineResult');
 const scroll=[];for(let el=root;el;el=el.parentElement)scroll.push({el,top:el.scrollTop,left:el.scrollLeft});
 const cards=new Map();(root?onlineQueryAll('.groupCard',root):[]).forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows;const items=card.querySelector('.groupCardItems');if(key&&items)cards.set(key,onlineScrollPosition(items).top);});
-onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,star:isStarredView,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...onlineQueryAll('.shipCheck:checked')].map(el=>el.value)});
+onlineCustomerHistory.push({search:onlineSearchText,cargo:onlineCargo,customer:isCustomerView,group:isGroupView,face:isFaceToFaceView,star:isStarredView,orderPage:root?.onlineOrderPage?.currentPage||1,scroll,cards,pageTop:document.scrollingElement?.scrollTop||0,checked:[...onlineQueryAll('.shipCheck:checked')].map(el=>el.value)});
 }
 function syncOnlineBackButton(){const button=document.getElementById('onlineBackButton');if(button)button.hidden=!isCustomerView||!onlineCustomerHistory.length;}
 function backOnlineCustomer(){
@@ -5774,6 +5773,7 @@ const filter=document.getElementById('cargoFilter');if(filter)filter.value=saved
 if(saved.customer)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===saved.search),saved.search);
 else if(saved.group)showOrderCards(onlineRows.filter(row=>String(getGroupName(row)||'').trim()===saved.search),saved.search);
 else applyOnlineFilter();
+const restoredPage=document.getElementById('onlineResult')?.onlineOrderPage;if(restoredPage&&saved.orderPage)showOrderCards(restoredPage.rows,restoredPage.summary,saved.orderPage);
 syncOnlineBackButton();
 onlineQueryAll('.groupCard').forEach(card=>{const key=card.querySelector('.groupCardMeta')?.dataset.rows,items=card.querySelector('.groupCardItems');if(items&&saved.cards.has(key))onlineRestoreScroll(items,saved.cards.get(key),0);});
 const checked=new Set(saved.checked);onlineQueryAll('.shipCheck').forEach(el=>el.checked=checked.has(el.value));
