@@ -3151,7 +3151,7 @@ let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',pur
 let purchaseSearch='',purchaseRegion='';
 function purchaseOrderRegion(order){const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅]/.test(channel)?'cn':'';}
 function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':region;purchaseSelectedMonth='';purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
-function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?['已到貨','已完成'].includes(o.status):true;return area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
+function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?o.status==='已到貨'&&!purchaseOrderComplete(o):(purchaseRecordStatus?purchaseDisplayStatus(o)===purchaseRecordStatus:true);return area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;const results=document.getElementById('purchaseManagement');if(results)results.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
 function purchaseBindSearch(){
@@ -3169,6 +3169,7 @@ function purchaseBindSearch(){
 }
 
 let purchaseSelectedMonth='';
+let purchaseRecordStatus='';
 let purchaseView='manage',purchaseSelectedDate='',purchaseDateCollapsed=false,purchaseRecordsCollapsed=false;
 function purchaseDateParts(date){
  const text=String(date??'').trim();
@@ -3273,16 +3274,18 @@ function purchaseCompleteMonth(){
  purchaseKeepPending();const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;
  purchaseEditToast(`${Number(purchaseSelectedMonth.split('-')[1])}月 ${orders.length} 筆訂單已標記完成，正在儲存`);void purchaseDrainEdits();
 }
+function purchaseRecordFilters(){return purchaseView==='manage'?`<span class="purchaseRecordFilters" role="group" aria-label="訂單狀態">${[['未出貨','未'],['已出貨','出']].map(([value,label])=>`<button type="button" class="btn ${purchaseRecordStatus===value?'':'light'}" aria-pressed="${purchaseRecordStatus===value}" onclick="purchaseFilterRecords('${value}')">${label}</button>`).join('')}</span>`:'';}
+function purchaseFilterRecords(status){purchaseRecordStatus=purchaseRecordStatus===status?'':status;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseRecordsTitle(){return purchaseView==='packed'||purchaseView==='arrived'?`訂單記錄 (${purchaseVisibleOrders().length})`:'訂單記錄';}
 function purchaseDailyView(){
- const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return (purchaseView==='packed'||purchaseView==='arrived'?'<h3>訂單記錄 (0)</h3>':'')+(purchaseRegion==='cn'&&purchaseView==='manage'?'<div class="purchaseDateTabs"><button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>':'')+'<p>尚無訂購紀錄</p>';
+ const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return (purchaseView==='packed'||purchaseView==='arrived'?'<h3>訂單記錄 (0)</h3>':`<h3 class="purchaseRecordsHeading">訂單記錄 ${purchaseRecordFilters()}</h3>`)+(purchaseRegion==='cn'&&purchaseView==='manage'?'<div class="purchaseDateTabs"><button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>':'')+'<p>尚無訂購紀錄</p>';
  if(purchaseNoMonths())return `<h3>${purchaseRecordsTitle()}</h3>${purchaseOrderCards()}${purchaseProductCards(purchaseVisibleProducts())}`;
  const months=[...new Set(allDays.map(d=>purchaseMonthKey(d.date)))];
  if(!months.includes(purchaseSelectedMonth))purchaseSelectedMonth=months.includes(purchaseMonthKey(purchaseSelectedDate))?purchaseMonthKey(purchaseSelectedDate):months[months.length-1];
  const days=allDays.filter(d=>purchaseMonthKey(d.date)===purchaseSelectedMonth);
  if(purchaseSelectedDate&&!days.some(x=>x.date===purchaseSelectedDate)){purchaseSelectedDate='';purchaseDateCollapsed=false;}
  const products=purchaseVisibleProducts();
- return `${purchaseContentSummary()}<div class="purchaseDateTabs" aria-label="月份">${purchaseRegion==='cn'&&purchaseView==='manage'?`<button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button>`:''}${months.map(month=>`<button type="button" class="btn ${month===purchaseSelectedMonth?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${purchaseMonthLabel(month)}</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3 style="display:flex;align-items:center;gap:8px"><button type="button" class="btn" style="background:#35454C;color:#fff;padding:0;min-height:0;min-width:0;width:1em;height:1em;box-sizing:border-box;flex:0 0 1em;line-height:1;font-size:inherit;border:0;border-radius:3px;display:inline-flex;align-items:center;justify-content:center" aria-label="將本月全部訂單設為完成" title="本月全部完成" onclick="purchaseCompleteMonth()"><span style="font-size:.75em;line-height:1">完</span></button><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">${purchaseRecordsTitle()} ${purchaseRecordsCollapsed?'▸':'▾'}</button></h3><div class="purchaseDateTabs" aria-label="日期">${days.map(d=>`<button type="button" class="btn purchaseDayButton ${d.date===purchaseSelectedDate?'isSelected':''}" data-date="${esc(d.date)}" onclick="purchaseSelectDate(this.dataset.date)">${esc(purchaseDateLabel(d.date))}</button>`).join('')}</div>${purchaseRecordsCollapsed?'':purchaseOrderCards()}${purchaseProductCards(products)}`}`;
+ return `${purchaseContentSummary()}<div class="purchaseDateTabs" aria-label="月份">${purchaseRegion==='cn'&&purchaseView==='manage'?`<button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button>`:''}${months.map(month=>`<button type="button" class="btn ${month===purchaseSelectedMonth?'':'light'}" data-month="${esc(month)}" onclick="purchaseMonthDialog(this.dataset.month)">${purchaseMonthLabel(month)}</button>`).join('')}</div>${purchaseDateCollapsed?'':`<h3 style="display:flex;align-items:center;gap:8px"><button type="button" class="btn" style="background:#35454C;color:#fff;padding:0;min-height:0;min-width:0;width:1em;height:1em;box-sizing:border-box;flex:0 0 1em;line-height:1;font-size:inherit;border:0;border-radius:3px;display:inline-flex;align-items:center;justify-content:center" aria-label="將本月全部訂單設為完成" title="本月全部完成" onclick="purchaseCompleteMonth()"><span style="font-size:.75em;line-height:1">完</span></button><button type="button" onclick="purchaseToggleRecords()" aria-expanded="${!purchaseRecordsCollapsed}" style="border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer">${purchaseRecordsTitle()} ${purchaseRecordsCollapsed?'▸':'▾'}</button>${purchaseRecordFilters()}</h3><div class="purchaseDateTabs" aria-label="日期">${days.map(d=>`<button type="button" class="btn purchaseDayButton ${d.date===purchaseSelectedDate?'isSelected':''}" data-date="${esc(d.date)}" onclick="purchaseSelectDate(this.dataset.date)">${esc(purchaseDateLabel(d.date))}</button>`).join('')}</div>${purchaseRecordsCollapsed?'':purchaseOrderCards()}${purchaseProductCards(products)}`}`;
 }
 
 function purchaseImageDialog(index){
@@ -6791,7 +6794,13 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .groupCardCustomer>.groupCardTotal{flex-shrink:0}
 .shipCardHead>strong{min-width:0}
 .launchDialog .launchProductFields{grid-template-columns:repeat(6,minmax(0,1fr))}.launchDialog .launchProductFields>label{grid-column:span 2}.launchDialog .launchProductFields>.launchProductUrl{grid-column:span 3}.launchDialog .launchProductFields>.launchProductNote{grid-column:1/-1}@media(max-width:600px){.launchDialog .launchProductFields{gap:10px 8px}.launchDialog .launchProductFields>label{flex-direction:column;align-items:stretch}.launchDialog .launchProductFields input,.launchDialog .launchProductFields select,.launchDialog .launchProductFields textarea{width:100%;box-sizing:border-box}}
+.purchaseDateTabs[aria-label="日期"]{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;overflow:visible;padding-bottom:0}
+.purchaseDateTabs[aria-label="日期"] .purchaseDayButton{min-width:0;width:100%;padding:7px 2px;white-space:nowrap}
+.purchaseRecordFilters{display:inline-flex;gap:5px;align-items:center;margin-left:6px;vertical-align:middle}
+.purchaseRecordFilters .btn{padding:5px 9px;min-width:30px;font-size:12px;line-height:1.2;white-space:nowrap}
+.purchaseRecordsHeading{display:flex;align-items:center;gap:8px}
 </style>
 </body>
 </html>
+
 
