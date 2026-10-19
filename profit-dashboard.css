@@ -35,3 +35,5 @@ body[data-page="profit"] #app{background:var(--bg,#f3f3f3)}
 .profitLoading{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px}.profitLoading>span{display:block;font-size:26px;line-height:1.5;white-space:nowrap;color:var(--main,#a68c73)}.profitLoading>p{margin:0;text-align:center;font-size:14px;color:var(--text,#555)}
 
 .profitUnlockIcon{font-size:26px;line-height:1.5;white-space:pre-wrap;color:var(--main,#a68c73)}
+
+.profitUnlockIcon{font-weight:700}
