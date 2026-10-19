@@ -492,6 +492,8 @@ font-weight:400
 .customerMessageButton{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;background:transparent;padding:2px 4px;font-size:16px;cursor:pointer;line-height:1.2}
 .customerMessageButton:disabled{opacity:.5;cursor:wait}
 .customerNameEditIcon{display:block;width:1em;height:1em;object-fit:contain;align-self:center;flex:0 0 1em}
+.orderNameEditButton{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;background:transparent;color:inherit;padding:3px;cursor:pointer;opacity:.7}
+.orderNameEditButton img{width:14px;height:14px;object-fit:contain}
 .faceOrderHead{background:var(--green);color:#fff}
 .faceOrderSection{margin:12px 0}
 .faceOrderHead.faceStockHead{background:#D9C0FA}
@@ -2906,9 +2908,8 @@ function cachedCustomerLineChat(customer){
 if(customerChatAuth!==authToken)return '';
 if(customerChatResolved.has(customer))return customerChatResolved.get(customer);
 if(!customerChatSnapshot)return '';
-let matches=customerChatSnapshot.filter(item=>(item.aliases||[]).includes(customer));
-const key=String(customer).normalize('NFKC').split(/[（(]/)[0].trim();
-if(!matches.length)matches=customerChatSnapshot.filter(item=>String(item.customer).normalize('NFKC').split(/[（(]/)[0].trim()===key);
+const key=String(customer).trim();
+const matches=customerChatSnapshot.filter(item=>String(item.customer).trim()===key||(item.aliases||[]).some(alias=>String(alias).trim()===key));
 const urls=[...new Set(matches.map(item=>item.url.replace(/\/$/,'')))];
 return urls.length===1&&validCustomerLineChat(urls[0])?urls[0]:'';
 }
@@ -5043,20 +5044,37 @@ function cargoChoiceMarkup(row){
 const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['opened','完','#555','cargoChoiceOpened']];
 return options.filter(([,label])=>label!==current).map(([key,label,color,cls])=>`<button type="button" class="tag cargoTag ${cls}" title="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':'已開單'}" aria-label="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':'已開單'}" onclick="chooseCargoTag(${Number(row.row)},'${key}')" style="background:${color}">${label}</button>`).join('');
 }
-function editOnlineCustomerName(oldName){
-const current=String(oldName||'').trim();
+function openOnlineOrderNameDialog(rows){
+if(onlineOrderEditPending||onlineEditWorkerRunning)return alert('訂單正在儲存，完成後即可改名');
+const numbers=[...new Set((rows||[]).map(Number))];
+const items=numbers.map(number=>onlineRows.find(row=>Number(row.row)===number));
+if(!numbers.length||items.some(row=>!row||!row.itemId||row.orderTime===undefined||row.orderTime===null||row.orderTime===''))return alert('訂單資料尚未更新，請重新整理後再改名');
+const names=new Set(items.map(row=>String(getCustomerName(row)||'').trim()));
+if(names.size!==1)return alert('請一次選擇一筆訂單改名');
+const current=[...names][0],orderRows=items.map(row=>({row:Number(row.row),id:String(row.itemId),customer:String(getCustomerName(row)||'').trim(),orderTime:row.orderTime}));
 document.getElementById('appDialog')?.remove();
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard" style="width:min(380px,100%)"><h3>修改顧客名稱</h3><form data-old-name="${esc(current)}" onsubmit="submitOnlineCustomerName(event,this.dataset.oldName)"><input id="onlineCustomerNameInput" maxlength="100" value="${esc(current)}" placeholder="顧客名稱" required><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
-document.getElementById('onlineCustomerNameInput')?.focus();document.getElementById('onlineCustomerNameInput')?.select();
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard" style="width:min(380px,100%)" role="dialog" aria-modal="true" aria-labelledby="onlineOrderNameTitle"><h3 id="onlineOrderNameTitle">單筆訂單改名</h3><p class="salesHint">只修改此筆訂單（${items.length} 項商品）的姓名。</p><form data-order-rows="${esc(JSON.stringify(orderRows))}" onsubmit="submitOnlineOrderName(event)"><input id="onlineOrderNameInput" aria-label="此筆訂單顧客名稱" maxlength="100" value="${esc(current)}" placeholder="顧客名稱" required><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.getElementById('onlineOrderNameInput')?.focus();document.getElementById('onlineOrderNameInput')?.select();
 }
-async function submitOnlineCustomerName(event,oldName){const savedDialog=document.getElementById('appDialog');
-event.preventDefault();const newName=String(document.getElementById('onlineCustomerNameInput')?.value||'').trim();if(!newName)return;
-if(newName===oldName){savedDialog?.remove();return;}
-const customerRows=onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===oldName);const rows=customerRows.map(row=>Number(row.row)).filter(row=>row>=2);
-if(!rows.length){alert('找不到此顧客的訂單');return;}
-const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
-try{await apiBackground('renameOnlineCustomer',{rows:JSON.stringify(rows),oldName,newName});const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);if(header)customerRows.forEach(row=>row.data[header]=newName);savedDialog?.remove();saveOnlineSessionCache();const search=document.getElementById('customerSearch');const sameView=document.body.dataset.page==='online'&&String(search?.value||onlineSearchText).trim()===oldName;if(sameView){onlineSearchText=newName;if(search)search.value=newName;}customerChatResolved.delete(oldName);customerChatResolved.delete(newName);if(sameView)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===newName),newName);}
-catch(e){console.error('顧客名稱修改失敗：'+e.message);button.disabled=false;}
+async function submitOnlineOrderName(event){
+event.preventDefault();
+const form=event.currentTarget,savedDialog=document.getElementById('appDialog'),newName=String(document.getElementById('onlineOrderNameInput')?.value||'').trim();
+if(!newName)return;
+const orderRows=JSON.parse(form.dataset.orderRows||'[]');
+if(!orderRows.length)return;
+if(orderRows.every(row=>row.customer===newName)){savedDialog?.remove();return;}
+const button=form.querySelector('[type=submit]');button.disabled=true;onlineMutationRevision++;
+try{
+const result=await apiBackground('renameOnlineOrderCustomer',{newName,orderRows});
+const confirmed=new Set((result.renamedRows||[]).map(row=>String(row.id)));
+if(confirmed.size!==orderRows.length||orderRows.some(row=>!confirmed.has(row.id))){onlineLoadedAt=0;await loadOnline(true);return;}
+const header=findHeader(onlineHeaders,['顧客名稱','客戶名稱','客人名稱','姓名']);
+if(header)for(const rows of [onlineRows,onlineEditBase||[]])rows.forEach(row=>{if(confirmed.has(String(row.itemId)))row.data[header]=newName;});
+onlineMutationRevision++;onlineLoadedAt=Date.now();saveOnlineSessionCache();
+orderRows.forEach(row=>customerChatResolved.delete(row.customer));customerChatResolved.delete(newName);
+if(document.body.dataset.page==='online')refreshCargoViewKeepingScroll();
+launchCompletionToast('此筆訂單已改名為「'+newName+'」');
+}catch(error){console.error('單筆訂單改名失敗：'+error.message);button.disabled=false;}
 }
 function showOnlineCurrentView(){
  if(isCustomerView)showOrderCards(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===onlineSearchText),onlineSearchText);
@@ -5629,7 +5647,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`${customerMessageButton(summary,false,rows)}<button type="button" class="orderSummaryLabel customerNameTitle" data-customer="${esc(summary||'未填姓名')}" onclick="editOnlineCustomerName(this.dataset.customer)" title="點擊修改顧客名稱">${customerIdentity(summary||'未填姓名',rows)}<img class="customerNameEditIcon" src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary,false,rows)}<span class="orderSummaryLabel">${customerIdentity(summary||'未填姓名',rows)}</span>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -5679,6 +5697,7 @@ ${customerIdentity(order.customer,order.items)}
 <button type="button" class="orderStarButton ${starred?'active':''}" aria-label="標記訂單" aria-pressed="${starred}" onclick='toggleOrderStar(this,${JSON.stringify(order.items.map(row=>row.row))})'>✱</button>
 <button data-face-rows="${orderRows}" class="tag faceToFaceTag ${faceToFace?'active':''}" onclick='toggleFaceToFace(this,${JSON.stringify(order.items.map(row=>row.row))})'>面交</button>
 `}
+<button type="button" class="orderNameEditButton" aria-label="單筆訂單改名" title="只修改此筆訂單姓名" onclick='openOnlineOrderNameDialog(${JSON.stringify(order.items.map(row=>row.row))})'><img src="https://raw.githubusercontent.com/jiwusales/imgh/main/images/img_20260925162717_d8d01bec.png" alt=""></button>
 <strong class="groupCardTotal">總金額 $${money(orderTotal)}${orderShipping?`(${money(orderShipping)})`:''}</strong>
 <button type="button" class="orderAddButton" aria-label="編輯此訂單" title="編輯訂單" onclick='openOrderEditDialog(${JSON.stringify(order.items.map(row=>row.row))})'>＋</button>
 </div>
@@ -6343,11 +6362,11 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
- return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineOrderCustomer|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
- const labels={purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售',deleteStoreSale:'刪除銷售'};
+ const labels={purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',renameOnlineOrderCustomer:'儲存單筆姓名',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售',deleteStoreSale:'刪除銷售'};
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
@@ -6775,4 +6794,3 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 </body>
 </html>
-
