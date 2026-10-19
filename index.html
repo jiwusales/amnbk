@@ -1323,7 +1323,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 }
 </style>
 <style>.purchaseSplitItem{display:grid;grid-template-columns:24px minmax(0,1fr) auto 64px;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.purchaseSplitItem input{min-width:0;width:100%;margin:0}.purchaseSplitItem input[type=checkbox]{width:20px;height:20px}.purchaseSplitItem span{overflow-wrap:anywhere}</style>
-<link rel="stylesheet" href="profit-dashboard.css?v=20261022-report-all-originals">
+<link rel="stylesheet" href="profit-dashboard.css?v=20261022-report-ledger">
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -1342,6 +1342,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
 <span>JIWU吉物躺著賺後台</span>
 <div class="topActions">
+<div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">第一賣場</button>
@@ -1527,7 +1528,7 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchPositionPreview img{width:100%;height:100%;object-fit:cover;will-change:transform}
 .launchPositionControls{display:grid;gap:10px}.launchPositionControls label{display:grid;grid-template-columns:74px 1fr 48px;align-items:center;gap:10px;margin:0}.launchPositionControls input{margin:0;padding:0;border:0}
 </style>
-<script src="profit-dashboard.js?v=20261022-report-all-originals"></script>
+<script src="profit-dashboard.js?v=20261022-report-ledger"></script>
 <script>
 const launchStates=['最新開團','尚未上架','已收單'];
 const launchIcon='https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png';
