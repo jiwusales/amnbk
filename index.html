@@ -3271,6 +3271,7 @@ function purchaseMonthCompletionTargets(){return purchaseOrders.filter(order=>pu
 function purchaseCompleteMonth(){
  if(!purchaseSelectedMonth)return;
  const orders=purchaseMonthCompletionTargets();if(!orders.length){purchaseEditToast('這個月份已全部完成');return;}
+ if(!confirm(`確定將 ${Number(purchaseSelectedMonth.split('-')[1])}月的 ${orders.length} 筆訂單全部設為完成？`))return;
  orders.forEach(order=>purchaseQueueEdit(order,{status:'已完成'},true));
  purchaseKeepPending();const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;
  purchaseEditToast(`${Number(purchaseSelectedMonth.split('-')[1])}月 ${orders.length} 筆訂單已標記完成，正在儲存`);void purchaseDrainEdits();
