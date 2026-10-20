@@ -1193,7 +1193,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 @media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
 .orderEditItem>button:first-child,.btn.launchURLClose{background:transparent;border:0;color:#888;padding:0}
 .launchURLClose{appearance:none;outline:none;box-shadow:none;flex:0 0 32px;width:32px;height:32px;line-height:1;align-self:flex-start}
-.inventoryCard.relisted{border-color:#B1DEC1!important}
+.inventoryCard.relisted{border-color:#B1DEC1!important}.inventoryCard.needsOtherChannel{border:3px solid #E6FF00!important;box-shadow:0 0 8px #dfff0099}.inventoryCard.needsOtherChannel .inventoryOrderInput:disabled{opacity:1;color:#A68C73;background:#fff}
 .storeWorkDay{font-size:13px;font-weight:700;color:#F94A66;white-space:nowrap}
 .salesPurchaseInfo.salesBankLP{gap:6px}
 
@@ -3869,14 +3869,16 @@ return /^https?:\/\//i.test(value)?value:'';
 function inventoryCellState(item,names){const value=String(inventoryValue(item,names,false)??'').trim().toLowerCase();if(value==='x')return 'x';const n=Number(value.replace(/,/g,''));return Number.isFinite(n)?n:null;}
 function inventoryQty(item,names){const state=inventoryCellState(item,names);return typeof state==='number'?state:0;}
 function inventoryAvailabilityState(item){const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
-function inventoryIsPinned(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes';}
+function inventoryIsRelisted(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes';}
+function inventoryNeedsOtherChannelCheck(item){const stock=inventoryCellState(item,['庫存','總庫存','數量']);return (stock===0||stock==='x')&&!inventoryHasPhysicalStock(item)&&inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item);}
+function inventoryIsPinned(item){return inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item);}
 function inventoryIsShortage(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
 function inventoryMatchesStatus(item){
 const stock=inventoryCellState(item,['庫存','總庫存','數量']);
 const store=inventoryCellState(item,['店面','店面庫存','店鋪庫存','店面數量']);
 const hasStock=(typeof stock==='number'&&stock>0)||(typeof store==='number'&&store>0)||(stock==='x'&&inventoryAvailabilityState(item)==='yes');
 const noStock=!inventoryIsShortage(item)&&!(typeof stock==='number'&&stock>0)&&!(typeof store==='number'&&store>0);
-if(inventoryStatus==='目錄')return hasStock||noStock;
+if(inventoryStatus==='目錄')return hasStock||noStock||inventoryNeedsOtherChannelCheck(item);
 if(inventoryStatus==='有庫存')return hasStock;
 if(inventoryStatus==='無庫存')return noStock;
 if(inventoryStatus==='缺貨')return inventoryIsShortage(item);
@@ -4011,7 +4013,9 @@ const name=String(inventoryValue(item,['名稱','商品名稱','品名','商品'
 const code=String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||'');
 return !!name.trim()&&(inventoryCategory==='全部'||cat===inventoryCategory)&&(!search||String(item._searchText||name+' '+code).includes(search))&&inventoryMatchesStatus(item);
 });
-rows.sort((a,b)=>Number(inventoryIsPinned(b))-Number(inventoryIsPinned(a)));
+const originalPositions=new Map(rows.filter(item=>!inventoryIsRelisted(item)).map((item,index)=>[item,index+1]));
+const pinPriority=item=>inventoryNeedsOtherChannelCheck(item)?2:inventoryIsRelisted(item)?1:0;
+rows.sort((a,b)=>pinPriority(b)-pinPriority(a));
 inventoryDisplayedRows=rows.filter(item=>!inventoryIsPinned(item));
 if(!rows.length){grid.innerHTML='<div class="empty">沒有符合條件的商品</div>';return;}
 resizeInventoryCards();
@@ -4033,14 +4037,16 @@ const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc
 const availability=inventoryAvailabilityState(item);
 const relisted=stockState==='x'&&availability==='yes';
 const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!inventoryNoteHasUrl(item)&&!relisted;
-const borderClass=relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
+const needsOtherChannel=inventoryNeedsOtherChannelCheck(item);
+const borderClass=needsOtherChannel?'needsOtherChannel':relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
 const availabilityMark=typeof stockState==='number'&&stockState>0?'':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
 const originalText=inventoryOriginalDisplay(item,original);
 const pricesMarkup=originalText?`<span class="inventoryOriginal">${originalText}</span><span class="inventoryPriceDivider">｜</span><button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`:`<button class="inventorySaleButton" onclick="beginInventoryPriceEdit(${Number(item.row)},this)" title="點擊修改售價">${sale!==''?'$'+money(sale):'—'}</button>`;
-const hasOtherChannel=/^https?:\/\//i.test(note);
-const linkMarkup=`<div class="inventoryLinks"><button type="button" class="inventoryChannelButton" onclick="openInventoryEditDialog(${Number(item.row)})">編輯</button>${hasOtherChannel?`<a class="inventoryChannelButton" href="${esc(note)}" target="_blank" rel="noopener">其他通路</a>`:productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}</div>`;
+const otherChannelUrl=launchOtherChannelURL(note);
+const hasOtherChannel=!!otherChannelUrl;
+const linkMarkup=`<div class="inventoryLinks"><button type="button" class="inventoryChannelButton" onclick="openInventoryEditDialog(${Number(item.row)})">編輯</button>${hasOtherChannel?`<a class="inventoryChannelButton" href="${esc(otherChannelUrl)}" target="_blank" rel="noopener">${needsOtherChannel?'待查其他通路':'其他通路'}</a>`:productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}</div>`;
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
-return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':'點擊更新商品網址狀態'}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="number" min="1" max="${inventoryDisplayedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
+return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':'點擊更新商品網址狀態'}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="number" min="1" max="${inventoryDisplayedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
 }
 let inventoryCardSizing=null;
