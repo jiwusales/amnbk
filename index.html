@@ -3318,11 +3318,18 @@ function purchaseDailyView(){
 
 function purchaseImageDialog(index){
  const product=purchaseVisibleProducts()[index];if(!product)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>貼上圖片網址</h3><form onsubmit="purchaseSaveImage(event)"><input name="image" type="url" placeholder="https://…" aria-label="圖片網址" style="width:100%;box-sizing:border-box" required><p class="purchaseImageError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
- const form=document.querySelector('#appDialog form');form.purchaseImageRefs=product.refs;form.elements.image.value=product.image||'';form.elements.image.focus();form.elements.image.select();
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay" onclick="purchaseImageBackdrop(event)"><div class="dialogCard"><h3>貼上圖片網址</h3><form onsubmit="purchaseSaveImage(event)"><input name="image" type="url" placeholder="https://…" aria-label="圖片網址" style="width:100%;box-sizing:border-box" required><p class="purchaseImageError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ const form=document.querySelector('#appDialog form');form.purchaseImageRefs=product.refs;form.elements.image.value=product.image||'';form.purchaseOriginalImage=form.elements.image.value.trim();form.elements.image.focus();form.elements.image.select();
+}
+function purchaseImageBackdrop(event){
+ if(event.target!==event.currentTarget)return;
+ const form=event.currentTarget.querySelector('form');if(!form||form.querySelector('[type=submit]').disabled)return;
+ const input=form.elements.image;
+ if(!input.value.trim()||input.value.trim()===(form.purchaseOriginalImage||'')){closeDialog();return;}
+ form.requestSubmit();
 }
 async function purchaseSaveImage(event){
- event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]'),image=form.elements.image.value.trim(),refs=form.purchaseImageRefs;
+ event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]'),image=form.elements.image.value.trim(),refs=form.purchaseImageRefs;if(button.disabled)return;
  try{const url=new URL(image);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('請貼上 http 或 https 圖片網址');}catch(_){form.querySelector('.purchaseImageError').textContent='請貼上有效的圖片網址';return;}
  button.disabled=true;
  try{
