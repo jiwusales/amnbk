@@ -3131,10 +3131,25 @@ function purchasePackingPlan(orders){
  const selected=new Set((best?.indexes||[]).map(i=>weighted[i].order.number));return {included:orders.filter(o=>selected.has(o.number)),remaining:orders.filter(o=>!selected.has(o.number)),weight:(best?.sum||0)/1000,remainingWeight:(total-(best?.sum||0))/1000,unknown:orders.filter(o=>!weighted.some(x=>x.order===o))};
 }
 function purchasePackingDialog(){
- const orders=purchaseFilteredOrders().filter(o=>o.status==='集運中');const plan=purchasePackingPlan(orders);purchasePackingCurrent=plan;
- const summary=orders=>{const counts={};orders.forEach(o=>Object.entries(purchaseContentCounts(o.contents)).forEach(([kind,n])=>counts[kind]=(counts[kind]||0)+n));return Object.entries(counts).map(([kind,n])=>`${kind} × ${n}`).join('、');};
- const rows=orders=>orders.map(o=>`<tr><td>${esc(o.channel||'')}<br>${esc(/^MANUAL-/.test(o.number)?o.tracking||'手動訂單':o.number)}</td><td>${esc(o.tracking||'—')}</td><td>${o.items.map(x=>`${esc(purchaseProductName(x))} × ${Number(x.quantity)||0}`).join('<br>')}${o.contents?`<br>內容物：${esc(o.contents)}`:''}</td><td>${String(o.weight??'').trim()!==''&&Number(o.weight)>0?esc(String(o.weight)):'未填有效重量'}</td></tr>`).join('');
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard purchasePackingDialog"><h3>打包明細</h3><div class="purchasePackingWeights"><strong>已加入 ${plan.weight.toFixed(3)} kg</strong><strong>剩餘 ${plan.remainingWeight.toFixed(3)} kg</strong></div><p>整筆訂單配重 · ${plan.included.length} 筆已加入／${plan.remaining.length} 筆剩餘${plan.unknown.length?`（其中 ${plan.unknown.length} 筆重量未填，不計入總重）`:''}</p>${purchaseSearch?'<p>目前依搜尋結果配重。</p>':''}<p>${esc(summary(plan.included))}</p><table><thead><tr><th>訂單</th><th>出貨單號</th><th>商品內容</th><th>重量 kg</th></tr></thead><tbody>${rows(plan.included)||'<tr><td colspan="4">尚無可配重訂單，請先填寫重量。</td></tr>'}</tbody></table><h4>未加入的剩餘訂單 · ${plan.remainingWeight.toFixed(3)} kg</h4><table><tbody>${rows(plan.remaining)||'<tr><td colspan="4">沒有剩餘訂單</td></tr>'}</tbody></table><p id="purchasePackingMessage" role="status"></p><div class="dialogActions"><button class="btn light" onclick="purchaseCopyPacking()">複製明細</button><button class="btn" onclick="purchaseConfirmPacking()" ${plan.included.length?'':'disabled'}>確認打包</button><button class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+ const orders=purchaseFilteredOrders().filter(o=>o.status==='集運中');purchasePackingCurrent=purchasePackingPlan(orders);
+ closeDialog();document.body.insertAdjacentHTML('beforeend','<div id="appDialog" class="dialogOverlay"><div class="dialogCard purchasePackingDialog" id="purchasePackingBody"></div></div>');purchaseRenderPacking();
+}
+function purchaseRenderPacking(){
+ const plan=purchasePackingCurrent;if(!plan)return;
+ const weight=list=>list.reduce((sum,o)=>sum+(Number(o.weight)>0?Math.round(Number(o.weight)*1000):0),0)/1000;
+ plan.weight=weight(plan.included);plan.remainingWeight=weight(plan.remaining);
+ const section=(key,title)=>`<section class="purchasePackingZone" data-pack-zone="${key}" ondragover="event.preventDefault()" ondrop="purchasePackingDrop(event,this.dataset.packZone)"><h4>${title} · ${plan[key].length} 筆 · ${weight(plan[key]).toFixed(3)} kg</h4><table><thead><tr><th></th><th>訂單</th><th>出貨單號</th><th>商品內容</th><th>重量 kg</th></tr></thead><tbody>${plan[key].map(o=>`<tr data-pack-number="${esc(o.number)}" ondragover="event.preventDefault()" ondrop="event.stopPropagation();purchasePackingDrop(event,'${key}',this.dataset.packNumber)"><td><button type="button" class="purchasePackingHandle" draggable="true" data-number="${esc(o.number)}" ondragstart="purchasePackingDrag(event,this.dataset.number)" onclick="purchasePackingMove(this.dataset.number,'${key==='included'?'remaining':'included'}')" aria-label="拖曳排序或點擊移至${key==='included'?'下次打包':'確定打包'}" title="拖曳移動，或點擊切換打包區">≡</button></td><td>${esc(o.channel||'')}<br>${esc(/^MANUAL-/.test(o.number)?o.tracking||'手動訂單':o.number)}</td><td>${esc(o.tracking||'—')}</td><td>${o.items.map(x=>esc(purchaseProductName(x))+' × '+(Number(x.quantity)||0)).join('<br>')}${o.contents?'<br>內容物：'+esc(o.contents):''}</td><td>${Number(o.weight)>0?esc(String(o.weight)):'未填有效重量'}</td></tr>`).join('')||'<tr><td colspan="5">將訂單拖曳到這裡</td></tr>'}</tbody></table></section>`;
+ const box=document.getElementById('purchasePackingBody'),scroll=box.scrollTop;
+ box.innerHTML=`<h3>打包明細</h3><p>拖曳「≡」調整順序或移到另一區，也可點擊「≡」切換區域。</p>${section('included','確定打包')}${section('remaining','下次打包')}<p id="purchasePackingMessage" role="status"></p><div class="dialogActions"><button class="btn light" onclick="purchaseCopyPacking()">複製明細</button><button class="btn" onclick="purchaseConfirmPacking()" ${plan.included.length?'':'disabled'}>確認打包</button><button class="btn" onclick="closeDialog()">關閉</button></div>`;box.scrollTop=scroll;
+}
+let purchasePackingDragged='';
+function purchasePackingDrag(event,number){purchasePackingDragged=number;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',number);}
+function purchasePackingDrop(event,zone,before){event.preventDefault();const number=purchasePackingDragged;purchasePackingDragged='';if(number)purchasePackingMove(number,zone,before);}
+function purchasePackingMove(number,zone,before){
+ const p=purchasePackingCurrent;if(!p||!['included','remaining'].includes(zone)||number===before)return;
+ const order=[...p.included,...p.remaining].find(o=>o.number===number);if(!order)return;
+ p.included=p.included.filter(o=>o.number!==number);p.remaining=p.remaining.filter(o=>o.number!==number);
+ const index=before?p[zone].findIndex(o=>o.number===before):-1;p[zone].splice(index<0?p[zone].length:index,0,order);purchaseRenderPacking();
 }
 let purchasePackingCurrent=null;
 function purchaseConfirmPacking(){
@@ -6812,6 +6827,23 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .purchaseRecordFilters{display:inline-flex;gap:5px;align-items:center;margin-left:6px;vertical-align:middle}
 .purchaseRecordFilters .btn{padding:5px 9px;min-width:30px;font-size:12px;line-height:1.2;white-space:nowrap}
 .purchaseRecordsHeading{display:flex;align-items:center;gap:8px}
+</style>
+<style id="purchase-wide-packing">
+@media(min-width:851px){
+ body[data-page="purchase"] #app.page{max-width:none;width:100%;margin:0;padding-left:0;padding-right:0}
+ .purchasePage{max-width:none;width:100%;padding:18px 24px}
+ .purchaseOrderCards{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));align-items:stretch}
+ .purchaseOrderCard{height:100%;display:flex;flex-direction:column}
+ .purchaseOrderCard .purchaseOrderFooter{margin-top:auto}
+}
+.purchasePackingZone{border:1px solid var(--border);border-radius:12px;padding:12px;margin:14px 0;min-height:110px}
+.purchasePackingZone h4{margin:0 0 10px}
+.purchasePackingZone[data-pack-zone="included"]{border-color:#a6bca2}
+.purchasePackingZone[data-pack-zone="remaining"]{border-color:#d7c3a9}
+.purchasePackingHandle{border:0;background:transparent;color:#8b8077;font-size:24px;cursor:grab;padding:6px;touch-action:manipulation}
+.purchasePackingHandle:active{cursor:grabbing}
+.purchasePackingZone table th:first-child{width:36px}
+.purchasePackingDialog .dialogActions{position:sticky;bottom:0;background:white;padding:10px 0}
 </style>
 </body>
 </html>
