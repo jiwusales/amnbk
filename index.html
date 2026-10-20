@@ -4188,7 +4188,7 @@ if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
-<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／日期（0911、09）" aria-label="搜尋商品名稱或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="storeSalesSearchComposing=false;scheduleStoreSalesSearch(this,event)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="storeSalesSearchComposing=false;scheduleStoreSalesSearch(this,event)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
@@ -4312,7 +4312,7 @@ if(month<1||month>12||(query.length===4&&(day<1||day>lastDay))){if(summary)summa
 days=days.filter(d=>d.date.startsWith(year+'-')&&(query.length===2?d.date.slice(5,7)===query:d.date.slice(5).replace('-','')===query));
 if(!days.length&&query.length===4)days=[{date:year+'-'+query.slice(0,2)+'-'+query.slice(2),total:0,cash:0,transfer:0,other:0,items:[]}];
 }
-if(nameQuery)days=days.filter(day=>day.items.some(item=>String(item.name||'').normalize('NFKC').toLowerCase().includes(nameQuery)));
+if(nameQuery)days=days.filter(day=>day.items.some(item=>[item.name,item.payment].some(value=>String(value||'').normalize('NFKC').toLowerCase().includes(nameQuery))));
 const deploymentWarning=storeSalesData.schema==='store-sales-v2'?'':'<p class="salesHint">目前後端尚未提供合併付款分組，請更新 Code.gs 並將網頁應用程式部署為新版本，再重新整理。</p>';
 const warning=storeSalesData.undated?`<p class="salesHint">${storeSalesData.undated} 筆資料缺少可辨識的日期，未列入統計。</p>`:'';
 if(summary){
@@ -4323,7 +4323,7 @@ else{summary.textContent='';summary.hidden=true;}
 if(warningBox)warningBox.innerHTML=deploymentWarning+warning;
 result.innerHTML=(days.length?'<div class="groupCards salesCards '+(query.length===4?'salesSingle':'salesMulti')+'">'+days.map(day=>{
 const orders=new Map();
-const visibleItems=day.items.filter(item=>!nameQuery||String(item.name||'').normalize('NFKC').toLowerCase().includes(nameQuery));
+const visibleItems=day.items.filter(item=>!nameQuery||[item.name,item.payment].some(value=>String(value||'').normalize('NFKC').toLowerCase().includes(nameQuery)));
 visibleItems.sort((a,b)=>a.time.localeCompare(b.time)||a.row-b.row).forEach(item=>{
 const key=item.orderId||'row-'+item.row;
 if(!orders.has(key))orders.set(key,[]);
@@ -4331,7 +4331,7 @@ orders.get(key).push(item);
 });
 return `<div class="groupCard salesDayCard" data-sales-date="${esc(day.date)}">
 <div class="groupCardCustomer"><strong>${esc(formatStoreSalesDate(day.date))}</strong><button type="button" class="rainToggle" data-rain-date="${esc(day.date)}" aria-label="切換${esc(day.date)}下雨標記" aria-pressed="${isRainyDay(day.date)}" onclick="toggleRainDay('${esc(day.date)}')">⛆</button>${day.items.length&&workDayNumbers.has(day.date)?`<span class="storeWorkDay">Day${workDayNumbers.get(day.date)}</span>`:''}${day.other?`<span class="salesOther">其他／未填：$${money(day.other)}（已含於總金額）</span>`:''}<span class="salesCount">${visibleItems.length} 筆商品</span></div>
-<div class="groupCardItems salesDayItems">${orders.size?[...orders.values()].map(renderSalesPurchase).join(''):`<div class="empty">${nameQuery?'沒有符合商品名稱的銷售紀錄':'當日尚無銷售紀錄'}</div>`}</div>
+<div class="groupCardItems salesDayItems">${orders.size?[...orders.values()].map(renderSalesPurchase).join(''):`<div class="empty">${nameQuery?'沒有符合商品名稱或後五碼的銷售紀錄':'當日尚無銷售紀錄'}</div>`}</div>
 <div class="groupCardMeta salesFooter"><div class="salesDayTotals"><span>總金額 <b>$${money(day.total)}</b></span><span>現金 <b class="salesCash">$${money(day.cash)}</b></span><span>轉帳 <b>$${money(day.transfer)}</b></span></div></div>
 </div>`;
 }).join('')+'</div>':'<div class="empty">沒有符合的銷售紀錄</div>');
