@@ -3652,8 +3652,17 @@ let storeSalesLoadedAt=0;
 let storeSalesPromise=null;
 let storeSalesDate=null,storeSalesSearchTimer=null,storeSalesSearchComposing=false,storeSalesSearchGeneration=0;
 function scheduleStoreSalesSearch(input,event){
- storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;if(storeSalesSearchComposing||event?.isComposing)return;const query=input.value;
- storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing&&input.value===query)drawStoreSales();}),160);
+ if(storeSalesSearchComposing||event?.isComposing)return;
+ storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;
+ storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing){storeSalesDate=input.value;drawStoreSales();}}),160);
+}
+function finishStoreSalesComposition(input){
+ storeSalesSearchComposing=false;
+ scheduleStoreSalesSearch(input);
+}
+function storeSalesSearchKeydown(event,input){
+ if(event.key!=='Enter'||event.isComposing||event.keyCode===229)return;
+ event.preventDefault();storeSalesSearchComposing=false;scheduleStoreSalesSearch(input);
 }
 function tab(name,el){
 if(name==='profit'&&!profitToken){openProfitPage();return;}
@@ -4222,7 +4231,7 @@ if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
-<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="storeSalesSearchComposing=false;scheduleStoreSalesSearch(this,event)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="finishStoreSalesComposition(this)" onkeydown="storeSalesSearchKeydown(event,this)" onsearch="scheduleStoreSalesSearch(this)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
