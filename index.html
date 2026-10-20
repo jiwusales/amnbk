@@ -7,6 +7,7 @@
 
 <title>JIWU吉物躺著賺後台</title>
 <script src="ship-market-export.js?v=20261014" defer></script>
+<script src="purchase-batches.js?v=20261020a" defer></script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -3292,7 +3293,7 @@ function purchaseDailyTotals(orders,mergeMonth=false){
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseNoMonths()||(purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate))).filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.items.length&&o.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000)&&!purchaseCheckJobs.some(job=>job.orders.some(x=>x.number===o.number)))).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
-function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseNoMonths()&&!purchaseSelectedDate&&!purchaseSearch.trim())[0]?.items||[];}
+function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().filter(o=>!(purchaseRegion==='cn'&&o.packId)).map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseNoMonths()&&!purchaseSelectedDate&&!purchaseSearch.trim())[0]?.items||[];}
 function purchaseMonthCompletionTargets(){return purchaseOrders.filter(order=>purchaseOrderRegion(order)===purchaseRegion&&purchaseMonthKey(order.date)===purchaseSelectedMonth&&!['已完成','砍單'].includes(order.status));}
 function purchaseCompleteMonth(){
  if(!purchaseSelectedMonth)return;
@@ -3352,8 +3353,8 @@ async function purchaseCopyCardValue(index,type){
 function purchaseDisplayItems(order){
  const groups=new Map();order.items.forEach((item,index)=>{const key=purchaseOrderRegion(order)==='cn'&&order.tracking?purchaseProductName(item):String(index);if(!groups.has(key))groups.set(key,{...item,quantity:0,indexes:[]});const group=groups.get(key);group.quantity+=Number(item.quantity)||0;group.indexes.push(index);});return [...groups.values()];
 }
-function purchaseOrderCards(){
- const visible=purchaseVisibleOrders();
+function purchaseOrderCards(orders=purchaseVisibleOrders()){
+ const visible=orders;
  const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
  let minWidth=260;
  if(context){context.font='700 13px -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif';minWidth=Math.ceil(Math.max(260,...visible.map(o=>context.measureText(/^MANUAL-/.test(o.number)?o.channel||'':o.number).width+100)));}
@@ -3574,7 +3575,7 @@ function renderPurchase(){
  const record=`<div style="display:flex;gap:8px"><input id="purchaseOrderURL" type="url" style="width:100%;box-sizing:border-box" aria-label="訂單網址" value="${esc(purchaseOrderURL)}" oninput="purchaseURLInput(this.value)"><button type="button" class="btn" style="flex-shrink:0" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div><p id="purchaseURLSearching" role="status" aria-live="polite" ${purchaseBusy?'':'hidden'}>搜尋中⋯</p>${purchaseDraft?`<label>訂單編號 <input value="${esc(purchaseDraft.number)}" oninput="purchaseDraft.number=this.value"></label> <label>日期 <input type="text" inputmode="numeric" placeholder="月/日" value="${esc(purchaseDateLabel(purchaseDraft.date))}" onchange="purchaseEditDate(this.value)"></label>${!purchaseDraft.status?`<label>請確認配送狀態 <select onchange="purchaseDraft.status=this.value"><option value="">官網狀態未辨識，請選擇</option><option value="未出貨">未出貨</option><option value="已出貨">已出貨</option></select></label>`:''}${purchaseTable(purchaseDraft.items,true)}${purchaseContentsMarkup(purchaseDraft.contents||'',true)}<p><button class="btn" onclick="purchaseSave()" ${purchaseBusy?'disabled':''}>SAVE</button> <button class="btn light" onclick="purchaseCopy()">複製結果</button></p>`:''}`;
  const management=`${purchaseDailyView()}`;
  app.innerHTML=`<section class="purchasePage"><div class="purchaseToolbar" role="tablist" aria-label="訂購頁面"><button class="btn ${purchaseView==='manage'?'':'light'}" role="tab" aria-selected="${purchaseView==='manage'}" onclick="purchaseChangeView('manage')"><span class="purchaseDesktopLabel">訂單管理</span><span class="purchaseMobileLabel">訂單</span></button><button class="btn ${purchaseView==='packed'?'':'light'}" role="tab" aria-selected="${purchaseView==='packed'}" onclick="purchaseChangeView('packed')"><span class="purchaseDesktopLabel">打包區</span><span class="purchaseMobileLabel">打包</span></button><button class="btn ${purchaseView==='arrived'?'':'light'}" role="tab" aria-selected="${purchaseView==='arrived'}" onclick="purchaseChangeView('arrived')"><span class="purchaseDesktopLabel">點貨區</span><span class="purchaseMobileLabel">點貨</span></button>${purchaseView!=='record'?`<input id="purchaseSearch" type="search" aria-label="搜尋訂單編號、出貨單號、商品名稱、通路" placeholder="訂單編號、出貨單號、商品名稱、通路" value="${esc(purchaseSearch)}"  style="flex:1;min-width:160px;max-width:360px">`:''}</div><p id="purchaseStatus" ${purchaseMessage?'':'hidden'} role="status" aria-live="polite">${esc(purchaseMessage)}</p><div role="tabpanel">${purchaseView==='manage'?`<section class="purchaseRegistration">${purchaseRegion==='cn'?'':record}</section>`:''}<div id="purchaseManagement">${management}</div></div></section>`;
- document.getElementById('purchaseHeaderActions').innerHTML=`<div class="purchaseRegionFilters" role="group" aria-label="訂單地區"><button type="button" class="btn purchaseRegionButton" style="--region-color:#E7625F" aria-label="中國訂單" aria-pressed="${purchaseRegion==='cn'}" onclick="purchaseToggleRegion('cn')">中</button><button type="button" class="btn purchaseRegionButton" style="--region-color:#C197D2" aria-label="韓國訂單" aria-pressed="${purchaseRegion==='kr'}" onclick="purchaseToggleRegion('kr')">韓</button></div>${purchaseView==='packed'?'<button class="btn" style="background:#739C77;color:#fff" type="button" onclick="purchasePackingDialog()">打包</button>':''}`;
+ document.getElementById('purchaseHeaderActions').innerHTML=`<div class="purchaseRegionFilters" role="group" aria-label="訂單地區"><button type="button" class="btn purchaseRegionButton" style="--region-color:#E7625F" aria-label="中國訂單" aria-pressed="${purchaseRegion==='cn'}" onclick="purchaseToggleRegion('cn')">中</button><button type="button" class="btn purchaseRegionButton" style="--region-color:#C197D2" aria-label="韓國訂單" aria-pressed="${purchaseRegion==='kr'}" onclick="purchaseToggleRegion('kr')">韓</button></div>${purchaseRegion==='cn'?'<button class="btn light" type="button" onclick="purchaseOldBatchDialog()">合併舊訂單</button>':''}${purchaseView==='packed'?'<button class="btn" style="background:#739C77;color:#fff" type="button" onclick="purchasePackingDialog()">打包</button>':''}`;
  purchaseBindSearch();
  if(!purchaseOrdersLoaded&&!purchaseBusy&&!purchaseMessage)purchaseLoad();
 }
@@ -3664,6 +3665,7 @@ function storeSalesSearchKeydown(event,input){
  if(event.key!=='Enter'||event.isComposing||event.keyCode===229)return;
  event.preventDefault();storeSalesSearchComposing=false;scheduleStoreSalesSearch(input);
 }
+
 function tab(name,el){
 if(name==='profit'&&!profitToken){openProfitPage();return;}
 if(document.body.dataset.page==='launch'&&(launchBusy||(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
@@ -6412,7 +6414,7 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
- return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineOrderCustomer|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split|Batch)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineOrderCustomer|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
@@ -6855,6 +6857,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .purchaseOrderCard{height:100%;display:flex;flex-direction:column}
  .purchaseOrderCard .purchaseOrderFooter{margin-top:auto}
 }
+.purchaseBatchCard{border:1px solid var(--border);border-radius:14px;background:#fff;margin:12px 0;overflow:hidden}.purchaseBatchHeading{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px;background:#f7f7f7}.purchaseBatchHeading strong{margin-right:auto}.purchaseBatchItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;padding:14px}.purchaseBatchSource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;color:#888;font-size:12px}.purchaseBatchSource .btn{font-size:12px;padding:4px 8px}.purchaseBatchItem{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:0;border-bottom:1px solid #eee;background:white;color:var(--text);text-align:left}.purchaseBatchItem:disabled{opacity:1}.purchaseBatchItem.isChecked{background:#ededed;color:#999}.purchaseBatchCard.isChecked .purchaseBatchHeading{background:#ededed}
 .purchasePackingZone{border:1px solid var(--border);border-radius:12px;padding:12px;margin:14px 0;min-height:110px}
 .purchasePackingZone h4{margin:0 0 10px}
 .purchasePackingZone[data-pack-zone="included"]{border-color:#a6bca2}
@@ -6864,7 +6867,6 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .purchasePackingZone table th:first-child{width:36px}
 .purchasePackingDialog .dialogActions{position:sticky;bottom:0;background:white;padding:10px 0}
 </style>
+
 </body>
 </html>
-
-
