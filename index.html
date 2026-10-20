@@ -3132,7 +3132,7 @@ function purchasePackingPlan(orders){
 }
 function purchasePackingDialog(){
  const orders=purchaseFilteredOrders().filter(o=>o.status==='集運中');purchasePackingCurrent=purchasePackingPlan(orders);
- closeDialog();document.body.insertAdjacentHTML('beforeend','<div id="appDialog" class="dialogOverlay"><div class="dialogCard purchasePackingDialog" id="purchasePackingBody"></div></div>');purchaseRenderPacking();
+ closeDialog();document.body.insertAdjacentHTML('beforeend','<div id="appDialog" class="dialogOverlay" onclick="if(event.target===this)closeDialog()"><div class="dialogCard purchasePackingDialog" id="purchasePackingBody"></div></div>');purchaseRenderPacking();
 }
 function purchaseRenderPacking(){
  const plan=purchasePackingCurrent;if(!plan)return;
@@ -3140,7 +3140,7 @@ function purchaseRenderPacking(){
  plan.weight=weight(plan.included);plan.remainingWeight=weight(plan.remaining);
  const section=(key,title)=>`<section class="purchasePackingZone" data-pack-zone="${key}" ondragover="event.preventDefault()" ondrop="purchasePackingDrop(event,this.dataset.packZone)"><h4>${title} · ${plan[key].length} 筆 · ${weight(plan[key]).toFixed(3)} kg</h4><table><thead><tr><th></th><th>訂單</th><th>出貨單號</th><th>商品內容</th><th>重量 kg</th></tr></thead><tbody>${plan[key].map(o=>`<tr data-pack-number="${esc(o.number)}" ondragover="event.preventDefault()" ondrop="event.stopPropagation();purchasePackingDrop(event,'${key}',this.dataset.packNumber)"><td><button type="button" class="purchasePackingHandle" draggable="true" data-number="${esc(o.number)}" ondragstart="purchasePackingDrag(event,this.dataset.number)" onclick="purchasePackingMove(this.dataset.number,'${key==='included'?'remaining':'included'}')" aria-label="拖曳排序或點擊移至${key==='included'?'下次打包':'確定打包'}" title="拖曳移動，或點擊切換打包區">≡</button></td><td>${esc(o.channel||'')}<br>${esc(/^MANUAL-/.test(o.number)?o.tracking||'手動訂單':o.number)}</td><td>${esc(o.tracking||'—')}</td><td>${o.items.map(x=>esc(purchaseProductName(x))+' × '+(Number(x.quantity)||0)).join('<br>')}${o.contents?'<br>內容物：'+esc(o.contents):''}</td><td>${Number(o.weight)>0?esc(String(o.weight)):'未填有效重量'}</td></tr>`).join('')||'<tr><td colspan="5">將訂單拖曳到這裡</td></tr>'}</tbody></table></section>`;
  const box=document.getElementById('purchasePackingBody'),scroll=box.scrollTop;
- box.innerHTML=`<h3>打包明細</h3><p>拖曳「≡」調整順序或移到另一區，也可點擊「≡」切換區域。</p>${section('included','確定打包')}${section('remaining','下次打包')}<p id="purchasePackingMessage" role="status"></p><div class="dialogActions"><button class="btn light" onclick="purchaseCopyPacking()">複製明細</button><button class="btn" onclick="purchaseConfirmPacking()" ${plan.included.length?'':'disabled'}>確認打包</button><button class="btn" onclick="closeDialog()">關閉</button></div>`;box.scrollTop=scroll;
+ box.innerHTML=`<h3>打包明細</h3><p>拖曳「≡」調整順序或移到另一區，也可點擊「≡」切換區域。</p>${section('included','確定打包')}${section('remaining','下次打包')}<p id="purchasePackingMessage" role="status"></p><div class="dialogActions"><button class="btn light" onclick="purchaseCopyPacking()">複製明細</button><button class="btn green" onclick="purchaseConfirmPacking()" ${plan.included.length?'':'disabled'}>確認打包</button></div>`;box.scrollTop=scroll;
 }
 let purchasePackingDragged='';
 function purchasePackingDrag(event,number){purchasePackingDragged=number;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',number);}
