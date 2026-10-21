@@ -55,7 +55,7 @@ function purchaseBatchCard(id){
 }
 const purchaseOriginalOrderCards=purchaseOrderCards;
 purchaseOrderCards=function(orders=purchaseVisibleOrders()){
- if(purchaseRegion!=='cn')return purchaseOriginalOrderCards(orders);
+ if(purchaseRegion!=='cn'||purchaseView!=='arrived')return purchaseOriginalOrderCards(orders);
  const ids=[...new Set(orders.map(o=>o.packId).filter(Boolean))],normal=orders.filter(o=>!o.packId);
  return ids.map(purchaseBatchCard).join('')+(normal.length?purchaseOriginalOrderCards(normal):ids.length?'':purchaseOriginalOrderCards([]));
 };
