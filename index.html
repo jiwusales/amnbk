@@ -6,8 +6,8 @@
 <link rel="preconnect" href="https://rilompdypgjzhynqjlwv.supabase.co">
 
 <title>JIWU吉物躺著賺後台</title>
-<script src="ship-market-export.js?v=20261021-6" defer></script>
-<script src="purchase-batches.js?v=20261021b" defer></script>
+<script src="ship-market-export.js?v=20261014" defer></script>
+<script src="purchase-batches.js?v=20261021d" defer></script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -1345,7 +1345,6 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <div class="topActions">
 <div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
-<button id="shipMarketSelectAll" type="button" class="btn light" onclick="toggleAllShipMarketCards()" aria-pressed="false" disabled>全選 (0)</button>
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">花</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">K</button>
@@ -3658,13 +3657,13 @@ function scheduleStoreSalesSearch(input,event){
  storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;
  storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing){storeSalesDate=input.value;drawStoreSales();}}),160);
 }
-function clearStoreSalesSearch(input){
- if(storeSalesSearchComposing||!input.value)return;
- input.value='';scheduleStoreSalesSearch(input);
-}
 function finishStoreSalesComposition(input){
  storeSalesSearchComposing=false;
  scheduleStoreSalesSearch(input);
+}
+function clearStoreSalesSearch(input){
+ if(storeSalesSearchComposing||!input.value)return;
+ input.value='';scheduleStoreSalesSearch(input);
 }
 function storeSalesSearchKeydown(event,input){
  if(event.key!=='Enter'||event.isComposing||event.keyCode===229)return;
@@ -6068,7 +6067,6 @@ let shipLoadedAt=0;
 let shipLoadPromise=null;
 let shipRevision=0;
 let shipPendingWrites=0;
-const SHIP_MARKET_LIMIT=100;
 const shipMarketSelection=new Set();
 const SHIP_MARKET_HISTORY_KEY='jiwu_supabase_test_ship_market_exports_v1';
 let shipMarketHistory={};
@@ -6080,33 +6078,9 @@ function shipMarketKey(rows){
 }
 function shipMarketSetSelected(card,selected){
  const key=card.dataset.marketKey;
- if(selected&&!shipMarketSelection.has(key)&&shipMarketSelection.size>=SHIP_MARKET_LIMIT){
-  card.querySelector('.shipMarketCheck').checked=false;
-  showShipCopyNotice('每次最多勾選 '+SHIP_MARKET_LIMIT+' 件');
-  return;
- }
  if(selected)shipMarketSelection.add(key);else shipMarketSelection.delete(key);
  card.classList.toggle('shipMarketSelected',selected);
  card.querySelector('.shipMarketCheck').checked=selected;
- updateShipMarketSelectAll();
-}
-function updateShipMarketSelectAll(){
- const button=document.getElementById('shipMarketSelectAll');
- if(!button)return;
- const cards=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>!shipMarketHistory[card.dataset.marketKey]);
- const selectedCount=cards.filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
- const allSelected=cards.length>0&&selectedCount>=Math.min(SHIP_MARKET_LIMIT,cards.length);
- button.disabled=!cards.length;
- const totalSelected=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
- button.textContent=(allSelected?'取消全選':'全選')+' ('+totalSelected+')';
- button.setAttribute('aria-pressed',String(allSelected));
-}
-function toggleAllShipMarketCards(){
- const cards=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>!shipMarketHistory[card.dataset.marketKey]);
- const selectedCount=cards.filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
- const selected=selectedCount<Math.min(SHIP_MARKET_LIMIT,cards.length);
- document.querySelectorAll('#shipResult .shipOrderCard').forEach(card=>shipMarketSetSelected(card,false));
- if(selected)cards.slice(0,SHIP_MARKET_LIMIT).forEach(card=>shipMarketSetSelected(card,true));
 }
 function selectShipMarketCard(event,card){
  if(card._shipSwiped){card._shipSwiped=false;return;}
@@ -6119,8 +6093,6 @@ function toggleShipMarketListed(button){
  try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))shipMarketHistory=current;}catch(_){}
  const listed=!shipMarketHistory[key];
  if(listed)shipMarketHistory[key]=new Date().toISOString();else delete shipMarketHistory[key];
- if(listed)shipMarketSetSelected(button.closest('.shipOrderCard'),false);
- updateShipMarketSelectAll();
  button.classList.toggle('isListed',listed);
  button.setAttribute('aria-pressed',String(listed));
  button.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';
@@ -6132,7 +6104,7 @@ async function downloadShipMarketExport(){
  if(shipMarketExportBusy)return;
  const orders=[...shipMarketSelection].map(key=>shipMarketOrders.get(key)).filter(Boolean);
  if(!orders.length)return showShipCopyNotice('請先勾選要上架的訂單卡');
- if(orders.length>SHIP_MARKET_LIMIT)return showShipCopyNotice('每次最多上架 '+SHIP_MARKET_LIMIT+' 件，請減少勾選數量');
+ if(orders.length>50)return showShipCopyNotice('每次最多上架 50 樣，請減少勾選數量');
  const button=document.getElementById('shipMarketUpload');
  shipMarketExportBusy=true;if(button){button.disabled=true;button.textContent='產生中';}
  try{
@@ -6147,7 +6119,6 @@ async function downloadShipMarketExport(){
   let saved=true;try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){saved=false;}
   document.querySelectorAll('.shipOrderCard').forEach(card=>{
    const listed=!!shipMarketHistory[card.dataset.marketKey],truck=card.querySelector('.shipMarketTruck');
-   if(listed)shipMarketSetSelected(card,false);
    truck.classList.toggle('isListed',listed);truck.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';truck.setAttribute('aria-label',truck.title);truck.setAttribute('aria-pressed',String(listed));
   });
   showShipCopyNotice(saved?'已下載上架檔':'已下載上架檔；瀏覽器無法保存上架紀錄');
@@ -6198,7 +6169,6 @@ if(!d.rows||!d.rows.length){
 if(res){
 res.innerHTML=
 '<div class="empty">目前沒有出貨單</div>';
-updateShipMarketSelectAll();
 }
 return
 }
@@ -6329,8 +6299,6 @@ ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 `;
 }).join('');
 }
-for(const key of shipMarketSelection){if(!shipMarketOrders.has(key))shipMarketSelection.delete(key);}
-updateShipMarketSelectAll();
 }
 setInterval(()=>{
 if(document.body.dataset.page==='ship'&&shipDataCache&&!shipPendingWrites){
@@ -6903,7 +6871,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .purchaseOrderCard{height:100%;display:flex;flex-direction:column}
  .purchaseOrderCard .purchaseOrderFooter{margin-top:auto}
 }
-.purchaseBatchCard{border:1px solid var(--border);border-radius:14px;background:#fff;margin:12px 0;overflow:hidden}.purchaseBatchHeading{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px;background:#f7f7f7}.purchaseBatchHeading strong{margin-right:auto}.purchaseBatchItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;padding:14px}.purchaseBatchSource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;color:#888;font-size:12px}.purchaseBatchSource .btn{font-size:12px;padding:4px 8px}.purchaseBatchItem{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:0;border-bottom:1px solid #eee;background:white;color:var(--text);text-align:left}.purchaseBatchItem:disabled{opacity:1}.purchaseBatchItem.isChecked{background:#ededed;color:#999}.purchaseBatchCard.isChecked .purchaseBatchHeading{background:#ededed}
+.purchaseBatchCard{border:1px solid var(--border);border-radius:14px;background:#fff;margin:12px 0;overflow:hidden}.purchaseBatchHeading{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:14px;background:#f7f7f7}.purchaseBatchDate{align-self:flex-start;border:0;background:transparent;color:inherit;padding:0;font:inherit;font-weight:700;cursor:pointer}.purchaseBatchSummary{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;white-space:nowrap;max-width:100%;overflow-x:auto;font-size:clamp(11px,3.2vw,14px)}.purchaseBatchSummary>*{flex:none;white-space:nowrap}.purchaseBatchFreight{border:0;background:transparent;color:inherit;padding:0;font:inherit;cursor:pointer}.purchaseBatchItems[hidden]{display:none}.purchaseBatchItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;padding:14px}.purchaseBatchSource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;color:#888;font-size:12px}.purchaseBatchSource .btn{font-size:12px;padding:4px 8px}.purchaseBatchItem{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:0;border-bottom:1px solid #eee;background:white;color:var(--text);text-align:left}.purchaseBatchItem:disabled{opacity:1}.purchaseBatchItem.isChecked{background:#ededed;color:#999}.purchaseBatchCard.isChecked .purchaseBatchHeading{background:#ededed}
 .purchasePackingZone{border:1px solid var(--border);border-radius:12px;padding:12px;margin:14px 0;min-height:110px}
 .purchasePackingZone h4{margin:0 0 10px}
 .purchasePackingZone[data-pack-zone="included"]{border-color:#a6bca2}
