@@ -3876,14 +3876,14 @@ return /^https?:\/\//i.test(value)?value:'';
 function inventoryCellState(item,names){const value=String(inventoryValue(item,names,false)??'').trim().toLowerCase();if(value==='x')return 'x';const n=Number(value.replace(/,/g,''));return Number.isFinite(n)?n:null;}
 function inventoryQty(item,names){const state=inventoryCellState(item,names);return typeof state==='number'?state:0;}
 function inventoryAvailabilityState(item){const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
-function inventoryIsRelisted(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes';}
-function inventoryNeedsOtherChannelCheck(item){const stock=inventoryCellState(item,['庫存','總庫存','數量']);return (stock===0||stock==='x')&&!inventoryHasPhysicalStock(item)&&inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item);}
+function inventoryIsRelisted(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes'&&!inventoryNoteHasUrl(item);}
+function inventoryNeedsOtherChannelCheck(item){const stock=inventoryCellState(item,['庫存','總庫存','數量']);return stock===0&&!inventoryHasPhysicalStock(item)&&inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item);}
 function inventoryIsPinned(item){return inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item);}
 function inventoryIsShortage(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
 function inventoryMatchesStatus(item){
 const stock=inventoryCellState(item,['庫存','總庫存','數量']);
 const store=inventoryCellState(item,['店面','店面庫存','店鋪庫存','店面數量']);
-const hasStock=(typeof stock==='number'&&stock>0)||(typeof store==='number'&&store>0)||(stock==='x'&&inventoryAvailabilityState(item)==='yes');
+const hasStock=(typeof stock==='number'&&stock>0)||(typeof store==='number'&&store>0)||inventoryIsRelisted(item);
 const noStock=!inventoryIsShortage(item)&&!(typeof stock==='number'&&stock>0)&&!(typeof store==='number'&&store>0);
 if(inventoryStatus==='目錄')return hasStock||noStock||inventoryNeedsOtherChannelCheck(item);
 if(inventoryStatus==='有庫存')return hasStock;
@@ -4043,7 +4043,7 @@ const img=inventoryImageUrl(item);
 const image=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.closest('.inventoryImageEdit').innerHTML='<div class=&quot;inventoryNoImage&quot;>▧</div>'">`:'<div class="inventoryNoImage">▧</div>';
 const availability=inventoryAvailabilityState(item);
 const relisted=stockState==='x'&&availability==='yes';
-const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!inventoryNoteHasUrl(item)&&!relisted;
+const unavailable=['x','-'].includes(String(inventoryValue(item,['庫存','總庫存','數量'])??'').trim().toLowerCase())&&!relisted;
 const needsOtherChannel=inventoryNeedsOtherChannelCheck(item);
 const borderClass=needsOtherChannel?'needsOtherChannel':relisted?'relisted':(stockState===1?'stockOne':(typeof stockState==='number'&&stockState>1?'stockAvailable':(nonstock>0?'nonstockAvailable':'stockZero')));
 const availabilityMark=typeof stockState==='number'&&stockState>0?'':availability==='yes'?'⭕️':availability==='no'?'❌':availability==='unknown'?'⚠️':'';
