@@ -23,7 +23,7 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
  }
  function xml(doc){return new XMLSerializer().serializeToString(doc);}
  function clean(value){return String(value??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');}
- function width(value){return Array.from(value).length;}
+ function width(value){return value.length;}
  function safeName(value){
   return clean(value).trim().replace(/[&()=;'"<>\\]/g,c=>String.fromCharCode(c.charCodeAt(0)+0xfee0));
  }
@@ -33,14 +33,15 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
   const specs=orders.map(order=>{
    const customer=safeName(order.customer);
    if(!customer||width(customer)>25||/[\r\n]/.test(customer))throw new Error('顧客名稱須為 1～25 字且不可換行：'+customer);
+   if(/[,\-]/.test(customer))throw new Error('顧客規格不可包含半形逗號或減號：'+customer);
    if(!Number.isInteger(order.balance)||order.balance<1||order.balance>20000)throw new Error(customer+'：尾款須為 1～20,000 元的整數');
    return {customer,price:String(order.balance)};
   });
   if(new Set(specs.map(x=>x.customer)).size!==specs.length)throw new Error('顧客名稱轉換後重複，請分批下載');
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const stamp=parts.find(x=>x.type==='month').value+parts.find(x=>x.type==='day').value;
-  // Template instructions: one product; matching newline-separated specs, quantities and prices.
-  const products=[['JIWU客訂'+stamp,'',description,specs.map(spec=>spec.customer).join('\n'),specs.map(()=>'1').join('\n'),specs.map(spec=>spec.price).join('\n'),'','新品','','','','']];
+  // FormatItemCheck VBA treats blank A:C as continuation specs of the preceding product.
+  const products=specs.map((spec,index)=>[index===0?'JIWU客訂'+stamp:'','',index===0?description:'',spec.customer,'1',spec.price,'',index===0?'新品':'','','','','']);
   const zip=await global.JSZip.loadAsync(global.JIWU_SHIP_MARKET_TEMPLATE,{base64:true,checkCRC32:true});
   const styles=parseXML(await zip.file('xl/styles.xml').async('string'));
   const xfs=styles.getElementsByTagNameNS(NS,'cellXfs')[0],styleMap=new Map();
