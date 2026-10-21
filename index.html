@@ -3658,6 +3658,10 @@ function scheduleStoreSalesSearch(input,event){
  storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;
  storeSalesSearchTimer=setTimeout(()=>afterInputPaint(()=>{if(ticket===storeSalesSearchGeneration&&input.isConnected&&!storeSalesSearchComposing){storeSalesDate=input.value;drawStoreSales();}}),160);
 }
+function clearStoreSalesSearch(input){
+ if(storeSalesSearchComposing||!input.value)return;
+ input.value='';scheduleStoreSalesSearch(input);
+}
 function finishStoreSalesComposition(input){
  storeSalesSearchComposing=false;
  scheduleStoreSalesSearch(input);
@@ -4243,7 +4247,7 @@ if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
-<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="finishStoreSalesComposition(this)" onkeydown="storeSalesSearchKeydown(event,this)" onsearch="scheduleStoreSalesSearch(this)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div class="storeSalesToolbar"><input id="storeSalesDate" type="search" onclick="clearStoreSalesSearch(this)" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="finishStoreSalesComposition(this)" onkeydown="storeSalesSearchKeydown(event,this)" onsearch="scheduleStoreSalesSearch(this)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
@@ -4905,6 +4909,10 @@ onlineSearchRefresh=()=>backendDeferPaint('online');
 input.addEventListener('pointerdown',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();},{passive:true});
 input.addEventListener('focus',()=>{onlineInputFocusUntil=Date.now()+1000;cancel();});
 input.addEventListener('blur',()=>{onlineInputFocusUntil=0;});
+input.addEventListener('click',()=>{
+if(composing||!input.value)return;
+input.value='';pasting=false;schedule(0);
+});
 input.addEventListener('compositionstart',()=>{composing=true;cancel();});
 input.addEventListener('compositionend',()=>{composing=false;schedule(400);});
 input.addEventListener('paste',()=>{pasting=true;schedule(0);});
