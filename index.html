@@ -1199,7 +1199,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 .salesPurchaseInfo.salesBankLP{gap:6px}
 
 
-.launchCalendarDialog{height:fit-content!important}.launchCalendarForm{display:grid;align-content:start;gap:16px;margin-top:20px}.launchCalendarForm>label{display:grid;gap:8px;margin:0}.launchCalendarForm .launchHelp{margin:0;line-height:1.7}.launchCalendarActions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}.launchCalendarForm [role="alert"]{margin:0;line-height:1.6;overflow-wrap:anywhere}
+.launchCalendarDialog{height:fit-content!important}.launchCalendarForm{display:grid;align-content:start;gap:16px;margin-top:20px}.launchCalendarCredentials{display:grid;gap:16px}.launchCalendarCredentials>label{display:grid;gap:8px;margin:0}.launchCalendarDialog [hidden]{display:none!important}.launchCalendarForm .launchHelp{margin:0;line-height:1.7}.launchCalendarActions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px;flex-wrap:wrap}.launchCalendarForm [role="alert"]{margin:0;line-height:1.6;overflow-wrap:anywhere}.launchCalendarGroups{display:grid;gap:12px;margin-top:20px}.launchCalendarGroups h3{margin:8px 0 0;font-size:16px}.launchCalendarGroup{display:flex;gap:16px;align-items:center;justify-content:space-between;border:1px solid #e2e5ef;border-radius:10px;padding:12px}.launchCalendarGroup span{min-width:0;overflow-wrap:anywhere}.launchCalendarGroup button{flex:none}.launchTabShort{display:none}@media(max-width:600px){.launchListBar>.launchTabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;gap:6px}.launchListBar>.launchTabs>.btn{width:100%;min-width:0;padding:9px 2px;white-space:nowrap}.launchListBar>.launchTabs>.launchClosedSearch{grid-column:1/-1;box-sizing:border-box}.launchTabLong{display:none}.launchTabShort{display:inline}}
 .launchAllInfo{display:grid;row-gap:12px}
 .launchDialog .launchAllInfo label{display:flex;align-items:center;gap:10px;margin:0;min-width:0}
 .launchAllInfo textarea{width:100%;box-sizing:border-box;resize:vertical}.launchProductListPage .launchAllInfo label{display:flex;align-items:center;gap:10px;margin:0}
@@ -1800,7 +1800,7 @@ async function launchDownloadGroupImage(index,button,mode='download'){
 }
 
 function launchTopSave(){if(launchCurrent)launchSaveClick();else launchSaveOrder();}
-function launchListTabs(){return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')">團務表</button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')">${s}</button>`).join('')}<button class="btn light" type="button" onclick="launchCalendarSettings()">行事曆</button>`;}
+function launchListTabs(){const short={'最新開團':'最新','尚未上架':'上架','已收單':'收單'};return `<button class="btn light" aria-selected="${launchAuxPage==='group-work'}" onclick="launchOpenAux('group-work')"><span class="launchTabLong">團務表</span><span class="launchTabShort">團務</span></button>${launchStates.map(s=>`<button class="btn light" role="tab" aria-selected="${!launchAuxPage&&s===launchStatus}" onclick="launchChangeStatus('${s}')"><span class="launchTabLong">${s}</span><span class="launchTabShort">${short[s]}</span></button>`).join('')}<button class="btn light" type="button" onclick="launchCalendarSettings()">行事曆</button>`;}
 async function launchOpenAux(kind){
  if(launchBusy)return;const ticket=++launchLoad;launchAuxPage=kind;launchAuxData=readBackendSnapshot('launchAux_'+kind);launchCurrent=null;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchSyncTopActions();
  document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入資料中…</div></div>';
@@ -2486,24 +2486,52 @@ function launchSetCoverURL(input){
 }
 async function launchCalendarSettings(){
  const groupId=launchCurrent?.id||'',groupName=launchCurrent?.name||'';
- launchDialog(`<div class="launchAllHeading"><h2>iCloud 行事曆</h2><button type="button" class="btn light" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><p class="launchHelp" id="launchCalendarStatus" role="status">讀取連線狀態中…</p><form class="launchCalendarForm" autocomplete="off" onsubmit="launchConnectCalendar(event)"><input name="groupId" type="hidden" value="${esc(groupId)}"><label>Apple 帳號<input name="username" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Apple 帳號電子郵件" required></label><label>App 專用密碼<input name="password" type="password" autocomplete="new-password" placeholder="xxxx-xxxx-xxxx-xxxx" required></label><p class="launchHelp">只需連線一次。密碼會加密保存在伺服器，Mac 關機也能同步。</p><p class="launchHelp">開團日 → 新品；團名含再販／補貨 → 補貨；收單日 → 收單（全天）。${groupId?`<br>連線後會補登目前這團：${esc(groupName)}。`:''}<br>其他既有手動行程會保留，之後新建與修改日期的團會自動同步。</p><a href="https://account.apple.com/" target="_blank" rel="noopener noreferrer">產生 Apple App 專用密碼</a><div class="launchCalendarActions"><button class="btn light" type="button" onclick="launchCalendarSyncNow(this)">立即同步</button><button class="btn" type="submit">連線</button></div><p id="launchCalendarError" role="alert"></p></form>`);
+ launchDialog(`<div class="launchAllHeading"><h2>iCloud 行事曆</h2><button type="button" class="btn light" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div><p class="launchHelp" id="launchCalendarStatus" role="status">讀取連線狀態中…</p><form class="launchCalendarForm" autocomplete="off" onsubmit="launchConnectCalendar(event)"><input name="groupId" type="hidden" value="${esc(groupId)}"><div class="launchCalendarCredentials" hidden><label>Apple 帳號<input name="username" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Apple 帳號電子郵件" required disabled></label><label>App 專用密碼<input name="password" type="password" autocomplete="new-password" placeholder="xxxx-xxxx-xxxx-xxxx" required disabled></label><a href="https://account.apple.com/" target="_blank" rel="noopener noreferrer">產生 Apple App 專用密碼</a></div><p class="launchHelp">所有團共用同一次連線，不需重複輸入帳密。Mac 關機也能同步。</p><p class="launchHelp">開團日 → 新品；團名含再販／補貨 → 補貨；收單日 → 收單（全天）。<br>新建與修改日期的團會自動同步；沒有日期就不新增行程。${groupId?`<br>目前這團：${esc(groupName)}。`:''}</p><div class="launchCalendarActions"><button class="btn light" data-calendar-reconnect type="button" hidden onclick="launchCalendarEditConnection()">更改連線</button>${groupId?'<button class="btn" data-calendar-current type="button" hidden onclick="launchCalendarSyncNow(this)">同步目前這團</button>':''}<button class="btn" data-calendar-connect type="submit" hidden>連線</button></div><p id="launchCalendarError" role="alert"></p></form><div class="launchCalendarGroups" id="launchCalendarGroups"><p class="launchHelp">讀取可登記的團…</p></div>`);
  const dialog=document.getElementById('launchDialog');dialog.classList.add('launchCalendarDialog');
+ void launchLoadCalendarGroups(dialog);
  try{const result=await apiRequest('calendarStatus');if(dialog!==document.getElementById('launchDialog'))return;launchShowCalendarStatus(result);}
  catch(error){if(dialog===document.getElementById('launchDialog'))dialog.querySelector('#launchCalendarStatus').textContent=error.message;}
 }
-function launchShowCalendarStatus(result){const node=document.getElementById('launchCalendarStatus');if(node)node.textContent=result.connected?`已連線：${result.account}。每分鐘自動同步。${result.lastError?'上次同步：'+result.lastError:''}`:'尚未連線，請在下方完成一次設定。';}
+async function launchLoadCalendarGroups(dialog){
+ const host=dialog.querySelector('#launchCalendarGroups'),states=['最新開團','尚未上架'];
+ try{const lists=await Promise.all(states.map(status=>api('launchList',{status})));if(dialog!==document.getElementById('launchDialog'))return;
+ host.innerHTML=states.map((status,i)=>`<h3>${status==='最新開團'?'最新':'上架'}</h3>${(lists[i].groups||[]).filter(group=>!group.status||group.status===status).map(group=>`<div class="launchCalendarGroup"><span>${esc(group.name)}</span><button class="btn" type="button" data-calendar-group-id="${esc(group.id)}" onclick="launchCalendarSyncNow(this)" ${dialog.querySelector('form').dataset.connected==='true'?'':'disabled'}>登記</button></div>`).join('')||'<p class="launchHelp">目前沒有團。</p>'}`).join('');
+ }catch(error){host.innerHTML=`<p class="launchHelp">讀取團名失敗：${esc(error.message)}</p><button class="btn light" type="button" onclick="launchLoadCalendarGroups(document.getElementById('launchDialog'))">重試</button>`;}
+}
+function launchCalendarConnectionFields(form,visible){
+ form.querySelector('.launchCalendarCredentials').hidden=!visible;form.querySelector('[data-calendar-connect]').hidden=!visible;
+ for(const name of ['username','password'])form.elements[name].disabled=!visible;
+ if(!visible)form.elements.password.value='';
+}
+function launchShowCalendarStatus(result){
+ const dialog=document.getElementById('launchDialog'),node=dialog?.querySelector('#launchCalendarStatus'),form=dialog?.querySelector('.launchCalendarForm');if(!node||!form)return;
+ node.textContent=result.connected?`已連線：${result.account}。每分鐘自動同步。${result.lastError?'上次同步：'+result.lastError:''}`:'尚未連線，請在下方完成一次設定。';
+ form.dataset.connected=String(!!result.connected);const current=form.querySelector('[data-calendar-current]');if(current)current.hidden=!result.connected;
+ const reconnect=form.querySelector('[data-calendar-reconnect]');reconnect.hidden=!result.connected;reconnect.textContent='更改連線';
+ launchCalendarConnectionFields(form,!result.connected);dialog.querySelectorAll('[data-calendar-group-id]').forEach(button=>button.disabled=!result.connected);
+}
+function launchCalendarEditConnection(){
+ const form=document.querySelector('.launchCalendarForm');if(!form)return;
+ const visible=form.querySelector('.launchCalendarCredentials').hidden;launchCalendarConnectionFields(form,visible);
+ form.querySelector('[data-calendar-reconnect]').textContent=visible?'取消更改':'更改連線';if(visible)form.elements.username.focus();
+}
+function launchCalendarSyncMessage(result,groupId){
+ if(result.ok===false)throw Error(result.error||'同步失敗，稍後會自動重試');
+ if(groupId&&result.selectedGroup?.hasDates===false)return '這團沒有開團日期或收單日期，不新增行程。';
+ return result.busy?'已排入同步，稍後會自動完成。':`已同步 ${result.synced||0} 個團。`;
+}
 async function launchConnectCalendar(event){
  event.preventDefault();const form=event.target,button=event.submitter,error=form.querySelector('#launchCalendarError');
  const username=form.elements.username.value.trim(),password=form.elements.password.value,groupId=form.elements.groupId.value;form.elements.password.value='';error.textContent='';button.disabled=true;button.textContent='連線中…';
- try{await apiRequest('calendarConnect',{username,password,groupId});launchShowCalendarStatus(await apiRequest('calendarStatus'));error.textContent='連線成功，正在同步行事曆…';const result=await apiRequest('calendarSyncNow');error.textContent=result.ok===false?'已連線，同步將自動重試：'+result.error:`連線成功，已同步 ${result.synced||0} 個團。`;}
+ try{await apiRequest('calendarConnect',{username,password,groupId});launchShowCalendarStatus(await apiRequest('calendarStatus'));error.textContent='連線成功，正在同步行事曆…';const result=await apiRequest('calendarSyncNow',{groupId});error.textContent='連線成功，'+launchCalendarSyncMessage(result,groupId);}
  catch(e){error.textContent=e.message||'連線失敗，請重新輸入 App 專用密碼';}
  finally{button.disabled=false;button.textContent='連線';}
 }
 async function launchCalendarSyncNow(button){
- const status=document.getElementById('launchCalendarError');button.disabled=true;
- try{const connection=await apiRequest('calendarStatus');if(!connection.connected)throw Error('請先完成 iCloud 連線');const result=await apiRequest('calendarSyncNow');if(result.ok===false)throw Error(result.error);status.textContent=result.busy?'同步執行中，稍後會自動完成。':`已同步 ${result.synced||0} 個團。`;launchShowCalendarStatus(await apiRequest('calendarStatus'));}
+ const dialog=document.getElementById('launchDialog'),form=dialog.querySelector('.launchCalendarForm'),status=form.querySelector('#launchCalendarError'),groupId=button.dataset.calendarGroupId||form.elements.groupId.value,label=button.textContent;button.disabled=true;button.textContent='登記中…';status.textContent='正在同步行事曆…';
+ try{const result=await apiRequest('calendarSyncNow',{groupId});status.textContent=launchCalendarSyncMessage(result,groupId);launchShowCalendarStatus(await apiRequest('calendarStatus'));}
  catch(error){status.textContent=error.message;}
- finally{button.disabled=false;}
+ finally{button.disabled=false;button.textContent=label;}
 }
 
 function launchGroupInfo(){
