@@ -1345,7 +1345,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <div class="topActions">
 <div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
-<button id="shipMarketSelectAll" type="button" class="btn light" onclick="toggleAllShipMarketCards()" aria-pressed="false" disabled>全選</button>
+<button id="shipMarketSelectAll" type="button" class="btn light" onclick="toggleAllShipMarketCards()" aria-pressed="false" disabled>全選 (0)</button>
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">第一賣場</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">第二賣場</button>
@@ -6089,7 +6089,8 @@ function updateShipMarketSelectAll(){
  const selectedCount=cards.filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
  const allSelected=cards.length>0&&selectedCount>=Math.min(SHIP_MARKET_LIMIT,cards.length);
  button.disabled=!cards.length;
- button.textContent=allSelected?'取消全選':'全選';
+ const totalSelected=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
+ button.textContent=(allSelected?'取消全選':'全選')+' ('+totalSelected+')';
  button.setAttribute('aria-pressed',String(allSelected));
 }
 function toggleAllShipMarketCards(){
