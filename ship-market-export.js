@@ -40,8 +40,12 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
   if(new Set(specs.map(x=>x.customer)).size!==specs.length)throw new Error('顧客名稱轉換後重複，請分批下載');
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const stamp=parts.find(x=>x.type==='month').value+parts.find(x=>x.type==='day').value;
-  // FormatItemCheck VBA treats blank A:C as continuation specs of the preceding product.
-  const products=specs.map((spec,index)=>[index===0?'JIWU客訂'+stamp:'','',index===0?description:'',spec.customer,'1',spec.price,'',index===0?'新品':'','','','','']);
+  // Each product supports 50 specs; blank A:C continues the current product.
+  const products=specs.map((spec,index)=>{
+   const first=index%50===0,batch=Math.floor(index/50);
+   const name='JIWU客訂'+stamp+(batch?'-'+batch:'');
+   return [first?name:'','',first?description:'',spec.customer,'1',spec.price,'',first?'新品':'','','','',''];
+  });
   const zip=await global.JSZip.loadAsync(global.JIWU_SHIP_MARKET_TEMPLATE,{base64:true,checkCRC32:true});
   const styles=parseXML(await zip.file('xl/styles.xml').async('string'));
   const xfs=styles.getElementsByTagNameNS(NS,'cellXfs')[0],styleMap=new Map();
