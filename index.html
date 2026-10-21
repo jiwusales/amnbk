@@ -1622,9 +1622,11 @@ function launchShippingParts(g,shipping){
  return parts;
 }
 function launchPostShipping(g){
+ const date=String(g.shipDate||'').trim(),iso=date.match(/^\d{4}-(\d{2})-(\d{2})$/);
+ const shippingDate=iso?`${Number(iso[1])}月${Number(iso[2])}日`:date;
  const shipping=String(g.domesticShipping||'').trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
  const delivery=launchShippingParts(g,shipping).map(text=>'🚚'+text).join('\n');
- return `🚀官方出荷後約2-3週不含假日抵台${delivery?'\n'+delivery:''}`;
+ return `🚀${shippingDate?'預計'+shippingDate:'官方'}出荷後約2-3週不含假日抵台${delivery?'\n'+delivery:''}`;
 }
 function launchPostText(g,ig=false){
  launchNormalizeGroupURLs(g);
@@ -1714,7 +1716,7 @@ function launchSyncTopActions(){const host=document.querySelector('.topActions')
 
 let launchURLGroups=[],launchURLBatch=null;
 function launchExportProductCount(group){const count=Number(group?.itemCount);return group?.itemCount!=null&&Number.isInteger(count)&&count>=0?count:(group?.items||[]).length;}
-const LAUNCH_URL_CACHE_KEY='jiwu_supabase_test_launch_urls_v2';
+const LAUNCH_URL_CACHE_KEY='jiwu_supabase_test_launch_urls_v3';
 function launchReadURLCache(){try{return JSON.parse(localStorage.getItem(LAUNCH_URL_CACHE_KEY)||'null');}catch(_){return null;}}
 function launchLoadURLs(force=false){
  const cached=launchReadURLCache();
