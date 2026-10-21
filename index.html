@@ -1347,8 +1347,8 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <div class="shipMarketActions">
 <button id="shipMarketSelectAll" type="button" class="btn light" onclick="toggleAllShipMarketCards()" aria-pressed="false" disabled>全選 (0)</button>
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
-<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">第一賣場</button>
-<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">第二賣場</button>
+<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">花</button>
+<button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">K</button>
 </div>
 <div id="purchaseHeaderActions"></div>
 <button class="btn inventoryAddButton" onclick="openInventoryAddDialog()" aria-label="上架商品" title="上架商品">+</button>
@@ -2930,7 +2930,7 @@ function openShipCustomerNotice(button){
  const customer=button.dataset.customer;
  const detail={...shipMarketOrders.get(card.dataset.marketKey),items:[...card.querySelectorAll('.shipItem')].map(item=>({name:item.dataset.name,price:numberValue(item.dataset.price),date:item.querySelector('.shipOrderDate').textContent.trim()}))};
  closeDialog();
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(400px,100%)" role="dialog" aria-modal="true" aria-labelledby="shipNoticeTitle"><h3 id="shipNoticeTitle">選擇客訂賣場</h3><p>${esc(customer)}</p><div class="dialogActions"><button type="button" class="btn" data-market="0">第一賣場</button><button type="button" class="btn" data-market="1">第二賣場</button><button type="button" class="btn light" onclick="closeDialog()">取消</button></div></div></div>`);
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="width:min(400px,100%)" role="dialog" aria-modal="true" aria-labelledby="shipNoticeTitle"><h3 id="shipNoticeTitle">選擇客訂賣場</h3><p>${esc(customer)}</p><div class="dialogActions"><button type="button" class="btn" data-market="0">花</button><button type="button" class="btn" data-market="1">K</button><button type="button" class="btn light" onclick="closeDialog()">取消</button></div></div></div>`);
  document.querySelectorAll('#appDialog [data-market]').forEach(choice=>choice.onclick=()=>{
   const market=document.querySelectorAll('.shipMarketActions [data-copy-text]')[Number(choice.dataset.market)]?.dataset.copyText;
   if(!market)return showShipCopyNotice('找不到賣場內容，請重新整理');
