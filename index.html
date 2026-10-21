@@ -908,6 +908,7 @@ body[data-page="inventory"] .inventoryAddButton{display:inline-block!important}
 .inventoryEditDialog .dialogGrid label{display:flex;flex-direction:column;gap:6px;min-width:0}.inventoryEditTopFields{display:flex;gap:9px;grid-column:1/-1}.inventoryEditTopFields label{flex:1;min-width:0}.inventoryEditDialog input,.inventoryEditDialog textarea{display:block;width:100%;max-width:100%;box-sizing:border-box}
 @media(max-width:850px){.inventoryEditDialog h3{display:none}.inventoryEditDialog .dialogGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.inventoryEditTopFields{display:grid;width:100%;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.inventoryEditTopFields label{display:grid!important;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px!important;width:100%;min-width:0;box-sizing:border-box;font-size:12px!important;white-space:nowrap}.inventoryEditTopFields input{display:block;width:100%;min-width:0;max-width:none;box-sizing:border-box;height:34px;padding:4px 5px;font-size:13px}.inventoryEditDialog .stackField{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:4px!important}.inventoryEditDialog .stackField input,.inventoryEditDialog .stackField textarea{width:100%}.inventoryEditDialog .dialogGrid label{display:grid;grid-template-columns:3.5em minmax(0,1fr);align-items:center;gap:6px;font-size:14px}.inventoryEditDialog .dialogGrid label.mobileFull{grid-column:1/-1}.inventoryEditDialog input,.inventoryEditDialog textarea{min-width:0;height:38px;padding:6px 8px;font-size:14px}.inventoryEditDialog textarea{resize:vertical;min-height:38px;height:38px}.inventoryEditDialog .dialogGrid .full{grid-column:1/-1}}
 .manualOnlineHeader{display:flex;gap:9px}.manualOnlineHeader select{flex:0 0 auto;min-width:0}.manualOnlineHeader input{flex:1;min-width:0}.manualOnlineHeader .manualOnlineDate{flex:0 0 150px;width:150px}
+.orderMergePicker{margin-top:14px;padding:12px;border:1px solid #ddd;border-radius:12px}.orderMergeChoices{max-height:35dvh;overflow:auto}.orderMergeChoice{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid #eee}.orderMergeChoice input{flex:0 0 auto;width:auto;margin-top:3px}.orderMergeChoice>span{min-width:0;overflow-wrap:anywhere}.orderMergeChoice span span{display:block;margin-top:5px;color:#777;font-size:13px}.manualOnlineDialog .dialogActions{flex-wrap:wrap}.manualOnlineDialog .dialogActions>.btn{white-space:nowrap}@media(max-width:420px){.manualOnlineDialog .dialogActions{gap:6px}.manualOnlineDialog .dialogActions>.btn{padding:10px 11px;font-size:14px}}
 .manualOnlineDialog{overflow-x:hidden}
 .manualOnlineDialog input,.manualOnlineDialog select,.manualOnlineDialog button{min-width:0;max-width:100%}
 .manualOnlineItem{grid-template-columns:38px repeat(2,minmax(0,2fr)) repeat(2,minmax(0,1fr)) 42px}
@@ -4843,9 +4844,44 @@ if(!items.length)return;
 const storedMethod=normalizePayment(getPaymentMethod(items[0]));
 const payment=storedMethod==='面交'?'LB':storedMethod||'LB';
 const last5=items.map(getLast5).find(value=>String(value||'').trim())||'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light orderMergeButton" style="margin-right:auto" onclick="openOnlineOrderMergePicker()">合併</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 const form=document.querySelector('#appDialog form');form.dataset.originalTimestamp=orderEditTimeValue(items);form.dataset.originalTime=document.getElementById('orderEditTime').value;form.dataset.originalPayment=payment;form.dataset.originalLast5=document.getElementById('orderEditLast5').value;
 document.querySelector('.orderEditName')?.focus();
+}
+function onlineOrderMergeSnapshot(items){
+ return items.map(row=>({id:String(row.itemId||''),customer:String(getCustomerName(row)||'').trim(),orderTime:onlineRowOrderTime(row)}));
+}
+function openOnlineOrderMergePicker(){
+ if(onlineOrderEditPending||onlineEditWorkerRunning)return alert('訂單正在儲存，完成後即可合併');
+ const field=document.getElementById('orderEditRows'),form=field?.form;if(!form)return;
+ if(form.dataset.mergeOrders)return alert('已選擇合併訂單，請按 SAVE 完成');
+ const keys=JSON.parse(field.dataset.editKeys||'[]'),source=keys.map(key=>onlineRows.find(row=>row.editKey===key));
+ if(!source.length||source.some(row=>!row||!row.itemId))return alert('訂單資料尚未更新，請重新整理後再合併');
+ const customer=String(getCustomerName(source[0])||'').trim();
+ if(!customer||source.some(row=>String(getCustomerName(row)||'').trim()!==customer))return alert('只能合併同一位客人的訂單');
+ const ids=new Set(source.map(row=>String(row.itemId)));
+ const regularOnly=isCustomerView;
+ const orders=[...groupOnlineOrders(onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===customer&&(!regularOnly||!isRestockRow(row)))).values()].filter(order=>!order.items.some(row=>ids.has(String(row.itemId)))&&order.items.every(row=>row.itemId)).sort((a,b)=>orderNewestTime(b)-orderNewestTime(a));
+ document.getElementById('orderMergePicker')?.remove();
+ const box=document.createElement('section');box.id='orderMergePicker';box.className='orderMergePicker';box.setAttribute('aria-label','選擇合併訂單');
+ box.innerHTML=`<h3>合併 ${esc(customer)} 的訂單</h3><p class="salesHint">選擇另一張訂單，按 SAVE 後完成合併。</p><div class="orderMergeChoices">${orders.map((order,index)=>`<label class="orderMergeChoice"><input type="radio" name="orderMergeTarget" value="${index}"><span><strong>${esc(formatOnlineTime(onlineRowOrderTime(order.items.reduce((latest,row)=>timeValue(onlineRowOrderTime(row))>timeValue(onlineRowOrderTime(latest))?row:latest))))||'未填日期'} · ${order.items.length} 項商品 · $${money(order.items.reduce((sum,row)=>sum+numberValue(getOnlineData(row,['售價','價格']))+numberValue(getOnlineData(row,['運費'])),0))}</strong><span>${order.items.map(row=>esc(getOnlineData(row,['名稱','商品名稱']))).join('、')}</span></span></label>`).join('')||'<p>這位客人沒有其他可合併的訂單。</p>'}</div><div class="dialogActions"><button type="button" class="btn light" onclick="document.getElementById('orderMergePicker').remove()">取消</button>${orders.length?'<button type="button" class="btn" onclick="selectOnlineOrderMerge()">合併</button>':''}</div>`;
+ box.mergeSource=onlineOrderMergeSnapshot(source);box.mergeCandidates=orders;box.regularOnly=regularOnly;
+ form.querySelector('.dialogActions').before(box);box.scrollIntoView({block:'nearest'});
+}
+function selectOnlineOrderMerge(){
+ const box=document.getElementById('orderMergePicker'),selected=box?.querySelector('[name="orderMergeTarget"]:checked');
+ if(!selected)return alert('請先選擇要合併的訂單');
+ const target=box.mergeCandidates[Number(selected.value)]?.items;if(!target?.length)return;
+ const field=document.getElementById('orderEditRows'),form=field.form;
+ target.forEach(row=>{if(!row.editKey)row.editKey='edit-'+(++onlineEditKey);});
+ const keys=JSON.parse(field.dataset.editKeys||'[]');
+ form.dataset.mergeOrders=JSON.stringify({source:box.mergeSource,target:onlineOrderMergeSnapshot(target),regularOnly:box.regularOnly});
+ field.dataset.editKeys=JSON.stringify([...keys,...target.map(row=>row.editKey)]);
+ field.value=[...field.value.split(','),...target.map(row=>row.row)].join(',');
+ document.getElementById('orderEditItems').insertAdjacentHTML('beforeend',target.map(orderEditItemMarkup).join(''));
+ const note=document.getElementById('orderEditNote');note.value=[...new Set([note.value,orderEditableNote(target)].flatMap(value=>value.split('｜')).map(value=>value.trim()).filter(Boolean))].join('｜');
+ box.remove();form.querySelector('.orderMergeButton').textContent='已選合併';form.querySelector('.orderDelete').disabled=true;
+ const hint=document.createElement('p');hint.className='salesHint';hint.textContent='已選擇合併，按 SAVE 完成。';form.querySelector('.dialogActions').before(hint);
 }
 function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['寶中信','中信','LB'].includes(document.getElementById('orderEditPayment').value);}
 
@@ -4881,7 +4917,8 @@ items.forEach(item=>{const original=originalItems.find(row=>row.editKey===item.k
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
 const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
 const paymentChanged=payment!==event.target.dataset.originalPayment||last5!==event.target.dataset.originalLast5;
-const job={keys,items,note,...(timeChanged?{orderTime}:{}),noteChanged:note!==orderEditableNote(originalItems),...(paymentChanged?{payment,last5}:{})};onlineEditQueue.push(job);onlineOrderEditPending=true;onlineMutationRevision++;
+const mergeOrders=event.target.dataset.mergeOrders?JSON.parse(event.target.dataset.mergeOrders):undefined;
+const job={keys,items,note,...(mergeOrders?{mergeOrders}:{}),...(timeChanged?{orderTime}:{}),noteChanged:note!==orderEditableNote(originalItems),...(paymentChanged?{payment,last5}:{})};onlineEditQueue.push(job);onlineOrderEditPending=true;onlineMutationRevision++;
 job.progressId='online-edit-'+launchId();job.progressName=String(getOnlineData(originalItems[0],['顧客名稱','客戶名稱','客人名稱','姓名'])||items[0].name);launchMoveProgress(job.progressId,job.progressName,'排隊中','','儲存訂單');
 closeDialog();renderPendingOnlineEdits();void processOnlineEditQueue();
 }
@@ -4897,7 +4934,7 @@ const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').joi
 const fullNote=face?(note?note+'｜面交':'面交'):note;
 const paymentHeader=header(['付款方式','支付方式','付款','收款方式']),last5Header=header(['後五碼','匯款後五碼']);
 const timeHeader=header(['購買時間','時間']);
-const update=(row,item)=>{if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:job.payment==='LB'?'LB '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
+const update=(row,item)=>{if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:job.payment==='LB'?'LB '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
 const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
@@ -4921,7 +4958,7 @@ const selected=onlineEditBase.filter(row=>job.keys.includes(row.editKey));
 if(selected.length!==job.keys.length)throw new Error('原訂單商品已變動');
 const rows=selected.map(row=>Number(row.row));
 const items=job.items.map(item=>({...item,row:onlineEditBase.find(row=>row.editKey===item.key)?.row||0}));
-const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),note:job.note,noteChanged:job.noteChanged!==false,...(job.orderTime!==undefined?{orderTime:job.orderTime}:{}),...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})},job.progressId);
+const result=await launchPost(job.delete?'deleteOnlineOrder':'editOnlineOrder',{rows:JSON.stringify(rows),...(job.delete?{}:{items:JSON.stringify(items),...(job.mergeOrders?{mergeOrders:job.mergeOrders}:{}),note:job.note,noteChanged:job.noteChanged!==false,...(job.orderTime!==undefined?{orderTime:job.orderTime}:{}),...(job.payment!==undefined?{payment:job.payment,last5:job.last5}:{})})},job.progressId);
 const server=result.onlineDelta?applyOnlineDelta(onlineEditBase,result.onlineDelta):result.online||await api('online',{compact:'0',fresh:'1'});
 const last=Math.max(...rows),added=items.filter(item=>!item.row),kept=new Set(items.filter(item=>item.row).map(item=>Number(item.row)));
 const removed=rows.filter(row=>!kept.has(row)).sort((a,b)=>a-b);
@@ -5126,7 +5163,8 @@ rows.forEach((row,index)=>{
  const key=String(index);parent.set(key,key);keys.set(row,key);
  if(!customer)return;
  const merge=String(row.orderMergeKey||row.depositMergeKey||'');
- const tokens=[...(day?[JSON.stringify([customer,'day',day])]:[]),...(merge?[JSON.stringify([customer,'merge',merge])]:[])];
+ const manual=String(getOnlineData(row,['合併訂單ID'])||'');
+ const tokens=[...(manual?[JSON.stringify([customer,'manual',manual])]:[]),...(day?[JSON.stringify([customer,'day',day])]:[]),...(merge?[JSON.stringify([customer,'merge',merge])]:[])];
  tokens.forEach(token=>{if(identities.has(token))parent.set(root(key),root(identities.get(token)));else identities.set(token,key);});
 });
 const orders=new Map();
