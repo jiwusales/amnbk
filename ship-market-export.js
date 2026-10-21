@@ -29,7 +29,7 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
  }
  async function build(orders){
   const description='皆為官網購入～\n\n會細心包裝每隻寶寶，請安心🥰';
-  if(!orders.length||orders.length>50)throw new Error('每次請勾選 1～50 張訂單卡');
+  if(!orders.length||orders.length>100)throw new Error('每次請勾選 1～100 張訂單卡');
   const specs=orders.map(order=>{
    const customer=safeName(order.customer);
    if(!customer||width(customer)>25||/[\r\n]/.test(customer))throw new Error('顧客名稱須為 1～25 字且不可換行：'+customer);

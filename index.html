@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://rilompdypgjzhynqjlwv.supabase.co">
 
 <title>JIWU吉物躺著賺後台</title>
-<script src="ship-market-export.js?v=20261021-4" defer></script>
+<script src="ship-market-export.js?v=20261021-5" defer></script>
 <script src="purchase-batches.js?v=20261020b" defer></script>
 <style>
 *{box-sizing:border-box}
@@ -6060,6 +6060,7 @@ let shipLoadedAt=0;
 let shipLoadPromise=null;
 let shipRevision=0;
 let shipPendingWrites=0;
+const SHIP_MARKET_LIMIT=100;
 const shipMarketSelection=new Set();
 const SHIP_MARKET_HISTORY_KEY='jiwu_supabase_test_ship_market_exports_v1';
 let shipMarketHistory={};
@@ -6071,6 +6072,11 @@ function shipMarketKey(rows){
 }
 function shipMarketSetSelected(card,selected){
  const key=card.dataset.marketKey;
+ if(selected&&!shipMarketSelection.has(key)&&shipMarketSelection.size>=SHIP_MARKET_LIMIT){
+  card.querySelector('.shipMarketCheck').checked=false;
+  showShipCopyNotice('每次最多勾選 '+SHIP_MARKET_LIMIT+' 件');
+  return;
+ }
  if(selected)shipMarketSelection.add(key);else shipMarketSelection.delete(key);
  card.classList.toggle('shipMarketSelected',selected);
  card.querySelector('.shipMarketCheck').checked=selected;
@@ -6080,15 +6086,18 @@ function updateShipMarketSelectAll(){
  const button=document.getElementById('shipMarketSelectAll');
  if(!button)return;
  const cards=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>!shipMarketHistory[card.dataset.marketKey]);
- const allSelected=cards.length>0&&cards.every(card=>shipMarketSelection.has(card.dataset.marketKey));
+ const selectedCount=cards.filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
+ const allSelected=cards.length>0&&selectedCount>=Math.min(SHIP_MARKET_LIMIT,cards.length);
  button.disabled=!cards.length;
  button.textContent=allSelected?'取消全選':'全選';
  button.setAttribute('aria-pressed',String(allSelected));
 }
 function toggleAllShipMarketCards(){
  const cards=[...document.querySelectorAll('#shipResult .shipOrderCard')].filter(card=>!shipMarketHistory[card.dataset.marketKey]);
- const selected=!cards.every(card=>shipMarketSelection.has(card.dataset.marketKey));
- document.querySelectorAll('#shipResult .shipOrderCard').forEach(card=>shipMarketSetSelected(card,selected&&!shipMarketHistory[card.dataset.marketKey]));
+ const selectedCount=cards.filter(card=>shipMarketSelection.has(card.dataset.marketKey)).length;
+ const selected=selectedCount<Math.min(SHIP_MARKET_LIMIT,cards.length);
+ document.querySelectorAll('#shipResult .shipOrderCard').forEach(card=>shipMarketSetSelected(card,false));
+ if(selected)cards.slice(0,SHIP_MARKET_LIMIT).forEach(card=>shipMarketSetSelected(card,true));
 }
 function selectShipMarketCard(event,card){
  if(card._shipSwiped){card._shipSwiped=false;return;}
@@ -6114,7 +6123,7 @@ async function downloadShipMarketExport(){
  if(shipMarketExportBusy)return;
  const orders=[...shipMarketSelection].map(key=>shipMarketOrders.get(key)).filter(Boolean);
  if(!orders.length)return showShipCopyNotice('請先勾選要上架的訂單卡');
- if(orders.length>50)return showShipCopyNotice('每次最多上架 50 樣，請減少勾選數量');
+ if(orders.length>SHIP_MARKET_LIMIT)return showShipCopyNotice('每次最多上架 '+SHIP_MARKET_LIMIT+' 件，請減少勾選數量');
  const button=document.getElementById('shipMarketUpload');
  shipMarketExportBusy=true;if(button){button.disabled=true;button.textContent='產生中';}
  try{
