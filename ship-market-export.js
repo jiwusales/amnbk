@@ -39,7 +39,8 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
   if(new Set(specs.map(x=>x.customer)).size!==specs.length)throw new Error('顧客名稱轉換後重複，請分批下載');
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const stamp=parts.find(x=>x.type==='month').value+parts.find(x=>x.type==='day').value;
-  const products=[['JIWU客訂'+stamp,'',description,specs.map(x=>x.customer).join('\n'),specs.map(()=>'1').join('\n'),specs.map(x=>x.price).join('\n'),'','新品','','','','']];
+  // One selected order is one product row, with its own customer and balance.
+  const products=specs.map(spec=>['JIWU客訂'+stamp+' '+spec.customer,'',description,spec.customer,'1',spec.price,'','新品','','','','']);
   const zip=await global.JSZip.loadAsync(global.JIWU_SHIP_MARKET_TEMPLATE,{base64:true,checkCRC32:true});
   const styles=parseXML(await zip.file('xl/styles.xml').async('string'));
   const xfs=styles.getElementsByTagNameNS(NS,'cellXfs')[0],styleMap=new Map();
