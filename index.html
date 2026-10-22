@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="preconnect" href="https://rilompdypgjzhynqjlwv.supabase.co">
+<link rel="preconnect" href="https://jiwu-mac-relay.jiwusales.workers.dev">
 
 <title>JIWU吉物躺著賺後台</title>
 <script src="ship-market-export.js?v=20261022-ship100" defer></script>
@@ -2984,7 +2984,7 @@ async function launchExport(mode){
 </script>
 
 <script>
-const API_URL='https://rilompdypgjzhynqjlwv.supabase.co/functions/v1/jiwu-admin-test';
+const API_URL='https://jiwu-mac-relay.jiwusales.workers.dev/functions/v1/jiwu-admin-test';
 const AUTH_TOKEN_KEY='jiwu_supabase_test_admin_auth_token';
 const AUTH_PERSISTENT_TOKEN_KEY='jiwu_supabase_test_admin_auth_token_trusted';
 let authToken=localStorage.getItem(AUTH_PERSISTENT_TOKEN_KEY)||sessionStorage.getItem(AUTH_TOKEN_KEY)||'';
@@ -6830,30 +6830,205 @@ async function backendSyncRefreshCurrent(page){
  }
  backendSyncRestoreScroll(scroll);backendSyncPendingPaint.delete(page);return true;
 }
+// jiwu-push-invalidation:start
+/* Jiwu's public, content-free invalidation channel. No periodic database reads.
+ * Official protocol: https://supabase.com/docs/guides/realtime/protocol
+ * Uses the documented JSON object protocol (vsn=1.0.0), not a reverse-engineered API.
+ */
+(function (root) {
+  'use strict';
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const TABLE = 'jiwu_backend_signal';
+  function publicConfig(config, decodeBase64) {
+    const value = new URL(config.runtimeSupabaseURL || config.supabaseURL);
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(value.hostname);
+    if (value.username || value.password || value.search || value.hash ||
+        (value.protocol !== 'https:' && !(local && value.protocol === 'http:'))) {
+      throw new Error('Push requires an HTTPS public Supabase URL (or local HTTP).');
+    }
+    const anonKey = String(config.runtimeSupabaseAnonKey || config.anonKey || '');
+    if (!/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(anonKey)) {
+      let claims;
+      try {
+        const part = anonKey.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        claims = JSON.parse(decodeBase64(part.padEnd(Math.ceil(part.length / 4) * 4, '=')));
+      } catch (_) { throw new Error('Push requires a public anon/publishable key.'); }
+      if (claims.role !== 'anon') throw new Error('Server and user credentials must not enter push config.');
+    }
+    const path = config.realtimePath || '/realtime/v1/websocket';
+    if (!/^\/[A-Za-z0-9/_-]+$/.test(path)) throw new Error('Invalid Realtime gateway path.');
+    value.protocol = value.protocol === 'https:' ? 'wss:' : 'ws:';
+    value.pathname = value.pathname.replace(/\/$/, '') + path;
+    value.searchParams.set('apikey', anonKey);
+    value.searchParams.set('vsn', '1.0.0');
+    return { url: value.href, anonKey };
+  }
+  function createJiwuBackendPush(config, onInvalidate, suppliedEnv) {
+    const env = suppliedEnv || root;
+    const validated = publicConfig(config, env.atob.bind(env));
+    const topic = 'realtime:jiwu-backend-signal';
+    let socket = null, enabled = false, connected = false, generation = 0, sequence = 0;
+    let reconnectTimer = null, heartbeatTimer = null, joinTimer = null, reconnectAttempt = 0;
+    let joinRef = '', heartbeatRef = '', subscriptionIds = [], lastRevision = '';
+    function clearTimers() {
+      for (const timer of [reconnectTimer, heartbeatTimer, joinTimer]) if (timer !== null) env.clearTimeout(timer);
+      reconnectTimer = heartbeatTimer = joinTimer = null;
+    }
+    function emit(reason, revision) {
+      // No row contents leave this client; the caller fetches through its normal authenticated API.
+      try { onInvalidate({ reason, ...(revision ? { revision } : {}) }); } catch (_) {}
+    }
+    function send(event, payload, messageTopic = topic, explicitRef) {
+      if (!socket || socket.readyState !== 1) return '';
+      const ref = explicitRef || String(++sequence);
+      socket.send(JSON.stringify({ topic: messageTopic, event, payload, ref,
+        ...(messageTopic === topic ? { join_ref: joinRef } : {}) }));
+      return ref;
+    }
+    function closeSocket() {
+      const previous = socket;
+      socket = null; connected = false; generation++;
+      clearTimers();
+      if (previous) { previous.onopen = previous.onmessage = previous.onerror = previous.onclose = null; try { previous.close(); } catch (_) {} }
+    }
+    function reconnect() {
+      closeSocket();
+      if (!enabled) return;
+      const delay = Math.min(30000, 1000 * (2 ** Math.min(reconnectAttempt++, 5)));
+      reconnectTimer = env.setTimeout(() => { reconnectTimer = null; connect(); }, delay);
+    }
+    function heartbeat() {
+      heartbeatTimer = env.setTimeout(() => {
+        heartbeatTimer = null;
+        if (!enabled || !connected) return;
+        if (heartbeatRef) { reconnect(); return; }
+        heartbeatRef = send('heartbeat', {}, 'phoenix');
+        heartbeat();
+      }, 20000);
+    }
+    function connect() {
+      if (!enabled || socket) return;
+      const epoch = ++generation;
+      try { socket = new env.WebSocket(validated.url); } catch (_) { reconnect(); return; }
+      const current = () => enabled && epoch === generation && socket;
+      joinTimer = env.setTimeout(reconnect, 10000);
+      socket.onopen = () => {
+        if (!current()) return;
+        if (joinTimer !== null) env.clearTimeout(joinTimer);
+        joinRef = String(++sequence); heartbeatRef = ''; subscriptionIds = [];
+        send('phx_join', {
+          config: { broadcast: { ack: false, self: false }, presence: { enabled: false },
+            postgres_changes: [{ event: 'UPDATE', schema: 'public', table: TABLE, filter: 'id=eq.1' }], private: false },
+          access_token: validated.anonKey
+        }, topic, joinRef);
+        joinTimer = env.setTimeout(reconnect, 10000);
+      };
+      socket.onmessage = message => {
+        if (!current()) return;
+        let event;
+        try { event = JSON.parse(message.data); } catch (_) { return; }
+        if (!event || typeof event !== 'object' || Array.isArray(event)) return;
+        if (event.event === 'phx_reply' && event.topic === 'phoenix' && event.ref === heartbeatRef) {
+          if (event.payload?.status === 'ok') heartbeatRef = '';
+          else reconnect();
+          return;
+        }
+        if (event.topic !== topic || (event.join_ref != null && event.join_ref !== joinRef)) return;
+        if (event.event === 'phx_reply' && event.ref === joinRef) {
+          if (connected) return;
+          const subscriptions = event.payload?.response?.postgres_changes;
+          if (event.payload?.status !== 'ok' || !Array.isArray(subscriptions)) { reconnect(); return; }
+          subscriptionIds = subscriptions.filter(s => s.schema === 'public' && s.table === TABLE &&
+            s.event === 'UPDATE' && s.filter === 'id=eq.1' && Number.isInteger(s.id)).map(s => s.id);
+          if (!subscriptionIds.length) { reconnect(); return; }
+          if (joinTimer !== null) env.clearTimeout(joinTimer);
+          joinTimer = null; connected = true; reconnectAttempt = 0;
+          heartbeat();
+          // Exactly one catch-up after a successful join, including the first connection.
+          emit('connected');
+          return;
+        }
+        if (event.event === 'phx_error' || event.event === 'phx_close' ||
+            (event.event === 'system' && event.payload?.status === 'error')) { reconnect(); return; }
+        if (event.event !== 'postgres_changes' || !connected) return;
+        const payload = event.payload, data = payload?.data;
+        if (!Array.isArray(payload?.ids) || !payload.ids.some(id => subscriptionIds.includes(id)) ||
+            data?.schema !== 'public' || data.table !== TABLE || data.type !== 'UPDATE' || data.errors ||
+            data.record?.id !== 1 || !UUID.test(data.record.revision || '')) return;
+        const revision = data.record.revision;
+        if (revision === lastRevision) return;
+        lastRevision = revision;
+        emit('changed', revision);
+      };
+      socket.onerror = () => { if (current()) reconnect(); };
+      socket.onclose = () => { if (current()) reconnect(); };
+    }
+    return Object.freeze({
+      start() { enabled = true; if (reconnectTimer === null) connect(); },
+      stop() { enabled = false; closeSocket(); },
+      reconnect() { enabled = true; closeSocket(); reconnectAttempt = 0; connect(); },
+      status() { return { enabled, connected }; }
+    });
+  }
+  root.createJiwuBackendPush = createJiwuBackendPush;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createJiwuBackendPush, publicConfig };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// These are PUBLIC browser settings. A service_role/secret key is rejected by the client.
+const backendPushDefaults=Object.freeze({"runtimeSupabaseURL":"https://jiwu-mac-relay.jiwusales.workers.dev","runtimeSupabaseAnonKey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyNzExMjc2LCJleHAiOjE4MjQyNDcyNzZ9.M3rL4u8tO_PQN-qW4kP8mkmIxI6Vdd4FgkhsuNPoxqk"});
+let backendPushClient=null,backendPushTimer=null,backendPushSignalVersion=0,backendSyncNeedsRevision=false,backendPushReady=false;
+function backendPushSchedule(){
+ if(backendPushTimer!==null)return;
+ backendPushTimer=setTimeout(()=>{backendPushTimer=null;void backendSyncPoll();},100);
+}
+function backendPushResumePending(){
+ if(backendPushReady&&(backendSyncNeedsRevision||backendSyncDirty.has(document.body.dataset.page)))void backendSyncPoll();
+}
+function backendPushWake(reconnect=false){
+ if(!authToken||!appStarted||document.hidden||!navigator.onLine){backendPushClient?.stop();return;}
+ if(!backendPushClient){
+  const runtime=window.JIWU_RUNTIME_CONFIG||{};
+  backendPushClient=createJiwuBackendPush({...backendPushDefaults,...runtime},()=>{
+   backendPushReady=true;backendSyncNeedsRevision=true;backendPushSignalVersion++;backendPushSchedule();
+  });
+ }
+ if(reconnect)backendPushClient.reconnect();else backendPushClient.start();
+ backendPushResumePending();
+}
 async function backendSyncPoll(){
  if(backendSyncRunning||!authToken||!appStarted||document.hidden||!navigator.onLine)return;
+ if(!backendSyncNeedsRevision&&!backendSyncDirty.has(document.body.dataset.page))return;
+ const signalAtStart=backendPushSignalVersion;
  backendSyncRunning=true;
  try{
+  if(backendSyncNeedsRevision){
   const state=await api('backendSync');
+  if(signalAtStart===backendPushSignalVersion)backendSyncNeedsRevision=false;
   if(state.revision!==backendSyncRevision){
    const legacyChanged=backendSyncLegacyRevision!==null&&state.legacyRevision!==undefined&&backendSyncLegacyRevision!==state.legacyRevision,scoped=!legacyChanged&&state.pageRevisions&&Object.keys(state.pageRevisions).length>0,changed=scoped?backendSyncPages.filter(page=>backendSyncPageVersions.get(page)!==(state.pageRevisions[page]||'')):backendSyncPages;
    backendSyncRevision=state.revision;backendSyncLegacyRevision=state.legacyRevision??null;for(const page of backendSyncPages)backendSyncPageVersions.set(page,state.pageRevisions?.[page]||'');
    changed.forEach(page=>backendSyncDirty.add(page));if(changed.includes('online')&&onlineLoadedAt)onlineLoadedAt=1;if(changed.includes('inventory')&&inventoryLoadedAt)inventoryLoadedAt=1;if(changed.includes('ship'))shipLoadedAt=1;if(changed.includes('store'))storeSalesLoadedAt=1;
   }
+  }
   const page=document.body.dataset.page;
-  // Refresh once per minute too, so edits made outside this web app are eventually read.
-  if(backendSyncDirty.has(page)||Date.now()-(backendSyncLastRead.get(page)||0)>=60000){const revision=backendSyncRevision;if(await backendSyncRefreshCurrent(page)){if(revision===backendSyncRevision)backendSyncDirty.delete(page);backendSyncLastRead.set(page,Date.now());}}
- }catch(_){/* Keep the visible snapshot and pending changes; the next check retries quietly. */}
- finally{backendSyncRunning=false;}
+  if(backendSyncDirty.has(page)){const revision=backendSyncRevision;if(await backendSyncRefreshCurrent(page)){if(revision===backendSyncRevision)backendSyncDirty.delete(page);backendSyncLastRead.set(page,Date.now());}}
+ }catch(_){/* Retain the snapshot and pending signal. Retry on another notification or user resume. */}
+ finally{backendSyncRunning=false;if(signalAtStart!==backendPushSignalVersion&&backendSyncNeedsRevision)backendPushSchedule();}
 }
-function backendSyncStart(){if(!backendSyncTimer)backendSyncTimer=setInterval(backendSyncPoll,5000);void backendSyncPoll();}
+function backendSyncStart(){
+ if(backendSyncTimer){clearInterval(backendSyncTimer);backendSyncTimer=null;}
+ backendPushWake();
+}
 document.addEventListener('compositionstart',()=>backendSyncComposing=true);
-document.addEventListener('compositionend',()=>{backendSyncComposing=false;});
-window.addEventListener('focus',()=>{backendSyncPoll();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
-window.addEventListener('pageshow',()=>{if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
-window.addEventListener('online',()=>backendSyncPoll());
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){backendSyncPoll();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();}});
-document.addEventListener('focusout',()=>setTimeout(()=>backendSyncPoll(),200));
+document.addEventListener('compositionend',()=>{backendSyncComposing=false;backendPushResumePending();});
+window.addEventListener('focus',()=>{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
+window.addEventListener('pageshow',()=>{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
+window.addEventListener('online',()=>backendPushWake(true));
+window.addEventListener('offline',()=>backendPushClient?.stop());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)backendPushClient?.stop();else{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();}});
+document.addEventListener('focusout',()=>setTimeout(backendPushResumePending,200));
+
+// jiwu-push-invalidation:end
 
 // Only load the page the operator is viewing.  Loading every page in the
 // background caused concurrent full-table reads to starve checkout and publish.
