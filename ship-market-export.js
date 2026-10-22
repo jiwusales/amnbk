@@ -43,7 +43,7 @@ window.JIWU_SHIP_MARKET_TEMPLATE="UEsDBBQABgAIAAAAIQC4feymtwEAAEoHAAATAAgCW0Nvbn
   // Each product supports 50 specs; blank A:C continues the current product.
   const products=specs.map((spec,index)=>{
    const first=index%50===0,batch=Math.floor(index/50);
-   const name='JIWU客訂'+stamp+(batch?'-'+batch:'');
+   const name='JIWU客訂'+stamp+(batch?'B':'A');
    return [first?name:'','',first?description:'',spec.customer,'1',spec.price,'',first?'新品':'','','','',''];
   });
   const zip=await global.JSZip.loadAsync(global.JIWU_SHIP_MARKET_TEMPLATE,{base64:true,checkCRC32:true});

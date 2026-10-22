@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://rilompdypgjzhynqjlwv.supabase.co">
 
 <title>JIWU吉物躺著賺後台</title>
-<script src="ship-market-export.js?v=20261014" defer></script>
+<script src="ship-market-export.js?v=20261022-ship100" defer></script>
 <script src="purchase-batches.js?v=20261022m" defer></script>
 <style>
 *{box-sizing:border-box}
@@ -1350,6 +1350,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <div class="topActions">
 <div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
+<button id="shipMarketSelectAll" type="button" class="btn light" onclick="selectAllShipMarketCards()" title="全選尚未上架的訂單卡，每次最多 100 張">全選</button>
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">花</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">K</button>
@@ -6244,10 +6245,12 @@ let shipLoadPromise=null;
 let shipRevision=0;
 let shipPendingWrites=0;
 const shipMarketSelection=new Set();
+const SHIP_MARKET_EXPORT_LIMIT=100;
 const SHIP_MARKET_HISTORY_KEY='jiwu_supabase_test_ship_market_exports_v1';
 let shipMarketHistory={};
 try{shipMarketHistory=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(!shipMarketHistory||typeof shipMarketHistory!=='object'||Array.isArray(shipMarketHistory))shipMarketHistory={};}catch(_){}
 let shipMarketOrders=new Map(),shipMarketExportBusy=false;
+function shipMarketIsListed(key){return !!shipMarketHistory[key];}
 function shipMarketKey(rows){
  const fields=['時間','客戶名稱','顧客名稱','客人名稱','姓名','貨號','名稱','商品名稱','售價','金額','訂金','運費'];
  return JSON.stringify(rows.map(row=>fields.map(field=>String(row.data[field]??''))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
@@ -6258,6 +6261,17 @@ function shipMarketSetSelected(card,selected){
  card.classList.toggle('shipMarketSelected',selected);
  card.querySelector('.shipMarketCheck').checked=selected;
 }
+function selectAllShipMarketCards(){
+ if(shipMarketExportBusy)return;
+ const cards=[...document.querySelectorAll('.shipOrderCard')];
+ const eligible=cards.filter(card=>shipMarketOrders.has(card.dataset.marketKey)&&!shipMarketIsListed(card.dataset.marketKey));
+ const selectedKeys=new Set(eligible.slice(0,SHIP_MARKET_EXPORT_LIMIT).map(card=>card.dataset.marketKey));
+ // Replace the selection so hidden, removed, or already-listed cards are not carried over.
+ shipMarketSelection.clear();
+ cards.forEach(card=>shipMarketSetSelected(card,selectedKeys.has(card.dataset.marketKey)));
+ if(!eligible.length)showShipCopyNotice('目前沒有尚未上架的訂單卡');
+ else if(eligible.length>SHIP_MARKET_EXPORT_LIMIT)showShipCopyNotice('已選取前 100 張未上架訂單卡，其餘 '+(eligible.length-SHIP_MARKET_EXPORT_LIMIT)+' 張請於下一批匯出');
+}
 function selectShipMarketCard(event,card){
  if(card._shipSwiped){card._shipSwiped=false;return;}
  if(event.target.closest('button,a,input,select,textarea,label'))return;
@@ -6267,7 +6281,7 @@ function selectShipMarketCard(event,card){
 function toggleShipMarketListed(button){
  const key=button.closest('.shipOrderCard').dataset.marketKey;
  try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))shipMarketHistory=current;}catch(_){}
- const listed=!shipMarketHistory[key];
+ const listed=!shipMarketIsListed(key);
  if(listed)shipMarketHistory[key]=new Date().toISOString();else delete shipMarketHistory[key];
  button.classList.toggle('isListed',listed);
  button.setAttribute('aria-pressed',String(listed));
@@ -6280,7 +6294,7 @@ async function downloadShipMarketExport(){
  if(shipMarketExportBusy)return;
  const orders=[...shipMarketSelection].map(key=>shipMarketOrders.get(key)).filter(Boolean);
  if(!orders.length)return showShipCopyNotice('請先勾選要上架的訂單卡');
- if(orders.length>50)return showShipCopyNotice('每次最多上架 50 樣，請減少勾選數量');
+ if(orders.length>SHIP_MARKET_EXPORT_LIMIT)return showShipCopyNotice('每次最多上架 100 張訂單卡，請減少勾選數量');
  const button=document.getElementById('shipMarketUpload');
  shipMarketExportBusy=true;if(button){button.disabled=true;button.textContent='產生中';}
  try{
@@ -6294,7 +6308,7 @@ async function downloadShipMarketExport(){
   const exportedAt=new Date().toISOString();orders.forEach(order=>{shipMarketHistory[order.key]=exportedAt;});
   let saved=true;try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){saved=false;}
   document.querySelectorAll('.shipOrderCard').forEach(card=>{
-   const listed=!!shipMarketHistory[card.dataset.marketKey],truck=card.querySelector('.shipMarketTruck');
+   const listed=shipMarketIsListed(card.dataset.marketKey),truck=card.querySelector('.shipMarketTruck');
    truck.classList.toggle('isListed',listed);truck.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';truck.setAttribute('aria-label',truck.title);truck.setAttribute('aria-pressed',String(listed));
   });
   showShipCopyNotice(saved?'已下載上架檔':'已下載上架檔；瀏覽器無法保存上架紀錄');
@@ -6423,7 +6437,7 @@ const depositTotal=g.reduce((sum,x)=>sum+numberValue(x.data[di]),0);
 // Each row stores its own shipping charge, including equal charges on the same order.
 const shippingTotal=g.reduce((sum,x)=>sum+numberValue(x.data[shi]),0);
 const balance=orderTotal+shippingTotal-depositTotal;
-const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=!!shipMarketHistory[marketKey];
+const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=shipMarketIsListed(marketKey);
 shipMarketOrders.set(marketKey,{key:marketKey,customer,orderTotal,depositTotal,shippingTotal,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
 const now=new Date();
 const shipDate=String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0');
