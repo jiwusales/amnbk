@@ -3005,11 +3005,12 @@ let inventorySearchTimer=null;
 let inventoryResizeTimer=null;
 let inventoryOrderDirty=false;
 let inventoryPendingMoves=[];
+let inventoryOrderSaving=false,inventoryOrderSaveRequest=null;
 let inventoryStatus='目錄';
 const inventoryStatusCheckingRows=new Set();
 const INVENTORY_BROWSER_CACHE_MS=5*60*1000;
-const INVENTORY_SESSION_CACHE_KEY='jiwu_supabase_test_inventory_session_v3';
-const INVENTORY_PERSISTENT_CACHE_KEY='jiwu_supabase_test_inventory_session_v3_persist';
+const INVENTORY_SESSION_CACHE_KEY='jiwu_inventory_rank_session_v1';
+const INVENTORY_PERSISTENT_CACHE_KEY='jiwu_inventory_rank_session_v1_persist';
 let storeCart=[];
 let payment='';
 let salesperson='shared';
@@ -3045,7 +3046,8 @@ const requestId=params.requestId||crypto.randomUUID(),controller=new AbortContro
 const timer=setTimeout(()=>controller.abort(),action==='launchGet'?20000:90000);
 try{
 const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...(authToken?{token:authToken}:{}),...params,requestId}),signal:controller.signal});
-const data=await r.json();
+const responseText=await r.text();let data;
+try{data=JSON.parse(responseText);}catch(_){throw new Error([502,503,504].includes(r.status)?'伺服器連線暫時失敗（'+r.status+'），請稍後重試；尚未儲存的修改會保留。':'伺服器回應格式異常（'+r.status+'），請稍後重試。');}
 if(!r.ok||data?.ok===false){if(data?.error==='登入已失效，請重新登入')showLogin();throw new Error(data?.error||'資料讀取失敗');}
 return data;
 }finally{clearTimeout(timer);}
@@ -4247,13 +4249,31 @@ function setInventoryOrderPosition(row,input){
 const current=inventoryDisplayedRows.findIndex(item=>Number(item.row)===Number(row));
 const raw=input.value.trim(),position=Number(raw);
 if(current<0)return;
+if(inventoryOrderSaving){input.value=current+1;return;}
 if(!/^\d+$/.test(raw)||!Number.isSafeInteger(position)||position<1||position>inventoryDisplayedRows.length){input.value=current+1;return;}
 if(position===current+1)return;
 const target=inventoryDisplayedRows[position-1];
 reorderInventoryRows(Number(row),Number(target.row),position-1<current?'before':'after');
 }
-function reorderInventoryRows(source,target,side='after'){if([source,target].some(row=>inventoryIsPinned(inventoryRows.find(item=>Number(item.row)===Number(row))||{})))return;const from=inventoryRows.findIndex(item=>Number(item.row)===Number(source));if(from<0||source===target)return;const [moved]=inventoryRows.splice(from,1);const targetIndex=inventoryRows.findIndex(item=>Number(item.row)===Number(target));if(targetIndex<0){inventoryRows.splice(from,0,moved);return;}const insertIndex=targetIndex+(side==='after'?1:0);inventoryRows.splice(insertIndex,0,moved);if(insertIndex===from)return;inventoryPendingMoves.push([Number(source),Number(target),side==='before'?'b':'a']);inventoryOrderDirty=true;const button=document.getElementById('inventorySaveOrderButton');if(button)button.classList.add('isVisible');renderInventoryContent();}
-async function saveInventoryOrder(){if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves.values()]);if(!inventoryOrderDirty||!inventoryPendingMoves.length)return;const button=document.getElementById('inventorySaveOrderButton');if(button){button.disabled=true;button.textContent='SAVE…';}const moves=inventoryPendingMoves.map(([source,target,side])=>source.toString(36)+'_'+target.toString(36)+'_'+side).join(',');const rowSlots=inventoryRows.map(item=>Number(item.row)).filter(row=>Number.isInteger(row)&&row>=2).sort((a,b)=>a-b);try{await api('reorderInventory',{moves});inventoryRows.forEach((item,index)=>{if(rowSlots[index])item.row=rowSlots[index];});inventoryOrderDirty=false;inventoryPendingMoves=[];inventoryLoadedAt=Date.now();prepareInventoryRows();saveInventorySessionCache();renderInventoryContent();const current=document.getElementById('inventorySaveOrderButton');if(current){current.classList.remove('isVisible');current.disabled=false;current.textContent='儲存排序';}}catch(e){alert('排序儲存失敗：'+e.message);if(button){button.disabled=false;button.textContent='儲存排序';}}}
+function reorderInventoryRows(source,target,side='after'){if(inventoryOrderSaving)return;if([source,target].some(row=>inventoryIsPinned(inventoryRows.find(item=>Number(item.row)===Number(row))||{})))return;const from=inventoryRows.findIndex(item=>Number(item.row)===Number(source));if(from<0||source===target)return;const [moved]=inventoryRows.splice(from,1);const targetIndex=inventoryRows.findIndex(item=>Number(item.row)===Number(target));if(targetIndex<0){inventoryRows.splice(from,0,moved);return;}const insertIndex=targetIndex+(side==='after'?1:0);inventoryRows.splice(insertIndex,0,moved);if(insertIndex===from)return;inventoryPendingMoves.push([Number(source),Number(target),side==='before'?'b':'a']);inventoryOrderDirty=true;const button=document.getElementById('inventorySaveOrderButton');if(button)button.classList.add('isVisible');renderInventoryContent();}
+async function saveInventoryOrder(){
+ if(inventoryOrderSaving||!inventoryOrderDirty||!inventoryPendingMoves.length)return;
+ inventoryOrderSaving=true;
+ const button=document.getElementById('inventorySaveOrderButton');if(button){button.disabled=true;button.textContent='SAVE…';}
+ try{
+  if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves.values()]);
+  const moves=inventoryPendingMoves.map(([source,target,side])=>source.toString(36)+'_'+target.toString(36)+'_'+side).join(',');
+  if(inventoryOrderSaveRequest?.moves!==moves)inventoryOrderSaveRequest=backendPrepareWrite('reorderInventory',{moves,requestId:crypto.randomUUID()});
+  const result=await api('reorderInventory',inventoryOrderSaveRequest);
+  if(result.orderMode!=='rank'||!Array.isArray(result.orderIds))throw new Error('排序回應不完整，請重新載入確認儲存結果');
+  const positions=new Map(result.orderIds.map((id,index)=>[String(id),index]));
+  inventoryRows.sort((a,b)=>(positions.get(String(a.itemId))??Infinity)-(positions.get(String(b.itemId))??Infinity));
+  inventoryOrderDirty=false;inventoryPendingMoves=[];inventoryOrderSaveRequest=null;inventoryLoadedAt=Date.now();
+  prepareInventoryRows();saveInventorySessionCache();renderInventoryContent();
+  document.getElementById('inventorySaveOrderButton')?.classList.remove('isVisible');
+ }catch(e){alert('排序儲存失敗：'+e.message);}
+ finally{inventoryOrderSaving=false;const current=document.getElementById('inventorySaveOrderButton');if(current){current.disabled=false;current.textContent='儲存排序';}}
+}
 function closeDialog(){document.getElementById('appDialog')?.remove();}
 function inventoryIpPicker(id,preferred=''){
 const values=[...new Set([...inventoryCategoryValues,preferred].map(value=>String(value||'').trim()).filter(value=>value&&value!=='全部'))];
