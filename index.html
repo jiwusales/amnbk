@@ -7124,9 +7124,7 @@ try{
 await api('authCheck');
 startApp();
 }catch(_){
-authToken='';
-sessionStorage.removeItem(AUTH_TOKEN_KEY);
-localStorage.removeItem(AUTH_PERSISTENT_TOKEN_KEY);
+showLogin();
 }
 }
 purchaseCaptureSafariImport();
