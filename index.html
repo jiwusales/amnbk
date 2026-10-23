@@ -7287,9 +7287,10 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 .launchFreeShippingToggle[aria-pressed="true"]{color:#d9544d}
 .launchPauseToggle{flex:none;align-self:center;border:0;background:transparent;color:#777;font-size:20px;padding:4px;line-height:1.2;cursor:pointer}
 .launchPauseToggle[aria-pressed="true"]{color:var(--red)}
-.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:40px minmax(0,1fr) 38px 30px 28px max-content;gap:12px}
+.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:40px minmax(0,1fr) 38px 30px 28px 64px;gap:12px}
 .launchProductListPage .launchPauseToggle{justify-self:center;width:100%;box-sizing:border-box}
-@media(max-width:600px){.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:28px minmax(0,1fr) 22px 22px 24px max-content;gap:6px}.launchProductListPage .launchAvailability{width:22px}.launchPauseToggle{padding:2px;font-size:18px}}
+.launchProductListPage .launchStockToggle{width:100%;min-width:0;box-sizing:border-box;text-align:center}
+@media(max-width:600px){.launchProductListPage .launchAllProductContent:has(.launchPauseToggle){grid-template-columns:28px minmax(0,1fr) 22px 22px 24px 48px;gap:6px}.launchProductListPage .launchAvailability{width:22px}.launchPauseToggle{padding:2px;font-size:18px}}
 @supports(backdrop-filter:blur(20px)){
  .dialogOverlay{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
  .launchDialog::backdrop{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
