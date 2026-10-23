@@ -3062,7 +3062,7 @@ let storeCart=[];
 let payment='';
 let salesperson='shared';
 let onlineSearchText='';
-let onlineCargo='未開單';
+let onlineCargo='';
 let onlineLoadedAt=0;
 let onlineLoadPromise=null;
 let onlineMutationRevision=0;
@@ -3927,7 +3927,7 @@ isFaceToFaceView=false;isStarredView=false;
  * 都回到預設頁面
  */
 onlineSearchText='';
-onlineCargo='未開單';
+onlineCargo='';
 isCustomerView=false;
 isGroupView=false;
 renderOnline();
@@ -3948,7 +3948,7 @@ inventoryCategory='全部';inventorySearch='';inventoryStatus='目錄';
 renderInventory();task=loadInventory(true);
 }
 else if(name==='online'){
-isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='未開單';isCustomerView=false;isGroupView=false;
+isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='';isCustomerView=false;isGroupView=false;
 renderOnline();task=loadOnline(true);
 }
 else if(name==='ship')task=renderShip(true);
