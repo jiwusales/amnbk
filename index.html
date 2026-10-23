@@ -3758,7 +3758,7 @@ async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
  try{for(let start=0;start<codes.length;start+=100){const response=await api('purchaseMatch',{codes:JSON.stringify(codes.slice(start,start+100))});if(ticket!==purchaseImageTicket)return;
-  items.forEach(item=>{if(item.image)return;const candidates=response.matches?.[item.code];if(!candidates)return;for(const source of ['商品庫存','最新開團','已收單']){let rows=candidates.filter(c=>c.source===source&&/^https?:\/\//i.test(c.image||''));const exact=rows.filter(c=>(item.url&&c.url===item.url)||(item.group&&c.group===item.group&&c.role===(item.role||'')));if(exact.length)rows=exact;const images=[...new Set(rows.map(c=>c.image.trim()))];if(images.length===1){item.image=images[0];break;}}});
+  items.forEach(item=>{if(item.image)return;const candidates=response.matches?.[item.code];if(!candidates)return;for(const source of ['商品庫存','最新開團','已收單','訂購記錄']){let rows=candidates.filter(c=>c.source===source&&/^https?:\/\//i.test(c.image||''));const exact=rows.filter(c=>(item.url&&c.url===item.url)||(item.group&&c.group===item.group&&c.role===(item.role||'')));if(exact.length)rows=exact;const images=[...new Set(rows.map(c=>c.image.trim()))];if(images.length===1){item.image=images[0];break;}}});
  }
  if(ticket===purchaseImageTicket&&document.body.dataset.page==='purchase'){
   // 只更新統計圖片，不重建輸入欄、卡片或編輯視窗。
