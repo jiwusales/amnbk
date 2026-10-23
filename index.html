@@ -2758,10 +2758,10 @@ function launchFetchProductAvailability(group,item){
    if(result.ok===false)throw Error(result.error||'偵測失敗');
    if(result.skipped){launchAvailabilityChecks.set(key,{...previous,busy:false});return true;}
    if(result.status){item.availabilityStatus=result.status;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityStatus=result.status;}
-   const available=result.available===true?true:result.available===false?false:result.lastAvailable??previous?.available??null;
+   const available=result.available===true?true:result.available===false?false:group.status==='最新開團'?null:result.lastAvailable??previous?.available??null;
    launchAvailabilityChecks.set(key,{available,detail:result.detail||'',busy:false});
    return true;
-  }catch(error){launchAvailabilityChecks.set(key,{...previous,detail:error.message||'偵測失敗',busy:false});return false;}
+  }catch(error){launchAvailabilityChecks.set(key,{...(group.status==='最新開團'?{available:null}:previous),detail:error.message||'偵測失敗',busy:false});return false;}
   finally{launchAvailabilityPending.delete(key);launchRefreshAvailabilityControls(key);}
  })();launchAvailabilityPending.set(key,pending);return pending;
 }
