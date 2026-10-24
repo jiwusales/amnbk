@@ -3138,7 +3138,7 @@ function customerChatDraftURL(customer,url){const text=customerChatDrafts.get(cu
 function openCustomerChatURL(customer,url){url=customerChatDraftURL(customer,url);const tab=window.open(url,'_blank');if(tab)tab.opener=null;else showCustomerLineChatLink(customer,url);}
 window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats();});
 function customerMessageButton(customer,ship=false,rows=[]){
-if(customerSourceBadges(rows))return '';
+const badges=customerSourceBadges(rows);if(badges)return badges;
 const bound=!!cachedCustomerLineChat(customer);
 return `<button type="button" class="customerMessageButton${bound?' bound':''}" data-customer="${esc(customer)}" onclick="${ship?'openShipCustomerNotice(this)':'customerChatDrafts.delete(this.dataset.customer);openCustomerLineChat(this)'}" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="${bound?'已綁定':'尚未綁定'}官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">✉︎</button>`;
 }
@@ -5728,20 +5728,21 @@ function customerSourceBadges(rows){
  const badges=new Map();
  for(const row of rows||[]){
   const data=row?.data||{};
-  const source=String(['來源','通路','平台'].map(key=>data[key]).find(value=>String(value??'').trim())||'').trim();
+  const source=String(['來源','通路','平台'].map(key=>data[key]).find(value=>String(value??'').trim())||getOnlineData({data},['來源','通路','平台'])||row?.source||'').trim();
   const normalized=source.normalize('NFKC').toLowerCase();
-  const kind=['ig','instagram'].includes(normalized)?'instagram':['@','脆','threads','脆(@)','脆（@）'].includes(normalized)?'threads':['本帳','熊帳','蟲帳'].includes(normalized)?'facebook':'';
+  const kind=['ig','instagram'].includes(normalized)?'instagram':['@','脆','threads','脆(@)','脆（@）'].includes(normalized)?'threads':['本帳','熊帳','蟲帳','fb','facebook','臉書'].includes(normalized)?'facebook':source&&!['line','官賴','官方line','官方 line','賴'].includes(normalized)?'other':'';
   if(!kind)continue;
   if(!badges.has(kind))badges.set(kind,new Set());
   badges.get(kind).add(source);
  }
  return [...badges].map(([kind,sources])=>{
   const label=[...sources].join('、');
+  if(kind==='other')return `<span class="customerSourceIcon" title="來源：${esc(label)}" aria-label="來源：${esc(label)}">🌐</span>`;
   return `<img class="customerSourceIcon" src="assets/customer-source/${kind}.png" alt="${esc(label)}" title="來源：${esc(label)}" width="16" height="16" decoding="async">`;
  }).join('');
 }
 function customerIdentity(name,rows){
- return `<span class="customerIdentity"><span class="customerIdentityName">${esc(name)}</span>${customerSourceBadges(rows)}</span>`;
+ return `<span class="customerIdentity"><span class="customerIdentityName">${esc(name)}</span></span>`;
 }
 function getCustomerName(row){
 return getOnlineData(
