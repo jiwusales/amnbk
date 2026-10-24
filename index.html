@@ -3628,8 +3628,9 @@ function purchaseDailyTotals(orders,mergeMonth=false){
   if(order.status==='砍單')return;
   (order.items||[]).forEach((item,itemIndex)=>{
    const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
-   // 無貨號的舊資料逐項保留，避免把不同商品合在一起。
-   const key=mergeMonth?JSON.stringify([code||String(item.url||'').trim(),String(item.group||'').trim(),purchaseProductName(item),String(item.role||'').trim()]):purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||Symbol();
+   // 無貨號時僅合併名稱、團名、角色、規格與圖片完全相同的商品。
+   const unnamedCodeKey=!code&&String(item.name||'').trim()&&String(item.image||'').trim()?JSON.stringify(['named-image',String(item.group||'').trim(),String(item.name).normalize('NFKC').trim(),String(item.role||'').normalize('NFKC').trim(),String(item.format||'').trim(),String(item.size||'').trim(),String(item.image).trim()]):null;
+   const key=mergeMonth?(code?JSON.stringify([code,String(item.group||'').trim(),purchaseProductName(item),String(item.role||'').trim()]):unnamedCodeKey||Symbol()):purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||unnamedCodeKey||Symbol();
    if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
    const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image){const image=item.image||purchasePreviousImage(item,previous,imageIndex);if(/^https?:\/\//i.test(image||''))product.image=image;}
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
