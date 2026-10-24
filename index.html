@@ -1745,7 +1745,7 @@ function jiwuSplitProductSpec(sizeValue, formatValue, inferFormat = true) {
 function launchProductSpec(item){const spec=jiwuSplitProductSpec(item?.size,item?.format),groups=jiwuPhysicalSizeGroups(spec.size);return {format:spec.format,size:groups.length>1?groups.map(jiwuClothingSize).join(' '):jiwuClothingSize(spec.size)};}
 function launchVariantFormat(item){return launchProductSpec(item).format||String(item?.size||'');}
 function launchCardSize(value){
- const text=jiwuClothingSize(value),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
+ const text=jiwuClothingSize(launchFormatProductSize(value)),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
  // Only physical measurements belong to the size line.
  return parts.filter(part=>/\d/.test(part)&&(/(?:[HWDΦφø直徑長寬高厚深縦横丈幅巾肩袖]|\d\s*[×xX*]\s*\d|\d\s*(?:cm|mm|公分|毫米|公厘))/i.test(part)||/^(?:[AB](?:10|[0-9])|\d+(?:\.\d+)?)$/i.test(part))).join('/');
 }
@@ -2285,6 +2285,7 @@ function launchParseMultiProducts(value){
 function launchNormalizeProductSpec(size,format){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:launchFormatProductSize(spec.size)};}
 function launchFormatProductSize(input){const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
 function launchFormatOneProductSize(input) {
+  const longEdge=String(input||'').normalize('NFKC').replace(/\s+/g,'').match(/^(?:約)?長[辺邊边](\d+(?:\.\d+)?)(mm|cm)?(?:以[内內]|[内內])$/i);if(longEdge)return '長邊'+String(Number(longEdge[1])*(longEdge[2]?.toLowerCase()==='cm'?10:1))+'內';
   if (!input) return "";
   if (/着丈|身幅|身巾|肩幅|袖丈|長\d/.test(String(input))) return jiwuExtractClothingSize(input) || jiwuClothingSize(input);
   const str = input.toString();
