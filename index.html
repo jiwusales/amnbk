@@ -3467,6 +3467,39 @@ function parsePurchaseText(text){
 }
 function purchaseTable(items,editable=false){return `<div style="overflow:auto"><table class="launchAuxTable"><thead><tr><th>貨號</th><th>對應名稱</th><th>原商品名</th><th>數量</th><th>日幣單價</th><th>日幣小計</th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${esc(x.code)}</td><td>${editable?(x.candidates.length?`<select aria-label="選擇對應名稱" onchange="purchaseChoose(${i},this.value)"><option value="">請！選！擇！👐🏻！</option>${x.candidates.map((c,j)=>`<option value="${j}" ${x.choice===String(j)?'selected':''}>${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('')}</select>`:`<input aria-label="輸入名稱" placeholder="輸入名稱" value="${esc(x.name||'')}" oninput="purchaseDraft.items[${i}].name=this.value">`):esc(purchaseProductName(x))}</td><td>${esc(x.originalName)}</td><td>${x.quantity}</td><td>¥${x.price.toLocaleString()}</td><td>¥${x.total.toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`;}
 function purchaseChoose(i,value){const x=purchaseDraft.items[i];x.choice=value;const c=value===''?{}:x.candidates[Number(value)];Object.assign(x,{name:'',source:'',group:'',role:'',url:'',image:''},c);}
+function purchaseSharedNameUpdates(orders,blocked=new Set()){
+ const norm=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').trim();
+ const site=order=>{try{return new URL(order.orderURL).hostname.replace(/^www\./,'');}catch{return order.channel||'';}};
+ const key=(order,item)=>JSON.stringify([site(order),norm(item.originalName)]);
+ const mappings=new Map();
+ for(const order of orders){if(blocked.has(order.number)||order.status==='砍單'||!site(order))continue;
+  for(const item of order.items||[]){if(!norm(item.originalName)||!norm(item.name)||norm(item.name)===norm(item.originalName))continue;
+   const k=key(order,item);if(!mappings.has(k))mappings.set(k,[]);mappings.get(k).push(item);
+  }
+ }
+ const updates=[];
+ for(const order of orders){if(blocked.has(order.number)||order.status==='砍單'||!site(order))continue;
+  const quantities=[];
+  (order.items||[]).forEach((item,index)=>{
+   if(!norm(item.originalName)||(norm(item.name)&&norm(item.name)!==norm(item.originalName)))return;
+   const matches=(mappings.get(key(order,item))||[]).filter(source=>!norm(source.code)||!norm(item.code)||norm(source.code)===norm(item.code));
+   if(!matches.length||new Set(matches.map(source=>JSON.stringify([source.name,source.role||'']))).size!==1)return;
+   const source=matches[0],candidate=Object.fromEntries(['name','role','group','source','url','image'].map(field=>[field,source[field]||'']));
+   quantities.push({indexes:[index],quantity:Number(item.quantity)||0,name:source.name,candidate});
+  });
+  if(quantities.length)updates.push({order,quantities});
+ }
+ return updates;
+}
+function purchaseSyncSharedNames(){
+ const blocked=new Set([...purchaseEditQueue.keys(),...purchaseRegistrationQueue.keys(),...purchaseSplitPending]);
+ for(const {order,quantities} of purchaseSharedNameUpdates(purchaseOrders,blocked)){
+  const expectedItems=JSON.stringify(order.items.map(item=>[item.name||'',Number(item.quantity)||0]));
+  for(const entry of quantities)Object.assign(order.items[entry.indexes[0]],entry.candidate,{checkedAt:0});
+  purchaseQueueEdit(order,{quantities:JSON.stringify(quantities),expectedItems},true);
+ }
+ purchaseKeepPending();
+}
 function purchaseRecordedName(item,previous){
  const key=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').replace(/^0+(?=\d)/,'');
  const code=key(item.code);if(!code)return null;
@@ -3705,7 +3738,7 @@ async function purchaseDrainEdits(){
  if(purchaseQueueRunning)return;purchaseQueueRunning=true;
  try{while(purchaseEditQueue.size){const [number,pending]=purchaseEditQueue.entries().next().value;if(purchaseRegistrationQueue.has(number))break;
   pending.progressId||='purchase-edit-'+launchId();launchMoveProgress(pending.progressId,'訂購','傳送中','','儲存訂單');
-  try{const result=await api('purchaseEdit',{number,...pending.fields},pending.progressId);launchMoveProgress(pending.progressId,'訂購','完成','','儲存訂單');if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');if(result.merged)await purchaseLoad();}
+  try{const result=await api('purchaseEdit',{number,...pending.fields},pending.progressId);launchMoveProgress(pending.progressId,'訂購','完成','','儲存訂單');if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');purchaseSyncSharedNames();if(document.body.dataset.page==='purchase'&&!document.getElementById('appDialog'))renderPurchase();if(result.merged)await purchaseLoad();}
   catch(e){launchMoveProgress(pending.progressId,'訂購','失敗',e.message,'儲存訂單');purchaseEditToast('訂單 '+number+' 未送出修改已保留：'+e.message,true);
    const toast=document.getElementById('purchaseEditToast');if(toast){const discard=document.createElement('button');discard.type='button';discard.textContent='放棄這筆修改';discard.style.marginLeft='10px';discard.onclick=async()=>{
     if(purchaseQueueRunning){purchaseEditToast('正在儲存，請稍後再試',true);return;}
@@ -3831,7 +3864,7 @@ async function purchaseLoad(){
  const epoch=backendSyncPageEpochs.get('purchase')||0;if(purchaseLoadPromise&&purchaseLoadEpoch===epoch)return purchaseLoadPromise;
  purchaseLoadEpoch=epoch;const task=purchaseLoadData(epoch).finally(()=>{if(purchaseLoadPromise===task)purchaseLoadPromise=null;});purchaseLoadPromise=task;return task;
 }
-async function purchaseLoadData(epoch=backendSyncPageEpochs.get('purchase')||0){const auth=authToken,valid=()=>epoch===(backendSyncPageEpochs.get('purchase')||0)&&auth===authToken&&!backendSyncPageBusy('purchase');try{const r=await api('purchaseOrders');if(!valid()){backendSyncDirty.add('purchase');return;}if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',weight:p.weight??'',payCurrency:p.payCurrency,shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){if(!valid()){backendSyncDirty.add('purchase');return;}purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
+async function purchaseLoadData(epoch=backendSyncPageEpochs.get('purchase')||0){const auth=authToken,valid=()=>epoch===(backendSyncPageEpochs.get('purchase')||0)&&auth===authToken&&!backendSyncPageBusy('purchase');try{const r=await api('purchaseOrders');if(!valid()){backendSyncDirty.add('purchase');return;}if(backendDeferRead('purchase',purchaseOrdersLoaded))return;purchaseOrders=r.orders||[];purchaseRegistrationQueue.forEach((p,number)=>{if(!purchaseOrders.some(o=>o.number===number))purchaseOrders.unshift({number,date:p.date,tracking:p.tracking||'',weight:p.weight??'',payCurrency:p.payCurrency,shipping:p.shipping??'',contents:p.contents||'',channel:p.channel||'',orderURL:p.orderURL,status:p.status||'未出貨',items:JSON.parse(p.items)});});purchaseOverlayPending();purchaseSyncSharedNames();purchaseCheckJobs.forEach(purchaseApplyCheck);purchaseDrainChecks();purchaseDrainEdits();purchaseDrainRegistrations();purchaseMessage='';purchaseOrdersLoaded=true;}catch(e){if(!valid()){backendSyncDirty.add('purchase');return;}purchaseMessage=e.message;}if(document.body.dataset.page==='purchase'){if(backendInputFocused()){backendDeferPaint('purchase');const input=document.getElementById('purchaseSearch');if(input===document.activeElement&&input.value.trim())afterInputPaint(()=>{if(input.isConnected&&!purchaseSearchComposing)purchaseRunSearch(input.value);});}else renderPurchase();}purchaseLoadImages();}
 async function purchaseLoadImages(){
  const ticket=++purchaseImageTicket;
  const items=purchaseVisibleOrders().flatMap(o=>o.items),codes=[...new Set(items.map(x=>x.code).filter(Boolean))];
