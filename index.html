@@ -2434,6 +2434,19 @@ async function launchToggleProductHidden(index,button){
  catch(error){item.visible=previous;paint();alert('隱藏設定儲存失敗：'+error.message);}
  finally{button.disabled=false;}
 }
+async function launchGrabAddedProducts(ids){
+ return launchRun(async()=>{
+  await launchPersist();
+  const failures=[];let completed=0;
+  for(let i=0;i<ids.length;i++){
+   const item=launchCurrent.items.find(item=>item.id===ids[i]);if(!item)continue;
+   launchNotice(`新增商品資料抓取 ${i+1} / ${ids.length}…`);
+   try{const data=await launchPost('launchScrape',{id:launchCurrent.id,itemId:item.id,revision:launchCurrent.revision});launchCurrent=data.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,data.group);completed++;}
+   catch(error){failures.push(`${item.name}：${error.message}`);}
+  }
+  launchClearListCache();launchMessage=`已儲存新增商品，完成 ${completed} / ${ids.length} 項資料辨識`+(failures.length?'\n'+failures.join('\n'):'');
+ });
+}
 async function launchProductSubmit(e,index,mode){
  e.preventDefault();const form=e.target,group=launchCurrent;
  if(mode==='single'&&form.jiwuFillProductInfo){await form.jiwuFillProductInfo();if(!form.isConnected||launchCurrent!==group)return;}
@@ -2458,6 +2471,7 @@ async function launchProductSubmit(e,index,mode){
  }
  items.forEach(item=>{if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
  if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();document.getElementById('launchDialog').close();launchRenderEditor();
+ if(mode==='multi'){const ids=items.filter(item=>String(item.url||'').trim()&&launchGrabNeedsData(item)).map(item=>item.id);if(ids.length)await launchGrabAddedProducts(ids);}
 }
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image??launchCurrent.images?.[launchPanelIndex]??'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
 async function launchSetBannerURL(e){e.preventDefault();const url=String(new FormData(e.target).get('url')||'');if(!launchSafeURL(url)){alert('請填有效圖片網址');return;}if(!Array.isArray(launchCurrent.panels))launchCurrent.panels=[];if(!launchCurrent.panels[launchPanelIndex])launchCurrent.panels[launchPanelIndex]={image:'',mainColor:launchCurrent.mainColor};launchCurrent.panels[launchPanelIndex].image=url;launchCurrent.images=launchCurrent.panels.map(x=>x.image).filter(Boolean);launchMark();document.getElementById('launchDialog').close();launchRenderEditor();const group=launchCurrent,panel=launchPanelIndex;let colors=await launchBannerColors(url);if(!colors.length){try{const data=await launchFetchExportImage(url);colors=await launchBannerColors(data.dataUrl);}catch(_){}}if(launchCurrent===group&&launchPanelIndex===panel&&group.panels[panel].image===url)launchPickBannerColor(colors);}
