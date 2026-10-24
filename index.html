@@ -5143,13 +5143,16 @@ function manualOnlineSuggest(input,event){
   try{const data=await api('manualOrderSuggestions',{mode,query,group:row.querySelector('.manualOnlineGroup').value.trim()});
    if(!row.isConnected||ticket!==row._suggestTicket||document.activeElement!==input||input.value.trim()!==query)return;
    for(const item of data.suggestions||[]){const button=document.createElement('button');button.type='button';button.textContent=mode==='group'?item.group:item.label+' · '+(item.price==null?'售價未填':'$'+money(item.price))+(item.group?'｜'+item.group:'')+'（'+item.source+'）';
-    button.addEventListener('pointerdown',e=>e.preventDefault());
-    button.onclick=()=>{clearTimeout(row._suggestTimer);row._suggestTicket++;box.hidden=true;
+    let press=null,picked=false;
+    button.addEventListener('pointerdown',e=>{if(e.button!==0)return;press={id:e.pointerId,x:e.clientX,y:e.clientY};e.preventDefault();});
+    button.addEventListener('pointercancel',()=>{press=null;});
+    button.addEventListener('pointerup',e=>{const start=press;press=null;if(!start||start.id!==e.pointerId||Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;e.preventDefault();choose();});
+    const choose=()=>{if(picked)return;picked=true;clearTimeout(row._suggestTimer);row._suggestTicket++;box.hidden=true;
      if(mode==='group'){input.value=item.group;row.querySelector('.manualOnlineName').focus();}
      else{row.querySelector('.manualOnlineName').value=item.label;if(item.group)row.querySelector('.manualOnlineGroup').value=item.group;
       if(item.price!=null&&(!price.value||price.value===price.dataset.suggested)){price.value=String(item.price);price.dataset.suggested=price.value;updateManualOnlineTotal();}
       price.focus();}
-    };box.appendChild(button);
+    };button.onclick=choose;box.appendChild(button);
    }box.hidden=!box.childElementCount;
   }catch(error){if(row.isConnected&&ticket===row._suggestTicket&&document.activeElement===input){box.textContent='商品建議暫時無法載入，可繼續手動輸入';box.hidden=false;}}
  },220);
