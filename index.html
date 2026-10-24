@@ -4117,23 +4117,13 @@ renderShip();
 }
 function refreshCurrentMobileTab(name,el){
 if(name==='profit'){openProfitPage();return;}
+if(backendSyncWrites>0||backendWriteQueue.length||onlineOrderEditPending||onlineEditWorkerRunning||cartPendingWrites||cartOperationBusy||inventoryOrderSaving||inventoryProductSaves.size||launchBusy||launchPendingSaves){alert('資料正在儲存，完成後請再點一次選單重新載入');return;}
+const hasDraft=inventoryOrderDirty||cartUnsaved||launchWorkDirty||document.querySelector('#appDialog form,#launchDialog[open] form');
+if(hasDraft&&!confirm('尚有未儲存的內容，要放棄並重新載入嗎？'))return;
+sessionStorage.setItem('jiwu_supabase_test_current_tab',name);
 const button=el||document.getElementById('btn-'+name);
 if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy','true');}
-let task;
-if(name==='purchase')task=purchaseLoad();
-else if(name==='launch')task=renderLaunch();
-else if(name==='inventory'){
-inventoryCategory='全部';inventorySearch='';inventoryStatus='目錄';
-renderInventory();task=loadInventory(true);
-}
-else if(name==='online'){
-isFaceToFaceView=false;isStarredView=false;onlineSearchText='';onlineCargo='';isCustomerView=false;isGroupView=false;
-renderOnline();task=loadOnline(true);
-}
-else if(name==='ship')task=renderShip(true);
-else if(name==='store'){storeView='checkout';renderStore();task=loadStoreCart();}
-else if(name==='buy'){const frame=document.querySelector('#app iframe');if(frame)frame.src=frame.src;task=null;}
-Promise.resolve(task).catch(()=>{}).finally(()=>{if(button){button.classList.remove('isRefreshing');button.removeAttribute('aria-busy');}});
+const url=new URL(location.href);url.searchParams.set('v',String(Date.now()));location.replace(url.href);
 }
 let storeCartSyncTimer=null;
 let storeCartLoading=false;
