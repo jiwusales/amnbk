@@ -3092,7 +3092,20 @@ const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)
 apiPendingReads.set(key,request);
 return request;
 }
+function munyuBrowserRead(url){
+ return new Promise((resolve,reject)=>{
+  const id=crypto.randomUUID(),timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(Error('請重新載入「吉物訂購狀態同步」外掛，再重新整理後台後重試'));},35000);
+  function receive(event){if(event.source!==window||event.data?.type!=='jiwuMunyuResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.ok)resolve(event.data.data);else reject(Error(event.data.error||'官網讀取失敗'));}
+  window.addEventListener('message',receive);window.postMessage({type:'jiwuMunyuRead',id,url},location.origin);
+ });
+}
 async function apiRequest(action,params={}){
+let browserURL='';
+if(action==='launchProductInfo')browserURL=params.item?.url||'';
+else if(['launchScrape','launchCheckAvailability'].includes(action))browserURL=launchCurrent?.items?.find(item=>item.id===params.itemId)?.url||'';
+else if(action==='checkInventoryAvailability')browserURL=inventoryProductUrl(inventoryRows.find(item=>Number(item.row)===Number(params.row))||{});
+if(browserURL){let munyu=false;try{munyu=new URL(browserURL).hostname==='munyugurumi.jp';}catch(_){}if(munyu)params={...params,browserProduct:await munyuBrowserRead(browserURL)};}
+
 const requestId=params.requestId||crypto.randomUUID(),controller=new AbortController();
 const timer=setTimeout(()=>controller.abort(),action==='launchGet'?20000:90000);
 try{
