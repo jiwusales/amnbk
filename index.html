@@ -2226,7 +2226,13 @@ function launchDelete(target=launchCurrent,ask=true){
  return launchSaveTail;
 }
 function launchSaveOrder(){launchRun(async()=>{await launchPost('launchReorder',{status:launchStatus,order:launchGroups.map(x=>x.id)});launchClearListCache();launchDirty=false;launchMessage='排序已儲存';launchRenderList();});}
-function launchNormalizeDotstSize(url,value){if(!/^https:\/\/(?:www\.)?dot-st\.com\//i.test(String(url||'')))return value;const text=String(value||'');if(!/たて|よこ/.test(text))return value;const parts=[...text.matchAll(/(?:\(本体\)|（本体）)?(?:たて|よこ)\s*(\d+(?:\.\d+)?)/g)];return parts.length>=2?parts.map(part=>String(Number((Number(part[1])*10).toFixed(3)))).join('x'):value;}
+function jiwuMainBodySize(value){
+ const text=String(value||'').normalize('NFKC'),main=text.split(/持ち手|ポーチ|付属/)[0];
+ const height=main.match(/(?:高さ|たて)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(mm|cm)?/i),width=main.match(/(?:幅|よこ)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(mm|cm)?/i);
+ if(!height||!width)return '';
+ return [height,width].map(part=>String(Number((Number(part[1])*(part[2]?.toLowerCase()==='mm'?1:10)).toFixed(3)))).join('x');
+}
+function launchNormalizeDotstSize(url,value){if(!/^https:\/\/(?:www\.)?dot-st\.com\//i.test(String(url||'')))return value;const mainBody=jiwuMainBodySize(value);if(mainBody)return mainBody;const text=String(value||'');if(!/たて|よこ/.test(text))return value;const parts=[...text.matchAll(/(?:\(本体\)|（本体）)?(?:たて|よこ)\s*(\d+(?:\.\d+)?)/g)];return parts.length>=2?parts.map(part=>String(Number((Number(part[1])*10).toFixed(3)))).join('x'):value;}
 function launchGrabNeedsData(item){const empty=value=>value==null||String(value).trim()==='';return empty(item.japaneseName)||empty(item.code)||empty(item.original)||empty(item.size)||!Array.isArray(item.images)||!item.images.some(image=>!empty(image));}
 function launchGrab(){return launchRun(async()=>{
  const pending=launchCurrent.items.filter(launchGrabNeedsData),targets=pending.filter(item=>String(item.url||'').trim()),noURL=pending.length-targets.length;
@@ -2275,7 +2281,7 @@ function launchParseMultiProducts(value){
  return rows;
 }
 function launchNormalizeProductSpec(size,format){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:launchFormatProductSize(spec.size)};}
-function launchFormatProductSize(input){const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
+function launchFormatProductSize(input){const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
 function launchFormatOneProductSize(input) {
   if (!input) return "";
   if (/着丈|身幅|身巾|肩幅|袖丈|長\d/.test(String(input))) return jiwuExtractClothingSize(input) || jiwuClothingSize(input);
