@@ -3078,7 +3078,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
@@ -3615,6 +3615,39 @@ function purchaseCancelOrder(i){
  if(purchaseSplitPending.has(order.number)){purchaseEditToast('訂單正在拆分，請稍後');return;}
  closeDialog();purchaseQueueEdit(order,{status:order.status==='砍單'?'未出貨':'砍單'});
 }
+function purchaseNameSearch(candidates,query){
+ const norm=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
+ const words=norm(query).split(' ').filter(Boolean);
+ return candidates.filter(candidate=>words.every(word=>norm([candidate.name,candidate.role,candidate.group,candidate.code].join(' ')).includes(word)));
+}
+async function purchaseLoadNameSuggestions(dialog){
+ const result=await api('helperSnapshot',{sheets:['最新開團','商品庫存']});
+ if(!dialog.isConnected)return;
+ const products=[];
+ for(const sheet of ['最新開團','商品庫存']){
+  const table=result.tables?.[sheet]?.table,headers=(table?.cols||[]).map(col=>col.label);let group='';
+  for(const row of table?.rows||[]){
+   const item=Object.fromEntries(headers.map((header,index)=>[header,row.c?.[index]?.v??'']));group=String(item['團名']||group).trim();
+   const name=String(item['名稱']||item['商品名稱']||item['品名']||'').trim();if(!name)continue;
+   products.push({name,role:String(item['角色']||''),group,code:String(item['貨號']||''),url:String(item['商品網址']||item['網址']||''),image:String(item['圖片']||''),source:sheet});
+  }
+ }
+ const unique=[...new Map(products.map(item=>[JSON.stringify([item.name,item.role,item.group]),item])).values()];
+ dialog.querySelectorAll('.purchaseEditItem').forEach((row,index)=>{
+  const input=row.querySelector('.purchaseEditName'),select=row.querySelector('.purchaseEditChoice');if(!select)return;
+  const list=document.createElement('datalist');list.id='purchaseNameSuggestions-'+index;input.setAttribute('list',list.id);input.autocomplete='off';row.append(list);
+  const matched=row.purchaseNameCandidates||[];
+  const pool=[...new Map([...matched,...unique].map(item=>[JSON.stringify([item.name,item.role,item.group]),item])).values()];
+  function suggest(){
+   const matches=purchaseNameSearch(pool,input.value).slice(0,150);
+   list.innerHTML=matches.map(item=>`<option value="${esc(purchaseProductName(item))}">${esc(item.group||item.source||'')}</option>`).join('');
+   select.disabled=false;select.innerHTML='<option value="">'+(matches.length?'選擇對應名稱':'沒有符合的名稱，可繼續輸入')+'</option>'+matches.map((item,index)=>`<option value="${index}">${esc([purchaseProductName(item),item.group,item.source].filter(Boolean).join(' · '))}</option>`).join('');
+   select.onchange=()=>{if(select.value==='')return;const item=matches[Number(select.value)];input.value=item.name;row.purchaseCandidate=item;};
+  }
+  input.addEventListener('input',event=>{if(event.isComposing)return;const exact=pool.filter(item=>purchaseProductName(item)===input.value);row.purchaseCandidate=exact.length===1?exact[0]:null;suggest();});
+  input.addEventListener('compositionend',suggest);
+ });
+}
 async function purchaseEditDialog(i){
  if(purchaseOrders[i]&&purchaseSplitPending.has(purchaseOrders[i].number)){purchaseEditToast('訂單正在拆分，請稍後');return;}
  const o=purchaseOrders[i],channels=[...new Set([o.channel,...purchaseOrders.map(x=>x.channel),...['ちいかわマーケット','ナガノマーケット','リララモード','ちいかわもぐもぐ本舗','ちいかわぽけっと']].filter(Boolean))];
@@ -3632,17 +3665,13 @@ async function purchaseEditDialog(i){
    const recorded=!item.name?purchaseRecordedName(item,purchaseOrders.flatMap(order=>order.items)):null;
    if(recorded){row.querySelector('.purchaseEditName').value=recorded.name;row.purchaseCandidate=recorded;}
    if(recorded&&!candidates.some(c=>c.name===recorded.name&&String(c.role||'')===String(recorded.role||'')))candidates.unshift({...recorded,source:'訂購記錄'});
-   if(!candidates.length){
-    if(!item.code){select.innerHTML='<option>此商品沒有貨號，無法比對名稱</option>';return;}
-    const copy=document.createElement('button');copy.type='button';copy.className='purchaseCopyMissingCode';copy.style.cssText=select.style.cssText;Object.assign(copy.style,{cursor:'pointer',background:'#fff',color:'#888',border:'1px solid #ddd',borderRadius:'8px',padding:'8px'});
-    copy.textContent='貨號 '+item.code+' 查無對應名稱';copy.title='點擊複製貨號數字';copy.setAttribute('aria-label','複製貨號 '+item.code);
-    copy.onclick=async()=>{const code=String(item.code).normalize('NFKC').replace(/\D/g,'');if(!code){purchaseEditToast('此貨號沒有可複製的數字',true);return;}try{await navigator.clipboard.writeText(code);purchaseEditToast('已複製貨號 '+code);}catch(e){purchaseEditToast('貨號複製失敗，請再試一次');}};
-    select.replaceWith(copy);return;
-   }
+   row.purchaseNameCandidates=candidates;
+   if(!candidates.length){select.disabled=false;select.innerHTML='<option value="">輸入名稱搜尋相關商品</option>';return;}
    select.disabled=false;
    select.innerHTML='<option value="">選擇對應名稱</option>'+candidates.map((c,j)=>`<option value="${j}">${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('');
    select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];row.querySelector('.purchaseEditName').value=c.name;row.purchaseCandidate=c;};
   });
+  void purchaseLoadNameSuggestions(dialog).catch(error=>{if(dialog.isConnected)document.getElementById('purchaseEditError').textContent='相關名稱搜尋載入失敗：'+error.message;});
  }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>名稱讀取失敗，請重新開啟訂單</option>';});document.getElementById('purchaseEditError').textContent='名稱選單載入失敗：'+e.message;}}
 }
 async function purchaseDeleteOrder(i,button){const savedDialog=document.getElementById('appDialog');
