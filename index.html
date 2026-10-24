@@ -3495,8 +3495,10 @@ function purchaseSyncSharedNames(){
  const blocked=new Set([...purchaseEditQueue.keys(),...purchaseRegistrationQueue.keys(),...purchaseSplitPending]);
  for(const {order,quantities} of purchaseSharedNameUpdates(purchaseOrders,blocked)){
   const expectedItems=JSON.stringify(order.items.map(item=>[item.name||'',Number(item.quantity)||0]));
+  const changes=new Map(quantities.flatMap(entry=>entry.indexes.map(index=>[index,entry])));
+  const complete=purchaseDisplayItems(order).map(item=>{const change=item.indexes.map(index=>changes.get(index)).find(Boolean);return {indexes:item.indexes,quantity:Number(item.quantity),name:change?.name||item.name||item.originalName||'未找到',...(change?{candidate:change.candidate}:{})};});
   for(const entry of quantities)Object.assign(order.items[entry.indexes[0]],entry.candidate,{checkedAt:0});
-  purchaseQueueEdit(order,{quantities:JSON.stringify(quantities),expectedItems},true);
+  purchaseQueueEdit(order,{quantities:JSON.stringify(complete),expectedItems},true);
  }
  purchaseKeepPending();
 }
@@ -3723,7 +3725,12 @@ function purchaseEditToast(message,error=false){
  toast.textContent=message;if(error){const retry=document.createElement('button');retry.textContent='重試';retry.style.marginLeft='10px';retry.onclick=()=>purchaseDrainEdits();toast.appendChild(retry);}else purchaseToastTimer=setTimeout(()=>toast.remove(),2000);
 }
 function purchaseKeepPending(){try{sessionStorage.setItem('jiwu_supabase_test_purchase_pending_edits',JSON.stringify([...purchaseEditQueue]));}catch(_) {}}
-try{const saved=JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_pending_edits')||'[]');saved.forEach(([key,value])=>{purchaseEditQueue.set(key,value);purchaseQueueVersion=Math.max(purchaseQueueVersion,value.version||0);});}catch(_){}
+try{const saved=JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_pending_edits')||'[]');saved.forEach(([key,value])=>{
+ const fields=value.fields||{};let brokenAuto=false;
+ if(Object.keys(fields).length===2&&fields.quantities&&fields.expectedItems){try{const entries=JSON.parse(fields.quantities),expected=JSON.parse(fields.expectedItems),indexes=new Set(entries.flatMap(entry=>entry.indexes));brokenAuto=indexes.size<expected.length&&entries.every(entry=>entry.candidate&&entry.indexes.length===1);}catch(_) {}}
+ if(brokenAuto){try{sessionStorage.setItem('jiwu_auto_name_sync_recovery_'+key,JSON.stringify(value));if(value.progressId)launchMoveProgressJobs.delete(value.progressId);}catch(_){}return;}
+ purchaseEditQueue.set(key,value);purchaseQueueVersion=Math.max(purchaseQueueVersion,value.version||0);
+});}catch(_){}
 function purchaseOverlayPending(){purchaseOrders.forEach(o=>{const pending=purchaseEditQueue.get(o.number);if(pending)Object.assign(o,pending.fields);});}
 function purchaseQueueEdit(order,changed,defer=false){
  if(purchaseSplitPending.has(order.number)){purchaseEditToast('訂單正在拆分，請稍後');return;}
