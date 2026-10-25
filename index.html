@@ -6833,9 +6833,9 @@ style="margin-bottom:10px">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(customer+'：'+g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製名字與品項" title="複製名字＋品項">全</button>
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製品項" title="複製品項">物</button>
 </span>
-${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
-<span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
-<button type="button" class="btn light" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>
+<span class="shipCustomerMeta">${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
+<span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span></span>
+<button type="button" class="btn light shipDetailsButton" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>
 </div>
 ${g.map(x=>`
 <div class="shipItem" data-row="${Number(x.row)}" data-item-id="${esc(x.itemId||'')}" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
@@ -7699,6 +7699,17 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 .storeCheckout #storeNote{margin-top:4px}
 .storeCheckout .checkoutActions{grid-template-columns:minmax(0,1fr) 50px;margin-top:18px;gap:9px}
 .storeCheckout .checkoutActions .btn.green,.storeCheckout .checkoutActions .acButton{height:44px;border-radius:12px;font-size:14px;padding:10px 8px}
+</style>
+<style id="ship-mobile-two-line-header">
+.shipCustomerMeta{display:contents}
+@media(max-width:850px){
+.shipCardHead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.shipCardHead>.shipCopyActions{grid-column:1;grid-row:1}
+.shipCardHead>.shipDetailsButton{grid-column:2;grid-row:1;justify-self:end}
+.shipCardHead>.shipCustomerMeta{grid-column:1/-1;grid-row:2;display:flex;align-items:center;gap:8px;min-width:0;width:100%}
+.shipCustomerMeta>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shipCustomerMeta>.shipDateCount{flex-shrink:0}
+}
 </style>
 </body>
 </html>
