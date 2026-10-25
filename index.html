@@ -4764,14 +4764,14 @@ function openUndatedStoreSales(){
 }
 function editUndatedStoreSale(row){
  const item=storeSalesData?.undatedItems?.find(item=>Number(item.row)===Number(row));if(!item)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>補登銷售日期</h3><form onsubmit="saveUndatedStoreSale(event,${Number(row)})"><p>第 ${Number(row)} 列　${esc(item.code||'')}　${esc(item.payment||'')}</p><div class="saleEditFields"><label>日期 <input id="undatedSaleDate" type="date" required></label><label>名稱 <input id="undatedSaleName" value="${esc(item.name)}" required></label><label>金額 <input id="undatedSaleAmount" type="number" step="any" value="${esc(item.amount)}" required></label></div><label>備註</label><textarea id="undatedSaleNote" rows="3" style="width:100%">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn light" onclick="openUndatedStoreSales()">返回清單</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>補登銷售日期</h3><form onsubmit="saveUndatedStoreSale(event,${Number(row)})"><p>第 ${Number(row)} 列　${esc(item.code||'')}　${esc(item.payment||'')}</p><div class="saleEditFields"><label>日期 <input id="undatedSaleDate" type="date" required></label><label>名稱 <input id="undatedSaleName" value="${esc(item.name)}"></label><label>金額 <input id="undatedSaleAmount" type="number" step="any" value="${esc(item.amount)}" required></label></div><label>備註</label><textarea id="undatedSaleNote" rows="3" style="width:100%">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn light" onclick="openUndatedStoreSales()">返回清單</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  const dialog=document.getElementById('appDialog');dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);dialog.dataset.saleExpected=JSON.stringify(item);
 }
 async function saveUndatedStoreSale(event,row){
  event.preventDefault();const dialog=document.getElementById('appDialog'),button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;
  const date=document.getElementById('undatedSaleDate').value,name=document.getElementById('undatedSaleName').value.trim(),raw=document.getElementById('undatedSaleAmount').value,amount=Number(raw),note=document.getElementById('undatedSaleNote').value.trim();
- if(!date||!name||!raw||!Number.isFinite(amount))return;button.disabled=true;
- try{await apiBackground('updateStoreSaleNote',{row,date,name,amount,note,expected:JSON.parse(dialog.dataset.saleExpected)});storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();openUndatedStoreSales();}
+ if(!date||!raw||!Number.isFinite(amount))return;const expected=JSON.parse(dialog.dataset.saleExpected);if(!name&&expected.name){alert('請輸入商品名稱');return;}button.disabled=true;
+ try{await apiBackground('updateStoreSaleNote',{row,date,...(name?{name}:{}),amount,note,expected});storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();openUndatedStoreSales();}
  catch(error){button.disabled=false;alert(error.message||'儲存失敗，請重試');}
 }
 
