@@ -5082,7 +5082,7 @@ document.querySelectorAll('.payment button').forEach(button=>button.classList.re
 renderCart();
 const d=await pending;
 // 已確認結帳成功；右側只加入新增紀錄，更新失敗不重送結帳。
-updateSalesAfterCheckout(d.salesDelta);
+if(!d.storeQueued)updateSalesAfterCheckout(d.salesDelta);
 }catch(e){
 const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;
 if(document.body.dataset.page==='store'){renderCart();if(empty){for(const [id,value] of [['received',before.received],['last5',before.last5],['storeNote',before.note]]){const el=document.getElementById(id);if(el)el.value=value;}}}
@@ -7621,5 +7621,6 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .launchProductListPage .launchListPrices>.launchListOriginal,.launchProductListPage .launchListPrices>.launchListPrice{flex:none;white-space:nowrap;margin:0}
 }
 </style>
+<script src="store-offline.js?v=20261025-storequeue1"></script>
 </body>
 </html>
