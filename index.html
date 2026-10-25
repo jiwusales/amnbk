@@ -7623,5 +7623,20 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 }
 </style>
 <script src="store-offline.js?v=20261025-quota-fix1"></script>
+
+<style id="store-fixed-manual-height">
+@media(min-width:851px){
+ .storeDesktop .storePage{grid-template-rows:max-content minmax(0,1fr) max-content;align-content:stretch}
+ .storeDesktop .storeManual{height:max-content;min-height:0;align-self:start;grid-row:1}
+ .storeDesktop .storeMain{grid-row:2;min-height:0;overflow:hidden}
+ .storeDesktop .storeMainBody{flex:1;min-height:0}
+ .storeDesktop .storeCheckout{grid-row:3;align-self:end}
+ .storeDesktop .storePage:has(>#storeCloudStatus){grid-template-rows:max-content max-content minmax(0,1fr) max-content}
+ .storeDesktop #storeCloudStatus{grid-row:1;align-self:start}
+ .storeDesktop .storePage:has(>#storeCloudStatus)>.storeManual{grid-row:2}
+ .storeDesktop .storePage:has(>#storeCloudStatus)>.storeMain{grid-row:3}
+ .storeDesktop .storePage:has(>#storeCloudStatus)>.storeCheckout{grid-row:4}
+}
+</style>
 </body>
 </html>
