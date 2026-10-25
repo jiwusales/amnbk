@@ -1349,6 +1349,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .purchaseManualChinaLayout>#purchaseManualItems>.purchaseManualItem:last-child{margin-bottom:0!important}
 </style>
 <style id="unified-product-entry-layout">
+.inventoryEditDialog #inventoryEditKind{flex:1;min-width:0;width:0!important;box-sizing:border-box;font-size:inherit}
 .launchDialog .launchProductFields>.launchProductNote textarea,.unifiedProductDialog .unifiedProductFields>.unifiedProductFull textarea{height:76px;min-height:76px;resize:vertical}
 .unifiedProductDialog .inventoryIpPicker input,.unifiedProductDialog .inventoryIpPicker select{margin:0}
 .unifiedProductDialog [hidden]{display:none!important}
@@ -1731,6 +1732,22 @@ function jiwuExtractClothingSize(value) {
 
 // Returns complete physical groups only; [] means ambiguous/nonphysical text.
 // Axis-internal spaces are not option separators (H400 × W390 × D180 is one group).
+// Convert only explicit physical units; unitless numbers remain unchanged.
+function jiwuSizeToMillimeters(value){
+ const original=String(value??''),text=original.normalize('NFKC').trim().replace(/(?:厘米|公分)/g,'cm').replace(/(?:毫米|公厘)/g,'mm').replace(/\(\s*(cm|mm)\s*\)/gi,'$1').replace(/^(?:約|约)\s*/,''),number='\\d+(?:\\.\\d+)?';
+ if(!/(?:cm|mm)/i.test(text))return original;
+ const mm=(n,unit)=>String(Number((Number(n)*(unit.toLowerCase()==='cm'?10:1)).toFixed(3)));
+ const diameter=text.match(new RegExp('^(?:直径|直徑|ø|φ)\\s*(?:約\\s*)?('+number+')\\s*(cm|mm)$','i'));
+ if(diameter)return 'ø'+mm(diameter[1],diameter[2]);
+ const groups=jiwuPhysicalSizeGroups(text);if(groups.length>1)return groups.map(group=>jiwuSizeToMillimeters(group)).join(' ');
+ const token='[HWD]?\\s*'+number+'\\s*(?:cm|mm)?';
+ if(new RegExp('^'+token+'(?:\\s*[x×]\\s*'+token+'){1,2}$','i').test(text)){
+  const units=[...text.matchAll(/cm|mm/gi)];if(!units.length)return original;const fallback=units[units.length-1][0];
+  return text.split(/[x×]/i).map(part=>{const match=part.match(new RegExp('^[HWD]?\\s*('+number+')\\s*(cm|mm)?$','i'));return mm(match[1],match[2]||fallback);}).join('x');
+ }
+ const scalar=text.match(new RegExp('^([HWD]?)\\s*('+number+')\\s*(cm|mm)$','i'));
+ return scalar?scalar[1]+mm(scalar[2],scalar[3]):original;
+}
 function jiwuPhysicalSizeGroups(sizeValue) {
   const text=String(sizeValue??'').normalize('NFKC').trim();if(!text)return [];
   const axes='(?:長|寬|肩|袖|高|深|厚|着丈|身幅|身巾|肩幅|袖丈)',amount='\\d+(?:\\.\\d+)?',unit='(?:cm|mm|公分)?';
@@ -2348,7 +2365,7 @@ function launchParseMultiProducts(value){
  return rows;
 }
 function launchNormalizeProductSpec(size,format){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:launchFormatProductSize(spec.size)};}
-function launchFormatProductSize(input){const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
+function launchFormatProductSize(input){input=jiwuSizeToMillimeters(input);const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
 function launchFormatOneProductSize(input) {
   const longEdge=String(input||'').normalize('NFKC').replace(/\s+/g,'').match(/^(?:約)?長[辺邊边](\d+(?:\.\d+)?)(mm|cm)?(?:以[内內]|[内內])$/i);if(longEdge)return '長邊'+String(Number(longEdge[1])*(longEdge[2]?.toLowerCase()==='cm'?10:1))+'內';
   if (!input) return "";
@@ -2474,7 +2491,7 @@ function launchAutoProductInfo(form){
  const formatControl=form.elements.namedItem('format');for(const event of ['input','change'])formatControl?.addEventListener?.(event,()=>{formatTouched=true;});
  async function fill(){
   const url=String(input.value||'').trim(),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
-  if(size)size.value=launchNormalizeDotstSize(url,size.value);
+  if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
   if(String(code?.value||'').trim()&&String(size?.value||'').trim()&&String(japaneseName?.value||'').trim()&&String(original?.value||'').trim())return;
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
@@ -4342,8 +4359,9 @@ function openInventoryEditDialog(row){
 if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}
 const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)return;
 const val=names=>String(inventoryValue(item,names)??'');
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label>IP<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label>角　　色<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label>種　　類<input id="inventoryEditKind" value="${esc(val(['種類','類型','商品種類','品項']))}"></label></div><div class="inventoryNameFields"><label>名　　稱<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label>原　　名<div style="display:flex;gap:10px;align-items:center"><input id="inventoryEditJapaneseName" value="${esc(val(['日文名','日文原名']))}" style="flex:1;min-width:0"><button type="button" class="btn light" data-inventory-grab onclick="inventoryGrabJapaneseName(this)">抓抓</button></div></label></div><div class="inventoryPriceFields"><label>貨　　號<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label>原　　價<input id="inventoryEditOriginal" inputmode="text" placeholder="數字／R99 人民幣" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label>售　　價<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label></div><div class="inventoryEditStockFields"><label>庫　　存<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label>店　　面<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label>非　　現<input id="inventoryEditNonstock" inputmode="numeric" value="${esc(val(['非現','非現貨','非現庫存']))}" placeholder="0"></label></div><label class="full stackField">尺　　寸<input id="inventoryEditSize" value="${esc(val(['尺寸','大小','商品尺寸']))}"></label><label class="full stackField">圖片網址<input id="inventoryEditImage" type="url" value="${esc(val(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']))}"></label><label class="full stackField">網　　址<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label class="full stackField">備　　註<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteInventoryProductFromDialog(${Number(row)},this)">刪除商品</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label>IP<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label>角　　色<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label>種　　類<select id="inventoryEditKind" name="kind" aria-label="種類" data-original-value="${esc(val(['種類','類型','商品種類','品項']))}" data-kind-value="${esc(val(['種類','類型','商品種類','品項']))}" onchange="launchChooseKind(this)">${launchKindOptions(val(['種類','類型','商品種類','品項']))}</select></label></div><div class="inventoryNameFields"><label>名　　稱<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label>原　　名<div style="display:flex;gap:10px;align-items:center"><input id="inventoryEditJapaneseName" value="${esc(val(['日文名','日文原名']))}" style="flex:1;min-width:0"><button type="button" class="btn light" data-inventory-grab onclick="inventoryGrabJapaneseName(this)">抓抓</button></div></label></div><div class="inventoryPriceFields"><label>貨　　號<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label>原　　價<input id="inventoryEditOriginal" inputmode="text" placeholder="數字／R99 人民幣" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label>售　　價<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label></div><div class="inventoryEditStockFields"><label>庫　　存<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label>店　　面<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label>非　　現<input id="inventoryEditNonstock" inputmode="numeric" value="${esc(val(['非現','非現貨','非現庫存']))}" placeholder="0"></label></div><label class="full stackField">尺　　寸<input id="inventoryEditSize" value="${esc(val(['尺寸','大小','商品尺寸']))}"></label><label class="full stackField">圖片網址<input id="inventoryEditImage" type="url" value="${esc(val(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']))}"></label><label class="full stackField">網　　址<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label class="full stackField">備　　註<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteInventoryProductFromDialog(${Number(row)},this)">刪除商品</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 inventoryBindProductInfo(document.getElementById('inventoryEditUrl').closest('form'),'inventoryEdit');
+void launchLoadProductKinds(document.getElementById('appDialog'));
 }
 let inventoryNameGrabBusy=false;
 async function inventoryGrabVisibleNames(button){
@@ -4371,16 +4389,16 @@ async function inventoryGrabVisibleNames(button){
  }finally{inventoryNameGrabBusy=false;button.disabled=false;button.textContent='抓抓';}
 }
 function inventoryHalfWidth(value){return String(value??'').replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/　/g,' ');}
-function inventoryNormalizeField(input){
- if(!input)return '';const before=input.value,value=inventoryHalfWidth(before),start=input.selectionStart,end=input.selectionEnd;
+function inventoryNormalizeField(input,convertSize=false){
+ if(!input)return '';const before=input.value,half=inventoryHalfWidth(before),value=convertSize&&(input.matches?.('#inventoryEditSize,#inventoryAddSize,[data-launch-product-form] [name=size]'))?jiwuSizeToMillimeters(half):half,start=input.selectionStart,end=input.selectionEnd;
  if(value!==before){input.value=value;if(start!=null&&input.setSelectionRange)input.setSelectionRange(start,end??start);}
  return value;
 }
 function inventoryIsHalfWidthField(input){return !!input?.matches?.('.inventoryStockInput,.inventoryInlinePriceInput,#inventoryEditCode,#inventoryEditOriginal,#inventoryEditPrice,#inventoryEditStock,#inventoryEditStore,#inventoryEditNonstock,#inventoryEditSize,#inventoryAddCode,#inventoryAddOriginal,#inventoryAddPrice,#inventoryAddFormat,#inventoryAddSize,[data-launch-product-form] [name=code],[data-launch-product-form] [name=original],[data-launch-product-form] [name=price],[data-launch-product-form] [name=format],[data-launch-product-form] [name=size]');}
 document.addEventListener('input',event=>{if(!event.isComposing&&inventoryIsHalfWidthField(event.target))inventoryNormalizeField(event.target);});
 document.addEventListener('compositionend',event=>{if(inventoryIsHalfWidthField(event.target))inventoryNormalizeField(event.target);});
-document.addEventListener('change',event=>{if(inventoryIsHalfWidthField(event.target))inventoryNormalizeField(event.target);});
-document.addEventListener('submit',event=>{event.target.querySelectorAll('input').forEach(input=>{if(inventoryIsHalfWidthField(input))inventoryNormalizeField(input);});},true);
+document.addEventListener('change',event=>{if(inventoryIsHalfWidthField(event.target))inventoryNormalizeField(event.target,true);});
+document.addEventListener('submit',event=>{event.target.querySelectorAll('input').forEach(input=>{if(inventoryIsHalfWidthField(input))inventoryNormalizeField(input,true);});},true);
 function inventoryBindProductInfo(form,prefix){
  const urlInput=form.querySelector('#'+prefix+'Url');if(!urlInput)return;
  const fields=[['japaneseName','JapaneseName','日文原名'],['code','Code','貨號'],['original','Original','原價'],['format','Format','格式'],['size','Size','尺寸'],['image','Image','圖片']].map(([key,suffix,label])=>({key,label,input:form.querySelector('#'+prefix+suffix)})).filter(field=>field.input);
@@ -4424,12 +4442,12 @@ try{await apiBackground('deleteInventoryProduct',{row});inventoryRows=inventoryR
 function inventoryEditFieldValue(key,value){let text=toHalfWidthDigits(String(value??'')).trim();if(key==='original')return inventoryNormalizeOriginal(text);if(key==='price')return text.replace(/[，,\s]/g,'');if(key==='stock')return text.toLowerCase()||'0';if(['store','nonstock'].includes(key))return text||'0';return text;}
 async function submitInventoryEdit(event,row){
 event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;button.textContent='SAVE…';
-await form.jiwuFillInventoryInfo?.();form.querySelectorAll('input').forEach(input=>{if(inventoryIsHalfWidthField(input))inventoryNormalizeField(input);});
+await form.jiwuFillInventoryInfo?.();form.querySelectorAll('input').forEach(input=>{if(inventoryIsHalfWidthField(input))inventoryNormalizeField(input,true);});
 const data={row,ip:document.getElementById('inventoryEditIp').value.trim(),role:document.getElementById('inventoryEditRole').value.trim(),kind:document.getElementById('inventoryEditKind').value.trim(),name:document.getElementById('inventoryEditName').value.trim(),japaneseName:document.getElementById('inventoryEditJapaneseName').value.trim(),code:document.getElementById('inventoryEditCode').value.trim(),original:inventoryNormalizeOriginal(normalizeMoneyInput(document.getElementById('inventoryEditOriginal'))),price:normalizeMoneyInput(document.getElementById('inventoryEditPrice')).replace(/[，,\s]/g,''),stock:toHalfWidthDigits(document.getElementById('inventoryEditStock').value).trim().toLowerCase()||'0',store:toHalfWidthDigits(document.getElementById('inventoryEditStore').value).trim()||'0',nonstock:toHalfWidthDigits(document.getElementById('inventoryEditNonstock').value).trim()||'0',size:document.getElementById('inventoryEditSize').value.trim(),image:document.getElementById('inventoryEditImage').value.trim(),url:document.getElementById('inventoryEditUrl').value.trim(),note:document.getElementById('inventoryEditNote').value.trim()};
 if(!/^\d+$/.test(data.stock)&&!['x','?'].includes(data.stock)){alert('庫存請輸入整數、x 或 ?');button.disabled=false;button.textContent='SAVE';return;}if(!/^\d+$/.test(data.store)){alert('店面數量請輸入非負整數');button.disabled=false;button.textContent='SAVE';return;}if(!/^\d+$/.test(data.nonstock)){alert('非現數量請輸入非負整數');button.disabled=false;button.textContent='SAVE';return;}for(const [label,value] of [['原價',data.original],['售價',data.price]])if(value!==''&&!(label==='原價'?/^R?\d+(?:\.\d+)?$/:/^\d+(?:\.\d+)?$/).test(value)){alert(label==='原價'?'原價請輸入數字，人民幣可填 R99':label+'請輸入有效數字');button.disabled=false;button.textContent='SAVE';return;}
 const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)return;
 const fields={ip:['IP','IP分類','IP類別'],role:['角色'],kind:['種類','類型','商品種類','品項'],name:['名稱','商品名稱','品名','商品'],japaneseName:['日文名','日文原名'],code:['貨號','商品貨號','條碼','SN'],original:['原價','定價','原售價','牌價'],price:['售價','價格','銷售價'],stock:['庫存','總庫存','數量','庫存量','商品庫存'],store:['店面','店面庫存','店鋪庫存','店面數量'],nonstock:['非現','非現貨','非現庫存'],size:['尺寸','大小','商品尺寸'],image:['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片'],url:['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址'],note:['備註','備註欄','說明']};
-for(const key of Object.keys(fields)){const input=document.getElementById('inventoryEdit'+key[0].toUpperCase()+key.slice(1));if(input&&inventoryEditFieldValue(key,input.defaultValue)===String(data[key]??''))delete data[key];}
+for(const key of Object.keys(fields)){const input=document.getElementById('inventoryEdit'+key[0].toUpperCase()+key.slice(1));if(input&&inventoryEditFieldValue(key,input.dataset.originalValue??input.defaultValue)===String(data[key]??''))delete data[key];}
 if(Object.keys(data).length===1){closeDialog();return;}
 const previous=[];
 for(const [key,names] of Object.entries(fields)){if(!Object.hasOwn(data,key))continue;let col=inventoryHeaderIndex(names);if(col<0&&key==='japaneseName'){col=inventoryHeaders.length;inventoryHeaders.push('日文名');while(item.values.length<=col)item.values.push('');if(item.display)while(item.display.length<=col)item.display.push('');}if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
