@@ -7,7 +7,7 @@ let onlineReceiptCurrent=null;
 const onlineReceiptMoney=n=>'$'+Number(n||0).toLocaleString('en-US');
 function onlineReceiptData(rows){
  const items=[],byName=new Map();let total=0,deposit=0;
- for(const row of rows){const name=String(getOnlineData(row,['名稱','商品名稱'])||'未填名稱').trim(),amount=numberValue(getOnlineData(row,['售價','價格']));let item=byName.get(name);if(!item){item={name,qty:0,amount:0};byName.set(name,item);items.push(item)}item.qty++;item.amount+=amount;total+=(isRestockRow(row)?0:amount+numberValue(getOnlineData(row,['運費'])));deposit+=numberValue(getOnlineData(row,['訂金']));}
+ for(const row of rows){const name=String(getOnlineData(row,['名稱','商品名稱'])||'未填名稱').trim(),amount=numberValue(getOnlineData(row,['售價','價格']));let item=byName.get(name);if(!item){item={name,qty:0,amount:0};byName.set(name,item);items.push(item)}item.qty++;item.amount+=amount+numberValue(getOnlineData(row,['運費']));total+=(isRestockRow(row)?0:amount+numberValue(getOnlineData(row,['運費'])));deposit+=numberValue(getOnlineData(row,['訂金']));}
  const now=new Date(),stamp=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(now).replace(/-/g,'/');
  return {items,total,deposit,pages:Math.max(1,Math.ceil(items.length/15)),page:0,stamp,canvases:new Map()};
 }
