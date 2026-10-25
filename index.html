@@ -4767,7 +4767,8 @@ async function deleteUndatedStoreSale(row,button){
  const label=['第 '+row+' 列',item.name||'未填名稱','$'+money(item.amount),item.payment,item.note].filter(Boolean).join('｜');
  if(!confirm('確定刪除這筆資料？\n'+label))return;
  dialog.dataset.deleting='1';button.disabled=true;dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);
- try{const result=await apiBackground('deleteStoreSale',{row,undated:true,expected:item});storeSalesData=result.sales||await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();openUndatedStoreSales();}
+ const scrollTop=dialog.querySelector('.dialogCard').scrollTop;
+ try{const result=await api('deleteStoreSale',backendPrepareWrite('deleteStoreSale',{row,undated:true,expected:item,_rowRefs:[{row:Number(row),id:item.itemId}]}));storeSalesData=result.sales||await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();const previous=document.getElementById('appDialog');previous.id='undatedSalesPrevious';openUndatedStoreSales();const updated=document.getElementById('appDialog');previous.querySelector('.dialogCard').innerHTML=updated.querySelector('.dialogCard').innerHTML;updated.remove();previous.id='appDialog';previous.dataset.deleting='';delete previous.dataset.backendRowRefs;previous.querySelector('.dialogCard').scrollTop=scrollTop;}
  catch(error){dialog.dataset.deleting='';button.disabled=false;alert(error.message||'刪除失敗，請重試');}
 }
 function editUndatedStoreSale(row){
