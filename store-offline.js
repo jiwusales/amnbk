@@ -2,23 +2,29 @@
 (()=>{
 const endpoint='https://jiwu-mac-relay.jiwusales.workers.dev/functions/v1/jiwu-admin-test',KEY='jiwu-store-cloud-v1',CART='jiwu-store-offline-carts-v1',PRODUCTS='jiwu-store-scan-cache-v1';
 let warming=null,polling=false;
-const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||'null')||fallback}catch{return fallback}};
-const save=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
+const memory=new Map(),localSaved=new Map();let databasePromise=null;
+function database(){if(databasePromise)return databasePromise;databasePromise=new Promise(resolve=>{try{if(typeof indexedDB==='undefined')return resolve(null);const req=indexedDB.open('jiwu-store-durable-v1',1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('values'))req.result.createObjectStore('values')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null);req.onblocked=()=>resolve(null);}catch{resolve(null)}});return databasePromise;}
+async function dbWrite(key,value){try{const db=await database();if(!db)return false;return await new Promise(resolve=>{const tx=db.transaction('values','readwrite');tx.objectStore('values').put(value,key);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false)})}catch{return false}}
+const read=(key,fallback)=>{if(memory.has(key))return structuredClone(memory.get(key));try{return JSON.parse(localStorage.getItem(key)||'null')||fallback}catch{return fallback}};
+function save(key,value){value=structuredClone(value);if(key===KEY&&Array.isArray(value.receipts)){const done=value.receipts.filter(r=>r.state==='done').slice(-10).map(r=>({state:'done',params:{requestId:r.params.requestId,checkoutAt:r.params.checkoutAt,total:r.params.total,salesperson:r.params.salesperson}}));value.receipts=[...value.receipts.filter(r=>r.state!=='done'),...done];}memory.set(key,value);let stored=false;try{localStorage.setItem(key,JSON.stringify(value));stored=true}catch{}localSaved.set(key,stored);void dbWrite(key,value);return stored;}
+async function persist(key,value){const local=save(key,value);return (await dbWrite(key,memory.get(key)))||local;}
+const storageReady=(async()=>{const db=await database();if(!db)return;for(const key of [KEY,CART,PRODUCTS]){try{const value=await new Promise(resolve=>{const req=db.transaction('values').objectStore('values').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null)});if(value&&!memory.has(key))memory.set(key,value)}catch{}}})();
 const state=()=>read(KEY,{ticket:'',token:'',expiresAt:0,receipts:[]});
 const connectionError=e=>/連線|伺服器|fetch|network|abort|load failed|Mac connection|暫時失敗/i.test(String(e?.message||e));
 async function cloud(mode,params){const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);try{const r=await fetch(endpoint+'?__store_queue='+mode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),signal:abort.signal});const text=await r.text();let value;try{value=JSON.parse(text)}catch{throw Error('雲端暫存回應無法確認，商品保留，請重試');}if(!r.ok||value.ok!==true)throw Error(value.error||'雲端暫存失敗');return value;}finally{clearTimeout(timer)}}
-async function warm(){if(!authToken)return null;const before=state();if(before.token===authToken&&before.ticket&&before.expiresAt>Date.now()+3600000)return before;if(warming)return warming;const token=authToken;warming=(async()=>{try{const result=await cloud('session',{token});if(authToken!==token)return null;const next=state();Object.assign(next,{ticket:result.ticket,token,expiresAt:result.expiresAt});save(KEY,next);paint();return next;}catch{paint();return state();}finally{warming=null}})();return warming;}
+async function warm(){await storageReady;if(!authToken)return null;const before=state();if(before.token===authToken&&before.ticket&&before.expiresAt>Date.now()+3600000)return before;if(warming)return warming;const token=authToken;warming=(async()=>{try{const result=await cloud('session',{token});if(authToken!==token)return null;const next=state();Object.assign(next,{ticket:result.ticket,token,expiresAt:result.expiresAt});await persist(KEY,next);paint();return next;}catch{paint();return state();}finally{warming=null}})();return warming;}
 function credentials(){const s=state();if(!authToken||s.token!==authToken||!s.ticket||s.expiresAt<=Date.now())throw Error('店面雲端暫存尚未啟用或已到期，請在主機連線時開啟店面頁一次');return {token:authToken,storeQueueTicket:s.ticket};}
 function paint(){if(document.body.dataset.page!=='store')return;let box=document.getElementById('storeCloudStatus');if(!box){box=document.createElement('div');box.id='storeCloudStatus';box.setAttribute('role','status');box.style.cssText='margin:8px 0;padding:10px 12px;border-radius:10px;background:#f4eee5;color:#6a5442;font-size:13px';const target=document.querySelector('.storePage');if(!target)return;target.prepend(box)}const s=state(),mine=s.receipts,pending=mine.filter(r=>!['done'].includes(r.state)),ready=s.token===authToken&&s.expiresAt>Date.now();box.textContent=(window.jiwuStoreOfflineMode?'離線店面模式 · ':'')+(ready?'店面雲端暫存已就緒':'店面雲端暫存尚未就緒')+(pending.length?' · 待確認 '+pending.length+' 筆':'');if(pending.length){const button=document.createElement('button');button.type='button';button.className='btn light';button.style.cssText='margin-left:8px;padding:5px 8px;font-size:12px';button.textContent='查看暫存';button.onclick=()=>{const messages=pending.map(r=>new Date(r.params.checkoutAt).toLocaleString('zh-TW')+'　$'+r.params.total+'　'+({pending:'雲端已收件，待主機補登',leased:'補登中',quarantine:'補登失敗，已保留待處理',unknown:'尚未確認雲端收件，請用原購物車重試'}[r.state]||r.state));alert(messages.join('\n'))};box.append(button)}if(Object.keys(read(CART,{})).length)box.append(document.createTextNode(' · 購物車有本機保留內容'));}
 async function poll(){if(polling||!authToken)return;const s=state(),receipts=s.receipts.filter(r=>!['done','unknown'].includes(r.state));if(!receipts.length){paint();return;}polling=true;try{const result=await cloud('status',{...credentials(),ids:receipts.slice(-100).map(r=>r.params.requestId)}),next=state();let done=false;for(const row of result.receipts){const item=next.receipts.find(r=>r.params.requestId===row.requestId);if(item&&row.state!=='unknown'){done||=item.state!=='done'&&row.state==='done';item.state=row.state}}save(KEY,next);paint();if(done){launchCompletionToast('雲端暫存店面銷售已補登');if(document.body.dataset.page==='store')renderStoreSales();}}catch{paint()}finally{polling=false}}
 window.jiwuStoreOfflineMode=false;
 window.jiwuRestoreStoreOffline=async function(){
- const s=state();if(!s.token||!s.ticket||s.expiresAt<=Date.now())return false;
+ await storageReady;const s=state();if(!s.token||!s.ticket||s.expiresAt<=Date.now())return false;
  try{await cloud('status',{token:s.token,storeQueueTicket:s.ticket,ids:[]});authToken=s.token;sessionStorage.setItem(AUTH_TOKEN_KEY,authToken);sessionStorage.setItem('jiwu_supabase_test_current_tab','store');window.jiwuStoreOfflineMode=true;startApp();paint();return true;}catch{return false;}
 };
 const originalTab=tab;tab=function(name,el){if(window.jiwuStoreOfflineMode&&name!=='store'){launchCompletionToast('主機離線，目前僅能使用店面結帳與雲端暫存',true);return;}return originalTab(name,el);};
 const originalRequest=apiRequest;
 apiRequest=async function(action,params={}){
+ await storageReady;
  if(window.jiwuStoreOfflineMode&&!['authCheck','storeCheckout','storeCart','storeCartSet','storeCartClear','storeScan'].includes(action))throw Error('主機離線，目前僅能使用店面結帳與雲端暫存');
  if(action==='authCheck'){try{const result=await originalRequest(action,params);window.jiwuStoreOfflineMode=false;paint();return result;}catch(e){if(!connectionError(e))throw e;if(await window.jiwuRestoreStoreOffline())return {ok:true,offlineStore:true};throw e;}}
  if(action==='storeCheckout'){
@@ -30,6 +36,7 @@ apiRequest=async function(action,params={}){
   try{const direct=await originalRequest('storeCheckout',record.params);const next=state(),found=next.receipts.find(r=>r.params.requestId===record.params.requestId);if(found)found.state='done';save(KEY,next);const carts=read(CART,{});delete carts[params.salesperson];save(CART,carts);window.jiwuStoreOfflineMode=false;paint();void warm();return direct;}
   catch(error){if(!connectionError(error)){const next=state();next.receipts=next.receipts.filter(r=>r.params.requestId!==record.params.requestId);save(KEY,next);paint();throw error;}}
   await warm();const auth=credentials();
+  if(!await persist(KEY,state()))throw Error('此裝置儲存空間不足，無法安全保留離線結帳編號；商品仍保留，請勿重複結帳');
   let result;try{result=await cloud('checkout',{action:'storeCheckout',...record.params,...auth})}catch(e){paint();throw e}
   const next=state(),found=next.receipts.find(r=>r.params.requestId===record.params.requestId);if(found)found.state=result.needsReview?'quarantine':result.queued?'pending':'done';save(KEY,next);
   const carts=read(CART,{});delete carts[params.salesperson];save(CART,carts);paint();setTimeout(poll,1500);
@@ -48,7 +55,7 @@ apiRequest=async function(action,params={}){
   if(action==='storeCartSet')cart=JSON.parse(params.items);
   else if(action==='storeCartClear')cart=[];
   else{const item=read(PRODUCTS,{})[params.barcode];if(!item)throw Error('主機離線，這個貨號沒有本機商品快取，暫時無法掃描');cart=structuredClone(storeCart);const existing=cart.find(x=>x.code===item.code);if(existing)existing.qty++;else cart.push({...item,qty:1})}
-  carts[user]=cart;save(CART,carts);paint();return {ok:true,cart,localOnly:true};
+  carts[user]=cart;if(!await persist(CART,carts))throw Error('此裝置儲存空間不足，購物車僅保留在目前畫面，請勿關閉');paint();return {ok:true,cart,localOnly:true};
  }
 };
 const render=renderStore;renderStore=function(...args){const result=render(...args);paint();void warm().then(poll);return result;};
