@@ -5122,6 +5122,9 @@ loadOnline();
 }
 function manualOnlineSuggest(input,event){
  const row=input.closest('.manualOnlineItem');if(!row)return;
+ // iOS can emit a composing input after compositionend; it must not cancel the committed lookup.
+ if(event?.type==='compositionend'){setTimeout(()=>{if(input.isConnected&&document.activeElement===input)manualOnlineSuggest(input,{type:'compositioncommit'});},0);return;}
+ if(event?.isComposing)return;
  clearTimeout(row._suggestTimer);row._suggestTicket=(row._suggestTicket||0)+1;
  let box=row.querySelector('.manualOnlineProductSuggestions');if(!box){box=document.createElement('div');box.className='manualOnlineProductSuggestions';row.appendChild(box);}
  box.replaceChildren();box.hidden=true;
