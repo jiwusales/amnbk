@@ -4698,9 +4698,10 @@ const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.ge
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
 <div class="storeSalesToolbar"><input id="storeSalesDate" type="search" onclick="clearStoreSalesSearch(this)" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="finishStoreSalesComposition(this)" onkeydown="storeSalesSearchKeydown(event,this)" onsearch="scheduleStoreSalesSearch(this)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div id="storeSalesWarning" class="storeSalesWarning"></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
-<div id="storeSalesWarning" class="storeSalesWarning"></div></div>`;
+</div>`;
 if(storeSalesData)drawStoreSales();
 if(!force&&storeSalesData&&Date.now()-storeSalesLoadedAt<30000)return;
 try{
