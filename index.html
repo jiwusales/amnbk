@@ -4760,7 +4760,15 @@ return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row
 function openUndatedStoreSales(){
  closeDialog();
  const items=storeSalesData?.undatedItems||[];
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="max-height:85dvh;overflow:auto"><h3>缺少日期的銷售資料（${items.length} 筆）</h3><div>${items.map(item=>`<button type="button" class="btn light" style="display:block;width:100%;text-align:left;margin:8px 0;white-space:normal" onclick="editUndatedStoreSale(${Number(item.row)})">第 ${Number(item.row)} 列｜${esc(item.name||'未填名稱')}　${money(item.amount)}<small style="display:block;margin-top:5px">${esc([item.code,item.payment,item.rawTime?'原日期：'+item.rawTime:'日期空白',item.note].filter(Boolean).join('｜'))}</small></button>`).join('')||'<p>目前沒有缺日期資料，請重新整理資料。</p>'}</div><div class="dialogActions"><button class="btn light" onclick="closeDialog()">關閉</button></div></div></div>`);
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="max-height:85dvh;overflow:auto"><h3>缺少日期的銷售資料（${items.length} 筆）</h3><div>${items.map(item=>`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><button type="button" class="btn light" style="flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:auto" onclick="editUndatedStoreSale(${Number(item.row)})">第 ${Number(item.row)} 列｜${esc(item.name||'未填名稱')}｜$${money(item.amount)}｜${esc([item.code,item.payment,item.rawTime?'原日期：'+item.rawTime:'日期空白',item.note].filter(Boolean).join('｜'))}</button><button type="button" class="btn" style="flex:none;background:#d9544d" onclick="deleteUndatedStoreSale(${Number(item.row)},this)">刪除</button></div>`).join('')||'<p>目前沒有缺日期資料。</p>'}</div><div class="dialogActions"><button class="btn light" onclick="closeDialog()">關閉</button></div></div></div>`);
+}
+async function deleteUndatedStoreSale(row,button){
+ const item=storeSalesData?.undatedItems?.find(item=>Number(item.row)===Number(row)),dialog=document.getElementById('appDialog');if(!item||!dialog||dialog.dataset.deleting==='1')return;
+ const label=['第 '+row+' 列',item.name||'未填名稱','$'+money(item.amount),item.payment,item.note].filter(Boolean).join('｜');
+ if(!confirm('確定刪除這筆資料？\n'+label))return;
+ dialog.dataset.deleting='1';button.disabled=true;dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);
+ try{const result=await apiBackground('deleteStoreSale',{row,undated:true,expected:item});storeSalesData=result.sales||await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();openUndatedStoreSales();}
+ catch(error){dialog.dataset.deleting='';button.disabled=false;alert(error.message||'刪除失敗，請重試');}
 }
 function editUndatedStoreSale(row){
  const item=storeSalesData?.undatedItems?.find(item=>Number(item.row)===Number(row));if(!item)return;
