@@ -2646,7 +2646,7 @@ function launchOtherChannelURL(note){
  return '';
 }
 function launchListNamePrice(p,i){
- const content=`${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})"><span class="launchAllProductName">${esc(launchDisplayName(p))}</span></button><span class="launchListOriginal" aria-label="原價">${esc(String(p.original??'').trim()||'—')}</span><span class="launchListPrice" aria-label="售價">$${esc(String(p.price??'').replace(/^\$/,''))}</span>`;
+ const content=`${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})"><span class="launchAllProductName">${esc(launchDisplayName(p))}</span></button><span class="launchListPrices"><span class="launchListOriginal" aria-label="原價">${esc(String(p.original??'').trim()||'—')}</span><span class="launchListPrice" aria-label="售價">$${esc(String(p.price??'').replace(/^\$/,''))}</span></span>`;
  if(launchCurrent.status!=='最新開團')return `<div class="launchListNamePrice">${content}</div>`;
  const url=launchOtherChannelURL(p.note);
  return `<div class="launchListNamePrice">${content}${url?`<a class="launchOtherChannel" href="${esc(url)}" target="_blank" rel="noopener noreferrer">其他通路</a>`:''}</div>`;
@@ -7611,5 +7611,14 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 
 <style id="launch-original-price-color">.launchProductListPage .launchListOriginal{color:#7774C8}</style>
+
+<style id="launch-mobile-price-row">
+.launchListPrices{display:contents}
+@media(max-width:600px){
+ .launchProductListPage .launchListNamePrice>.launchAllEdit{flex:0 0 100%;width:100%;min-width:0}
+ .launchProductListPage .launchListNamePrice>.launchListPrices{display:flex;align-items:baseline;flex:0 0 100%;width:100%;min-width:0;gap:8px;flex-wrap:nowrap}
+ .launchProductListPage .launchListPrices>.launchListOriginal,.launchProductListPage .launchListPrices>.launchListPrice{flex:none;white-space:nowrap;margin:0}
+}
+</style>
 </body>
 </html>
