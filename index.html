@@ -4756,6 +4756,25 @@ const codeClass=method==='LB'?'salesCodeLB':['寶中信','中信'].includes(meth
 const paymentInfoClass=method==='LB'?'salesBankLB':['寶中信','中信'].includes(method)?'salesBankCTBC':method==='LP'?'salesBankLP':'';
 return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>{const rawNote=String(item.note||'').trim();const note=code&&[code,payment,method+' '+code,method+code].includes(rawNote)?'':rawNote;const hidden=Object.entries(item.hidden||{}).map(([key,value])=>`${esc(key)}：${esc(value)}`).join('｜');return `<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><button type="button" class="salesNoteEdit" onclick="editStoreSaleNote(${Number(item.row)})">${esc(item.name||'未填商品名稱')}</button>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}${hidden?`<span class="salesHiddenFields">${hidden}</span>`:''}</div><b class="${Number(item.amount)<0?'salesNegative':''}">$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>${note?`<div class="salesItemNote">${esc(note)}</div>`:''}`;}).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><button type="button" class="salesPaymentEdit ${codeClass}" data-method="${esc(method)}" data-last5="${esc(code)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method,this.dataset.last5)" title="點擊修改付款方式或補輸入後五碼">${esc(method)}</button>${code?`<span class="${codeClass}">${esc(code)}</span>`:['寶中信','中信','LB','LP'].includes(method)?`<button type="button" class="salesLast5Edit" data-method="${esc(method)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method)">輸入後五碼</button>`:''}</div>`}</div>`;
 }
+
+function openUndatedStoreSales(){
+ closeDialog();
+ const items=storeSalesData?.undatedItems||[];
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" style="max-height:85dvh;overflow:auto"><h3>缺少日期的銷售資料（${items.length} 筆）</h3><div>${items.map(item=>`<button type="button" class="btn light" style="display:block;width:100%;text-align:left;margin:8px 0;white-space:normal" onclick="editUndatedStoreSale(${Number(item.row)})">第 ${Number(item.row)} 列｜${esc(item.name||'未填名稱')}　${money(item.amount)}<small style="display:block;margin-top:5px">${esc([item.code,item.payment,item.rawTime?'原日期：'+item.rawTime:'日期空白',item.note].filter(Boolean).join('｜'))}</small></button>`).join('')||'<p>目前沒有缺日期資料，請重新整理資料。</p>'}</div><div class="dialogActions"><button class="btn light" onclick="closeDialog()">關閉</button></div></div></div>`);
+}
+function editUndatedStoreSale(row){
+ const item=storeSalesData?.undatedItems?.find(item=>Number(item.row)===Number(row));if(!item)return;
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>補登銷售日期</h3><form onsubmit="saveUndatedStoreSale(event,${Number(row)})"><p>第 ${Number(row)} 列　${esc(item.code||'')}　${esc(item.payment||'')}</p><div class="saleEditFields"><label>日期 <input id="undatedSaleDate" type="date" required></label><label>名稱 <input id="undatedSaleName" value="${esc(item.name)}" required></label><label>金額 <input id="undatedSaleAmount" type="number" step="any" value="${esc(item.amount)}" required></label></div><label>備註</label><textarea id="undatedSaleNote" rows="3" style="width:100%">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn light" onclick="openUndatedStoreSales()">返回清單</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ const dialog=document.getElementById('appDialog');dialog.dataset.backendRowRefs=JSON.stringify([{row:Number(row),id:item.itemId}]);dialog.dataset.saleExpected=JSON.stringify(item);
+}
+async function saveUndatedStoreSale(event,row){
+ event.preventDefault();const dialog=document.getElementById('appDialog'),button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;
+ const date=document.getElementById('undatedSaleDate').value,name=document.getElementById('undatedSaleName').value.trim(),raw=document.getElementById('undatedSaleAmount').value,amount=Number(raw),note=document.getElementById('undatedSaleNote').value.trim();
+ if(!date||!name||!raw||!Number.isFinite(amount))return;button.disabled=true;
+ try{await apiBackground('updateStoreSaleNote',{row,date,name,amount,note,expected:JSON.parse(dialog.dataset.saleExpected)});storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',storeSalesData);drawStoreSales();openUndatedStoreSales();}
+ catch(error){button.disabled=false;alert(error.message||'儲存失敗，請重試');}
+}
+
 function editStoreSaleNote(row){
 const item=storeSalesData?.days.flatMap(day=>day.items).find(item=>Number(item.row)===Number(row));if(!item)return;
 closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>修改銷售商品</h3><form onsubmit="saveStoreSaleNote(event,${Number(row)})"><div class="saleEditFields"><label>名稱 <input id="saleNameInput" value="${esc(item.name)}" required></label><label>金額 <input id="saleAmountInput" type="number" step="any" value="${esc(item.amount)}" required></label></div><label>備註</label><textarea id="saleNoteInput" rows="3" style="width:100%;box-sizing:border-box">${esc(item.note||'')}</textarea><div class="dialogActions"><button type="button" class="btn" style="background:#d9544d;margin-right:auto" onclick="deleteStoreSaleItem(${Number(row)})">刪除</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
@@ -4824,7 +4843,7 @@ if(!days.length&&query.length===4)days=[{date:year+'-'+query.slice(0,2)+'-'+quer
 }
 if(nameQuery)days=days.filter(day=>day.items.some(item=>[item.name,item.payment].some(value=>String(value||'').normalize('NFKC').toLowerCase().includes(nameQuery))));
 const deploymentWarning=storeSalesData.schema==='store-sales-v2'?'':'<p class="salesHint">目前後端尚未提供合併付款分組，請更新 Code.gs 並將網頁應用程式部署為新版本，再重新整理。</p>';
-const warning=storeSalesData.undated?`<p class="salesHint">${storeSalesData.undated} 筆資料缺少可辨識的日期，未列入統計。</p>`:'';
+const warning=storeSalesData.undated?`<button type="button" class="salesHint" style="border:0;background:none;padding:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit;font-size:12px" onclick="openUndatedStoreSales()">${storeSalesData.undated} 筆資料缺少可辨識的日期，未列入統計。</button>`:'';
 if(summary){
 if(query.length===2){summary.textContent=query+'月營業額 $'+money(days.reduce((sum,item)=>sum+Number(item.total||0),0));summary.hidden=false;}
 else if(!query){summary.textContent=year+'年總營業額 $'+money(days.reduce((sum,item)=>sum+Number(item.total||0),0));summary.hidden=false;}
