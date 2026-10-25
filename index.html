@@ -7622,20 +7622,36 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .launchProductListPage .launchListPrices>.launchListOriginal,.launchProductListPage .launchListPrices>.launchListPrice{flex:none;white-space:nowrap;margin:0}
 }
 </style>
-<script src="store-offline.js?v=20261025-quota-fix1"></script>
+<script src="store-offline.js?v=20261025-store-layout"></script>
 
-<style id="store-fixed-manual-height">
-@media(min-width:851px){
- .storeDesktop .storePage{grid-template-rows:max-content minmax(0,1fr) max-content;align-content:stretch}
- .storeDesktop .storeManual{height:max-content;min-height:0;align-self:start;grid-row:1}
- .storeDesktop .storeMain{grid-row:2;min-height:0;overflow:hidden}
- .storeDesktop .storeMainBody{flex:1;min-height:0}
- .storeDesktop .storeCheckout{grid-row:3;align-self:end}
- .storeDesktop .storePage:has(>#storeCloudStatus){grid-template-rows:max-content max-content minmax(0,1fr) max-content}
- .storeDesktop #storeCloudStatus{grid-row:1;align-self:start}
- .storeDesktop .storePage:has(>#storeCloudStatus)>.storeManual{grid-row:2}
- .storeDesktop .storePage:has(>#storeCloudStatus)>.storeMain{grid-row:3}
- .storeDesktop .storePage:has(>#storeCloudStatus)>.storeCheckout{grid-row:4}
+<style id="store-side-checkout-layout">
+body[data-page="store"] .top{position:relative;padding-right:62px}
+#storeCloudStatus{display:none}
+body[data-page="store"] #storeCloudStatus{display:block;position:absolute;right:18px;top:50%;transform:translateY(-50%);border:0;background:none;padding:4px;color:#bcbcbc;font-size:30px;line-height:1;cursor:pointer}
+body[data-page="store"] #storeCloudStatus.ready{color:#b79a7d}
+.storePage,.storeDesktop .storePage{grid-template-columns:minmax(0,1.2fr) minmax(240px,.8fr);grid-template-rows:max-content minmax(0,1fr);align-content:stretch;gap:12px}
+.storePage>.storeMain,.storeDesktop .storePage>.storeMain{grid-column:1;grid-row:1/3;min-height:0;align-self:stretch}
+.storePage>.storeManual,.storeDesktop .storePage>.storeManual{grid-column:2;grid-row:1;height:max-content;min-height:0;align-self:start}
+.storePage>.storeCheckout,.storeDesktop .storePage>.storeCheckout{grid-column:2;grid-row:2;min-height:0;align-self:stretch;overflow:auto}
+.storeMainBody{flex:1;min-height:0;overflow:hidden}
+.storeMainBody .cart{flex:1;min-height:0;overflow:auto}
+.storeManual .manualBox{grid-template-columns:minmax(0,1fr) 70px 40px;gap:6px;padding:10px}
+.storeManual .manualBox input{min-width:0;width:100%}
+.storeManual .manualBox .btn{padding:8px}
+@media(max-width:850px){
+.storePage{grid-template-columns:minmax(0,1.1fr) minmax(150px,.9fr);grid-template-rows:max-content minmax(0,1fr);gap:8px}
+.storeMainBody,.storeCheckout .checkoutBody{padding:10px}
+.storeManual .manualBox{grid-template-columns:minmax(0,1fr) 54px 30px;gap:4px;padding:8px}
+.storeManual .manualBox input{padding:8px 4px;font-size:11px}
+.storeManual .manualBox .btn{padding:5px}
+.storeCheckout .payment{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.storeCheckout .payment button{padding:8px 3px;font-size:12px}
+.storeCheckout .checkoutActions{gap:5px}
+.storeCheckout .checkoutActions .btn{padding:10px 8px}
+.storeMain .storeSearch{gap:4px}
+.storeMain .storeSearch input{min-width:0;font-size:11px;padding:10px 6px}
+.storeMain .storeSearch .btn{padding:8px}
+body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 }
 </style>
 </body>
