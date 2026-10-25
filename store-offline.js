@@ -22,9 +22,14 @@ apiRequest=async function(action,params={}){
  if(window.jiwuStoreOfflineMode&&!['authCheck','storeCheckout','storeCart','storeCartSet','storeCartClear','storeScan'].includes(action))throw Error('主機離線，目前僅能使用店面結帳與雲端暫存');
  if(action==='authCheck'){try{const result=await originalRequest(action,params);window.jiwuStoreOfflineMode=false;paint();return result;}catch(e){if(!connectionError(e))throw e;if(await window.jiwuRestoreStoreOffline())return {ok:true,offlineStore:true};throw e;}}
  if(action==='storeCheckout'){
-  await warm();const auth=credentials(),initial=state(),signature=JSON.stringify([params.items,params.total,params.payment,params.note,params.salesperson,params.received,params.change]);
+  const initial=state(),signature=JSON.stringify([params.items,params.total,params.payment,params.note,params.salesperson,params.received,params.change]);
   let record=initial.receipts.find(r=>r.state==='unknown'&&r.signature===signature);
   if(!record){record={signature,state:'unknown',params:{...params,requestId:params.requestId||crypto.randomUUID(),checkoutAt:new Date().toISOString()}};initial.receipts.push(record);save(KEY,initial)}
+  // Normal online checkout never depends on a separately issued cloud capability.
+  // If its reply is lost, cloud replay keeps this exact transaction ID and time.
+  try{const direct=await originalRequest('storeCheckout',record.params);const next=state(),found=next.receipts.find(r=>r.params.requestId===record.params.requestId);if(found)found.state='done';save(KEY,next);const carts=read(CART,{});delete carts[params.salesperson];save(CART,carts);window.jiwuStoreOfflineMode=false;paint();void warm();return direct;}
+  catch(error){if(!connectionError(error)){const next=state();next.receipts=next.receipts.filter(r=>r.params.requestId!==record.params.requestId);save(KEY,next);paint();throw error;}}
+  await warm();const auth=credentials();
   let result;try{result=await cloud('checkout',{action:'storeCheckout',...record.params,...auth})}catch(e){paint();throw e}
   const next=state(),found=next.receipts.find(r=>r.params.requestId===record.params.requestId);if(found)found.state=result.needsReview?'quarantine':result.queued?'pending':'done';save(KEY,next);
   const carts=read(CART,{});delete carts[params.salesperson];save(CART,carts);paint();setTimeout(poll,1500);
