@@ -6801,6 +6801,7 @@ if(res){
 res.innerHTML=
 Object
 .values(groups)
+.sort((a,b)=>Math.max(0,...b.map(x=>timeValue(x.data[ti])))-Math.max(0,...a.map(x=>timeValue(x.data[ti])))||Math.max(...b.map(x=>Number(x.row)||0))-Math.max(...a.map(x=>Number(x.row)||0)))
 .map(g=>{
 const customer=
 g[0].data[ci]||
@@ -6834,6 +6835,7 @@ style="margin-bottom:10px">
 </span>
 ${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
 <span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span>
+<button type="button" class="btn light" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>
 </div>
 ${g.map(x=>`
 <div class="shipItem" data-row="${Number(x.row)}" data-item-id="${esc(x.itemId||'')}" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
@@ -7626,7 +7628,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 
 <style>.launchProduct .launchFormat{display:block;color:#777;font-size:.88em;line-height:1.15;margin:1pt 0 0}.launchProduct .launchFormat:empty,.launchThumbFormat:empty{display:none}</style>
-<script src="online-receipt.js?v=20261025-amount-label"></script>
+<script src="online-receipt.js?v=20261025-ship-details"></script>
 
 <style id="launch-mobile-stock-alignment">
 @media(max-width:600px){
