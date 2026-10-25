@@ -2646,7 +2646,7 @@ function launchOtherChannelURL(note){
  return '';
 }
 function launchListNamePrice(p,i){
- const content=`${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})"><span class="launchAllProductName">${esc(launchDisplayName(p))}</span></button><span class="launchListOriginal" aria-label="原價">原價 ${esc(String(p.original??'').trim()||'—')}</span><span class="launchListPrice" aria-label="售價">$${esc(String(p.price??'').replace(/^\$/,''))}</span>`;
+ const content=`${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<button class="launchAllEdit" type="button" onclick="launchProductDialog(${i})"><span class="launchAllProductName">${esc(launchDisplayName(p))}</span></button><span class="launchListOriginal" aria-label="原價">${esc(String(p.original??'').trim()||'—')}</span><span class="launchListPrice" aria-label="售價">$${esc(String(p.price??'').replace(/^\$/,''))}</span>`;
  if(launchCurrent.status!=='最新開團')return `<div class="launchListNamePrice">${content}</div>`;
  const url=launchOtherChannelURL(p.note);
  return `<div class="launchListNamePrice">${content}${url?`<a class="launchOtherChannel" href="${esc(url)}" target="_blank" rel="noopener noreferrer">其他通路</a>`:''}</div>`;
@@ -7609,5 +7609,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .launchProductListPage .launchListKind,.launchProductListPage .launchOrderInput{zoom:.8}
 }
 </style>
+
+<style id="launch-original-price-color">.launchProductListPage .launchListOriginal{color:#7774C8}</style>
 </body>
 </html>
