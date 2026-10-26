@@ -6954,7 +6954,7 @@ if(res){
 res.innerHTML=
 Object
 .values(groups)
-.sort((a,b)=>Math.max(0,...b.map(x=>timeValue(x.data[ti])))-Math.max(0,...a.map(x=>timeValue(x.data[ti])))||Math.max(...b.map(x=>Number(x.row)||0))-Math.max(...a.map(x=>Number(x.row)||0)))
+.sort((a,b)=>Math.max(0,...b.map(x=>Number(x.row)||0))-Math.max(0,...a.map(x=>Number(x.row)||0)))
 .map(g=>{
 const customer=
 g[0].data[ci]||
@@ -6967,8 +6967,6 @@ const shippingTotal=g.reduce((sum,x)=>sum+numberValue(x.data[shi]),0);
 const balance=orderTotal+shippingTotal-depositTotal;
 const marketKey=shipMarketKey(g),marketSelected=shipMarketSelection.has(marketKey),marketListed=shipMarketIsListed(marketKey);
 shipMarketOrders.set(marketKey,{key:marketKey,customer,orderTotal,depositTotal,shippingTotal,description:g.map(x=>String(x.data[ni]||'')).join('\n'),balance});
-const now=new Date();
-const shipDate=String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0');
 return `
 <div
 class="card shipOrderCard ${packed?'shipPacked':''} ${marketSelected?'shipMarketSelected':''}"
@@ -6987,7 +6985,7 @@ style="margin-bottom:10px">
 <button type="button" class="btn light shipCopyButton" data-copy-text="${esc(g.map(x=>x.data[ni]||'').join('+'))}" onclick="copyShipText(this)" aria-label="複製品項" title="複製品項">物</button>
 </span>
 <span class="shipCustomerMeta">${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
-<span class="shipDateCount">${esc(shipDate)}<i>|</i>${g.length} 件</span></span>
+<span class="shipDateCount">${g.length} 件</span></span>
 <button type="button" class="btn light shipDetailsButton" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>
 </div>
 ${g.map(x=>`
