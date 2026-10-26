@@ -81,8 +81,10 @@ apiRequest=async function(action,params={}){
  }
 };
 const render=renderStore;renderStore=function(...args){const result=render(...args);paint();void warm();return result;};
-window.addEventListener('online',()=>{if(window.jiwuStoreOfflineMode)void originalRequest('authCheck').then(()=>{window.jiwuStoreOfflineMode=false;void warm()}).catch(()=>{});});
-setInterval(()=>{if(window.jiwuStoreOfflineMode&&document.body.dataset.page==='store')void originalRequest('authCheck').then(()=>{window.jiwuStoreOfflineMode=false;void warm()}).catch(()=>{});},30000);
+let reconnecting=false;
+async function reconnectStore(){if(reconnecting||!window.jiwuStoreOfflineMode||document.body.dataset.page!=='store')return;reconnecting=true;try{await originalRequest('authCheck');window.jiwuStoreOfflineMode=false;await warm();}catch{}finally{reconnecting=false;}}
+window.addEventListener('online',reconnectStore);
+setInterval(reconnectStore,30000);
 if(document.body.dataset.page==='store'){paint();void warm()}
 if(!authToken&&!appStarted)void window.jiwuRestoreStoreOffline();
 })();
