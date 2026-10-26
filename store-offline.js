@@ -82,6 +82,7 @@ apiRequest=async function(action,params={}){
 };
 const render=renderStore;renderStore=function(...args){const result=render(...args);paint();void warm();return result;};
 window.addEventListener('online',()=>{if(window.jiwuStoreOfflineMode)void originalRequest('authCheck').then(()=>{window.jiwuStoreOfflineMode=false;void warm()}).catch(()=>{});});
+setInterval(()=>{if(window.jiwuStoreOfflineMode&&document.body.dataset.page==='store')void originalRequest('authCheck').then(()=>{window.jiwuStoreOfflineMode=false;void warm()}).catch(()=>{});},30000);
 if(document.body.dataset.page==='store'){paint();void warm()}
 if(!authToken&&!appStarted)void window.jiwuRestoreStoreOffline();
 })();
