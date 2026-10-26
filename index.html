@@ -7875,5 +7875,28 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 }
 </style>
 
+
+<style id="store-mobile-vertical-layout">
+@media(max-width:850px){
+ body[data-page="store"] .storePage{grid-template-columns:minmax(0,1fr);grid-template-rows:max-content minmax(110px,1fr) max-content;gap:8px;overflow-x:hidden;overflow-y:auto;align-content:stretch}
+ body[data-page="store"] .storePage>.storeManual{grid-column:1;grid-row:1;height:auto;align-self:start}
+ body[data-page="store"] .storePage>.storeMain{grid-column:1;grid-row:2;min-height:0;align-self:stretch}
+ body[data-page="store"] .storePage>.storeCheckout{grid-column:1;grid-row:3;height:auto;min-height:0;align-self:start;overflow:visible}
+ body[data-page="store"] .storeMainBody{flex:1;min-height:0;padding:10px;overflow:hidden}
+ body[data-page="store"] .storeMainBody .cart{flex:1;min-height:0;overflow-y:auto}
+ body[data-page="store"] .storeManual .manualBox{grid-template-columns:minmax(0,1fr) 80px 44px;gap:8px;padding:10px}
+ body[data-page="store"] .storeManual .manualBox input{font-size:14px;padding:9px 10px}
+ body[data-page="store"] .storeCheckout .checkoutBody{padding:12px;overflow:visible}
+ body[data-page="store"] .storeCheckout .checkoutTotalRow .total{font-size:28px}
+ body[data-page="store"] .storeCheckout .checkoutQuick{margin-top:8px!important}
+ body[data-page="store"] .storeCheckout .checkoutQuick+div{margin-top:12px!important}
+ body[data-page="store"] .storeCheckout .checkoutBody input{min-height:40px;padding:9px 10px}
+ body[data-page="store"] .storeCheckout .payment{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+ body[data-page="store"] .storeCheckout .payment button{min-height:38px;font-size:12px;padding:8px 2px}
+ body[data-page="store"] .storeCheckout .checkoutActions{margin-top:12px;gap:8px}
+ body[data-page="store"] .storeCheckout .checkoutActions .btn{height:40px;padding:8px}
+}
+</style>
+
 </body>
 </html>
