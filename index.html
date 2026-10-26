@@ -3315,12 +3315,15 @@ function customerChatDraftURL(customer,url){const text=customerChatDrafts.get(cu
 function openCustomerChatURL(customer,url){url=customerChatDraftURL(customer,url);const tab=window.open(url,'_blank');if(tab)tab.opener=null;else showCustomerLineChatLink(customer,url);}
 window.addEventListener('focus',()=>{if(document.body.dataset.page==='online'||document.body.dataset.page==='ship')warmCustomerLineChats();});
 function customerMessageButton(customer,ship=false,rows=[]){
-const badges=customerSourceBadges(rows);if(badges)return badges;
-const bound=!!cachedCustomerLineChat(customer);
-return `<button type="button" class="customerMessageButton${bound?' bound':''}" data-customer="${esc(customer)}" onclick="${ship?'openShipCustomerNotice(this)':'customerChatDrafts.delete(this.dataset.customer);openCustomerLineChat(this)'}" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="${bound?'已綁定':'尚未綁定'}官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">✉︎</button>`;
+const badges=customerSourceBadges(rows);
+const customerIds=[...new Set(rows.map(row=>String(getOnlineData(row,['顧客編號'])||'')).filter(id=>/^JIWU[0-9]{8}$/.test(id)))];
+const customerId=customerIds.length===1?customerIds[0]:'';
+const bound=!!customerId||!!cachedCustomerLineChat(customer);
+if(badges&&!bound)return badges;
+return `${badges}<button type="button" class="customerMessageButton${bound?' bound':''}" data-customer="${esc(customer)}" data-customer-id="${esc(customerId)}" onclick="${ship?'openShipCustomerNotice(this)':'customerChatDrafts.delete(this.dataset.customer);openCustomerLineChat(this)'}" oncontextmenu="event.preventDefault();editCustomerLineChat(this.dataset.customer)" title="${bound?'已綁定':'尚未綁定'}官賴對話；右鍵可修改網址" aria-label="傳訊息給 ${esc(customer)}">✉︎</button>`;
 }
 function syncCustomerMessageButtons(){
-document.querySelectorAll('.customerMessageButton[data-customer]').forEach(button=>{const bound=!!cachedCustomerLineChat(button.dataset.customer);button.classList.toggle('bound',bound);if(!button.disabled){button.textContent='✉︎';button.title=(bound?'已綁定':'尚未綁定')+'官賴對話；右鍵可修改網址';}});
+document.querySelectorAll('.customerMessageButton[data-customer]').forEach(button=>{const bound=!!button.dataset.customerId||!!cachedCustomerLineChat(button.dataset.customer);button.classList.toggle('bound',bound);if(!button.disabled){button.textContent='✉︎';button.title=(bound?'已綁定':'尚未綁定')+'官賴對話；右鍵可修改網址';}});
 }
 function openShipCustomerNotice(button){
  const card=button.closest('.shipOrderCard');
