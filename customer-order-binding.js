@@ -18,7 +18,7 @@ function jiwuEnhanceOrderBindingDialog(){
  const form=document.querySelector('#appDialog form[data-order-rows]');if(!form||form.querySelector('.jiwuOrderBinding'))return;
  let snapshots;try{snapshots=JSON.parse(form.dataset.orderRows);}catch{return;}if(!snapshots?.length)return;
  const section=document.createElement('section');section.className='jiwuOrderBinding';
- section.innerHTML='<label class="jiwuOrderBindingLabel" for="jiwuOrderBindingSearch">綁定既有客戶（選填）</label><p class="jiwuOrderBindingHint">選擇官 LINE 客戶；上方姓名不改，就保留原訂單姓名。</p><input id="jiwuOrderBindingSearch" type="search" placeholder="搜尋客戶名字或 JIWU 編號" autocomplete="off" aria-label="搜尋既有客戶"><div class="jiwuOrderBindingSelected" aria-live="polite"></div><div class="jiwuOrderBindingResults" role="group" aria-label="符合的客戶"></div><p class="jiwuOrderBindingStatus" role="status">載入客戶清單…</p>';
+ section.innerHTML='<label class="jiwuOrderBindingLabel" for="jiwuOrderBindingSearch">綁定既有客戶（選填）</label><p class="jiwuOrderBindingHint">選取後，這筆訂單會使用所選客戶的名字。</p><input id="jiwuOrderBindingSearch" type="search" placeholder="搜尋客戶名字或 JIWU 編號" autocomplete="off" aria-label="搜尋既有客戶"><div class="jiwuOrderBindingSelected" aria-live="polite"></div><div class="jiwuOrderBindingResults" role="group" aria-label="符合的客戶"></div><p class="jiwuOrderBindingStatus" role="status">載入客戶清單…</p>';
  form.insertBefore(section,form.querySelector('.dialogActions'));const search=section.querySelector('input'),results=section.querySelector('.jiwuOrderBindingResults'),selected=section.querySelector('.jiwuOrderBindingSelected'),status=section.querySelector('.jiwuOrderBindingStatus');
  let customers=[],choice=null;
  const showSelection=()=>{selected.replaceChildren();if(!choice)return;const text=document.createElement('span');text.textContent=choice.name+' · '+choice.id;const clear=document.createElement('button');clear.type='button';clear.className='btn light';clear.textContent='取消選取';clear.onclick=()=>{choice=null;showSelection();render();};selected.append(text,clear);};
@@ -27,7 +27,7 @@ function jiwuEnhanceOrderBindingDialog(){
  form.addEventListener('submit',async event=>{
   if(!choice)return;
   event.preventDefault();event.stopImmediatePropagation();
-  const newName=String(document.getElementById('onlineOrderNameInput')?.value||'').trim();if(!newName)return;
+  const newName=String(choice.name||'').trim();if(!newName)return;
   const button=form.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
   const customerId=choice.id;onlineMutationRevision++;
   try{
