@@ -2282,6 +2282,7 @@ function launchApplyCardPresentation(){
  const help=document.querySelector('.launchPage .launchHelp');if(help)help.textContent=`${launchCurrent.status} · 1080 × 1350 直式 · 點商品卡編輯；到「全部商品」上下拖移排序。`;
 }
 function launchDraftOriginals(){
+ document.querySelectorAll('.launchProduct .launchDraftPrice').forEach(row=>row.remove());
  if(launchCurrent?.status!=='尚未上架')return;
  document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index],original=launchNumber(item?.original);if(item?.showCost===false||original==null||original<0)return;const row=document.createElement('p');row.className='launchDraftPrice';row.innerHTML=`<button class="launchDraftDelete" aria-label="不顯示原價" onclick="event.stopPropagation();launchHideCost(${index})">✖</button><span>¥${Math.ceil(original)}｜$${Math.ceil(original*(launchIsRMB(item)?1.05*5:.21))}</span>`;card.querySelector('p:not(.launchCode)')?.before(row);});
 }
@@ -3159,7 +3160,16 @@ context.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
 const lines=launchNameLines(launchDisplayName(item),title.clientWidth,text=>context.measureText(text).width);
 title.innerHTML=lines.map(esc).join('<br>');
 }
-function launchFitCardText(){document.querySelectorAll('.launchProduct').forEach(card=>{if(card.style.display==='none'||card.style.visibility==='hidden')return;card.style.removeProperty('font-size');launchWrapCardName(card);let size=parseFloat(getComputedStyle(card).fontSize),min=size*.68,tries=0;while(card.scrollHeight>card.clientHeight+1&&size>min&&tries++<10){size*=.92;card.style.fontSize=size+'px';launchWrapCardName(card);}});}
+
+function launchFitSingleLine(el){
+ if(!el||!el.textContent.trim()||el.querySelector('.launchColorSwatches'))return;
+ el.style.fontSize='';
+ const style=getComputedStyle(el),ctx=document.createElement('canvas').getContext('2d'),size=parseFloat(style.fontSize);
+ ctx.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
+ const text=el.textContent.trim(),spacing=parseFloat(style.letterSpacing)||0,width=ctx.measureText(text).width+Math.max(0,[...text].length-1)*spacing,available=el.clientWidth-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0);
+ if(width>available&&available>0)el.style.fontSize=(size*available/width*.99)+'px';
+}
+function launchFitCardText(){document.querySelectorAll('.launchProduct').forEach(card=>{if(card.style.display==='none'||card.style.visibility==='hidden')return;card.style.removeProperty('font-size');card.querySelectorAll('.launchSize,.launchFormat,b').forEach(el=>el.style.fontSize='');launchWrapCardName(card);card.querySelectorAll('.launchSize,.launchFormat,b').forEach(launchFitSingleLine);let size=parseFloat(getComputedStyle(card).fontSize),min=size*.68,tries=0;while(card.scrollHeight>card.clientHeight+1&&size>min&&tries++<10){size*=.92;card.style.fontSize=size+'px';launchWrapCardName(card);}card.querySelectorAll('.launchSize,.launchFormat,b').forEach(launchFitSingleLine);});}
 function launchFitCards(){
  const paper=document.getElementById('launchPaper');if(!paper)return;paper.querySelector('.launchMore')?.remove();
  const allCards=Array.from(paper.querySelectorAll('.launchProduct'));
@@ -3188,7 +3198,7 @@ function launchFitCards(){
   paper.querySelector('.launchCards').insertAdjacentHTML('beforeend',`<div class="launchMore" style="grid-column:${columns};grid-row:${rows}"><div><span>到最新開團</span><span>看看更多</span><span>酷東西！</span></div></div>`);
  }
  launchFitCardText();
- const footer=paper.querySelector('.launchFooter');if(footer){footer.style.fontSize='';const min=12;while(footer.scrollWidth>footer.clientWidth&&parseFloat(getComputedStyle(footer).fontSize)>min){footer.style.fontSize=(parseFloat(getComputedStyle(footer).fontSize)-1)+'px';}}
+ const footer=paper.querySelector('.launchFooter');launchFitSingleLine(footer);
  const note=document.getElementById('launchOverflowNote');if(note)note.textContent=hidden?`${hidden} 項商品未顯示於畫布，右下角已換成更多商品提示；可從「全部商品」編輯。`:'';
 }
 let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchResizeTimer);launchResizeTimer=setTimeout(()=>{launchFitCards();launchQueuePNG();},100);});
@@ -3266,35 +3276,58 @@ async function launchBuildPNG(){
  if(!paper||!group)throw new Error('找不到畫布');
  const key=launchPNGKey(paper);
  await document.fonts.ready;
+ launchPrepareCanvas(group,paper);
  // 同時載入所有可見圖片，共用快取及進行中的請求。
  const imageElements=Array.from(paper.querySelectorAll('img')).filter(el=>{const card=el.closest('.launchProduct');return !card||(card.style.display!=='none'&&card.style.visibility!=='hidden');});
  const images=await Promise.all(imageElements.map(el=>launchLoadImage(el.src)));
  if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
  launchFitCards();
  const base=paper.getBoundingClientRect(),scale=1080/base.width;
- const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle='#F9F9FA';ctx.fillRect(0,0,1080,1350);
+ const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle=getComputedStyle(paper).backgroundColor;ctx.fillRect(0,0,1080,1350);
  const rect=el=>{const r=el.getBoundingClientRect();return {x:(r.left-base.left)*scale,y:(r.top-base.top)*scale,w:r.width*scale,h:r.height*scale};};
  const cssNumber=(el,name)=>parseFloat(getComputedStyle(el)[name])||0;
  const roundedRect=(r,radius)=>{const limit=Math.min(r.w,r.h)/2,rad=Math.min(Math.max(0,radius),limit);ctx.beginPath();ctx.moveTo(r.x+rad,r.y);ctx.arcTo(r.x+r.w,r.y,r.x+r.w,r.y+r.h,rad);ctx.arcTo(r.x+r.w,r.y+r.h,r.x,r.y+r.h,rad);ctx.arcTo(r.x,r.y+r.h,r.x,r.y,rad);ctx.arcTo(r.x,r.y,r.x+r.w,r.y,rad);ctx.closePath();};
  const drawBox=(el,{fill=true,stroke=true}={})=>{const r=rect(el),style=getComputedStyle(el),line=cssNumber(el,'borderTopWidth')*scale,radius=cssNumber(el,'borderTopLeftRadius')*scale;roundedRect(r,radius);if(fill){ctx.fillStyle=style.backgroundColor==='rgba(0, 0, 0, 0)'?'#fff':style.backgroundColor;ctx.fill();}if(stroke&&line){ctx.lineWidth=line;ctx.strokeStyle=style.borderTopColor;ctx.stroke();}return r;};
- const main=launchColor(group.mainColor),header=paper.querySelector('.launchHeading');if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
+ const header=paper.querySelector('.launchHeading'),main=header?getComputedStyle(header).backgroundColor:launchColor(group.mainColor);if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchProduct')){if(el.style.display==='none'||el.style.visibility==='hidden')continue;drawBox(el);}
  for(const [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],banner=el.closest('.launchBanner'),isBanner=!!banner,r=rect(banner||el);if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
  for(const el of paper.querySelectorAll('.launchProductPictures .launchPlaceholder')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el);ctx.fillStyle='#edf0e8';ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchColorSwatch')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el),radius=Math.min(r.w,r.h)/2;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,radius,0,Math.PI*2);ctx.fillStyle=getComputedStyle(el).backgroundColor;ctx.fill();ctx.lineWidth=Math.max(1,scale);ctx.strokeStyle='#c7c7c7';ctx.stroke();}
+
  function drawText(el){
   const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))return;
-  const r=rect(el),style=getComputedStyle(el),baseSize=parseFloat(style.fontSize)*scale,cssLine=parseFloat(style.lineHeight),source=el.matches('.launchSize')?launchCardSize(el.textContent.trim()):el.textContent.trim(),isPrice=el.matches('.launchProduct b'),isHeadingTitle=el.matches('.launchTitle');let size=baseSize;
-  ctx.font=`${style.fontWeight} ${size}px ${style.fontFamily}`;
-  // 售價不可斷行；依卡片可用寬度微調字級，確保最後一位數不會落到下一行。
-  if(isPrice){while(ctx.measureText(source).width>r.w&&size>4){size-=.25;ctx.font=`${style.fontWeight} ${size}px ${style.fontFamily}`;}}
-  const line=Number.isFinite(cssLine)?cssLine*scale:size*1.3;ctx.fillStyle=style.color;ctx.textBaseline=isHeadingTitle?'middle':'top';
-  const lines=[];if(isPrice||isHeadingTitle)lines.push(source);else if(el.matches('.launchProduct h3'))lines.push(...launchNameLines(launchDisplayName(group.items[Number(card.dataset.launchIndex)]),r.w,text=>ctx.measureText(text).width));else{let text='';for(const c of source){if(text&&ctx.measureText(text+c).width>r.w){lines.push(text);text=c;}else text+=c;}if(text||!lines.length)lines.push(text);}
-  const align=style.textAlign,headingRect=isHeadingTitle?rect(header):null;lines.forEach((part,index)=>{const width=ctx.measureText(part).width;const x=align==='center'?r.x+(r.w-width)/2:align==='right'||align==='end'?r.x+r.w-width:r.x;const y=isHeadingTitle?headingRect.y+headingRect.h/2:r.y+index*line;ctx.fillText(part,x,y);if(style.textDecorationLine.includes('line-through')){ctx.beginPath();ctx.moveTo(x,y+size*.5);ctx.lineTo(x+width,y+size*.5);ctx.strokeStyle=style.color;ctx.stroke();}});
+  const fontScale=1080/paper.offsetWidth,walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),range=document.createRange();
+  let node;
+  while(node=walker.nextNode()){
+   if(!node.data.trim())continue;
+   const style=getComputedStyle(node.parentElement);if(style.display==='none'||style.visibility==='hidden')continue;
+   const size=parseFloat(style.fontSize)*fontScale;ctx.font=`${style.fontWeight} ${size}px ${style.fontFamily}`;
+   ctx.fillStyle=style.color;ctx.textBaseline='alphabetic';ctx.textAlign='left';
+   if('letterSpacing' in ctx)ctx.letterSpacing=((parseFloat(style.letterSpacing)||0)*fontScale)+'px';
+   let from=0,lastTop=null;
+   const paint=to=>{
+    if(to<=from)return;
+    range.setStart(node,from);range.setEnd(node,to);
+    const box=range.getBoundingClientRect(),text=node.data.slice(from,to);
+    if(!box.width||!box.height)return;
+    const metrics=ctx.measureText(text),ascent=metrics.fontBoundingBoxAscent??size*.8,descent=metrics.fontBoundingBoxDescent??size*.2;
+    const x=(box.left-base.left)*scale,y=(box.top-base.top)*scale+(box.height*scale-ascent-descent)/2+ascent;
+    ctx.fillText(text,x,y);
+   };
+   for(let index=0;index<node.length;index++){
+    range.setStart(node,index);range.setEnd(node,index+1);
+    const box=range.getBoundingClientRect();
+    if(lastTop!==null&&Math.abs(box.top-lastTop)>1){paint(index);from=index;}
+    lastTop=box.top;
+   }
+   paint(node.length);
+  }
+  if('letterSpacing' in ctx)ctx.letterSpacing='0px';
  }
+
  const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)drawText(title);
  // 僅繪製畫布上的資料欄位。價格只畫 <b>，避免外層 <p> 再畫一次而出現黑色重影。
- paper.querySelectorAll('.launchProduct h3,.launchProduct b,.launchProduct .launchFormat,.launchProduct .launchSize,.launchFooter').forEach(drawText);
+ paper.querySelectorAll('.launchProduct h3,.launchProduct b,.launchProduct .launchDraftPrice span,.launchProduct .launchFormat,.launchProduct .launchSize,.launchFooter').forEach(drawText);
  const more=paper.querySelector('.launchMore');if(more){const r=drawBox(more);ctx.fillStyle=getComputedStyle(more).color;ctx.textAlign='center';ctx.textBaseline='middle';let fontSize=parseFloat(getComputedStyle(more).fontSize)*scale;ctx.font=`700 ${fontSize}px sans-serif`;const lines=['到最新開團','看看更多','酷東西！'];const maxWidth=Math.max(...lines.map(t=>ctx.measureText(t).width));fontSize*=Math.min(1,(r.w*.85)/maxWidth);ctx.font=`700 ${fontSize}px sans-serif`;lines.forEach((text,i)=>ctx.fillText(text,r.x+r.w/2,r.y+r.h/2+(i-1)*fontSize*1.55));ctx.textAlign='left';} 
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('輸出失敗');return launchPNGDpi(await blob.arrayBuffer());
 }
@@ -8060,5 +8093,13 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 }
 </style>
 
+
+<style id="launch-text-spacing">
+.launchProduct h3{line-height:1.28;margin:.35em 0 .2em}
+.launchProduct p:not(.launchCode):not(.launchDraftPrice){line-height:1.3;margin:.18em 0 0}
+.launchProduct .launchSize,.launchProduct .launchFormat{white-space:nowrap;word-break:normal;overflow-wrap:normal;min-width:0;line-height:1.3}
+.launchProduct .launchFormat:empty{display:none!important}
+.launchFooter{white-space:nowrap;word-break:normal;overflow-wrap:normal;line-height:1.3;overflow:hidden}
+</style>
 </body>
 </html>
