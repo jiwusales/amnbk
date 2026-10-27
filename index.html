@@ -2497,11 +2497,12 @@ function launchInferProductKind(item,catalog){
  // Ignore character-only fragments and require agreement across categories.
  const role=comparable(item.role),coreTarget=role?target.split(role).join(''):target;
  const classified=catalog.filter(row=>row.kind&&row.kind!=='未分類'&&row.name).map(row=>({kind:row.kind,name:comparable(row.name)}));
- for(let length=Math.min(8,coreTarget.length);length>=3;length--){
+ const genericCores=new Set(['限定','聯名','系列','新品','款式','套組','迷你','立體','透明','可愛','春日','星空','特典','商品','周邊','造型','角色','圖案','版本','一代','二代','三代']);
+ for(let length=Math.min(8,coreTarget.length);length>=2;length--){
   const candidates=new Set();
   for(let offset=0;offset<=Math.min(coreTarget.length-length,120);offset++){
    const core=coreTarget.slice(offset,offset+length);
-   if(role&&role.includes(core))continue;
+   if(genericCores.has(core)||(role&&role.includes(core)))continue;
    const rows=classified.filter(row=>row.name.includes(core));
    const kind=unique(rows);
    if(kind&&new Set(rows.map(row=>row.name)).size>=2)candidates.add(kind);
