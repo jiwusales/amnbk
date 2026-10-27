@@ -3322,11 +3322,27 @@ const launchExportLocalImages=new Map([
 function launchExportImageSource(url){
  try{const u=new URL(url,document.baseURI),local=launchExportLocalImages.get(u.origin+u.pathname);return local?new URL(local,document.baseURI).href:u.href;}catch(_){return url;}
 }
-async function launchFetchExportImage(url){
- // 先使用後台其他讀取功能採用的 JSONP，避免 Safari 收到非 JSON 回應。
- let firstError;
- try{const data=await api('launchImageProxy',{url});if(typeof data?.dataUrl==='string'&&data.dataUrl.startsWith('data:image/'))return data;firstError=new Error('圖片代理未回傳圖片');}catch(error){firstError=error;}
- try{const data=await launchPost('launchImageProxy',{url});if(typeof data?.dataUrl!=='string'||!data.dataUrl.startsWith('data:image/'))throw new Error('圖片代理未回傳圖片');return data;}catch(_){throw new Error('圖片轉抓失敗：'+firstError.message);}
+let launchImageProxyTail=Promise.resolve();
+const launchImageProxyRequests=new Map();
+function launchFetchExportImage(url){
+ if(launchImageProxyRequests.has(url))return launchImageProxyRequests.get(url);
+ // Relay has limited shared capacity; queue proxy reads while direct image loads stay parallel.
+ const pending=launchImageProxyTail.then(async()=>{
+  for(let attempt=0;attempt<4;attempt++){
+   try{
+    const data=await api('launchImageProxy',{url});
+    if(typeof data?.dataUrl!=='string'||!data.dataUrl.startsWith('data:image/'))throw new Error('圖片代理未回傳圖片');
+    return data;
+   }catch(error){
+    const message=String(error?.message||error),temporary=/Relay is busy|too many requests|\b(?:429|502|503|504)\b|伺服器連線暫時失敗|AbortError|Failed to fetch|NetworkError|Load failed|逾時/i.test(message);
+    if(!temporary||attempt===3)throw new Error('圖片轉抓失敗：'+message);
+    await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));
+   }
+  }
+ }).finally(()=>{if(launchImageProxyRequests.get(url)===pending)launchImageProxyRequests.delete(url);});
+ launchImageProxyRequests.set(url,pending);
+ launchImageProxyTail=pending.catch(()=>{});
+ return pending;
 }
 const launchExportImageCache=new Map();
 function launchLoadImage(url){
