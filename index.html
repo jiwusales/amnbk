@@ -1705,6 +1705,7 @@ function launchSetGroupText(field,value){
  if(!launchCurrent||!['name','adName','tags','shortUrl','storefrontNote'].includes(field))return;
  let text=String(value||'').trim();
  if(field==='shortUrl'&&text){if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(text))text='https://'+text;if(!launchSafeURL(text)){launchCompletionToast('短網址格式不正確，請填 http/https 網址',true);return;}}
+ if(field==='adName'){launchSetTitle(text);return;}
  launchPushUndo();launchCurrent[field]=text;launchMark();
  if(field==='name')launchRefreshDateFields();
 }
@@ -1937,7 +1938,8 @@ async function launchDownloadGroupImage(index,button,mode='download'){
  let exporting=null,imagePromise,copied=false;launchExportBusy=true;launchBusy=true;button.disabled=true;button.textContent='☺︎';
  try{
   imagePromise=(async()=>{
-   const result=await api('launchGet',{id:g.id,status:'最新開團'});
+   await launchSaveTail;
+   const result=previous.group?.id===g.id&&previous.group.status==='最新開團'&&!previous.group.summary?{group:structuredClone(previous.group)}:await api('launchGet',{id:g.id,status:'最新開團'});
    if(!dialog?.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
    if(!result.group)throw Error('找不到此團');
    exporting=result.group;launchCurrent=exporting;launchPanelIndex=0;launchCanvasEditing=false;launchPNGPrepared=null;
@@ -2160,7 +2162,7 @@ function launchGroupTitle(name,canvas=true){
  return text;
 }
 
-function launchCanvasTitle(g){return String(g?.canvasTitle||'').trim()||String(g?.name||'').trim();}
+function launchCanvasTitle(g){return String(g?.canvasTitle||'').trim()||String(g?.adName||'').trim()||String(g?.name||'').trim();}
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchAddPanel(){
  if(!launchCurrent||launchBusy)return;
@@ -2299,8 +2301,18 @@ function launchAdsSubmit(event){
  for(let i=0;i<count;i++){const name=String(form.get(`name_${i}`)||'').trim(),image=String(form.get(`image_${i}`)||'').trim();if(!name||!launchSafeURL(image)){alert('請填寫有效的團名與首圖網址');return;}ads.push({name,image});}
  launchPushUndo();launchCurrent.ads=ads;launchMark();document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
 }
+
+function launchAdTitleDialog(){
+ if(!launchCurrent||launchBusy)return;
+ launchDialog(`<form onsubmit="launchAdTitleSubmit(event)"><h2>廣告標題</h2><p class="launchHelp">圖片標題會一起修改，留空使用正式團名。</p><label>標題<input name="adTitle" aria-label="廣告標題" value="${esc(launchCurrent.adName||launchCanvasTitle(launchCurrent))}"></label><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">SAVE</button></div></form>`);
+}
+function launchAdTitleSubmit(event){
+ event.preventDefault();launchSetTitle(String(new FormData(event.target).get('adTitle')||''));
+ document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
+}
+
 function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCanvasTitle(launchCurrent))}" placeholder="留空使用正式團名" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
-function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')){launchPushUndo();launchCurrent.canvasTitle=title;const name=launchCanvasTitle(launchCurrent);launchCurrent.adName=name;launchCurrent.ads=(launchCurrent.ads||[]).map(ad=>({...ad,name}));launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
+function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')||String(launchCurrent.adName||'')!==(title||launchCurrent.name)){launchPushUndo();launchCurrent.canvasTitle=title;const name=launchCanvasTitle(launchCurrent);launchCurrent.adName=name;launchCurrent.ads=(launchCurrent.ads||[]).map(ad=>({...ad,name}));launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
 function launchEditFooter(){
  const current=launchFooterText(launchCurrent);
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
@@ -2964,7 +2976,7 @@ function launchRenderProductList(){
  document.getElementById('launchOffscreenExport')?.remove();
  const g=launchCurrent;launchNormalizeGroupURLs(g);
  const statusAction=g.status==='最新開團'?`<button class="btn launchCloseButton" type="button" onclick="launchMove('已收單')">下架</button>`:`<button class="btn" type="button" onclick="launchMove('最新開團')">上架</button>`;
- document.getElementById('app').innerHTML=`<section class="launchPage launchProductListPage ${launchBusy?'launchBusy':''}"><div class="launchTools launchProductListActions">${statusAction}${g.status==='最新開團'?'<button class="btn light" type="button" data-launch-card-columns onclick="launchCardColumns()">卡片</button>':''}<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchRequestRefresh()">↻</button><button class="btn ${g.status==='最新開團'?'launchLatestInlineSave':''}" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button></div><div class="launchAllHeading"><label class="launchSelectAll"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>${esc(g.name)}（${g.items.length}）</h2></div>${launchAvailabilityToolbar()}${launchListRows()}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
+ document.getElementById('app').innerHTML=`<section class="launchPage launchProductListPage ${launchBusy?'launchBusy':''}"><div class="launchTools launchProductListActions">${statusAction}${g.status==='最新開團'?'<button class="btn light" type="button" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" type="button" onclick="launchAdTitleDialog()">廣告標題</button><button class="btn light" type="button" onclick="launchExport(\'download\')">下載圖片</button><button class="btn light" type="button" onclick="launchExport(\'copy\')">複製圖片</button>':''}<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchRequestRefresh()">↻</button><button class="btn ${g.status==='最新開團'?'launchLatestInlineSave':''}" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button></div><div class="launchAllHeading"><label class="launchSelectAll"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>${esc(g.name)}（${g.items.length}）</h2></div>${launchAvailabilityToolbar()}${launchListRows()}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
  launchUpdateSelectAll();void launchLoadProductKinds(document.querySelector('.launchProductListPage'));launchLoadPriceHistory();
 }
 function launchDraftRows(){return `<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}" onclick="launchCanvasRowClick(event,${i})"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${launchCanvasContains(p)?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent">${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<span class="launchAllEdit">${launchSafeURL(p.images?.[0])?`<img class="launchAllProductThumb" src="${launchImage(p.images[0])}" alt="" width="36" height="36" decoding="async" onerror="this.hidden=true">`:'<span class="launchAllProductThumb launchAllProductThumbBlank" aria-hidden="true"></span>'}<button class="launchAllProductName" type="button" style="border:0;background:none;color:inherit;font:inherit;text-align:left;padding:0;cursor:pointer" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button></span>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`;}
@@ -3354,7 +3366,7 @@ async function launchExport(mode){
   launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
  }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
- if(mode!=='download')document.getElementById('launchDialog').close();
+ if(mode!=='download')document.getElementById('launchDialog')?.close();
  const button=document.querySelector('.launchExportHead .btn'),label=button?.textContent;
  launchExportBusy=true;
  if(button){button.disabled=true;button.textContent='圖片製作中…';}
