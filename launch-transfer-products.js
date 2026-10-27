@@ -11,10 +11,10 @@ async function launchOpenTransferProducts(){
  dialog.addEventListener('cancel',event=>{event.preventDefault();if(!state.busy)launchCloseTransferProducts();});
  dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom){event.stopImmediatePropagation();if(!state.busy)launchCloseTransferProducts();}},true);
  try{
-  const lists=await Promise.all(['最新開團','尚未上架','已收單'].map(status=>api('launchList',{status})));
+  const lists=await Promise.all(['最新開團','尚未上架'].map(status=>api('launchList',{status})));
   if(launchTransferState!==state||!form.isConnected)return;
-  state.groups=lists.flatMap(list=>list.groups||[]).filter(group=>group.id!==state.sourceId);
-  form.elements.target.innerHTML='<option value="">請選擇現有團</option>'+state.groups.map(group=>`<option value="${esc(group.id)}">${esc(group.name)}（${esc(group.status)}・${Number(group.itemCount)||0} 件）</option>`).join('')+'<option value="__new__">＋ 新增一個團</option>';
+  state.groups=lists.flatMap(list=>list.groups||[]).filter(group=>group.id!==state.sourceId&&['最新開團','尚未上架'].includes(group.status));
+  form.elements.target.innerHTML='<option value="__new__">＋ 新增一個團</option><option value="" selected disabled>請選擇現有團</option>'+state.groups.map(group=>`<option value="${esc(group.id)}">${esc(group.name)}（${esc(group.status)}・${Number(group.itemCount)||0} 件）</option>`).join('');
   form.elements.target.disabled=false;form.querySelector('[type="submit"]').disabled=false;
  }catch(error){form.querySelector('[data-transfer-error]').textContent='團名讀取失敗：'+error.message+'，請取消後重試。';}
 }
@@ -39,6 +39,7 @@ async function launchSubmitTransferProducts(event){
    if(launchCurrent?.id!==state.sourceId)throw Error('已切換團，請重新選擇商品');
    const target=state.groups.find(group=>group.id===targetId);
    const targetGroup=targetId==='__new__'?null:(await api('launchGet',{id:targetId,status:target?.status})).group;
+   if(targetId!=='__new__'&&!['最新開團','尚未上架'].includes(targetGroup?.status))throw Error('目標團已收單，請重新選擇');
    if(targetId!=='__new__'&&!targetGroup?.revision)throw Error('目標團讀取失敗，請重新選擇');
    state.request={sourceId:state.sourceId,sourceRevision:launchCurrent.revision,itemIds:state.itemIds,requestId:launchId(),...(targetId==='__new__'?{newGroup:{id:launchId(),name}}:{targetId,targetRevision:targetGroup.revision})};
   }
