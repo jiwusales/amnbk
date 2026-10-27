@@ -1407,6 +1407,12 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .launchPanelOrderLabel{flex:1;min-width:0;line-height:1.5}.launchPanelOrderLabel small{display:block;color:#888}
 .launchPanelOrderActions{display:flex;gap:8px;flex:none}.launchPanelOrderActions .btn{width:44px;min-height:44px;padding:8px}
 @media(max-width:450px){.launchPanelOrderRow{gap:8px;padding:10px}.launchPanelOrderPreview{flex-basis:56px;width:56px}.launchPanelOrderActions{gap:6px}}
+
+.launchPanelDragHandle{flex:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:8px;background:#eee;color:#777;font-size:22px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.launchPanelDragHandle:active{cursor:grabbing}
+.launchPanelOrderRow.launchPanelDragging{opacity:.5;border-style:dashed}
+.launchPanelOrderRow.launchPanelDropTarget{outline:2px solid #A68C73;outline-offset:1px;background:#f3ede6}
+.launchPanelOrderPreview{user-select:none;-webkit-user-select:none}
 </style>
 </head>
 <body>
@@ -2152,7 +2158,7 @@ function launchSelectPanel(index){launchPanelIndex=index;launchRenderEditor();}
 
 function launchPanelOrder(){
  if(!launchCurrent||launchCurrent.status!=='尚未上架'||launchBusy||!Array.isArray(launchCurrent.panels)||launchCurrent.panels.length<2)return;
- launchDialog(`<h2>畫布排序</h2><p class="launchPanelOrderHelp">按 ↑／↓ 交換整張畫布的位置，Banner、商品選擇與版面設定會一起移動。完成後按 SAVE 儲存。</p><div class="launchPanelOrderList" role="list" aria-live="polite">${launchCurrent.panels.map((panel,index)=>{const count=launchCurrent.items.filter(item=>launchCanvasContains(item,index)).length;return `<div class="launchPanelOrderRow" role="listitem">${panel.image?`<img class="launchPanelOrderPreview" src="${launchImage(panel.image)}" alt="畫布 ${index+1} Banner">`:'<span class="launchPanelOrderPreview">無首圖</span>'}<div class="launchPanelOrderLabel"><strong>畫布 ${index+1}</strong><small>${count} 件商品${index===launchPanelIndex?' · 目前畫布':''}</small></div><div class="launchPanelOrderActions"><button type="button" class="btn light" aria-label="畫布 ${index+1} 上移" onclick="launchSwapPanels(${index},${index-1})" ${index===0?'disabled':''}>↑</button><button type="button" class="btn light" aria-label="畫布 ${index+1} 下移" onclick="launchSwapPanels(${index},${index+1})" ${index===launchCurrent.panels.length-1?'disabled':''}>↓</button></div></div>`;}).join('')}</div><div class="launchTools"><button type="button" class="btn" onclick="document.getElementById('launchDialog').close()">完成</button></div>`);
+ launchDialog(`<h2>畫布排序</h2><p class="launchPanelOrderHelp">拖曳左側 ☰ 到另一張畫布即可交換位置，手機也可按住拖曳。Banner、商品與設定會一起移動，完成後按 SAVE 儲存。</p><div class="launchPanelOrderList" role="list" aria-live="polite">${launchCurrent.panels.map((panel,index)=>{const count=launchCurrent.items.filter(item=>launchCanvasContains(item,index)).length;return `<div class="launchPanelOrderRow" role="listitem" data-launch-panel-order="${index}"><button type="button" class="launchPanelDragHandle" aria-label="拖曳交換畫布 ${index+1}" title="拖曳交換；也可用鍵盤上下鍵交換" onpointerdown="launchPanelDrag(event,${index})" onkeydown="launchPanelDragKey(event,${index})">☰</button>${panel.image?`<img class="launchPanelOrderPreview" draggable="false" src="${launchImage(panel.image)}" alt="畫布 ${index+1} Banner">`:'<span class="launchPanelOrderPreview">無首圖</span>'}<div class="launchPanelOrderLabel"><strong>畫布 ${index+1}</strong><small>${count} 件商品${index===launchPanelIndex?' · 目前畫布':''}</small></div></div>`;}).join('')}</div><div class="launchTools"><button type="button" class="btn" onclick="document.getElementById('launchDialog').close()">完成</button></div>`);
 }
 function launchSwapPanels(from,to){
  const g=launchCurrent;
@@ -2163,7 +2169,45 @@ function launchSwapPanels(from,to){
  g.images=g.panels.map(panel=>panel.image||'').filter(Boolean);
  if(launchPanelIndex===from)launchPanelIndex=to;else if(launchPanelIndex===to)launchPanelIndex=from;
  launchMark();launchRenderEditor();launchPanelOrder();
- const focus=document.querySelector('#launchDialog [aria-label="畫布 '+(to+1)+(to>from?' 上移':' 下移')+'"]');focus?.focus();
+ document.querySelector('#launchDialog [data-launch-panel-order="'+to+'"] .launchPanelDragHandle')?.focus();
+}
+
+function launchPanelDragKey(event,index){
+ if(!['ArrowUp','ArrowDown'].includes(event.key))return;
+ event.preventDefault();event.stopPropagation();launchSwapPanels(index,index+(event.key==='ArrowUp'?-1:1));
+}
+function launchPanelDrag(event,index){
+ if(!launchCurrent||launchCurrent.status!=='尚未上架'||launchBusy||event.button!==0||!event.isPrimary)return;
+ event.preventDefault();event.stopPropagation();
+ const handle=event.currentTarget,row=handle.closest('[data-launch-panel-order]'),dialog=handle.closest('dialog'),group=launchCurrent,pointer=event.pointerId,startY=event.clientY;
+ let x=event.clientX,y=startY,target=index,moved=false,finished=false,frame;
+ const locate=()=>{
+  const box=dialog.getBoundingClientRect(),rows=[...dialog.querySelectorAll('[data-launch-panel-order]')];
+  target=index;
+  if(x>=box.left&&x<=box.right&&y>=box.top&&y<=box.bottom){
+   let distance=Infinity;rows.forEach(el=>{const r=el.getBoundingClientRect(),d=Math.abs(y-(r.top+r.bottom)/2);if(d<distance){distance=d;target=Number(el.dataset.launchPanelOrder);}});
+  }
+  rows.forEach(el=>el.classList.toggle('launchPanelDropTarget',moved&&target!==index&&Number(el.dataset.launchPanelOrder)===target));
+ };
+ const tick=()=>{
+  if(!dialog.isConnected||!dialog.open||launchCurrent!==group){finish(true);return;}
+  const box=dialog.getBoundingClientRect();
+  if(moved&&x>=box.left&&x<=box.right&&y>=box.top&&y<=box.bottom){
+   if(y<box.top+65)dialog.scrollTop-=12;else if(y>box.bottom-65)dialog.scrollTop+=12;
+  }
+  locate();frame=requestAnimationFrame(tick);
+ };
+ const move=ev=>{if(ev.pointerId!==pointer)return;x=ev.clientX;y=ev.clientY;if(Math.abs(y-startY)>6)moved=true;row.classList.toggle('launchPanelDragging',moved);locate();};
+ const finish=cancel=>{
+  if(finished)return;finished=true;cancelAnimationFrame(frame);
+  handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',up);handle.removeEventListener('pointercancel',abort);handle.removeEventListener('lostpointercapture',abort);dialog.removeEventListener('close',abort);window.removeEventListener('keydown',key,true);
+  if(handle.hasPointerCapture(pointer))handle.releasePointerCapture(pointer);
+  row.classList.remove('launchPanelDragging');dialog.querySelectorAll('.launchPanelDropTarget').forEach(el=>el.classList.remove('launchPanelDropTarget'));
+  if(!cancel&&moved&&launchCurrent===group&&dialog.isConnected&&dialog.open&&target!==index)launchSwapPanels(index,target);
+ };
+ const up=ev=>{if(ev.pointerId!==pointer)return;x=ev.clientX;y=ev.clientY;locate();finish(false);};
+ const abort=()=>finish(true),key=ev=>{if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();finish(true);}};
+ handle.setPointerCapture(pointer);handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',up);handle.addEventListener('pointercancel',abort);handle.addEventListener('lostpointercapture',abort);dialog.addEventListener('close',abort);window.addEventListener('keydown',key,true);frame=requestAnimationFrame(tick);
 }
 
 function launchBannerSettings(panel){return {zoom:Math.max(1,Math.min(3,Number(panel?.imageScale)||1)),x:Math.max(0,Math.min(100,Number(panel?.imageX)===Number(panel?.imageX)?Number(panel.imageX):50)),y:Math.max(0,Math.min(100,Number(panel?.imageY)===Number(panel?.imageY)?Number(panel.imageY):50))};}
@@ -2231,7 +2275,7 @@ function launchCardColumns(){const current=launchActiveCardColumns();launchDialo
 function launchSetCardColumns(count){const panel=launchCurrent?.panels?.[launchPanelIndex];if(!panel)return;launchPushUndo();panel.cardColumns=Math.max(4,Math.min(8,Number(count)||8));launchMark();document.getElementById('launchDialog').close();launchRenderEditor();}
 function launchAds(){
  const count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=launchCurrent.ads||[];
- launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}.</span><label for="launchAdName_${i}">團名</label><input id="launchAdName_${i}" name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCurrent.name)}" required><label class="launchAdsImageLabel" for="launchAdImage_${i}">首圖</label><input id="launchAdImage_${i}" class="launchAdsImageInput" name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
+ launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}.</span><label for="launchAdName_${i}">團名</label><input id="launchAdName_${i}" name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCurrent.adName||launchCanvasTitle(launchCurrent))}" required><label class="launchAdsImageLabel" for="launchAdImage_${i}">首圖</label><input id="launchAdImage_${i}" class="launchAdsImageInput" name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
 }
 function launchAdsSubmit(event){
  event.preventDefault();const form=new FormData(event.target),count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=[];
@@ -2239,7 +2283,7 @@ function launchAdsSubmit(event){
  launchPushUndo();launchCurrent.ads=ads;launchMark();document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
 }
 function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCanvasTitle(launchCurrent))}" placeholder="留空使用正式團名" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
-function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')){launchCurrent.canvasTitle=title;launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
+function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')){launchPushUndo();launchCurrent.canvasTitle=title;const name=launchCanvasTitle(launchCurrent);launchCurrent.adName=name;launchCurrent.ads=(launchCurrent.ads||[]).map(ad=>({...ad,name}));launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
 function launchEditFooter(){
  const current=launchFooterText(launchCurrent);
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
