@@ -2066,7 +2066,8 @@ function launchSearchClosed(value){
 document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value);});
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
-function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key)other.price=value;});}
+function launchDraftOriginalPriceKey(item){const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,'').toUpperCase(),match=text.match(/^(R)?(\d+(?:\.\d+)?)(R)?$/);return match?[(match[1]||match[3])?'CNY':'JPY',Number(match[2])].join('|'):text;}
+function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item),original=launchDraftOriginalPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key&&launchDraftOriginalPriceKey(other)===original)other.price=value;});}
 function launchEditCanvasPrice(price){
  const group=launchCurrent,index=Number(price.closest('.launchProduct')?.dataset.launchIndex),item=group?.items[index];if(!item||price.querySelector('input'))return;
  const input=document.createElement('input');input.className='launchCanvasPriceInput';input.type='text';input.inputMode='decimal';input.setAttribute('aria-label','修改 '+launchDisplayName(item)+' 售價');input.value=String(item.price??'');
