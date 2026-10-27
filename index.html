@@ -2456,11 +2456,33 @@ function launchInferProductKind(item,catalog){
  ['鑰匙圈',/鑰匙圈|钥匙扣|キーホルダー/],['立牌',/立牌|アクリルスタンド/],['徽章',/徽章|缶バッジ/],
  ['吊飾',/吊飾|チャーム/],['公仔',/公仔|フィギュア/],['貼紙',/貼紙|ステッカー/],['磁鐵',/磁鐵|マグネット/],['御守',/御守/],
  ['毛巾',/毛巾|浴巾|手帕|タオル/],['頭飾',/髮箍|髮夾|髮圈|髮束|ヘア/],['飾品',/耳環|項鍊|戒指|手鍊|胸針/],
- ['服飾',/外套|毛衣|長袖|短袖|上衣|圍巾|帽子|襪子|tシャツ|polo/],
- ['文具',/資料夾|卡片組|便條|筆記本|原子筆|鉛筆|文具|クリアファイル/],['餐廚',/馬克杯|杯墊|餐盤|碗|筷子|湯匙|便當盒/],
+ ['服飾',/外套|毛衣|長袖|短袖|上衣|圍巾|帽子|襪子|tシャツ|t恤|polo|(?:^|[^a-z])t$/],
+ ['文具',/資料夾|卡片組|便利貼|便條紙|便條|筆記本|原子筆|鉛筆|文具|クリアファイル/],['餐廚',/馬克杯|杯墊|餐盤|碗|筷子|湯匙|便當盒/],
  ['3C',/手機殼|手機掛|滑鼠墊|充電|耳機/],['居家',/抱枕|收納毯|毛毯|地墊|桌墊/]
  ];
- for(const [kind,pattern] of rules)if(kinds.has(kind)&&pattern.test(name))return kind;
+ for(const [kind,pattern] of rules)if(kinds.has(kind)&&(pattern.test(name)||pattern.test(String(item.name||'').normalize('NFKC').toLowerCase().trim())))return kind;
+ // Compare product wording after explicit type rules, so a shared series name
+ // cannot make a tote bag inherit the kind of a doll in the same series.
+ const comparable=value=>normalize(value).replace(/[\p{P}\p{S}]/gu,'');
+ const target=comparable(item.name);
+ const similarity=value=>{
+  const other=comparable(value),short=Math.min(target.length,other.length),long=Math.max(target.length,other.length);
+  if(short<3)return 0;
+  if(target===other)return 1;
+  if(short/long>=0.65&&(target.includes(other)||other.includes(target)))return short/long;
+  if(short<4)return 0;
+  const grams=text=>{const counts=new Map();for(let i=0;i<text.length-1;i++){const gram=text.slice(i,i+2);counts.set(gram,(counts.get(gram)||0)+1);}return counts;};
+  const a=grams(target),b=grams(other);let overlap=0;
+  for(const [gram,count] of a)overlap+=Math.min(count,b.get(gram)||0);
+  const score=2*overlap/(target.length+other.length-2);
+  return score>=0.8?score:0;
+ };
+ const similar=catalog.filter(row=>row.kind&&row.kind!=='未分類').map(row=>({kind:row.kind,score:similarity(row.name)})).filter(row=>row.score>0).sort((a,b)=>b.score-a.score);
+ if(similar.length){
+  const best=similar[0];
+  if(similar.some(row=>row.kind!==best.kind&&best.score-row.score<0.1))return '';
+  return best.kind;
+ }
  const matches=[...kinds].filter(kind=>!['其他','生活','小物','娃'].includes(kind)&&normalize(kind).length>=2&&name.includes(normalize(kind))).sort((a,b)=>b.length-a.length);
  return matches.length&&(!matches[1]||matches[0].length>matches[1].length)?matches[0]:(name&&normalize(item.role)&&!rules.some(([,pattern])=>pattern.test(name))?'吊娃':'');
 }
