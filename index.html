@@ -2128,12 +2128,13 @@ function launchSyncDrawImages(items,preferred=[]){
 
 function launchDrawType(item){const format=launchVariantFormat(item);if(/單抽|单抽/.test(format)&&!/抱盒|BOX/i.test(format))return 'single';if(/抱盒|BOX/i.test(format)&&!/單抽|单抽/.test(format))return 'box';return '';}
 function launchDrawPair(item){
- if(!launchDrawType(item))return null;
- const name=launchDisplayName(item),items=launchCurrent.items.filter(other=>other.visible!==false&&launchDisplayName(other)===name);
+ if(!launchDrawType(item)||launchIsReference(item))return null;
+ const name=launchDisplayName(item),items=launchCurrent.items.filter(other=>other.visible!==false&&!launchIsReference(other)&&launchDisplayName(other)===name);
  const single=items.find(other=>launchDrawType(other)==='single'),box=items.find(other=>launchDrawType(other)==='box');
  return single&&box?{single,box}:null;
 }
 function launchCanvasPriceHtml(item){
+ if(launchIsReference(item))return '參考圖示';
  const pair=launchDrawPair(item);if(!pair)return esc(launchSaleText(item));
  const part=(other,label,prefix)=>`<span class="launchCanvasPricePart" data-launch-price-index="${launchCurrent.items.indexOf(other)}" data-launch-price-label="${label}" role="button" tabindex="0" aria-label="修改 ${esc(launchDisplayName(other))} ${label} 售價" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();event.stopPropagation();launchEditCanvasPrice(this)}">${prefix}${esc(String(other.price??'').replace(/^\$/,''))}</span>`;
  return part(pair.single,'單抽','$')+'～'+part(pair.box,'抱盒','');
@@ -2301,8 +2302,9 @@ function launchLoadPriceHistory(){
  },200);
 }
 
-function launchSaleValue(item){const price=launchNumber(item?.price);if(price!=null&&price>0)return Math.ceil(price);if(launchIsRMB(item))return null;const original=launchNumber(item?.original);return original!=null&&original>0?Math.ceil(original*.3):null;}
-function launchSaleText(item){const name=launchDisplayName(item),values=launchCurrent.items.filter(x=>launchDisplayName(x)===name).map(launchSaleValue).filter(x=>x!=null);if(!values.length)return launchIsRMB(item)?'待輸入':'$';const low=Math.min(...values),high=Math.max(...values);return '$'+(low===high?low:`${low}~${high}`);}
+function launchIsReference(item){return /^0+(?:\.0+)?$/.test(String(item?.price??'').trim());}
+function launchSaleValue(item){if(launchIsReference(item))return null;const price=launchNumber(item?.price);if(price!=null&&price>0)return Math.ceil(price);if(launchIsRMB(item))return null;const original=launchNumber(item?.original);return original!=null&&original>0?Math.ceil(original*.3):null;}
+function launchSaleText(item){if(launchIsReference(item))return '參考圖示';const name=launchDisplayName(item),values=launchCurrent.items.filter(x=>launchDisplayName(x)===name).map(launchSaleValue).filter(x=>x!=null);if(!values.length)return launchIsRMB(item)?'待輸入':'$';const low=Math.min(...values),high=Math.max(...values);return '$'+(low===high?low:`${low}~${high}`);}
 function launchApplyCardPresentation(){
  const cardsBox=document.querySelector('.launchCards');if(!cardsBox||!launchCurrent)return;const cols=launchActiveCardColumns();cardsBox.style.setProperty('--launch-cols',cols);cardsBox.style.setProperty('--launch-card-scale',8/cols);
  document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index];card.style.display=Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)?(launchCanvasContains(item)?'':'none'):(item?.visible===false?'none':'');const remove=card.querySelector('.launchDeleteProduct');if(remove)remove.textContent='✖';card.querySelector('.launchResize')?.remove();const price=card.querySelector('b');if(price){price.innerHTML=launchCanvasPriceHtml(item);price.classList.toggle('launchPriceEdit',!launchDrawPair(item));}const size=card.querySelector('.launchSize'),colors=launchProductColors(item);if(size)size.innerHTML=colors.length?`<span class="launchColorSwatches" aria-label="${esc(colors.join('、'))}">${colors.map(color=>`<i class="launchColorSwatch" style="background-color:${color}"></i>`).join('')}</span>`:esc(launchCardSize(launchProductSpec(item).size));const format=card.querySelector('.launchFormat');if(format)format.textContent=/單抽|单抽|抱盒|BOX/i.test(launchVariantFormat(item))?'':launchProductSpec(item).format;});
