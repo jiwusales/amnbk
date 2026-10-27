@@ -2493,6 +2493,21 @@ function launchInferProductKind(item,catalog){
   if(similar.some(row=>row.kind!==best.kind&&best.score-row.score<0.1))return '';
   return best.kind;
  }
+ // Learn shared product wording from multiple distinct classified names.
+ // Ignore character-only fragments and require agreement across categories.
+ const role=comparable(item.role),coreTarget=role?target.split(role).join(''):target;
+ const classified=catalog.filter(row=>row.kind&&row.kind!=='未分類'&&row.name).map(row=>({kind:row.kind,name:comparable(row.name)}));
+ for(let length=Math.min(8,coreTarget.length);length>=3;length--){
+  const candidates=new Set();
+  for(let offset=0;offset<=Math.min(coreTarget.length-length,120);offset++){
+   const core=coreTarget.slice(offset,offset+length);
+   if(role&&role.includes(core))continue;
+   const rows=classified.filter(row=>row.name.includes(core));
+   const kind=unique(rows);
+   if(kind&&new Set(rows.map(row=>row.name)).size>=2)candidates.add(kind);
+  }
+  if(candidates.size)return candidates.size===1?[...candidates][0]:'';
+ }
  const matches=[...kinds].filter(kind=>!['其他','生活','小物','娃'].includes(kind)&&normalize(kind).length>=2&&name.includes(normalize(kind))).sort((a,b)=>b.length-a.length);
  return matches.length&&(!matches[1]||matches[0].length>matches[1].length)?matches[0]:(name&&normalize(item.role)&&!rules.some(([,pattern])=>pattern.test(name))?'吊娃':'');
 }
