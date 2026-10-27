@@ -1941,7 +1941,7 @@ async function launchCopyGroupPost(index,type,button){
 }
 async function launchDownloadGroupImage(index,button,mode='download',panelIndex=0){
  const g=launchURLGroups[index];if(!g||launchExportBusy||launchBusy)return;
- const copying=mode==='copy';
+ const copying=mode==='copy',allPanels=!copying&&panelIndex===null;
  if(copying&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){launchCompletionToast('此瀏覽器不支援複製圖片，請改用下載圖片。',true);return;}
  const dialog=document.getElementById('launchDialog'),label=button.textContent;
  const previous={group:launchCurrent,panel:launchPanelIndex,canvas:launchCanvasEditing,dirty:launchDirty};
@@ -1953,7 +1953,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
    if(!dialog?.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
    if(!result.group)throw Error('找不到此團');
    document.getElementById('launchOffscreenExport')?.remove();
-   exporting=result.group;if(!Number.isInteger(panelIndex)||panelIndex<0||panelIndex>=Math.max(1,exporting.panels?.length||0))throw Error('畫布已變更，請重新選擇');launchCurrent=exporting;launchPanelIndex=panelIndex;launchCanvasEditing=false;launchPNGPrepared=null;
+   exporting=result.group;if(allPanels)panelIndex=0;if(!Number.isInteger(panelIndex)||panelIndex<0||panelIndex>=Math.max(1,exporting.panels?.length||0))throw Error('畫布已變更，請重新選擇');launchCurrent=exporting;launchPanelIndex=panelIndex;launchCanvasEditing=false;launchPNGPrepared=null;
    if(button.isConnected)button.textContent='☺︎';
    return launchGetPNG();
   })();
@@ -1963,8 +1963,15 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
    await navigator.clipboard.write([new ClipboardItem({'image/png':imagePromise})]);
    copied=true;launchCompletionToast('✅ '+g.name);
   }else{
-   const blob=await imagePromise;launchDownloadPNG(blob,(g.name||'開團')+'.png');
-   launchCompletionToast('已下載：'+g.name);
+   const blobs=[await imagePromise],count=allPanels?Math.max(1,exporting.panels?.length||0):1;
+   for(let i=1;i<count;i++){
+    if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
+    clearTimeout(launchPNGTimer);document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
+    launchPanelIndex=i;blobs.push(await launchGetPNG());
+   }
+   if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
+   blobs.forEach((blob,i)=>launchDownloadPNG(blob,(g.name||'開團')+(count>1?'_畫布'+(i+1):'')+'.png'));
+   launchCompletionToast('已下載：'+g.name+(count>1?'（共 '+count+' 張畫布）':''));
   }
  }catch(error){launchCompletionToast(copying&&error.name==='NotAllowedError'?'無法複製圖片，請允許剪貼簿權限後重試，或使用下載圖片。':error.message||'圖片輸出失敗',true);}
  finally{
@@ -2337,6 +2344,7 @@ function launchSelectExportPanel(mode){
 function launchExportSelectedPanel(mode,index){if(!launchCurrent?.panels?.[index])return;document.getElementById('launchDialog')?.close();launchPanelIndex=index;launchRenderEditor();launchExport(mode);}
 async function launchChooseGroupImage(index,mode,button){
  const g=launchURLGroups[index];if(!g||launchBusy)return;
+ if(mode==='download'&&button)return launchDownloadGroupImage(index,button,mode,null);
  if(launchGroupImagePanelCount(g)===1&&button)return launchDownloadGroupImage(index,button,mode,0);
  launchDialog('<h2>選擇畫布</h2><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button>');const dialog=document.getElementById('launchDialog');
  try{await launchSaveTail;const result=launchCurrent?.id===g.id&&!launchCurrent.summary?{group:structuredClone(launchCurrent)}:await api('launchGet',{id:g.id,status:'最新開團'});if(dialog!==document.getElementById('launchDialog')||!dialog.open)return;if(!result.group)throw Error('找不到此團');const group=result.group,panels=group.panels?.length?group.panels:[{}];
