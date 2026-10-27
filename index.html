@@ -2001,7 +2001,7 @@ async function launchLoadGroup(id,ticket=++launchLoad){
   if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;
   if(launchDirty||launchPendingSaves)throw new Error('背景儲存尚未完成，請稍候按重試');
   if(!detail.group)throw new Error('找不到此團，請返回清單重新載入');
-  launchCurrent=detail.group;saveBackendSnapshot('launchGroup_'+id,detail.group);
+  launchCurrent=launchPreserveEmptyPanels(detail.group);saveBackendSnapshot('launchGroup_'+id,detail.group);
   launchPanelIndex=0;launchUndoStack=[];launchStatus=launchCurrent.status;
   sessionStorage.setItem(LAUNCH_STATUS_KEY,launchStatus);launchRenderEditor();
  }catch(e){
@@ -2206,7 +2206,7 @@ function launchEditFooter(){
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
 }
 function launchBack(){if(launchBusy)return;if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
-async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=d.group;saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=launchPreserveEmptyPanels(d.group);saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus'].includes(key)?undefined:value);}
@@ -2217,9 +2217,17 @@ function launchCompletionToast(text,error=false){
  toast.textContent=text;toast.classList.toggle('isError',error);toast.hidden=false;
  clearTimeout(launchToastTimer);launchToastTimer=setTimeout(()=>toast.hidden=true,error?5000:2000);
 }
+function launchPreserveEmptyPanels(group){
+ if(!group)return group;
+ if(!Array.isArray(group.panels))group.panels=[];
+ if(!group.panels.length)group.panels=[{image:'',mainColor:group.mainColor||'#617AA6'}];
+ group.panels=group.panels.map(panel=>panel&&typeof panel==='object'?panel:{image:'',mainColor:group.mainColor||'#617AA6'});
+ return group;
+}
 function launchSaveClick(options={}){
  if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  launchNormalizeGroupURLs(launchCurrent);
+ launchPreserveEmptyPanels(launchCurrent);
  const snapshot=structuredClone(launchCurrent),id=snapshot.id;
  const signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
