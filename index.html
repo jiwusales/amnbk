@@ -1705,7 +1705,7 @@ function launchSetGroupText(field,value){
  if(!launchCurrent||!['name','adName','tags','shortUrl','storefrontNote'].includes(field))return;
  let text=String(value||'').trim();
  if(field==='shortUrl'&&text){if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(text))text='https://'+text;if(!launchSafeURL(text)){launchCompletionToast('短網址格式不正確，請填 http/https 網址',true);return;}}
- if(field==='adName'){launchSetTitle(text);return;}
+ if(field==='adName'){launchSetTitle(text,0);return;}
  launchPushUndo();launchCurrent[field]=text;launchMark();
  if(field==='name')launchRefreshDateFields();
 }
@@ -1915,7 +1915,7 @@ function launchGroupURLs(){
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
  const opened=new Set([...list.querySelectorAll('details[open]')].map(node=>node.dataset.groupIndex));
- list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}（${launchExportProductCount(g)}）</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchDownloadGroupImage(${i},this)">下載</button><button class="btn light launchCopyImage" type="button" onclick="launchDownloadGroupImage(${i},this,'copy')">複製</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
+ list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}（${launchExportProductCount(g)}）</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchChooseGroupImage(${i},'download')">下載</button><button class="btn light launchCopyImage" type="button" onclick="launchChooseGroupImage(${i},'copy')">複製</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
 async function launchCopyGroupPost(index,type,button){
  const g=launchURLGroups[index];if(!g?.postReady)return;
@@ -1929,7 +1929,7 @@ async function launchCopyGroupPost(index,type,button){
   message.textContent='✅ '+g.name+'／'+({line:'賴群',community:'社團',fb:'FB',ig:'IG'}[type]);
  }catch(_){message.textContent='無法複製，請允許剪貼簿權限後重試。';}
 }
-async function launchDownloadGroupImage(index,button,mode='download'){
+async function launchDownloadGroupImage(index,button,mode='download',panelIndex=0){
  const g=launchURLGroups[index];if(!g||launchExportBusy||launchBusy)return;
  const copying=mode==='copy';
  if(copying&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){launchCompletionToast('此瀏覽器不支援複製圖片，請改用下載圖片。',true);return;}
@@ -1942,7 +1942,8 @@ async function launchDownloadGroupImage(index,button,mode='download'){
    const result=previous.group?.id===g.id&&previous.group.status==='最新開團'&&!previous.group.summary?{group:structuredClone(previous.group)}:await api('launchGet',{id:g.id,status:'最新開團'});
    if(!dialog?.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
    if(!result.group)throw Error('找不到此團');
-   exporting=result.group;launchCurrent=exporting;launchPanelIndex=0;launchCanvasEditing=false;launchPNGPrepared=null;
+   document.getElementById('launchOffscreenExport')?.remove();
+   exporting=result.group;if(!Number.isInteger(panelIndex)||panelIndex<0||panelIndex>=Math.max(1,exporting.panels?.length||0))throw Error('畫布已變更，請重新選擇');launchCurrent=exporting;launchPanelIndex=panelIndex;launchCanvasEditing=false;launchPNGPrepared=null;
    if(button.isConnected)button.textContent='☺︎';
    return launchGetPNG();
   })();
@@ -2162,7 +2163,7 @@ function launchGroupTitle(name,canvas=true){
  return text;
 }
 
-function launchCanvasTitle(g){return String(g?.canvasTitle||'').trim()||String(g?.adName||'').trim()||String(g?.name||'').trim();}
+function launchCanvasTitle(g,index=launchPanelIndex){const panel=g?.panels?.[index];if(panel&&Object.hasOwn(panel,'adTitle'))return String(panel.adTitle||'').trim()||String(g?.name||'').trim();return String(g?.ads?.[index]?.name||'').trim()||String(g?.canvasTitle||'').trim()||String(g?.adName||'').trim()||String(g?.name||'').trim();}
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchAddPanel(){
  if(!launchCurrent||launchBusy)return;
@@ -2182,7 +2183,10 @@ function launchSwapPanels(from,to){
  const g=launchCurrent;
  if(!g||g.status!=='尚未上架'||launchBusy||!Array.isArray(g.panels)||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||to<0||from>=g.panels.length||to>=g.panels.length)return;
  launchPushUndo();
+ g.panels.forEach((panel,i)=>{if(!Object.hasOwn(panel,'adTitle'))panel.adTitle=launchCanvasTitle(g,i);});
+ if(Array.isArray(g.ads)&&g.ads.length){while(g.ads.length<g.panels.length)g.ads.push({name:'',image:''});[g.ads[from],g.ads[to]]=[g.ads[to],g.ads[from]];}
  [g.panels[from],g.panels[to]]=[g.panels[to],g.panels[from]];
+ g.canvasTitle=String(g.panels[0].adTitle||'');g.adName=g.canvasTitle||g.name;
  g.items.forEach(item=>{const panel=Number(item.panel||0);if(panel===from)item.panel=to;else if(panel===to)item.panel=from;});
  g.images=g.panels.map(panel=>panel.image||'').filter(Boolean);
  if(launchPanelIndex===from)launchPanelIndex=to;else if(launchPanelIndex===to)launchPanelIndex=from;
@@ -2293,26 +2297,40 @@ function launchHideAllCosts(){if(!launchCurrent)return;const targets=launchCurre
 function launchCardColumns(index=launchPanelIndex){if(!launchCurrent||launchBusy)return;const panels=launchCurrent.panels||[];if(!panels.length)return;launchPanelIndex=Math.max(0,Math.min(panels.length-1,Number(index)||0));const current=launchActiveCardColumns();launchDialog(`<button type="button" class="launchDialogClose" aria-label="取消" onclick="document.getElementById('launchDialog').close()">✖</button><h2>目前畫布的每列商品卡數量</h2><p class="launchHelp">每排 4 至 8 張；張數越少，卡片等比放大，能容納的列數隨之減少。其他畫布不會變更。</p>${panels.length>1?`<div class="launchCardColumnsDialog" style="margin-bottom:16px" aria-label="選擇畫布">${panels.map((_,i)=>`<button class="btn light" type="button" aria-pressed="${i===launchPanelIndex}" onclick="launchCardColumns(${i})">畫布 ${i+1}</button>`).join('')}</div>`:''}<div class="launchCardColumnsDialog">${[4,5,6,7,8].map(n=>`<button class="btn light" aria-pressed="${n===current}" onclick="launchSetCardColumns(${n})">${n}</button>`).join('')}</div>`);}
 function launchSetCardColumns(count){const panel=launchCurrent?.panels?.[launchPanelIndex];if(!panel)return;launchPushUndo();panel.cardColumns=Math.max(4,Math.min(8,Number(count)||8));launchMark();document.getElementById('launchDialog').close();launchRenderEditor();}
 function launchAds(){
- const count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=launchCurrent.ads||[];
- launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}.</span><label for="launchAdName_${i}">團名</label><input id="launchAdName_${i}" name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCurrent.adName||launchCanvasTitle(launchCurrent))}" required><label class="launchAdsImageLabel" for="launchAdImage_${i}">首圖</label><input id="launchAdImage_${i}" class="launchAdsImageInput" name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
+ const count=Math.max(1,launchCurrent.panels?.length||0,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=launchCurrent.ads||[];
+ launchDialog(`<form onsubmit="launchAdsSubmit(event)"><div class="launchAdsHead"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">返回</button><button class="btn" type="submit">SAVE</button></div><div class="launchAdsRows">${Array.from({length:count},(_,i)=>{const ad=ads[i]||{},image=ad.image||launchCurrent.panels?.[i]?.image||launchCurrent.images?.[i]||'';return `<div class="launchAdsRow"><span>${i+1}.</span><label for="launchAdName_${i}">團名</label><input id="launchAdName_${i}" name="name_${i}" aria-label="第 ${i+1} 筆團名" value="${esc(ad.name||launchCanvasTitle(launchCurrent,i))}" required><label class="launchAdsImageLabel" for="launchAdImage_${i}">首圖</label><input id="launchAdImage_${i}" class="launchAdsImageInput" name="image_${i}" aria-label="第 ${i+1} 筆首圖網址" type="url" placeholder="首圖網址" value="${esc(image)}" required></div>`;}).join('')}</div></form>`);
 }
 function launchAdsSubmit(event){
- event.preventDefault();const form=new FormData(event.target),count=Math.max(1,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=[];
+ event.preventDefault();const form=new FormData(event.target),count=Math.max(1,launchCurrent.panels?.length||0,launchCurrent.images?.length||0,launchCurrent.ads?.length||0),ads=[];
  for(let i=0;i<count;i++){const name=String(form.get(`name_${i}`)||'').trim(),image=String(form.get(`image_${i}`)||'').trim();if(!name||!launchSafeURL(image)){alert('請填寫有效的團名與首圖網址');return;}ads.push({name,image});}
- launchPushUndo();launchCurrent.ads=ads;launchMark();document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
+ launchPushUndo();launchCurrent.ads=ads;(launchCurrent.panels||[]).forEach((panel,i)=>{if(ads[i])panel.adTitle=ads[i].name;});if(ads[0]){launchCurrent.adName=ads[0].name;launchCurrent.canvasTitle=ads[0].name;}launchMark();document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
 }
 
 function launchAdTitleDialog(){
- if(!launchCurrent||launchBusy)return;
- launchDialog(`<form onsubmit="launchAdTitleSubmit(event)"><h2>廣告標題</h2><p class="launchHelp">圖片標題會一起修改，留空使用正式團名。</p><label>標題<input name="adTitle" aria-label="廣告標題" value="${esc(launchCurrent.adName||launchCanvasTitle(launchCurrent))}"></label><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">SAVE</button></div></form>`);
+ if(!launchCurrent||launchBusy)return;const g=launchCurrent,panels=g.panels?.length?g.panels:[{}];
+ launchDialog(`<form onsubmit="launchAdTitleSubmit(event)"><h2>廣告標題</h2><p class="launchHelp">每張畫布可設定不同標題，圖片標題會一起更新。留空使用正式團名。</p><div class="launchAdPanelTitles">${panels.map((_,i)=>`<label><span>畫布 ${i+1}</span><input name="adTitle_${i}" aria-label="畫布 ${i+1} 廣告標題" value="${esc(launchCanvasTitle(g,i))}"></label>`).join('')}</div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">SAVE</button></div></form>`);
 }
 function launchAdTitleSubmit(event){
- event.preventDefault();launchSetTitle(String(new FormData(event.target).get('adTitle')||''));
+ event.preventDefault();const g=launchCurrent,form=new FormData(event.target),panels=g.panels||[],titles=panels.map((_,i)=>String(form.get('adTitle_'+i)||'').trim());
+ if(panels.some((panel,i)=>!Object.hasOwn(panel,'adTitle')||String(panel.adTitle||'')!==titles[i])){launchPushUndo();panels.forEach((panel,i)=>{panel.adTitle=titles[i];if(g.ads?.[i])g.ads[i].name=titles[i]||g.name;});g.canvasTitle=titles[0]||'';g.adName=titles[0]||g.name;launchMark();}
  document.getElementById('launchDialog').close();launchRenderEditor();launchSaveClick();
 }
 
+function launchSelectExportPanel(mode){
+ const panels=launchCurrent?.panels||[];if(!panels.length)return;if(panels.length===1){launchPanelIndex=0;launchExport(mode);return;}
+ const g=launchCurrent;launchDialog(`<h2>${mode==='copy'?'複製':'下載'}圖片</h2><p class="launchHelp">選擇要輸出的畫布。</p><div class="launchExportPanelChoices">${panels.map((p,i)=>`<button class="btn light" type="button" onclick="launchExportSelectedPanel('${mode}',${i})"><strong>畫布 ${i+1}</strong><span>${esc(launchCanvasTitle(g,i))}</span></button>`).join('')}</div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button></div>`);
+}
+function launchExportSelectedPanel(mode,index){if(!launchCurrent?.panels?.[index])return;document.getElementById('launchDialog')?.close();launchPanelIndex=index;launchRenderEditor();launchExport(mode);}
+async function launchChooseGroupImage(index,mode){
+ const g=launchURLGroups[index];if(!g||launchBusy)return;
+ launchDialog('<h2>選擇畫布</h2><p class="launchHelp">正在讀取畫布…</p><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button>');const dialog=document.getElementById('launchDialog');
+ try{await launchSaveTail;const result=launchCurrent?.id===g.id&&!launchCurrent.summary?{group:structuredClone(launchCurrent)}:await api('launchGet',{id:g.id,status:'最新開團'});if(dialog!==document.getElementById('launchDialog')||!dialog.open)return;if(!result.group)throw Error('找不到此團');const group=result.group,panels=group.panels?.length?group.panels:[{}];
+ dialog.innerHTML=`<h2>${mode==='copy'?'複製':'下載'}圖片</h2><p class="launchHelp">選擇要輸出的畫布。</p><div class="launchExportPanelChoices">${panels.map((p,i)=>`<button class="btn light" type="button" onclick="launchDownloadGroupImage(${index},this,'${mode}',${i})"><strong>畫布 ${i+1}</strong><span>${esc(launchCanvasTitle(group,i))}</span></button>`).join('')}</div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button></div>`;
+ }catch(error){if(dialog===document.getElementById('launchDialog'))dialog.innerHTML=`<h2>無法讀取畫布</h2><p class="launchHelp">${esc(error.message)}</p><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button>`;}
+}
+
 function launchEditTitle(){const wrap=document.getElementById('launchTitleWrap');wrap.innerHTML=`<input class="launchTitle" id="launchTitleInput" value="${esc(launchCanvasTitle(launchCurrent))}" placeholder="留空使用正式團名" onblur="launchSetTitle(this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;document.getElementById('launchTitleInput').focus();}
-function launchSetTitle(value){const title=value.trim();if(title!==String(launchCurrent.canvasTitle||'')||String(launchCurrent.adName||'')!==(title||launchCurrent.name)){launchPushUndo();launchCurrent.canvasTitle=title;const name=launchCanvasTitle(launchCurrent);launchCurrent.adName=name;launchCurrent.ads=(launchCurrent.ads||[]).map(ad=>({...ad,name}));launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(launchCurrent)))}</button>`;}
+function launchSetTitle(value,index=launchPanelIndex){const g=launchCurrent;if(!g)return;const title=String(value??'').trim(),panels=g.panels||[],panel=panels[index],old=launchCanvasTitle(g,index),effective=title||String(g.name||'').trim();if(effective!==old||!panel||!Object.hasOwn(panel,'adTitle')){launchPushUndo();panels.forEach((p,i)=>{if(!Object.hasOwn(p,'adTitle'))p.adTitle=launchCanvasTitle(g,i);});if(panel)panel.adTitle=title;if(index===0||!panel){g.canvasTitle=title;g.adName=effective;}if(g.ads?.[index])g.ads[index].name=effective;launchMark();}const wrap=document.getElementById('launchTitleWrap');if(wrap&&index===launchPanelIndex)wrap.innerHTML=`<button class="launchTitle" onclick="launchEditTitle()">${esc(launchGroupTitle(launchCanvasTitle(g,index)))}</button>`;}
 function launchEditFooter(){
  const current=launchFooterText(launchCurrent);
  launchDialog(`<form onsubmit="event.preventDefault();launchCurrent.footer=this.elements.footer.value.trim();launchMark();document.getElementById('launchDialog').close();launchRenderEditor()"><h2>修改底部文字</h2><label>文字<input name="footer" value="${esc(current)}" autofocus></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);
@@ -2976,7 +2994,7 @@ function launchRenderProductList(){
  document.getElementById('launchOffscreenExport')?.remove();
  const g=launchCurrent;launchNormalizeGroupURLs(g);
  const statusAction=g.status==='最新開團'?`<button class="btn launchCloseButton" type="button" onclick="launchMove('已收單')">下架</button>`:`<button class="btn" type="button" onclick="launchMove('最新開團')">上架</button>`;
- document.getElementById('app').innerHTML=`<section class="launchPage launchProductListPage ${launchBusy?'launchBusy':''}"><div class="launchTools launchProductListActions">${statusAction}${g.status==='最新開團'?'<button class="btn light" type="button" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" type="button" onclick="launchAdTitleDialog()">廣告標題</button><button class="btn light" type="button" onclick="launchExport(\'download\')">下載圖片</button><button class="btn light" type="button" onclick="launchExport(\'copy\')">複製圖片</button>':''}<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchRequestRefresh()">↻</button><button class="btn ${g.status==='最新開團'?'launchLatestInlineSave':''}" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button></div><div class="launchAllHeading"><label class="launchSelectAll"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>${esc(g.name)}（${g.items.length}）</h2></div>${launchAvailabilityToolbar()}${launchListRows()}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
+ document.getElementById('app').innerHTML=`<section class="launchPage launchProductListPage ${launchBusy?'launchBusy':''}"><div class="launchTools launchProductListActions">${statusAction}${g.status==='最新開團'?'<button class="btn light" type="button" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" type="button" onclick="launchAdTitleDialog()">廣告標題</button><button class="btn light" type="button" onclick="launchSelectExportPanel(\'download\')">下載圖片</button><button class="btn light" type="button" onclick="launchSelectExportPanel(\'copy\')">複製圖片</button>':''}<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportClosedProducts()">匯入已結單</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchRequestRefresh()">↻</button><button class="btn ${g.status==='最新開團'?'launchLatestInlineSave':''}" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button></div><div class="launchAllHeading"><label class="launchSelectAll"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2>${esc(g.name)}（${g.items.length}）</h2></div>${launchAvailabilityToolbar()}${launchListRows()}<div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
  launchUpdateSelectAll();void launchLoadProductKinds(document.querySelector('.launchProductListPage'));launchLoadPriceHistory();
 }
 function launchDraftRows(){return `<div class="launchAllGrid">${launchCurrent.items.map((p,i)=>`<div class="launchAllItem" data-launch-sort-index="${i}" onclick="launchCanvasRowClick(event,${i})"><button class="launchAllSortHandle" type="button" aria-label="上下拖移 ${esc(launchDisplayName(p))}" title="拖曳排序，也可用上下方向鍵" onpointerdown="launchAllDrag(event,${i})" onkeydown="launchAllSortKey(event,${i})">≡</button><input data-launch-product-select="${i}" type="checkbox" aria-label="顯示 ${esc(launchDisplayName(p))}" ${launchCanvasContains(p)?'checked':''} onchange="launchSetProductVisible(${i},this.checked)"><div class="launchAllProductContent">${launchKindSelect(p,i)}${launchProductOrderInput(p,i)}<span class="launchAllEdit">${launchSafeURL(p.images?.[0])?`<img class="launchAllProductThumb" src="${launchImage(p.images[0])}" alt="" width="36" height="36" decoding="async" onerror="this.hidden=true">`:'<span class="launchAllProductThumb launchAllProductThumbBlank" aria-hidden="true"></span>'}<button class="launchAllProductName" type="button" style="border:0;background:none;color:inherit;font:inherit;text-align:left;padding:0;cursor:pointer" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button></span>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}<button class="launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div>`).join('')}</div>`;}
@@ -8112,6 +8130,10 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 .launchProduct .launchSize,.launchProduct .launchFormat{white-space:nowrap;word-break:normal;overflow-wrap:normal;min-width:0;line-height:1.3}
 .launchProduct .launchFormat:empty{display:none!important}
 .launchFooter{white-space:nowrap;word-break:normal;overflow-wrap:normal;line-height:1.3;overflow:hidden}
+</style>
+<style id="launch-multi-panel-controls">
+.launchAdPanelTitles,.launchExportPanelChoices{display:grid;gap:12px;margin:12px 0}.launchAdPanelTitles label{display:flex;align-items:center;gap:12px}.launchAdPanelTitles label span{flex:none;white-space:nowrap}.launchAdPanelTitles input{flex:1;min-width:0}.launchExportPanelChoices button{display:flex;align-items:center;gap:12px;text-align:left;min-height:44px}.launchExportPanelChoices button span{min-width:0;overflow-wrap:anywhere;font-weight:400}
+@media(max-width:500px){.launchAdPanelTitles label{flex-direction:column;align-items:stretch;gap:6px}}
 </style>
 </body>
 </html>
