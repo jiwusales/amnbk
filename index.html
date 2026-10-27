@@ -5624,20 +5624,25 @@ loadOnline();
 }
 function manualOnlineSuggest(input,event){
  const row=input.closest('.manualOnlineItem');if(!row)return;
- // iOS can emit a composing input after compositionend; it must not cancel the committed lookup.
+ // Safari may update the committed text after compositionend.
  if(event?.type==='compositionend'){setTimeout(()=>{if(input.isConnected&&document.activeElement===input)manualOnlineSuggest(input,{type:'compositioncommit'});},0);return;}
- if(event?.isComposing)return;
+ const query=input.value.trim(),group=(row.querySelector('.manualOnlineGroup')?.value||'').trim(),mode=input.classList.contains('manualOnlineGroup')?'group':'product',key=JSON.stringify([mode,query,group]);
+ // Search the current Chinese text during composition without resetting an identical lookup.
+ if(event?.isComposing&&row._suggestInput===input&&row._suggestKey===key)return;
+ row._suggestInput=input;row._suggestKey=key;
  clearTimeout(row._suggestTimer);row._suggestTicket=(row._suggestTicket||0)+1;
  let box=row.querySelector('.manualOnlineProductSuggestions');if(!box){box=document.createElement('div');box.className='manualOnlineProductSuggestions';row.appendChild(box);}
  box.replaceChildren();box.hidden=true;
  const editing=input.classList.contains('orderEditName'),price=row.querySelector(editing?'.orderEditPrice':'.manualOnlinePrice');
  if(!editing&&event?.type==='input'&&price.dataset.suggested!==undefined){if(price.value===price.dataset.suggested){price.value='';updateManualOnlineTotal();}delete price.dataset.suggested;}
- if(event?.isComposing||!input.value.trim())return;
- const ticket=row._suggestTicket,query=input.value.trim(),mode=input.classList.contains('manualOnlineGroup')?'group':'product';
+ if(!query)return;
+ const ticket=row._suggestTicket;
  row._suggestTimer=setTimeout(async()=>{
-  try{const data=await api('manualOrderSuggestions',{mode,query,group:(row.querySelector('.manualOnlineGroup')?.value||'').trim()});
-   if(!row.isConnected||ticket!==row._suggestTicket||document.activeElement!==input||input.value.trim()!==query)return;
-   for(const item of data.suggestions||[]){const button=document.createElement('button');button.type='button';button.textContent=mode==='group'?item.group:item.label+' · '+(item.price==null?'售價未填':'$'+money(item.price))+(item.group?'｜'+item.group:'')+'（'+item.source+'）';
+  const current=()=>row.isConnected&&ticket===row._suggestTicket&&document.activeElement===input&&input.value.trim()===query&&(row.querySelector('.manualOnlineGroup')?.value||'').trim()===group;
+  try{const data=await api('manualOrderSuggestions',{mode,query,group});
+   if(!current())return;
+   const normalize=value=>String(value??'').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g,' ');
+   for(const item of data.suggestions||[]){if(mode==='product'&&group&&normalize(item.group)!==normalize(group))continue;const button=document.createElement('button');button.type='button';button.textContent=mode==='group'?item.group:item.label+' · '+(item.price==null?'售價未填':'$'+money(item.price))+(item.group?'｜'+item.group:'')+'（'+item.source+'）';
     let press=null,picked=false;
     button.addEventListener('pointerdown',e=>{if(e.button!==0)return;press={id:e.pointerId,x:e.clientX,y:e.clientY};e.preventDefault();});
     button.addEventListener('pointercancel',()=>{press=null;});
@@ -5649,7 +5654,7 @@ function manualOnlineSuggest(input,event){
       price.focus();}
     };button.onclick=choose;box.appendChild(button);
    }box.hidden=!box.childElementCount;
-  }catch(error){if(row.isConnected&&ticket===row._suggestTicket&&document.activeElement===input){box.textContent='商品建議暫時無法載入，可繼續手動輸入';box.hidden=false;}}
+  }catch(error){if(current()){box.textContent='商品建議暫時無法載入，可繼續手動輸入';box.hidden=false;}}
  },220);
 }
 function manualOnlineSuggestBlur(input){const row=input.closest('.manualOnlineItem');clearTimeout(row?._suggestTimer);if(row)row._suggestTicket=(row._suggestTicket||0)+1;const box=row?.querySelector('.manualOnlineProductSuggestions');if(box)box.hidden=true;}
