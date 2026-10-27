@@ -4172,6 +4172,17 @@ let storeSalesData=null;
 let storeSalesLoadedAt=0;
 let storeSalesPromise=null;
 let storeSalesDate=null,storeSalesSearchTimer=null,storeSalesSearchComposing=false,storeSalesSearchGeneration=0;
+let storeSalesDefaultDate=null;
+function storeSalesToday(){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const part=type=>parts.find(item=>item.type===type).value;
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
+function syncStoreSalesDefaultDate(){
+ const today=storeSalesToday().slice(5).replace('-','');
+ if(storeSalesDate===null||storeSalesDate===storeSalesDefaultDate)storeSalesDate=today;
+ storeSalesDefaultDate=today;
+}
 function scheduleStoreSalesSearch(input,event){
  if(storeSalesSearchComposing||event?.isComposing)return;
  storeSalesDate=input.value;clearTimeout(storeSalesSearchTimer);const ticket=++storeSalesSearchGeneration;
@@ -4183,7 +4194,7 @@ function finishStoreSalesComposition(input){
 }
 function clearStoreSalesSearch(input){
  if(storeSalesSearchComposing||!input.value)return;
- input.value='';scheduleStoreSalesSearch(input);
+ input.select();
 }
 function storeSalesSearchKeydown(event,input){
  if(event.key!=='Enter'||event.isComposing||event.keyCode===229)return;
@@ -4882,7 +4893,7 @@ function readBackendSnapshot(key){try{return JSON.parse(sessionStorage.getItem('
 function saveBackendSnapshot(key,data){try{const payload=JSON.stringify(data);sessionStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);localStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);}catch(_){}}
 async function renderStoreSales(force=false){
 if(!storeSalesData){const cached=readBackendSnapshot('storeSales');if(cached)storeSalesData=cached;}
-if(force)storeSalesDate=null;
+syncStoreSalesDefaultDate();
 if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷售';
 const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.getElementById('app');
 if(!app)return;
@@ -4900,7 +4911,7 @@ const request=storeSalesPromise;
 let data;
 try{data=await request;}finally{if(storeSalesPromise===request)storeSalesPromise=null;}
 if(backendDeferRead('store',!!storeSalesData))return;storeSalesData=data;storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
-if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
+syncStoreSalesDefaultDate();
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }catch(e){
 const result=document.getElementById('storeSalesResult');
@@ -4908,7 +4919,7 @@ if(result&&!storeSalesData)result.innerHTML='<div class="empty">'+esc(e.message)
 else if(result)alert('更新失敗，保留上次資料：'+e.message);
 }
 }
-function showStoreSalesMonth(){const today=(storeSalesData?.today||new Date().toISOString().slice(0,10));storeSalesDate=today.slice(5,7);drawStoreSales();}
+function showStoreSalesMonth(){const today=storeSalesToday();storeSalesDate=today.slice(5,7);drawStoreSales();}
 function openStoreSaleDialog(){document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動新增銷售</h3><form onsubmit="submitStoreSale(event)"><div class="dialogGrid"><input id="manualSaleName" placeholder="名稱" required><input id="manualSaleAmount" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this)" required><input id="manualSaleNote" class="full" placeholder="備註"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增</button></div></form></div></div>`);document.getElementById('manualSaleName').focus();}
 async function submitStoreSale(event){const savedDialog=document.getElementById('appDialog');event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;try{await apiBackground('addStoreSale',{name:document.getElementById('manualSaleName').value.trim(),amount:normalizeMoneyInput(document.getElementById('manualSaleAmount')),note:document.getElementById('manualSaleNote').value.trim()});savedDialog?.remove();storeSalesLoadedAt=0;if(document.body.dataset.page==='store')await renderStoreSales(true);}catch(e){console.error(e.message);button.disabled=false;}}
 async function updateSalesAfterCheckout(delta){
@@ -4931,7 +4942,7 @@ try{
 if(storeSalesPromise)await storeSalesPromise;
 const data=await api('storeSales');
 storeSalesData=data;storeSalesLoadedAt=Date.now();
-if(storeSalesDate===null)storeSalesDate=data.today.slice(5).replace('-','');
+syncStoreSalesDefaultDate();
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }catch(_){/* 結帳已完成，保留即時資料並讓使用者可手動重新整理 */}
 },0);
@@ -5017,7 +5028,7 @@ const result=target||document.getElementById('storeSalesResult');
 if(!result||!storeSalesData)return;
 const summary=document.getElementById('storeSalesSummary');
 const warningBox=document.getElementById('storeSalesWarning');
-if(storeSalesDate===null)storeSalesDate=storeSalesData.today.slice(5).replace('-','');
+syncStoreSalesDefaultDate();
 const input=document.getElementById('storeSalesDate');
 if(input&&input.value!==(storeSalesDate||''))input.value=storeSalesDate||'';
 const searchText=(storeSalesDate||'').trim();
