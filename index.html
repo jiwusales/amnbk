@@ -1398,6 +1398,16 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .inventoryEditDialog .dialogActions .inventoryMobileGrab{display:inline-flex!important}
 }
 </style>
+
+<style id="launch-panel-order-style">
+.launchPanelOrderHelp{margin:0 0 16px;line-height:1.6;color:#777}
+.launchPanelOrderList{display:grid;gap:12px;margin:0 0 18px}
+.launchPanelOrderRow{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e2e2e2;border-radius:12px;background:#fafafa}
+.launchPanelOrderPreview{flex:0 0 76px;width:76px;height:44px;object-fit:cover;border-radius:6px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999}
+.launchPanelOrderLabel{flex:1;min-width:0;line-height:1.5}.launchPanelOrderLabel small{display:block;color:#888}
+.launchPanelOrderActions{display:flex;gap:8px;flex:none}.launchPanelOrderActions .btn{width:44px;min-height:44px;padding:8px}
+@media(max-width:450px){.launchPanelOrderRow{gap:8px;padding:10px}.launchPanelOrderPreview{flex-basis:56px;width:56px}.launchPanelOrderActions{gap:6px}}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -1831,8 +1841,8 @@ function launchProductColors(item){const name=launchDisplayName(item);return [..
 function launchThumb(g){const banner=g.images?.[0],items=g.items||[],visible=items.slice(0,28),more=(g.itemCount??items.length)>visible.length;return `<div class="launchThumb" aria-hidden="true"><div class="launchThumbPage" style="--launch-main:${launchColor(g.mainColor)}"><div class="launchThumbHead"><img src="${launchIcon}" alt="" loading="lazy" decoding="async">${esc(g.name)}</div>${banner?`<img class="launchThumbBanner" src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<div class="launchThumbBanner"></div>'}<div class="launchThumbItems">${visible.map(p=>`<div class="launchThumbCard">${p.images?.[0]?`<img src="${launchImage(p.images[0])}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<span class="launchThumbBlank"></span>'}<b>${esc(launchDisplayName(p))}</b><strong>${esc(p.price)}</strong><small class="launchThumbFormat">${esc(launchProductSpec(p).format)}</small><small>${esc(launchCardSize(launchProductSpec(p).size))}</small></div>`).join('')}${more?'<div class="launchThumbMore">更多商品</div>':''}</div><div class="launchThumbFooter">${esc(launchFooterText(g))}</div></div></div>`;}
 const launchThumbObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(!(node instanceof Element))return;const nested=node.querySelectorAll?[...node.querySelectorAll('img.launchThumbBanner')]:[],banners=[...(node.matches&&node.matches('img.launchThumbBanner')?[node]:[]),...nested];banners.forEach(img=>{img.loading='eager';img.fetchPriority='high';});})));launchThumbObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
 function launchMark(){launchQueuePNG();launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
-function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty});if(launchUndoStack.length>30)launchUndoStack.shift();}
-function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;launchMessage='已復原上一步';launchRenderEditor();}
+function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty,panel:launchPanelIndex});if(launchUndoStack.length>30)launchUndoStack.shift();}
+function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;if(Number.isInteger(previous.panel))launchPanelIndex=previous.panel;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
 function launchListCache(status){try{const saved=JSON.parse(sessionStorage.getItem(LAUNCH_CACHE_PREFIX+status)||localStorage.getItem(LAUNCH_CACHE_PREFIX+status)||'null');return saved&&Array.isArray(saved.groups)?saved.groups:null;}catch(_){return null;}}
 function launchSaveListCache(status,groups){try{const payload=JSON.stringify({savedAt:Date.now(),groups});sessionStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);localStorage.setItem(LAUNCH_CACHE_PREFIX+status,payload);}catch(_){}}
@@ -2102,7 +2112,7 @@ function launchRenderEditor(){
  launchPanelIndex=Math.max(0,Math.min(g.panels.length-1,launchPanelIndex));const activePanel=g.panels[launchPanelIndex],banner=activePanel.image||'',panelItems=g.items.map((p,i)=>({p,i})).filter(({p})=>launchCanvasContains(p,launchPanelIndex)&&((g.status==='尚未上架'||Array.isArray(activePanel.productIds))||launchCanvasItemVisible(p,g.items))),isLatest=g.status==='最新開團',isDraft=g.status==='尚未上架',isClosed=g.status==='已收單';
  const desktopPrimary=isLatest?`<button class="btn launchCloseButton" onclick="launchMove('已收單')">下架</button>`:isDraft?`<button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button><button class="btn" onclick="launchMove('最新開團')">上架</button>`:`<button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button><button class="btn" onclick="launchMove('最新開團')">上架</button>`;
  const desktopSecondary=isLatest?`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn light" onclick="launchGrab()">抓抓</button><button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button>`:isDraft?`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn light" onclick="launchGrab()">抓抓</button>`:`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>`;
- const panelTabs=`<div class="launchPanelTabs">${g.panels.map((_,i)=>`<button class="btn light" aria-selected="${i===launchPanelIndex}" onclick="launchSelectPanel(${i})">畫布 ${i+1}</button>`).join('')}</div>`;
+ const panelTabs=`<div class="launchPanelTabs">${g.panels.map((_,i)=>`<button class="btn light" aria-selected="${i===launchPanelIndex}" onclick="launchSelectPanel(${i})">畫布 ${i+1}</button>`).join('')}${isDraft?'<button class="btn light" type="button" onclick="launchPanelOrder()">畫布排序</button>':''}</div>`;
  const draftSections=isDraft?`<button class="btn light" type="button" onclick="launchGroupInfo()">開團資訊</button><button class="btn light" type="button" onclick="launchAllProducts()">商品</button>`:'';
  const editActions=`${isDraft?draftSections:'<button class="btn light" onclick="launchAllProducts()">商品</button>'}<button class="btn light" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" onclick="launchAds()">廣告</button><button class="btn light" type="button" onclick="launchAddPanel()">新增畫布</button>${panelTabs}`;
  const mobileTools=`${isDraft?`<div class="launchMobileDraftSections">${draftSections}</div>`:''}<div class="launchMobileEditorTools" style="--launch-mobile-tools:${isDraft?6:7}">${isDraft?'':'<button class="btn light" onclick="launchAllProducts()">商品</button>'}<button class="btn light" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" onclick="launchAds()">廣告</button><button class="btn light" type="button" onclick="launchAddPanel()">新增畫布</button><button class="btn light" onclick="launchGrab()">抓抓</button><button class="btn light" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button class="btn light" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>${panelTabs}</div>`;
@@ -2139,6 +2149,23 @@ function launchAddPanel(){
  launchMark();launchRenderEditor();
 }
 function launchSelectPanel(index){launchPanelIndex=index;launchRenderEditor();}
+
+function launchPanelOrder(){
+ if(!launchCurrent||launchCurrent.status!=='尚未上架'||launchBusy||!Array.isArray(launchCurrent.panels)||launchCurrent.panels.length<2)return;
+ launchDialog(`<h2>畫布排序</h2><p class="launchPanelOrderHelp">按 ↑／↓ 交換整張畫布的位置，Banner、商品選擇與版面設定會一起移動。完成後按 SAVE 儲存。</p><div class="launchPanelOrderList" role="list" aria-live="polite">${launchCurrent.panels.map((panel,index)=>{const count=launchCurrent.items.filter(item=>launchCanvasContains(item,index)).length;return `<div class="launchPanelOrderRow" role="listitem">${panel.image?`<img class="launchPanelOrderPreview" src="${launchImage(panel.image)}" alt="畫布 ${index+1} Banner">`:'<span class="launchPanelOrderPreview">無首圖</span>'}<div class="launchPanelOrderLabel"><strong>畫布 ${index+1}</strong><small>${count} 件商品${index===launchPanelIndex?' · 目前畫布':''}</small></div><div class="launchPanelOrderActions"><button type="button" class="btn light" aria-label="畫布 ${index+1} 上移" onclick="launchSwapPanels(${index},${index-1})" ${index===0?'disabled':''}>↑</button><button type="button" class="btn light" aria-label="畫布 ${index+1} 下移" onclick="launchSwapPanels(${index},${index+1})" ${index===launchCurrent.panels.length-1?'disabled':''}>↓</button></div></div>`;}).join('')}</div><div class="launchTools"><button type="button" class="btn" onclick="document.getElementById('launchDialog').close()">完成</button></div>`);
+}
+function launchSwapPanels(from,to){
+ const g=launchCurrent;
+ if(!g||g.status!=='尚未上架'||launchBusy||!Array.isArray(g.panels)||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||to<0||from>=g.panels.length||to>=g.panels.length)return;
+ launchPushUndo();
+ [g.panels[from],g.panels[to]]=[g.panels[to],g.panels[from]];
+ g.items.forEach(item=>{const panel=Number(item.panel||0);if(panel===from)item.panel=to;else if(panel===to)item.panel=from;});
+ g.images=g.panels.map(panel=>panel.image||'').filter(Boolean);
+ if(launchPanelIndex===from)launchPanelIndex=to;else if(launchPanelIndex===to)launchPanelIndex=from;
+ launchMark();launchRenderEditor();launchPanelOrder();
+ const focus=document.querySelector('#launchDialog [aria-label="畫布 '+(to+1)+(to>from?' 上移':' 下移')+'"]');focus?.focus();
+}
+
 function launchBannerSettings(panel){return {zoom:Math.max(1,Math.min(3,Number(panel?.imageScale)||1)),x:Math.max(0,Math.min(100,Number(panel?.imageX)===Number(panel?.imageX)?Number(panel.imageX):50)),y:Math.max(0,Math.min(100,Number(panel?.imageY)===Number(panel?.imageY)?Number(panel.imageY):50))};}
 function launchBannerStyle(panel){const p=launchBannerSettings(panel);return `object-position:${p.x}% ${p.y}%;transform-origin:${p.x}% ${p.y}%;transform:scale(${p.zoom})`;}
 function launchBannerPosition(event){event?.stopPropagation();const panel=launchCurrent?.panels?.[launchPanelIndex];if(!panel?.image)return;const p=launchBannerSettings(panel);launchDialog(`<form onsubmit="launchSaveBannerPosition(event)"><h2>調整首圖顯示範圍</h2><p class="launchHelp">拖動滑桿調整圖片位置與放大倍率。</p><div class="launchPositionPreview"><img src="${launchImage(panel.image)}" alt="首圖預覽" style="${launchBannerStyle(panel)}"></div><div class="launchPositionControls"><label>放大<input name="zoom" type="range" min="1" max="3" step="0.05" value="${p.zoom}" oninput="launchPreviewBannerPosition(this.form)"><output>${Math.round(p.zoom*100)}%</output></label><label>左右<input name="x" type="range" min="0" max="100" value="${p.x}" oninput="launchPreviewBannerPosition(this.form)"><output>${p.x}%</output></label><label>上下<input name="y" type="range" min="0" max="100" value="${p.y}" oninput="launchPreviewBannerPosition(this.form)"><output>${p.y}%</output></label></div><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">套用</button></div></form>`);}
