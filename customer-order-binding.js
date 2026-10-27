@@ -20,8 +20,27 @@ function jiwuEnhanceOrderBindingDialog(){
  const section=document.createElement('section');section.className='jiwuOrderBinding';
  section.innerHTML='<label class="jiwuOrderBindingLabel" for="jiwuOrderBindingSearch">綁定既有客戶（選填）</label><p class="jiwuOrderBindingHint">選取後，這筆訂單會使用所選客戶的名字。</p><input id="jiwuOrderBindingSearch" type="search" placeholder="搜尋客戶名字或 JIWU 編號" autocomplete="off" aria-label="搜尋既有客戶"><div class="jiwuOrderBindingSelected" aria-live="polite"></div><div class="jiwuOrderBindingResults" role="group" aria-label="符合的客戶"></div><p class="jiwuOrderBindingStatus" role="status">載入客戶清單…</p>';
  form.insertBefore(section,form.querySelector('.dialogActions'));const search=section.querySelector('input'),results=section.querySelector('.jiwuOrderBindingResults'),selected=section.querySelector('.jiwuOrderBindingSelected'),status=section.querySelector('.jiwuOrderBindingStatus');
- let customers=[],choice=null;
- const showSelection=()=>{selected.replaceChildren();if(!choice)return;const text=document.createElement('span');text.textContent=choice.name+' · '+choice.id;const clear=document.createElement('button');clear.type='button';clear.className='btn light';clear.textContent='取消選取';clear.onclick=()=>{choice=null;showSelection();render();};selected.append(text,clear);};
+ let customers=[],choice=null,busy=false;
+ const boundIds=[...new Set(snapshots.map(ref=>onlineRows.find(row=>String(row.itemId)===String(ref.id))).filter(Boolean).map(row=>String(getOnlineData(row,['顧客編號'])||'')))];
+ let boundId=boundIds.length===1?boundIds[0]:'';
+ const clearSelection=async()=>{
+  if(busy)return;
+  if(!boundId){choice=null;showSelection();render();return;}
+  busy=true;for(const input of form.querySelectorAll('button,input'))input.disabled=true;
+  try{
+   const result=await apiBackground('unbindOnlineOrderCustomer',{customerId:boundId,orderRows:snapshots});
+   const saved=new Map((result.unboundRows||[]).map(row=>[String(row.id),row]));
+   if(saved.size!==snapshots.length)throw Error('解除綁定回應不完整，請重新整理確認');
+   const numberHeader=findHeader(onlineHeaders,['顧客編號']);
+   for(const list of [onlineRows,onlineEditBase||[]])for(const row of list)if(saved.has(String(row.itemId))&&numberHeader)row.data[numberHeader]='';
+   boundId='';choice=null;onlineMutationRevision++;onlineLoadedAt=Date.now();saveOnlineSessionCache();
+   if(document.body.dataset.page==='online')refreshCargoViewKeepingScroll();
+   showSelection();render();status.textContent='已解除這張訂單的客戶綁定';
+   launchCompletionToast('已解除這張訂單的客戶綁定');
+  }catch(error){status.textContent='解除綁定失敗：'+error.message;}
+  finally{busy=false;for(const input of form.querySelectorAll('button,input'))input.disabled=false;}
+ };
+ const showSelection=()=>{selected.replaceChildren();if(!choice)return;const text=document.createElement('span');text.textContent=choice.name+' · '+choice.id;const clear=document.createElement('button');clear.type='button';clear.className='btn light';clear.textContent='取消選取';clear.onclick=clearSelection;selected.append(text,clear);};
  const render=()=>{results.replaceChildren();const q=search.value.trim().toLocaleLowerCase(),matches=customers.filter(c=>!q||c.name.toLocaleLowerCase().includes(q)||c.id.toLocaleLowerCase().includes(q));for(const c of matches.slice(0,8)){const button=document.createElement('button');button.type='button';button.className='jiwuOrderBindingChoice';button.setAttribute('aria-pressed',String(choice?.id===c.id));const name=document.createElement('strong'),id=document.createElement('span');name.textContent=c.name;id.textContent=c.id+(c.hasLine?' · 已連結 LINE':'');button.append(name,id);button.onclick=()=>{choice=c;showSelection();render();};results.append(button);}status.textContent=customers.length?(matches.length?'找到 '+matches.length+' 位'+(matches.length>8?'，可輸入更多文字縮小範圍':''):'找不到符合的客戶'):'目前沒有已建立的客戶，請先用官 LINE 外掛或 Discord 建立。';};
  search.oninput=()=>{choice=null;showSelection();render();};
  form.addEventListener('submit',async event=>{
