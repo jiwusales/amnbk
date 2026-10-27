@@ -1414,6 +1414,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .launchPanelOrderRow.launchPanelDropTarget{outline:2px solid #A68C73;outline-offset:1px;background:#f3ede6}
 .launchPanelOrderPreview{user-select:none;-webkit-user-select:none}
 </style>
+<style>.launchCanvasPricePart{display:inline-block;min-width:1.3em;cursor:text;white-space:nowrap}.launchCanvasPricePart:has(input){width:3.5em}.launchCanvasPricePart:focus-visible{outline:1px solid var(--main);outline-offset:2px}</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -2067,16 +2068,16 @@ document.addEventListener('change',event=>{if(event.target instanceof HTMLInputE
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
 function launchDraftOriginalPriceKey(item){const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,'').toUpperCase(),match=text.match(/^(R)?(\d+(?:\.\d+)?)(R)?$/);return match?[(match[1]||match[3])?'CNY':'JPY',Number(match[2])].join('|'):text;}
-function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item),original=launchDraftOriginalPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key&&launchDraftOriginalPriceKey(other)===original)other.price=value;});}
+function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item),original=launchDraftOriginalPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key&&launchDraftOriginalPriceKey(other)===original&&launchDrawType(other)===launchDrawType(item))other.price=value;});}
 function launchEditCanvasPrice(price){
- const group=launchCurrent,index=Number(price.closest('.launchProduct')?.dataset.launchIndex),item=group?.items[index];if(!item||price.querySelector('input'))return;
- const input=document.createElement('input');input.className='launchCanvasPriceInput';input.type='text';input.inputMode='decimal';input.setAttribute('aria-label','修改 '+launchDisplayName(item)+' 售價');input.value=String(item.price??'');
+ const group=launchCurrent,index=Number(price.dataset.launchPriceIndex??price.closest('.launchProduct')?.dataset.launchIndex),item=group?.items[index];if(!item||price.querySelector('input'))return;
+ const input=document.createElement('input');input.className='launchCanvasPriceInput';input.type='text';input.inputMode='decimal';input.setAttribute('aria-label','修改 '+launchDisplayName(item)+(price.dataset.launchPriceLabel?' '+price.dataset.launchPriceLabel:'')+' 售價');input.value=String(item.price??'');
  let finished=false;
  const finish=cancel=>{if(finished)return;if(launchCurrent!==group){finished=true;return;}const raw=input.value.trim(),number=raw===''?null:launchNumber(raw);if(!cancel&&raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.focus();return;}finished=true;const value=raw===''?'':String(Math.ceil(number));if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}launchRenderEditor();};
  input.addEventListener('click',event=>event.stopPropagation());input.addEventListener('input',()=>input.setCustomValidity(''));input.addEventListener('blur',()=>finish(false));input.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'&&!event.isComposing){event.preventDefault();finish(false);}else if(event.key==='Escape'){event.preventDefault();finish(true);}});
  price.replaceChildren(input);input.focus();input.select();
 }
-document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.stopPropagation();if(e.target.matches('input'))return;e.preventDefault();launchEditCanvasPrice(price);},true);
+document.addEventListener('click',e=>{const price=e.target.closest?.('.launchProduct [data-launch-price-index],.launchProduct b.launchPriceEdit');if(!price||!launchCurrent)return;e.stopPropagation();if(e.target.matches('input'))return;e.preventDefault();launchEditCanvasPrice(price);},true);
 function launchChangeStatus(s){if(launchBusy)return;if(launchDirty&&!confirm('尚未儲存排序，要放棄變更嗎？'))return;launchAuxPage='';launchAuxData=null;launchStatus=s;sessionStorage.setItem(LAUNCH_STATUS_KEY,s);sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 function launchOpen(i){if(launchTakePress())return;if(launchBusy)return;if(launchDirty){alert('請先儲存清單排序');return;}const group=launchGroups[i];if(!group)return;sessionStorage.setItem(LAUNCH_OPEN_KEY,group.id);launchMessage='';launchPanelIndex=0;launchLoadGroup(group.id);}
 function launchNew(){
@@ -2104,6 +2105,20 @@ function launchSyncDrawImages(items,preferred=[]){
  }
  return changed;
 }
+
+function launchDrawType(item){const format=launchVariantFormat(item);if(/單抽|单抽/.test(format)&&!/抱盒|BOX/i.test(format))return 'single';if(/抱盒|BOX/i.test(format)&&!/單抽|单抽/.test(format))return 'box';return '';}
+function launchDrawPair(item){
+ if(!launchDrawType(item))return null;
+ const name=launchDisplayName(item),items=launchCurrent.items.filter(other=>other.visible!==false&&launchDisplayName(other)===name);
+ const single=items.find(other=>launchDrawType(other)==='single'),box=items.find(other=>launchDrawType(other)==='box');
+ return single&&box?{single,box}:null;
+}
+function launchCanvasPriceHtml(item){
+ const pair=launchDrawPair(item);if(!pair)return esc(launchSaleText(item));
+ const part=(other,label,prefix)=>`<span class="launchCanvasPricePart" data-launch-price-index="${launchCurrent.items.indexOf(other)}" data-launch-price-label="${label}" role="button" tabindex="0" aria-label="修改 ${esc(launchDisplayName(other))} ${label} 售價" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();event.stopPropagation();launchEditCanvasPrice(this)}">${prefix}${esc(String(other.price??'').replace(/^\$/,''))}</span>`;
+ return part(pair.single,'單抽','$')+'～'+part(pair.box,'抱盒','');
+}
+
 function launchCanvasItemVisible(item,items=launchCurrent.items){
  if(item.visible===false)return false;
  const draw=p=>p.kind==='抽抽'||(!p.kind&&/單抽|抱盒/.test(launchVariantFormat(p)));
@@ -2116,7 +2131,7 @@ function launchRenderEditor(){
  const g=launchCurrent;if(!g)return;if(launchSyncDrawImages(g.items))launchMark();launchSyncTopActions();
  if(launchListMode()){launchRenderProductList();return;}
  if(!Array.isArray(g.panels)||!g.panels.length)g.panels=(g.images||[]).map(image=>({image,mainColor:g.mainColor}));if(!g.panels.length)g.panels=[{image:'',mainColor:g.mainColor||'#617AA6'}];
- launchPanelIndex=Math.max(0,Math.min(g.panels.length-1,launchPanelIndex));const activePanel=g.panels[launchPanelIndex],banner=activePanel.image||'',panelItems=g.items.map((p,i)=>({p,i})).filter(({p})=>launchCanvasContains(p,launchPanelIndex)&&((g.status==='尚未上架'||Array.isArray(activePanel.productIds))||launchCanvasItemVisible(p,g.items))),isLatest=g.status==='最新開團',isDraft=g.status==='尚未上架',isClosed=g.status==='已收單';
+ launchPanelIndex=Math.max(0,Math.min(g.panels.length-1,launchPanelIndex));const activePanel=g.panels[launchPanelIndex],banner=activePanel.image||'',panelItems=g.items.map((p,i)=>({p,i})).filter(({p})=>launchCanvasContains(p,launchPanelIndex)&&(!launchDrawPair(p)||launchDrawType(p)!=='box'||!g.items.some(other=>launchCanvasContains(other,launchPanelIndex)&&launchDisplayName(other)===launchDisplayName(p)&&launchDrawType(other)==='single'))&&((g.status==='尚未上架'||Array.isArray(activePanel.productIds))||launchCanvasItemVisible(p,g.items))),isLatest=g.status==='最新開團',isDraft=g.status==='尚未上架',isClosed=g.status==='已收單';
  const desktopPrimary=isLatest?`<button class="btn launchCloseButton" onclick="launchMove('已收單')">下架</button>`:isDraft?`<button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button><button class="btn" onclick="launchMove('最新開團')">上架</button>`:`<button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button><button class="btn" onclick="launchMove('最新開團')">上架</button>`;
  const desktopSecondary=isLatest?`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn light" onclick="launchGrab()">抓抓</button><button class="btn" id="launchSave" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button>`:isDraft?`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn light" onclick="launchGrab()">抓抓</button>`:`<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>`;
  const panelTabs=`<div class="launchPanelTabs">${g.panels.map((_,i)=>`<button class="btn light" aria-selected="${i===launchPanelIndex}" onclick="launchSelectPanel(${i})">畫布 ${i+1}</button>`).join('')}${isDraft?'<button class="btn light" type="button" onclick="launchPanelOrder()">畫布排序</button>':''}</div>`;
@@ -2262,7 +2277,7 @@ function launchSaleValue(item){const price=launchNumber(item?.price);if(price!=n
 function launchSaleText(item){const name=launchDisplayName(item),values=launchCurrent.items.filter(x=>launchDisplayName(x)===name).map(launchSaleValue).filter(x=>x!=null);if(!values.length)return launchIsRMB(item)?'待輸入':'$';const low=Math.min(...values),high=Math.max(...values);return '$'+(low===high?low:`${low}~${high}`);}
 function launchApplyCardPresentation(){
  const cardsBox=document.querySelector('.launchCards');if(!cardsBox||!launchCurrent)return;const cols=launchActiveCardColumns();cardsBox.style.setProperty('--launch-cols',cols);cardsBox.style.setProperty('--launch-card-scale',8/cols);
- document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index];card.style.display=Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)?(launchCanvasContains(item)?'':'none'):(item?.visible===false?'none':'');const remove=card.querySelector('.launchDeleteProduct');if(remove)remove.textContent='✖';card.querySelector('.launchResize')?.remove();const price=card.querySelector('b');if(price){price.textContent=launchSaleText(item);price.classList.add('launchPriceEdit');}const size=card.querySelector('.launchSize'),colors=launchProductColors(item);if(size)size.innerHTML=colors.length?`<span class="launchColorSwatches" aria-label="${esc(colors.join('、'))}">${colors.map(color=>`<i class="launchColorSwatch" style="background-color:${color}"></i>`).join('')}</span>`:esc(launchCardSize(launchProductSpec(item).size));const format=card.querySelector('.launchFormat');if(format)format.textContent=launchProductSpec(item).format;});
+ document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index];card.style.display=Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)?(launchCanvasContains(item)?'':'none'):(item?.visible===false?'none':'');const remove=card.querySelector('.launchDeleteProduct');if(remove)remove.textContent='✖';card.querySelector('.launchResize')?.remove();const price=card.querySelector('b');if(price){price.innerHTML=launchCanvasPriceHtml(item);price.classList.toggle('launchPriceEdit',!launchDrawPair(item));}const size=card.querySelector('.launchSize'),colors=launchProductColors(item);if(size)size.innerHTML=colors.length?`<span class="launchColorSwatches" aria-label="${esc(colors.join('、'))}">${colors.map(color=>`<i class="launchColorSwatch" style="background-color:${color}"></i>`).join('')}</span>`:esc(launchCardSize(launchProductSpec(item).size));const format=card.querySelector('.launchFormat');if(format)format.textContent=launchProductSpec(item).format;});
  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
  const help=document.querySelector('.launchPage .launchHelp');if(help)help.textContent=`${launchCurrent.status} · 1080 × 1350 直式 · 點商品卡編輯；到「全部商品」上下拖移排序。`;
 }
