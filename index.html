@@ -4811,6 +4811,7 @@ const val=names=>String(inventoryValue(item,names)??'');
 const label=(desktop,mobile=desktop.replace(/　/g,''))=>`<span class="inventoryDesktopLabel">${desktop}</span><span class="inventoryMobileLabel">${mobile}</span>`;
 document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard inventoryEditDialog"><form onsubmit="submitInventoryEdit(event,${Number(row)})"><div class="dialogGrid"><div class="inventoryEditTopFields"><label data-edit-field="ip">${label('IP','IP')}<input id="inventoryEditIp" value="${esc(val(['IP','IP分類','IP類別']))}"></label><label data-edit-field="role">${label('角　　色','角色')}<input id="inventoryEditRole" value="${esc(val(['角色']))}"></label><label data-edit-field="kind">${label('種　　類','種類')}<select id="inventoryEditKind" name="kind" aria-label="種類" data-original-value="${esc(val(['種類','類型','商品種類','品項']))}" data-kind-value="${esc(val(['種類','類型','商品種類','品項']))}" onchange="launchChooseKind(this)">${launchKindOptions(val(['種類','類型','商品種類','品項']))}</select></label></div><div class="inventoryNameFields"><label data-edit-field="name">${label('名　　稱','名稱')}<input id="inventoryEditName" value="${esc(val(['名稱','商品名稱','品名','商品']))}" required></label><label data-edit-field="japanesename">${label('原　　名','原名')}<div style="display:flex;gap:10px;align-items:center"><input id="inventoryEditJapaneseName" value="${esc(val(['日文名','日文原名']))}" style="flex:1;min-width:0"><button type="button" class="btn light inventoryDesktopGrab" data-inventory-grab onclick="inventoryGrabJapaneseName(this)">抓抓</button></div></label></div><div class="inventoryPriceFields"><label data-edit-field="code">${label('貨　　號','貨號')}<input id="inventoryEditCode" value="${esc(val(['貨號','商品貨號','條碼','SN']))}"></label><label class="inventoryMobileFormat" data-edit-field="format">${label('格　　式')}<input id="inventoryEditFormat" value="${esc(val(['格式']))}"></label><label data-edit-field="original">${label('原　　價','原價')}<input id="inventoryEditOriginal" inputmode="text" placeholder="數字／R99 人民幣" value="${esc(val(['原價','定價','原售價','牌價']))}"></label><label data-edit-field="price">${label('售　　價','售價')}<input id="inventoryEditPrice" inputmode="decimal" value="${esc(val(['售價','價格','銷售價']))}"></label></div><div class="inventoryEditStockFields"><label data-edit-field="stock">${label('庫　　存','庫存')}<input id="inventoryEditStock" value="${esc(val(['庫存','總庫存','數量','庫存量','商品庫存']))}" placeholder="整數、x 或 ?"></label><label data-edit-field="store">${label('店　　面','店面')}<input id="inventoryEditStore" inputmode="numeric" value="${esc(val(['店面','店面庫存','店鋪庫存','店面數量']))}"></label><label data-edit-field="nonstock">${label('非　　現','非現')}<input id="inventoryEditNonstock" inputmode="numeric" value="${esc(val(['非現','非現貨','非現庫存']))}" placeholder="0"></label></div><label data-edit-field="size" class="full stackField">${label('尺　　寸','尺寸')}<input id="inventoryEditSize" value="${esc(val(['尺寸','大小','商品尺寸']))}"></label><label data-edit-field="image" class="full stackField">${label('圖片網址','圖片')}<input id="inventoryEditImage" type="url" value="${esc(val(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']))}"></label><label data-edit-field="url" class="full stackField">${label('網　　址','網址')}<input id="inventoryEditUrl" type="url" value="${esc(val(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址']))}"></label><label data-edit-field="note" class="full stackField">${label('備　　註','備註')}<textarea id="inventoryEditNote" rows="3" placeholder="數量優惠可填：優惠：3包150；其他文字或網址可另起一行">${esc(val(['備註','備註欄','說明']))}</textarea></label></div><div class="dialogActions"><button type="button" class="btn orderDelete" style="margin-right:auto" onclick="deleteInventoryProductFromDialog(${Number(row)},this)">${label('刪除商品','刪除')}</button><button type="button" class="btn light inventoryMobileGrab" data-inventory-grab onclick="inventoryGrabJapaneseName(this)">抓抓</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 inventoryBindProductInfo(document.getElementById('inventoryEditUrl').closest('form'),'inventoryEdit');
+inventoryBindPriceHistory(document.getElementById('inventoryEditUrl').closest('form'));
 void launchLoadProductKinds(document.getElementById('appDialog'));
 }
 let inventoryNameGrabBusy=false;
@@ -4968,6 +4969,79 @@ launchMoveProgress(batch.id,'','完成','',`${batch.stop?'已停止':'貨況完�
 inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();button.disabled=false;button.textContent='↻';button.title='重新檢查所有⚠️商品貨況';
 }
 function fitSelectWidth(select){if(!select)return;const text=select.options[select.selectedIndex]?.text||'';select.style.width=Math.max(2,text.length)+'em';select.style.boxSizing='content-box';}
+let inventoryHistoryState={signature:'',time:0,prices:{}},inventoryHistoryTimer;
+function inventoryHistoryItem(item){
+  return {kind:String(inventoryValue(item,['種類','類型','商品種類','品項'])||''),original:inventoryValue(item,['原價','定價','原售價','牌價'])};
+}
+function inventoryPaintPriceHistory(){
+  document.querySelectorAll('.inventoryHistoryPrice').forEach(node=>node.remove());
+  const paint=(target,item,apply)=>{
+    if(!target||!item)return;
+    const references=inventoryHistoryState.prices[launchHistoryKey(item)]||[];
+    if(!references.length)return;
+    const button=document.createElement('button');button.type='button';button.className='launchHistoryPrice inventoryHistoryPrice';
+    button.textContent='('+money(references[0].price)+')';button.style.cssText='border:0;background:none;padding:2px 3px;cursor:pointer';
+    button.title=references.slice(0,10).map(ref=>`${ref.date||''} ${ref.group}：$${money(ref.price)}`).join('\n');
+    button.setAttribute('aria-label','套用過往開價 '+money(references[0].price));
+    button.onclick=event=>{event.preventDefault();event.stopPropagation();apply(references[0].price,button);};target.appendChild(button);
+  };
+  document.querySelectorAll('#inventoryGrid .inventoryCard[data-row]').forEach(card=>{
+    const row=Number(card.dataset.row),item=inventoryRows.find(item=>Number(item.row)===row);
+    if(!item||String(inventoryValue(item,['售價','價格','銷售價'])??'').trim()!=='')return;
+    paint(card.querySelector('.inventoryPrices'),inventoryHistoryItem(item),(value,button)=>inventoryApplyHistoryPrice(row,value,button));
+  });
+  const form=document.querySelector('#appDialog .inventoryEditDialog form');
+  if(form&&String(form.querySelector('#inventoryEditPrice')?.value??'').trim()===''){
+    const item={kind:form.querySelector('#inventoryEditKind')?.value||'',original:form.querySelector('#inventoryEditOriginal')?.value||''};
+    paint(form.querySelector('[data-edit-field="price"]'),item,value=>{
+      const input=form.querySelector('#inventoryEditPrice');if(input.value.trim()!=='')return;
+      input.value=String(Math.ceil(Number(value)));input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  }
+}
+function inventoryLoadPriceHistory(){
+  clearTimeout(inventoryHistoryTimer);
+  inventoryHistoryTimer=setTimeout(async()=>{
+    const unique=new Map(),add=item=>{const key=launchHistoryKey(item);if(key)unique.set(key,item);};
+    document.querySelectorAll('#inventoryGrid .inventoryCard[data-row]').forEach(card=>{
+      const item=inventoryRows.find(item=>Number(item.row)===Number(card.dataset.row));
+      if(item&&String(inventoryValue(item,['售價','價格','銷售價'])??'').trim()==='')add(inventoryHistoryItem(item));
+    });
+    const form=document.querySelector('#appDialog .inventoryEditDialog form');
+    if(form&&String(form.querySelector('#inventoryEditPrice')?.value??'').trim()==='')add({kind:form.querySelector('#inventoryEditKind')?.value||'',original:form.querySelector('#inventoryEditOriginal')?.value||''});
+    const request=[...unique.values()],signature=JSON.stringify([request,backendSyncEpoch]);
+    if(inventoryHistoryState.signature===signature&&Date.now()-inventoryHistoryState.time<60000){inventoryPaintPriceHistory();return;}
+    inventoryHistoryState.signature=signature;
+    try{
+      const prices={};
+      for(let offset=0;offset<request.length;offset+=200){
+        const result=await api('launchPriceHistory',{groupId:'',items:JSON.stringify(request.slice(offset,offset+200))});
+        if(inventoryHistoryState.signature!==signature)return;
+        Object.assign(prices,result.prices||{});
+      }
+      inventoryHistoryState={signature,time:Date.now(),prices};inventoryPaintPriceHistory();
+    }catch(error){if(inventoryHistoryState.signature===signature)inventoryHistoryState={signature:'',time:0,prices:{}};console.error('庫存價格比對失敗',error);}
+  },180);
+}
+function inventoryBindPriceHistory(form){
+  if(!form)return;
+  form.addEventListener('input',event=>{if(event.target.id==='inventoryEditPrice')inventoryPaintPriceHistory();else if(['inventoryEditKind','inventoryEditOriginal'].includes(event.target.id))inventoryLoadPriceHistory();});
+  form.addEventListener('change',event=>{if(['inventoryEditKind','inventoryEditOriginal'].includes(event.target.id))inventoryLoadPriceHistory();});
+  inventoryLoadPriceHistory();
+}
+async function inventoryApplyHistoryPrice(row,value,button){
+  const item=inventoryRows.find(item=>Number(item.row)===Number(row)),price=String(Math.ceil(Number(value)));
+  if(!item||String(inventoryValue(item,['售價','價格','銷售價'])??'').trim()!==''||inventoryProductSaves.has(Number(row)))return;
+  button.disabled=true;inventoryProductSaves.set(Number(row),true);
+  try{
+    await apiBackground('setInventoryPrice',{row,price});
+    const index=inventoryHeaderIndex(['售價','價格','銷售價']);
+    if(index>=0){item.values[index]=Number(price);if(item.display)item.display[index]=price;}
+    inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();
+  }catch(error){button.disabled=false;alert('售價更新失敗：'+error.message);}
+  finally{inventoryProductSaves.delete(Number(row));}
+}
+
 function renderInventoryContent(){
 const grid=document.getElementById('inventoryGrid');if(!grid)return;
 const categoryIndex=inventoryHeaderIndex(['IP分類','IP類別','IP','分類','類別']);
@@ -5021,6 +5095,7 @@ const linkMarkup=`<div class="inventoryLinks"><button type="button" class="inven
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
 return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}">${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':'點擊更新商品網址狀態'}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="number" min="1" max="${inventoryDisplayedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap"><button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${image}</button></div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
+inventoryLoadPriceHistory();
 }
 let inventoryCardSizing=null;
 function resizeInventoryCards(){
