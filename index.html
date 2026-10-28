@@ -2986,7 +2986,13 @@ async function launchLoadCalendarGroups(dialog){
  const host=dialog.querySelector('#launchCalendarGroups'),states=['最新開團','尚未上架'];
  try{const lists=await Promise.all(states.map(status=>api('launchList',{status})));if(dialog!==document.getElementById('launchDialog'))return;
  host.innerHTML=states.map((status,i)=>`<h3>${status==='最新開團'?'最新':'上架'}</h3>${(lists[i].groups||[]).filter(group=>!group.status||group.status===status).map(group=>`<div class="launchCalendarGroup"><div class="launchCalendarDetails"><button class="launchCalendarName" type="button" data-id="${esc(group.id)}" data-status="${esc(status)}" onclick="launchCalendarEditTime(this)"><span>${esc(group.name)}</span> <span class="launchCalendarTime">${esc(launchCalendarNormalizeTime(group.openTime)||(/吉伊|白熊/.test(group.name)?'10:00':'補時間'))}</span></button></div><button class="btn" type="button" data-calendar-group-id="${esc(group.id)}" onclick="launchCalendarSyncNow(this)" ${dialog.querySelector('form').dataset.connected==='true'?'':'disabled'}>登記</button></div>`).join('')||'<p class="launchHelp">目前沒有團。</p>'}`).join('');
+ void launchLoadCalendarReferences(dialog);
  }catch(error){host.innerHTML=`<p class="launchHelp">讀取團名失敗：${esc(error.message)}</p><button class="btn light" type="button" onclick="launchLoadCalendarGroups(document.getElementById('launchDialog'))">重試</button>`;}
+}
+async function launchLoadCalendarReferences(dialog){
+ try{const result=await apiRequest('calendarReferenceTimes');if(dialog!==document.getElementById('launchDialog'))return;
+  for(const reference of result.references||[]){const button=[...dialog.querySelectorAll('.launchCalendarName')].find(node=>node.dataset.id===reference.groupId);if(!button)continue;button.dataset.referenceTime=reference.time;button.querySelector('.launchCalendarTime').textContent=reference.time;button.querySelector('.launchCalendarTime').title='參考行事曆：'+reference.title+'（'+reference.date+'）';const input=button.parentElement.querySelector('input');if(input&&input.value===input.defaultValue){input.value=reference.time;input.defaultValue=reference.time;}}
+ }catch(error){if(dialog===document.getElementById('launchDialog'))dialog.querySelector('#launchCalendarError').textContent='讀取行事曆參考時間失敗：'+error.message;}
 }
 async function launchCalendarEditTime(button){
  const host=button.parentElement;if(host.querySelector('form')){host.querySelector('input').focus();return;}
@@ -2994,7 +3000,7 @@ async function launchCalendarEditTime(button){
  try{
   const {group}=await api('launchGet',{id:button.dataset.id,status:button.dataset.status});if(!group)throw Error('找不到此團');
   const form=document.createElement('form');form.className='launchCalendarTimeForm';
-  const fallback=/吉伊|白熊/.test(group.name||'')?'10:00':'';
+  const fallback=button.dataset.referenceTime||(/吉伊|白熊/.test(group.name||'')?'10:00':'');
   form.innerHTML=`<label>開賣時間<input name="openTime" type="text" inputmode="numeric" placeholder="例如 10、1030" value="${esc(group.openTime||fallback)}" aria-label="開賣時間"></label><button class="btn" type="submit">儲存時間</button><button class="btn light" type="button">取消</button><p role="status"></p>`;
   form.querySelector('[type="button"]').onclick=()=>form.remove();
   form.onsubmit=async event=>{
