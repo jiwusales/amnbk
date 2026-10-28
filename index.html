@@ -1427,6 +1427,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 </style>
 <style>.launchCanvasPricePart{display:inline-block;min-width:1.3em;cursor:text;white-space:nowrap}.launchCanvasPricePart:has(input){width:3.5em}.launchCanvasPricePart:focus-visible{outline:1px solid var(--main);outline-offset:2px}</style>
 <script src="https://jiwusales.github.io/imgh/image-refresh.js?v=20261028-revision" defer></script>
+<style>.payment .paymentHuaLB{grid-column:-2 / -1}</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -5309,6 +5310,7 @@ ${desktop?'<div class="storeDesktop"><section class="storeCheckoutPane" aria-lab
 <button onclick="setPayment(this,'LP')">LP</button>
 <button onclick="setPayment(this,'ipass')">ipass</button>
 <button onclick="setPayment(this,'寶中信')">寶中信</button>
+<button class="paymentHuaLB" onclick="setPayment(this,'花LB')">花LB</button>
 </div>
 </div>
 <div id="last5Box" style="display:none;margin-top:10px">
@@ -5399,7 +5401,7 @@ if(storeSalesData){
 let day=storeSalesData.days.find(item=>item.date===delta.date);
 if(!day){day={date:delta.date,total:0,cash:0,transfer:0,other:0,items:[]};storeSalesData.days.push(day);}
 const known=new Set(day.items.map(item=>item.row));
-delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);const pickup=['面交','自取'].includes(String(item.name||'').trim());if(!pickup)day.total+=item.amount;if(pickup||item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(寶中信|中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
+delta.items.forEach(item=>{if(known.has(item.row))return;day.items.push(item);const pickup=['面交','自取'].includes(String(item.name||'').trim());if(!pickup)day.total+=item.amount;if(pickup||item.payment==='💰'||item.payment==='現金')day.cash+=item.amount;else if(/^(寶中信|花LB|中信|LB|LP|IPASS|轉帳|匯款)/i.test(item.payment||''))day.transfer+=item.amount;else day.other+=item.amount;});
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }else if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){
 renderStoreSales(true);
@@ -5418,13 +5420,13 @@ if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')
 }
 function renderSalesPurchase(items){
 const payment=String(items.find(item=>item.payment)?.payment||'').trim();
-const bank=payment.match(/^(寶中信|中信|LB|LP)/i);
+const bank=payment.match(/^(寶中信|花LB|中信|LB|LP)/i);
 const cash=payment==='💰'||payment==='現金';
 const method=bank?bank[1].toUpperCase():(payment||'未填付款方式');
 const code=method==='LP'?payment.slice(bank[0].length).trim():bank?(payment.match(/(\d{5})\s*$/)?.[1]||''):'';
-const codeClass=method==='LB'?'salesCodeLB':['寶中信','中信'].includes(method)?'salesCodeCTBC':'';
-const paymentInfoClass=method==='LB'?'salesBankLB':['寶中信','中信'].includes(method)?'salesBankCTBC':method==='LP'?'salesBankLP':'';
-return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>{const rawNote=String(item.note||'').trim();const note=code&&[code,payment,method+' '+code,method+code].includes(rawNote)?'':rawNote;const hidden=Object.entries(item.hidden||{}).map(([key,value])=>`${esc(key)}：${esc(value)}`).join('｜');return `<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><button type="button" class="salesNoteEdit" onclick="editStoreSaleNote(${Number(item.row)})">${esc(item.name||'未填商品名稱')}</button>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}${hidden?`<span class="salesHiddenFields">${hidden}</span>`:''}</div><b class="${Number(item.amount)<0?'salesNegative':''}">$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>${note?`<div class="salesItemNote">${esc(note)}</div>`:''}`;}).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><button type="button" class="salesPaymentEdit ${codeClass}" data-method="${esc(method)}" data-last5="${esc(code)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method,this.dataset.last5)" title="點擊修改付款方式或補輸入後五碼">${esc(method)}</button>${code?`<span class="${codeClass}">${esc(code)}</span>`:['寶中信','中信','LB','LP'].includes(method)?`<button type="button" class="salesLast5Edit" data-method="${esc(method)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method)">輸入後五碼</button>`:''}</div>`}</div>`;
+const codeClass=['LB','花LB'].includes(method)?'salesCodeLB':['寶中信','中信'].includes(method)?'salesCodeCTBC':'';
+const paymentInfoClass=['LB','花LB'].includes(method)?'salesBankLB':['寶中信','中信'].includes(method)?'salesBankCTBC':method==='LP'?'salesBankLP':'';
+return `<div class="salesPurchase" data-sale-key="${esc(items.map(item=>item.row).join(','))}">${items.map(item=>{const rawNote=String(item.note||'').trim();const note=code&&[code,payment,method+' '+code,method+code].includes(rawNote)?'':rawNote;const hidden=Object.entries(item.hidden||{}).map(([key,value])=>`${esc(key)}：${esc(value)}`).join('｜');return `<div class="salesDetailRow"><span class="salesTime">${esc(item.time||'—')}</span><div class="salesProduct"><button type="button" class="salesNoteEdit" onclick="editStoreSaleNote(${Number(item.row)})">${esc(item.name||'未填商品名稱')}</button>${item.code?`<span class="salesProductCode">${esc(item.code)}</span>`:''}${hidden?`<span class="salesHiddenFields">${hidden}</span>`:''}</div><b class="${Number(item.amount)<0?'salesNegative':''}">$${money(item.amount)}${cash?' <span class="salesCashSymbol">💰</span>':''}</b></div>${note?`<div class="salesItemNote">${esc(note)}</div>`:''}`;}).join('')}${cash?'':`<div class="salesPurchaseInfo ${paymentInfoClass}"><button type="button" class="salesPaymentEdit ${codeClass}" data-method="${esc(method)}" data-last5="${esc(code)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method,this.dataset.last5)" title="點擊修改付款方式或補輸入後五碼">${esc(method)}</button>${code?`<span class="${codeClass}">${esc(code)}</span>`:['寶中信','中信','LB','花LB','LP'].includes(method)?`<button type="button" class="salesLast5Edit" data-method="${esc(method)}" onclick="editStoreSalePayment(this.closest('.salesPurchase').dataset.saleKey.split(','),this.dataset.method)">輸入後五碼</button>`:''}</div>`}</div>`;
 }
 
 function openUndatedStoreSales(){
@@ -5476,14 +5478,14 @@ try{await apiBackground('updateStoreSaleNote',{row,note,name,amount});savedDialo
 }
 function editStoreSalePayment(rows,method,last5=''){
 const selected=String(method||'').trim();
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>修改付款方式</h3><form onsubmit="saveStoreSalePayment(event)"><input id="editStoreSaleRows" type="hidden" value="${esc(rows.join(','))}"><div class="dialogGrid"><select id="editStoreSaleMethod" onchange="toggleStoreSaleLast5()"><option value="現金" ${selected==='現金'||selected==='💰'?'selected':''}>現金</option><option value="中信" ${selected==='中信'?'selected':''}>中信</option><option value="LB" ${selected==='LB'?'selected':''}>LB</option><option value="LP" ${selected==='LP'?'selected':''}>LP</option><option value="ipass" ${selected==='ipass'?'selected':''}>ipass</option><option value="寶中信" ${selected==='寶中信'?'selected':''}>寶中信</option></select><input id="editStoreSaleLast5" inputmode="numeric" maxlength="5" value="${esc(last5)}" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>修改付款方式</h3><form onsubmit="saveStoreSalePayment(event)"><input id="editStoreSaleRows" type="hidden" value="${esc(rows.join(','))}"><div class="dialogGrid"><select id="editStoreSaleMethod" onchange="toggleStoreSaleLast5()"><option value="現金" ${selected==='現金'||selected==='💰'?'selected':''}>現金</option><option value="中信" ${selected==='中信'?'selected':''}>中信</option><option value="LB" ${selected==='LB'?'selected':''}>LB</option><option value="LP" ${selected==='LP'?'selected':''}>LP</option><option value="ipass" ${selected==='ipass'?'selected':''}>ipass</option><option value="寶中信" ${selected==='寶中信'?'selected':''}>寶中信</option><option value="花LB" ${selected==='花LB'?'selected':''}>花LB</option></select><input id="editStoreSaleLast5" inputmode="numeric" maxlength="5" value="${esc(last5)}" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 const input=document.getElementById('editStoreSaleLast5');input.addEventListener('input',()=>{if(document.getElementById('editStoreSaleMethod').value!=='LP')input.value=toHalfWidthDigits(input.value).replace(/\D/g,'').slice(0,5);});toggleStoreSaleLast5();
 }
-function toggleStoreSaleLast5(){const method=document.getElementById('editStoreSaleMethod')?.value;const input=document.getElementById('editStoreSaleLast5');if(input){input.disabled=!['寶中信','中信','LB','LP'].includes(method);input.inputMode=method==='LP'?'text':'numeric';if(method==='LP')input.removeAttribute('maxlength');else input.maxLength=5;input.placeholder=method==='LP'?'後五碼／中文（選填）':'後五碼（選填）';}}
+function toggleStoreSaleLast5(){const method=document.getElementById('editStoreSaleMethod')?.value;const input=document.getElementById('editStoreSaleLast5');if(input){input.disabled=!['寶中信','中信','LB','花LB','LP'].includes(method);input.inputMode=method==='LP'?'text':'numeric';if(method==='LP')input.removeAttribute('maxlength');else input.maxLength=5;input.placeholder=method==='LP'?'後五碼／中文（選填）':'後五碼（選填）';}}
 async function saveStoreSalePayment(event){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
 const rows=document.getElementById('editStoreSaleRows').value.split(',').map(Number),method=document.getElementById('editStoreSaleMethod').value,last5=document.getElementById('editStoreSaleLast5').value.trim();
-if(['寶中信','中信','LB'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
+if(['寶中信','中信','LB','花LB'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
 try{await apiBackground('updateStoreSalePayment',{rows:JSON.stringify(rows),method,last5});savedDialog?.remove();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();drawStoreSales();}catch(error){console.error('付款資料更新失敗：'+error.message);button.disabled=false;}
 }
 function formatStoreSalesDate(date){
@@ -5696,7 +5698,7 @@ document.querySelectorAll('.payment button').forEach(x=>x.classList.remove('acti
 el.classList.add('active');
 const box=document.getElementById('last5Box');
 const input=document.getElementById('last5');
-if(['寶中信','中信','LB','LP'].includes(v)){
+if(['寶中信','中信','LB','花LB','LP'].includes(v)){
 input.inputMode=v==='LP'?'text':'numeric';if(v==='LP')input.removeAttribute('maxlength');else input.maxLength=5;input.placeholder=v==='LP'?'後五碼／中文（選填）':'輸入後五碼';
 box.style.display='block';
 input.focus();
@@ -5733,7 +5735,7 @@ const received=receivedInput===''?'':Number(receivedInput);
 const change=received===''?'':received-total;
 let paymentValue=payment;
 let note='';
-if(['寶中信','中信','LB','LP'].includes(payment)){
+if(['寶中信','中信','LB','花LB','LP'].includes(payment)){
 const last5Input=document.getElementById('last5');
 last5Input.value=toHalfWidthDigits(last5Input.value);
 const last5=last5Input.value.trim();
@@ -5873,7 +5875,7 @@ const customer=isCustomerView&&!isGroupView?String(onlineSearchText||'').trim():
 const customerRows=customer?onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===customer):[];
 const sourceRow=customerRows.find(row=>String(getOnlineData(row,['來源','通路','平台'])||'').trim());
 const customerSource=sourceRow?String(getOnlineData(sourceRow,['來源','通路','平台'])||'').trim():'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><h3>手動輸入訂單</h3><form onsubmit="submitOnlineOrder(event)"><div class="manualOnlineHeader"><select id="manualOnlineSource"><option>IG</option><option>@</option><option selected>LINE</option><option>熊帳</option><option>本帳</option><option>蟲帳</option></select><input id="manualOnlineDate" class="manualOnlineDate" aria-label="訂購日期" placeholder="日期"><input id="manualOnlineClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" placeholder="時間" title="例如 2036，代表 20:36"><div class="manualOnlineCustomerField"><input id="manualOnlineCustomer" placeholder="顧客名稱" autocomplete="off" aria-label="顧客名稱" aria-controls="manualOnlineCustomerSuggestions" aria-expanded="false" oninput="updateManualOnlineCustomerSuggestions()" onfocus="updateManualOnlineCustomerSuggestions()" onblur="document.getElementById('manualOnlineCustomerSuggestions').hidden=true;this.setAttribute('aria-expanded','false')" required><div id="manualOnlineCustomerSuggestions" class="manualOnlineCustomerSuggestions" hidden></div></div></div><div id="manualOnlineItems" style="margin-top:10px"><div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div></div><button type="button" class="btn light" onclick="addManualOnlineItem()">＋ 新增商品</button><div class="manualOnlineMoneyRow"><strong id="manualOnlineTotal" class="manualOnlineTotal">總金額 $0</strong><strong id="manualOnlineDeposit" class="manualOnlineDeposit" aria-live="polite">訂金 $0</strong></div><div class="manualOnlinePaymentRow"><select id="manualOnlinePayment" onchange="syncManualOnlinePayment()"><option>LB</option><option>中信</option><option>LP</option><option>ipass</option><option>賣貨便</option><option>面交</option><option>寶中信</option></select><input id="manualOnlineLast5" type="text" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增訂單</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><h3>手動輸入訂單</h3><form onsubmit="submitOnlineOrder(event)"><div class="manualOnlineHeader"><select id="manualOnlineSource"><option>IG</option><option>@</option><option selected>LINE</option><option>熊帳</option><option>本帳</option><option>蟲帳</option></select><input id="manualOnlineDate" class="manualOnlineDate" aria-label="訂購日期" placeholder="日期"><input id="manualOnlineClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" placeholder="時間" title="例如 2036，代表 20:36"><div class="manualOnlineCustomerField"><input id="manualOnlineCustomer" placeholder="顧客名稱" autocomplete="off" aria-label="顧客名稱" aria-controls="manualOnlineCustomerSuggestions" aria-expanded="false" oninput="updateManualOnlineCustomerSuggestions()" onfocus="updateManualOnlineCustomerSuggestions()" onblur="document.getElementById('manualOnlineCustomerSuggestions').hidden=true;this.setAttribute('aria-expanded','false')" required><div id="manualOnlineCustomerSuggestions" class="manualOnlineCustomerSuggestions" hidden></div></div></div><div id="manualOnlineItems" style="margin-top:10px"><div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div></div><button type="button" class="btn light" onclick="addManualOnlineItem()">＋ 新增商品</button><div class="manualOnlineMoneyRow"><strong id="manualOnlineTotal" class="manualOnlineTotal">總金額 $0</strong><strong id="manualOnlineDeposit" class="manualOnlineDeposit" aria-live="polite">訂金 $0</strong></div><div class="manualOnlinePaymentRow"><select id="manualOnlinePayment" onchange="syncManualOnlinePayment()"><option>LB</option><option>中信</option><option>LP</option><option>ipass</option><option>賣貨便</option><option>面交</option><option>寶中信</option><option>花LB</option></select><input id="manualOnlineLast5" type="text" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增訂單</button></div></form></div></div>`);
 const customerInput=document.getElementById('manualOnlineCustomer'),sourceInput=document.getElementById('manualOnlineSource');
 customerInput.value=customer;
 const group=isGroupView&&!isCustomerView?String(onlineSearchText||'').trim():'';
@@ -5923,7 +5925,7 @@ if(!items.length)return;
 const storedMethod=normalizePayment(getPaymentMethod(items[0]));
 const payment=storedMethod==='面交'?'LB':storedMethod||'LB';
 const last5=items.map(getLast5).find(value=>String(value||'').trim())||'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><select id="orderEditSource" aria-label="訂單來源" title="訂單來源">${[...new Set([String(getOnlineData(items[0],['來源','通路','平台'])||'LINE'),'LINE','IG','官網','本帳','熊帳','@'])].map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><input id="orderEditClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" title="時間（四位數字，例如 2036）" placeholder="例如 2036" value="${esc(orderEditTimeValue(items).slice(11,16).replace(':','')||'0000')}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light orderMergeButton" style="margin-right:auto" onclick="openOnlineOrderMergePicker()">合併</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><select id="orderEditSource" aria-label="訂單來源" title="訂單來源">${[...new Set([String(getOnlineData(items[0],['來源','通路','平台'])||'LINE'),'LINE','IG','官網','本帳','熊帳','@'])].map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><input id="orderEditClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" title="時間（四位數字，例如 2036）" placeholder="例如 2036" value="${esc(orderEditTimeValue(items).slice(11,16).replace(':','')||'0000')}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信','花LB'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB','花LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB','花LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light orderMergeButton" style="margin-right:auto" onclick="openOnlineOrderMergePicker()">合併</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 const form=document.querySelector('#appDialog form');form.dataset.originalTimestamp=orderEditTimeValue(items);form.dataset.originalTime=document.getElementById('orderEditTime').value;form.dataset.originalClock=document.getElementById('orderEditClock').value;form.dataset.originalPayment=payment;form.dataset.originalLast5=document.getElementById('orderEditLast5').value;
 document.querySelector('.orderEditName')?.focus();
 }
@@ -5962,7 +5964,7 @@ function selectOnlineOrderMerge(){
  box.remove();form.querySelector('.orderMergeButton').textContent='已選合併';form.querySelector('.orderDelete').disabled=true;
  const hint=document.createElement('p');hint.className='salesHint';hint.textContent='已選擇合併，按 SAVE 完成。';form.querySelector('.dialogActions').before(hint);
 }
-function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['寶中信','中信','LB'].includes(document.getElementById('orderEditPayment').value);}
+function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['寶中信','中信','LB','花LB'].includes(document.getElementById('orderEditPayment').value);}
 
 function addOrderEditItem(){const box=document.getElementById('orderEditItems');box.insertAdjacentHTML('beforeend',orderEditItemMarkup(null));box.lastElementChild.querySelector('.orderEditName')?.focus();}
 function allocateOrderEditDeposit(items,originalDeposits,originalFirstRow){
@@ -5994,7 +5996,7 @@ const originalItems=keys.map(key=>onlineRows.find(row=>row.editKey===key)).filte
 try{allocateOrderEditDeposit(items,originalItems.map(row=>getOnlineData(row,['訂金'])),originalItems[0]?.row);}catch(e){return alert(e.message);}
 items.forEach(item=>{const original=originalItems.find(row=>row.editKey===item.key);if(!original)return;const values={name:String(getOnlineData(original,['名稱','商品名稱'])||''),price:numberValue(getOnlineData(original,['售價','價格'])),shipping:getOnlineData(original,['運費'])===''?'':numberValue(getOnlineData(original,['運費'])),deposit:String(getOnlineData(original,['訂金'])??'')};item.changedFields=Object.keys(values).filter(key=>String(item[key]??'')!==String(values[key]??''));});
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
-const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
+const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB','花LB'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
 const paymentChanged=payment!==event.target.dataset.originalPayment||last5!==event.target.dataset.originalLast5;
 const mergeOrders=event.target.dataset.mergeOrders?JSON.parse(event.target.dataset.mergeOrders):undefined;
 const source=document.getElementById('orderEditSource').value;const sourceChanged=originalItems.some(row=>String(getOnlineData(row,['來源','通路','平台'])||'')!==source);
@@ -6014,7 +6016,7 @@ const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').joi
 const fullNote=face?(note?note+'｜面交':'面交'):note;
 const paymentHeader=header(['付款方式','支付方式','付款','收款方式']),last5Header=header(['後五碼','匯款後五碼']);
 const timeHeader=header(['購買時間','時間']);
-const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:job.payment==='LB'?'LB '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
+const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
 const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
@@ -6056,7 +6058,7 @@ finally{onlineEditWorkerRunning=false;onlineOrderEditPending=false;onlineRows=on
 }
 
 function updateManualOnlineTotal(){const box=document.getElementById('manualOnlineItems');if(!box)return;const sum=selector=>[...box.querySelectorAll(selector)].reduce((total,input)=>total+(selector==='.manualOnlinePrice'&&input.closest('.manualOnlineItem').querySelector('.manualOnlineCargo').value==='補貨登記'?0:Number(normalizeMoneyInput(input)||0)),0);const total=document.getElementById('manualOnlineTotal'),deposit=document.getElementById('manualOnlineDeposit');if(total)total.textContent='總金額 $'+money(sum('.manualOnlinePrice'));if(deposit)deposit.textContent='訂金 $'+money(sum('.manualOnlineItemDeposit'));}
-function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['寶中信','中信','LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
+function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['寶中信','中信','LB','花LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
 function normalizeManualOrderDate(value){
 const text=String(value||'').trim().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248));
 const match=text.match(/^(\d{1,2})\/(\d{1,2})$/)||text.match(/^(\d{2})(\d{2})$/);
@@ -6384,6 +6386,7 @@ getOnlineData(row,['付款方式','支付方式','付款','收款方式'])||''
 ).trim();
 if(direct)return direct;
 const last5=String(getLast5(row)||'').trim();
+if(last5.toUpperCase().startsWith('花LB'))return '花LB';
 if(last5.startsWith('寶中信'))return '寶中信';
 if(last5.startsWith('中信'))return '中信';
 if(last5.toUpperCase().startsWith('LB'))return 'LB';
@@ -6396,13 +6399,14 @@ return ''
 function needsLast5(rows){
 return rows.some(row=>{
 const method=getPaymentMethod(row).toUpperCase();
-return method.includes('中信')||method==='LB'
+return method.includes('中信')||['LB','花LB'].includes(method)
 })
 }
 function normalizePayment(v){
 const value=String(v||'').trim().toLowerCase();
 if(value==='寶中信')return '寶中信';
 if(value==='中信')return '中信';
+if(value==='花lb')return '花LB';
 if(value==='lb')return 'LB';
 if(value==='lp')return 'LP';
 if(value==='ipass')return 'ipass';
@@ -6411,10 +6415,10 @@ return ''
 }
 function orderCardPaymentText(last5,payment){
  if(['LP','ipass'].includes(payment))return payment;
- return String(last5||'').split(/\r?\n/).map(value=>value.trim()).filter(value=>value&&!/^(?:LB|寶中信|中信)\s*$/i.test(value)).map(value=>value==='現金'?'💰':value).join('\n');
+ return String(last5||'').split(/\r?\n/).map(value=>value.trim()).filter(value=>value&&!/^(?:LB|寶中信|花LB|中信)\s*$/i.test(value)).map(value=>value==='現金'?'💰':value).join('\n');
 }
 function paymentLast5Value(v){
-return String(v||'').replace(/^(?:寶中信|中信|LB)\s*/i,'').trim()
+return String(v||'').replace(/^(?:寶中信|花LB|中信|LB)\s*/i,'').trim()
 }
 function onlineMonthNumber(v){
 const s=String(v||'').trim();
@@ -6443,7 +6447,7 @@ const key=onlineSearchText.toLowerCase();
 const monthMatch=key.match(/^(\d{1,2})月$/);
 const wantedMonth=monthMatch?Number(monthMatch[1]):0;
 const searchDate=/^[0-9０-９\s/.-]+$/.test(key)?toHalfWidthDigits(key).replace(/\D/g,''):'';
-const searchDigits=/^(?:(?:寶中信|中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
+const searchDigits=/^(?:(?:寶中信|花LB|中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
 rows=rows.filter(x=>{
 const customer=
 String(
@@ -6978,7 +6982,7 @@ const showItemDates=!!order.depositMergeKey&&orderDates.size>1;
 const latestOrderDate=order.items.map(onlineRowOrderTime).filter(value=>value!==undefined&&value!==null&&value!=='').reduce((latest,value)=>timeValue(value)>=timeValue(latest)?value:latest,order.time||'');
 const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
 const payment=storedPayment==='面交'?'LB':(storedPayment||'LB');
-const acceptsLast5=['寶中信','中信','LB'].includes(payment);
+const acceptsLast5=['寶中信','中信','LB','花LB'].includes(payment);
 const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
@@ -7201,7 +7205,7 @@ rows.forEach(row=>pendingReconcileRows.delete(row));
 }
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
-const needsCode=['寶中信','中信','LB'].includes(select.value);
+const needsCode=['寶中信','中信','LB','花LB'].includes(select.value);
 const input=meta.querySelector('.orderLast5Input');
 if(input)input.disabled=!needsCode;
 if(!needsCode)saveOrderPayment(meta)
@@ -7211,7 +7215,7 @@ if(!meta)return;
 const payment=meta.querySelector('.orderPayment')?.value||meta.dataset.payment||'';
 if(!payment)return;
 const last5=meta.querySelector('.orderLast5Input')?.value.trim()||meta.dataset.last5||'';
-if(['寶中信','中信','LB'].includes(payment)&&!last5)return;
+if(['寶中信','中信','LB','花LB'].includes(payment)&&!last5)return;
 const rows=(meta.dataset.rows||'')
 .split(',')
 .map(Number)
@@ -7220,11 +7224,11 @@ try{
 await api('saveOnlinePayment',{
 rows:JSON.stringify(rows),
 payment,
-last5:['寶中信','中信','LB'].includes(payment)?last5:''
+last5:['寶中信','中信','LB','花LB'].includes(payment)?last5:''
 });
 const paymentHeader=findHeader(onlineHeaders,['付款方式','支付方式','付款','收款方式']);
 const last5Header=findHeader(onlineHeaders,['後五碼','匯款後五碼']);
-onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(payment)?payment+last5:payment==='LB'?'LB '+last5:payment;});
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(payment)?payment+last5:['LB','花LB'].includes(payment)?payment+' '+last5:payment;});
 onlineLoadedAt=Date.now();saveOnlineSessionCache();
 }catch(e){
 alert('付款資料儲存失敗：'+e.message)
@@ -7662,7 +7666,7 @@ ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;}
 renderStore();
 Object.entries(draft).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
 const codeBox=document.getElementById('last5Box');
-if(codeBox)codeBox.style.display=['寶中信','中信','LB'].includes(payment)?'block':'none';
+if(codeBox)codeBox.style.display=['寶中信','中信','LB','花LB'].includes(payment)?'block':'none';
 document.querySelectorAll('.payment button').forEach(button=>button.classList.toggle('active',button.textContent===payment));
 calcChange();
 });
@@ -8442,3 +8446,4 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 <style id="launch-inventory-import-style">.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
 </body>
 </html>
+
