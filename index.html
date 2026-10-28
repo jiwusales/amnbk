@@ -6138,7 +6138,7 @@ if(page&&pagePosition){page.scrollTop=pagePosition.top;page.scrollLeft=pagePosit
 function editCargoTag(rowNumber){const id=Number(rowNumber);if(pendingBadgeRows.has(id))return;activeCargoPickerRow=activeCargoPickerRow===id?0:id;refreshCargoViewKeepingScroll();}
 async function chooseCargoTag(rowNumber,choice){
 const id=Number(rowNumber),row=onlineRows.find(item=>Number(item.row)===id);if(!row||pendingBadgeRows.has(id))return;
-let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(choice==='ordered'){type='ordered';value='已訂購';}else if(choice==='stock'){type='cargo';value='現貨';}else if(choice==='restock'){type='cargo';value='補登';}else if(choice==='opened'){type='opened';value='已開單';}else return;
+let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(choice==='ordered'){type='ordered';value='已訂購';}else if(choice==='stock'){type='cargo';value='現貨';}else if(choice==='restock'){type='cargo';value='補登';}else if(choice==='month'){const current=String(getOnlineData(row,['貨況'])||'').match(/^(0?[1-9]|1[0-2])月$/);const input=prompt('受注月份（1～12）',current?String(Number(current[1])):'');if(input===null)return;const month=input.normalize('NFKC').trim().replace(/月$/,'').trim();if(!/^(0?[1-9]|1[0-2])$/.test(month)){alert('請輸入 1～12 的月份');return;}type='cargo';value=Number(month)+'月';}else if(choice==='opened'){type='opened';value='已開單';}else return;
 const previous={...row.data};
 if(type==='cargo'){const h=findHeader(onlineHeaders,['貨況']);if(h)row.data[h]=value;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='';const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph&&typeof row.data[ph]==='boolean')row.data[ph]=false;const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
 else if(type==='opened'){const h=findHeader(onlineHeaders,['已開單','開單']);if(h)row.data[h]=true;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='已開單';}
@@ -6149,8 +6149,8 @@ catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScrol
 finally{pendingBadgeRows.delete(id);}
 }
 function cargoChoiceMarkup(row){
-const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['opened','完','#555','cargoChoiceOpened']];
-return options.filter(([,label])=>label!==current).map(([key,label,color,cls])=>`<button type="button" class="tag cargoTag ${cls}" title="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':'已開單'}" aria-label="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':'已開單'}" onclick="chooseCargoTag(${Number(row.row)},'${key}')" style="background:${color}">${label}</button>`).join('');
+const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['month','受注','#85C2D0','cargoChoiceMonth'],['opened','完','#555','cargoChoiceOpened']];
+return options.filter(([,label])=>label!==current).map(([key,label,color,cls])=>`<button type="button" class="tag cargoTag ${cls}" title="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" aria-label="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" onclick="chooseCargoTag(${Number(row.row)},'${key}')" style="background:${color}">${label}</button>`).join('');
 }
 function openOnlineOrderNameDialog(rows){
 if(onlineOrderEditPending||onlineEditWorkerRunning)return alert('訂單正在儲存，完成後即可改名');
