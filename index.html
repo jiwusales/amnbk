@@ -8049,7 +8049,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 @media(max-width:850px){.launchMobileDraftSections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:8px}.launchMobileDraftSections>.btn{min-width:0}}
 .orderEditHeader{display:grid;grid-template-columns:76px minmax(70px,1fr) minmax(70px,1fr) auto minmax(0,1fr);gap:8px;align-items:center}
 .orderEditHeader>input,.orderEditHeader>select{width:100%;min-width:0}
-@media(max-width:600px){.orderEditHeader{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}.orderEditHeader>input,.orderEditHeader>select{font-size:12px;padding:8px 5px}}
+@media(max-width:600px){.dialogItem.orderEditItem{grid-template-columns:calc((100% - 16px)*2/5.5) repeat(3,minmax(0,1fr)) 14px;column-gap:8px}.dialogItem.orderEditItem>button:first-child{order:1}.orderEditHeader{grid-template-columns:calc((100% - 16px)*2/5.5) repeat(2,minmax(0,1fr));gap:10px 8px}.orderEditHeader>#orderEditSource{grid-column:1;grid-row:1}.orderEditHeader>#orderEditTime{grid-column:2;grid-row:1}.orderEditHeader>#orderEditClock{grid-column:3;grid-row:1}.orderEditHeader>#orderEditPayment{grid-column:1;grid-row:2}.orderEditHeader>#orderEditLast5{grid-column:2 / 4;grid-row:2}.orderEditHeader>input,.orderEditHeader>select{font-size:12px;padding:8px 5px}}
 .launchNewShipping>input:not([type=checkbox]){min-width:0;flex:1}
 .launchNewShipping>input[type=checkbox]{display:none}
 .launchFreeShippingToggle{flex:none;border:0;background:transparent;color:#777;padding:6px;font-size:20px}
