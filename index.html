@@ -1,3 +1,13 @@
+const previousRole=String(inventoryValue(item,['角色'])||'').trim(),previousIp=String(inventoryValue(item,['IP','IP分類','IP類別'])||'').trim();
+const renameRole=Object.hasOwn(data,'role')&&previousRole&&data.role&&data.role!==previousRole;
+const rolePeers=renameRole?inventoryRows.filter(peer=>String(inventoryValue(peer,['角色'])||'').trim()===previousRole&&String(inventoryValue(peer,['IP','IP分類','IP類別'])||'').trim()===previousIp):[];
+if(rolePeers.some(peer=>inventoryProductSaves.has(Number(peer.row)))){button.disabled=false;button.textContent='SAVE';inventorySaveNotice('相同角色的商品正在背景儲存，請稍候再修改');return;}
+if(renameRole){data.renameSameRole=true;data.roleRenameFrom=previousRole;data.roleRenameIp=previousIp;}
+const lockedRows=[...new Set([Number(row),...rolePeers.map(peer=>Number(peer.row))])];
+ if(mode==='single'&&index>=0){
+  const nextRole=String(items[0]?.role||'').trim();items[0].role=nextRole;
+  if(previousRole&&nextRole&&previousRole!==nextRole){launchPushUndo();launchCurrent.items.forEach(item=>{if(String(item.role||'').trim()===previousRole)item.role=nextRole;});}
+ }
 <!DOCTYPE html>
 <!-- Calendar registration reuses the shared iCloud connection. -->
 <html lang="zh-Hant">
@@ -2821,7 +2831,7 @@ async function launchGrabAddedProducts(ids){
 async function launchProductSubmit(e,index,mode){
  e.preventDefault();const form=e.target,group=launchCurrent;
  if(mode==='single'&&form.jiwuFillProductInfo){await form.jiwuFillProductInfo();if(!form.isConnected||launchCurrent!==group)return;}
- const f=new FormData(form),previousPrice=index>=0?String(launchCurrent.items[index]?.price??''):'';let items=[];
+ const f=new FormData(form),previousPrice=index>=0?String(launchCurrent.items[index]?.price??''):'',previousRole=index>=0?String(launchCurrent.items[index]?.role||'').trim():'';let items=[];
  if(mode==='multi'){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
@@ -4926,12 +4936,12 @@ if(Object.keys(data).length===1){closeDialog();return;}
 const previous=[];
 for(const [key,names] of Object.entries(fields)){if(!Object.hasOwn(data,key))continue;let col=inventoryHeaderIndex(names);if(col<0&&key==='japaneseName'){col=inventoryHeaders.length;inventoryHeaders.push('日文名');while(item.values.length<=col)item.values.push('');if(item.display)while(item.display.length<=col)item.display.push('');}if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
 closeDialog();prepareInventoryRows();renderInventoryContent();
-const pending=(async()=>{
-try{await api('updateInventoryProduct',data);inventoryLoadedAt=Date.now();}
+const pending=Promise.resolve().then(async()=>{
+try{const result=await api('updateInventoryProduct',data);if(result.roleRename){const ids=new Set(result.roleRename.rows.map(Number)),roleCol=inventoryHeaderIndex(['角色']);if(roleCol>=0)inventoryRows.forEach(peer=>{if(ids.has(Number(peer.row))){peer.values[roleCol]=result.roleRename.to;if(peer.display)peer.display[roleCol]=result.roleRename.to;}});}inventoryLoadedAt=Date.now();}
 catch(error){for(const old of previous){item.values[old.col]=old.value;if(item.display)item.display[old.col]=old.display;}inventoryLoadedAt=0;alert('「'+(data.name||inventoryValue(item,['名稱','商品名稱']))+'」儲存失敗，畫面已還原，請重新編輯儲存：'+error.message);}
-finally{inventoryProductSaves.delete(Number(row));prepareInventoryRows();if(!inventoryProductSaves.size)saveInventorySessionCache();renderInventoryContent();inventorySaveNotice(inventoryProductSaves.size?'商品背景儲存中…':'背景儲存作業已結束');}
-})();
-inventoryProductSaves.set(Number(row),pending);inventorySaveNotice('已關閉編輯，商品背景儲存中…');
+finally{lockedRows.forEach(key=>{if(inventoryProductSaves.get(key)===pending)inventoryProductSaves.delete(key);});prepareInventoryRows();if(!inventoryProductSaves.size)saveInventorySessionCache();renderInventoryContent();inventorySaveNotice(inventoryProductSaves.size?'商品背景儲存中…':'背景儲存作業已結束');}
+});
+lockedRows.forEach(key=>inventoryProductSaves.set(key,pending));inventorySaveNotice('已關閉編輯，商品背景儲存中…');
 await pending;
 }
 function beginInventoryPriceEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['售價','價格','銷售價']);const input=document.createElement('input');input.className='inventoryInlinePriceInput';input.type='text';input.inputMode='decimal';input.value=String(current??'');input.setAttribute('aria-label','修改售價');button.replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const price=normalizeMoneyInput(input).replace(/[，,\s]/g,'');if(!/^\d+(?:\.\d+)?$/.test(price)){alert('請輸入有效售價');renderInventoryContent();return;}const old=String(current??'').replace(/,/g,'');if(price===old){renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryPrice',{row,price});const colIndex=inventoryHeaderIndex(['售價','價格','銷售價']);if(colIndex>=0){item.values[colIndex]=Number(price);if(item.display)item.display[colIndex]=price;}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('售價更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();input.blur();}else if(event.key==='Escape'){event.preventDefault();finish(false);}});}
