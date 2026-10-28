@@ -3014,9 +3014,43 @@ async function launchCalendarSyncNow(button){
  finally{button.disabled=false;button.textContent=label;}
 }
 
+function launchShippingMerchant(value){
+ try{
+  const u=new URL(value);if(!['https:','http:'].includes(u.protocol)||u.username||u.password)return '';
+  const host=u.hostname.toLowerCase().replace(/^www\./,''),parts=u.pathname.split('/').filter(Boolean);
+  if(['item.rakuten.co.jp','store.shopping.yahoo.co.jp'].includes(host))return parts[0]?host+'/'+parts[0].toLowerCase():'';
+  if(/(^|\.)(?:amazon\.[a-z.]+|taobao\.com|tmall\.com|rakuten\.co\.jp|yahoo\.co\.jp|mercari\.com|buyee\.jp)$/.test(host))return '';
+  return host;
+ }catch{return '';}
+}
+function launchShippingReference(group,references){
+ const merchants=g=>new Set((g.items||[]).filter(x=>!x.referenceOnly).map(x=>x.url).filter(Boolean).map(launchShippingMerchant));
+ const target=merchants(group);if(target.size!==1||target.has(''))return null;
+ const key=[...target][0],matches=(references||[]).filter(g=>g.id!==group.id&&String(g.domesticShipping??'').trim()!==''&&merchants(g).size===1&&merchants(g).has(key));
+ if(!matches.length)return null;
+ const normalized=g=>String(g.domesticShipping).trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
+ const values=new Set(matches.map(g=>normalized(g)+'|'+(g.noFreeShipping===true)));
+ if(values.size!==1||!normalized(matches[0]))return null;
+ return {domesticShipping:normalized(matches[0]),noFreeShipping:matches[0].noFreeShipping===true};
+}
+async function launchAutoDomesticShipping(){
+ const group=launchCurrent;if(!group||String(group.domesticShipping??'').trim()!=='')return;
+ const signature=JSON.stringify((group.items||[]).map(x=>x.url)),initialToggle=group.noFreeShipping;
+ try{
+  const data=await api('launchURLs',{shippingReference:true});
+  if(launchCurrent!==group||String(group.domesticShipping??'').trim()!==''||group.noFreeShipping!==initialToggle||signature!==JSON.stringify((group.items||[]).map(x=>x.url)))return;
+  const reference=launchShippingReference(group,data.shippingReferences);if(!reference)return;
+  launchPushUndo();Object.assign(group,reference);launchMark();
+  const dialog=document.getElementById('launchDialog'),input=dialog?.querySelector('input[aria-label="境內運"]');if(input)input.value=reference.domesticShipping;
+  const button=dialog?.querySelector('button[aria-label="沒有免運門檻"]');if(button){button.setAttribute('aria-pressed',String(reference.noFreeShipping));button.style.color=reference.noFreeShipping?'#d9544d':'#777';}
+  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(group);
+ }catch(e){console.warn('境內運參考資料暫時無法讀取',e);}
+}
+
 function launchGroupInfo(){
  launchNormalizeGroupURLs(launchCurrent);
  launchDialog(`<div class="launchAllHeading"><h2>開團資訊</h2><div class="launchAllActions"><button class="btn light" type="button" onclick="launchCalendarSettings()">行事曆</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">✖</button></div></div><div class="launchAllInfo"><label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label><label><span>廣告名</span><input name="adName" aria-label="廣告名" placeholder="選填" value="${esc(launchCurrent.adName||'')}" onchange="launchSetGroupText('adName',this.value)"></label><label><span>首圖網址</span><input name="coverUrl" aria-label="首圖網址" type="url" placeholder="https://…" value="${esc(launchCurrent.panels?.[0]?.image??launchCurrent.images?.[0]??'')}" onchange="launchSetCoverURL(this)"></label><div class="launchPair"><label><span>開團日期</span><input aria-label="開團日期" data-launch-date-field="openDate" type="text" inputmode="numeric" placeholder="例如 1023" maxlength="4" value="${esc(launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate')))}" onchange="launchSetShipping('openDate',this.value);this.value=launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate'))"></label><label><span>收單日期</span><input aria-label="收單日期" data-launch-date-field="closeDate" placeholder="選填" value="${esc(launchDateFieldValue(launchCurrent,'closeDate'))}" onchange="launchSetShipping('closeDate',this.value.trim());this.value=launchDateFieldValue(launchCurrent,'closeDate')"></label></div><div class="launchPair"><label><span>開賣時間</span><input aria-label="開賣時間" type="text" inputmode="numeric" placeholder="例如 10、1030" maxlength="5" value="${esc(launchOpenTimeDisplay(launchCurrent.openTime))}" onchange="launchSetShipping('openTime',this.value.trim());this.value=launchOpenTimeDisplay(launchCurrent.openTime)"></label><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label></div><div class="launchPair"><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label><label><span>二補運費</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="二補運費" placeholder="選填" value="${esc(launchCurrent.secondShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('secondShipping',this.value.trim())"><button type="button" aria-label="需二補" title="紅色代表需二補，金額填在二補運費欄位" aria-pressed="${!!launchCurrent.needsSecondPayment}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.needsSecondPayment?'#d9544d':'#777'}" onclick="launchToggleSecondPayment(this)">○</button></div></label></div><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>備註</span><textarea name="storefrontNote" aria-label="前端備註" rows="2" placeholder="有填寫時，前端網頁優先顯示此內容；留空使用原本說明" onchange="launchSetGroupText('storefrontNote',this.value)">${esc(launchCurrent.storefrontNote||'')}</textarea></label><label><span>短網址</span><div style="display:flex;gap:8px;align-items:center"><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" style="flex:1;min-width:0" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"><button type="button" class="btn light" style="flex:none;white-space:nowrap" onclick="launchGenerateShortURL(this)" ${launchCurrent.status!=='最新開團'?'disabled title="上架到最新開團後才能產生"':''}>${launchCurrent.status==='最新開團'?'產生':'上架後產生'}</button></div></label></div>`);
+ void launchAutoDomesticShipping();
 }
 function launchRenderProductList(){
  document.getElementById('launchOffscreenExport')?.remove();
