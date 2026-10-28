@@ -3412,7 +3412,7 @@ function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
  const datedPrefix=/^(?:⛔[\uFE0E\uFE0F]?\s*)?(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)/.test(title.normalize('NFKC').trim());
  if(dates.openDate||dates.closeDate||datedPrefix||launchDateFieldValue(group,'openDate')||launchDateFieldValue(group,'closeDate'))return launchGroupTitle(title);
  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
- return parts.month+parts.day+' '+launchGroupTitle(title);
+ return parts.month+parts.day+launchGroupTitle(title);
 }
 function launchDrawExportTitle(title,group,index,drawText){
  const nodes=Array.from(title.childNodes),style=title.getAttribute('style');
