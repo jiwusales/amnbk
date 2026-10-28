@@ -1205,7 +1205,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 .salesPurchaseInfo.salesBankLP{gap:6px}
 
 
-.launchCalendarDialog{height:fit-content!important}.launchCalendarForm{display:grid;align-content:start;gap:16px;margin-top:20px}.launchCalendarCredentials{display:grid;gap:16px}.launchCalendarCredentials>label{display:grid;gap:8px;margin:0}.launchCalendarDialog [hidden]{display:none!important}.launchCalendarForm .launchHelp{margin:0;line-height:1.7}.launchCalendarActions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px;flex-wrap:wrap}.launchCalendarForm [role="alert"]{margin:0;line-height:1.6;overflow-wrap:anywhere}.launchCalendarGroups{display:grid;gap:12px;margin-top:20px}.launchCalendarGroups h3{margin:8px 0 0;font-size:16px}.launchCalendarGroup{display:flex;gap:16px;align-items:center;justify-content:space-between;border:1px solid #e2e5ef;border-radius:10px;padding:12px}.launchCalendarGroup span{min-width:0;overflow-wrap:anywhere}.launchCalendarGroup button{flex:none}.launchTabShort{display:none}@media(max-width:600px){.launchListBar>.launchTabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;gap:6px}.launchListBar>.launchTabs>.btn{width:100%;min-width:0;padding:9px 2px;white-space:nowrap}.launchListBar>.launchTabs>.launchClosedSearch{grid-column:1/-1;box-sizing:border-box}.launchTabLong{display:none}.launchTabShort{display:inline}}
+.launchCalendarDialog{height:fit-content!important}.launchCalendarForm{display:grid;align-content:start;gap:16px;margin-top:20px}.launchCalendarCredentials{display:grid;gap:16px}.launchCalendarCredentials>label{display:grid;gap:8px;margin:0}.launchCalendarDialog [hidden]{display:none!important}.launchCalendarForm .launchHelp{margin:0;line-height:1.7}.launchCalendarActions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px;flex-wrap:wrap}.launchCalendarForm [role="alert"]{margin:0;line-height:1.6;overflow-wrap:anywhere}.launchCalendarGroups{display:grid;gap:12px;margin-top:20px}.launchCalendarGroups h3{margin:8px 0 0;font-size:16px}.launchCalendarGroup{display:flex;gap:16px;align-items:center;justify-content:space-between;border:1px solid #e2e5ef;border-radius:10px;padding:12px}.launchCalendarGroup span{min-width:0;overflow-wrap:anywhere}.launchCalendarGroup button{flex:none}.launchCalendarDetails{flex:1;min-width:0}.launchCalendarGroup .launchCalendarName{display:block;width:100%;border:0;background:none;color:inherit;text-align:left;font:inherit;padding:4px 0;cursor:pointer;overflow-wrap:anywhere}.launchCalendarTime{display:inline-block;margin-left:8px;color:#92785f;font-size:13px;white-space:nowrap}.launchCalendarName:focus-visible{outline:2px solid #a98d72}.launchCalendarTimeForm{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.launchCalendarTimeForm label{display:grid;gap:8px;width:100%}.launchCalendarTimeForm input{width:100%;box-sizing:border-box}.launchCalendarTimeForm p{width:100%;margin:0;line-height:1.6}.launchTabShort{display:none}@media(max-width:600px){.launchListBar>.launchTabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;gap:6px}.launchListBar>.launchTabs>.btn{width:100%;min-width:0;padding:9px 2px;white-space:nowrap}.launchListBar>.launchTabs>.launchClosedSearch{grid-column:1/-1;box-sizing:border-box}.launchTabLong{display:none}.launchTabShort{display:inline}}
 .launchAllInfo{display:grid;row-gap:12px}
 .launchDialog .launchAllInfo label{display:flex;align-items:center;gap:10px;margin:0;min-width:0}
 .launchAllInfo textarea{width:100%;box-sizing:border-box;resize:vertical}.launchProductListPage .launchAllInfo label{display:flex;align-items:center;gap:10px;margin:0}
@@ -2985,8 +2985,36 @@ async function launchCalendarSettings(){
 async function launchLoadCalendarGroups(dialog){
  const host=dialog.querySelector('#launchCalendarGroups'),states=['最新開團','尚未上架'];
  try{const lists=await Promise.all(states.map(status=>api('launchList',{status})));if(dialog!==document.getElementById('launchDialog'))return;
- host.innerHTML=states.map((status,i)=>`<h3>${status==='最新開團'?'最新':'上架'}</h3>${(lists[i].groups||[]).filter(group=>!group.status||group.status===status).map(group=>`<div class="launchCalendarGroup"><span>${esc(group.name)}</span><button class="btn" type="button" data-calendar-group-id="${esc(group.id)}" onclick="launchCalendarSyncNow(this)" ${dialog.querySelector('form').dataset.connected==='true'?'':'disabled'}>登記</button></div>`).join('')||'<p class="launchHelp">目前沒有團。</p>'}`).join('');
+ host.innerHTML=states.map((status,i)=>`<h3>${status==='最新開團'?'最新':'上架'}</h3>${(lists[i].groups||[]).filter(group=>!group.status||group.status===status).map(group=>`<div class="launchCalendarGroup"><div class="launchCalendarDetails"><button class="launchCalendarName" type="button" data-id="${esc(group.id)}" data-status="${esc(status)}" onclick="launchCalendarEditTime(this)"><span>${esc(group.name)}</span> <span class="launchCalendarTime">${esc(launchCalendarNormalizeTime(group.openTime)||(/吉伊|白熊/.test(group.name)?'10:00':'補時間'))}</span></button></div><button class="btn" type="button" data-calendar-group-id="${esc(group.id)}" onclick="launchCalendarSyncNow(this)" ${dialog.querySelector('form').dataset.connected==='true'?'':'disabled'}>登記</button></div>`).join('')||'<p class="launchHelp">目前沒有團。</p>'}`).join('');
  }catch(error){host.innerHTML=`<p class="launchHelp">讀取團名失敗：${esc(error.message)}</p><button class="btn light" type="button" onclick="launchLoadCalendarGroups(document.getElementById('launchDialog'))">重試</button>`;}
+}
+async function launchCalendarEditTime(button){
+ const host=button.parentElement;if(host.querySelector('form')){host.querySelector('input').focus();return;}
+ button.disabled=true;
+ try{
+  const {group}=await api('launchGet',{id:button.dataset.id,status:button.dataset.status});if(!group)throw Error('找不到此團');
+  const form=document.createElement('form');form.className='launchCalendarTimeForm';
+  const fallback=/吉伊|白熊/.test(group.name||'')?'10:00':'';
+  form.innerHTML=`<label>開賣時間<input name="openTime" type="text" inputmode="numeric" placeholder="例如 10、1030" value="${esc(group.openTime||fallback)}" aria-label="開賣時間"></label><button class="btn" type="submit">儲存時間</button><button class="btn light" type="button">取消</button><p role="status"></p>`;
+  form.querySelector('[type="button"]').onclick=()=>form.remove();
+  form.onsubmit=async event=>{
+   event.preventDefault();const value=launchCalendarNormalizeTime(form.elements.openTime.value),message=form.querySelector('[role="status"]');
+   if(value===null){message.textContent='請填有效時間，例如 10 或 1030';return;}
+   const save=form.querySelector('[type="submit"]');save.disabled=true;
+   try{
+    const result=await launchPost('launchSave',{group:{...group,openTime:value},baseGroup:group});
+    if(launchCurrent?.id===group.id){launchCurrent.openTime=result.group.openTime;}
+    button.querySelector('.launchCalendarTime').textContent=result.group.openTime||fallback||'補時間';launchClearListCache();message.textContent='時間已儲存，行事曆會自動同步。';form.elements.openTime.value=result.group.openTime||fallback;
+   }catch(error){message.textContent=error.message;}finally{save.disabled=false;}
+  };
+  host.append(form);form.elements.openTime.focus();
+ }catch(error){document.querySelector('#launchCalendarError').textContent=error.message;}finally{button.disabled=false;}
+}
+function launchCalendarNormalizeTime(value){
+ const text=String(value||'').normalize('NFKC').trim().split(/\s*(?:～|~|–|—|至|到|-)\s*/)[0];
+ const match=text.match(/^(上午|早上|下午|晚上|中午)?\s*(\d{1,2})(?:[點時](?:(\d{1,2})分?)?)?$/);
+ if(match){let hour=Number(match[2]);if(hour>23)return null;if(/下午|晚上/.test(match[1]||'')&&hour<12)hour+=12;if(/上午|早上/.test(match[1]||'')&&hour===12)hour=0;return launchNormalizeOpenTime(hour+':'+String(match[3]||'00').padStart(2,'0'));}
+ return launchNormalizeOpenTime(text);
 }
 function launchCalendarConnectionFields(form,visible){
  form.querySelector('.launchCalendarCredentials').hidden=!visible;form.querySelector('[data-calendar-connect]').hidden=!visible;
