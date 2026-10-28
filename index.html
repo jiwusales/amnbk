@@ -6149,7 +6149,7 @@ catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScrol
 finally{pendingBadgeRows.delete(id);}
 }
 function cargoChoiceMarkup(row){
-const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['month','受注','#85C2D0','cargoChoiceMonth'],['opened','完','#555','cargoChoiceOpened']];
+const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['month','注','#85C2D0','cargoChoiceMonth'],['opened','完','#555','cargoChoiceOpened']];
 return options.filter(([,label])=>label!==current).map(([key,label,color,cls])=>`<button type="button" class="tag cargoTag ${cls}" title="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" aria-label="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" onclick="chooseCargoTag(${Number(row.row)},'${key}')" style="background:${color}">${label}</button>`).join('');
 }
 function openOnlineOrderNameDialog(rows){
