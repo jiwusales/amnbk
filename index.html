@@ -1419,7 +1419,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .launchPanelOrderPreview{user-select:none;-webkit-user-select:none}
 </style>
 <style>.launchCanvasPricePart{display:inline-block;min-width:1.3em;cursor:text;white-space:nowrap}.launchCanvasPricePart:has(input){width:3.5em}.launchCanvasPricePart:focus-visible{outline:1px solid var(--main);outline-offset:2px}</style>
-<script src="https://jiwusales.github.io/imgh/image-refresh.js?v=20261028-2" defer></script>
+<script src="https://jiwusales.github.io/imgh/image-refresh.js?v=20261028-revision" defer></script>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -3407,9 +3407,21 @@ function launchLoadImage(url){
  return pending;
 }
 let launchPNGPrepared=null,launchPNGTimer;
+function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
+ const title=launchCanvasTitle(group,index),dates=launchTitleDateDefaults(title);
+ const datedPrefix=/^(?:⛔[\uFE0E\uFE0F]?\s*)?(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)/.test(title.normalize('NFKC').trim());
+ if(dates.openDate||dates.closeDate||datedPrefix||launchDateFieldValue(group,'openDate')||launchDateFieldValue(group,'closeDate'))return launchGroupTitle(title);
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
+ return parts.month+parts.day+' '+launchGroupTitle(title);
+}
+function launchDrawExportTitle(title,group,index,drawText){
+ const nodes=Array.from(title.childNodes),style=title.getAttribute('style');
+ try{title.textContent=launchExportTitle(group,index);launchFitSingleLine(title);drawText(title);}
+ finally{title.replaceChildren(...nodes);if(style===null)title.removeAttribute('style');else title.setAttribute('style',style);}
+}
 function launchPNGKey(paper){
  const r=paper.getBoundingClientRect();
- return JSON.stringify([launchCurrent,launchPanelIndex,r.width,r.height,launchZoom]);
+ return JSON.stringify([launchCurrent,launchPanelIndex,r.width,r.height,launchZoom,launchExportTitle(launchCurrent)]);
 }
 function launchEnsureExportCanvas(){
  if(!launchListMode()||document.getElementById('launchPaper'))return;
@@ -3500,7 +3512,7 @@ async function launchBuildPNG(){
   if('letterSpacing' in ctx)ctx.letterSpacing='0px';
  }
 
- const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)drawText(title);
+ const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)launchDrawExportTitle(title,group,panelIndex,drawText);
  // 僅繪製畫布上的資料欄位。價格只畫 <b>，避免外層 <p> 再畫一次而出現黑色重影。
  paper.querySelectorAll('.launchProduct h3,.launchProduct b,.launchProduct .launchDraftPrice span,.launchProduct .launchFormat,.launchProduct .launchSize,.launchFooter').forEach(drawText);
  const more=paper.querySelector('.launchMore');if(more){const r=drawBox(more);ctx.fillStyle=getComputedStyle(more).color;ctx.textAlign='center';ctx.textBaseline='middle';let fontSize=parseFloat(getComputedStyle(more).fontSize)*scale;ctx.font=`700 ${fontSize}px sans-serif`;const lines=['到最新開團','看看更多','酷東西！'];const maxWidth=Math.max(...lines.map(t=>ctx.measureText(t).width));fontSize*=Math.min(1,(r.w*.85)/maxWidth);ctx.font=`700 ${fontSize}px sans-serif`;lines.forEach((text,i)=>ctx.fillText(text,r.x+r.w/2,r.y+r.h/2+(i-1)*fontSize*1.55));ctx.textAlign='left';} 
