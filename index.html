@@ -1,13 +1,3 @@
-const previousRole=String(inventoryValue(item,['角色'])||'').trim(),previousIp=String(inventoryValue(item,['IP','IP分類','IP類別'])||'').trim();
-const renameRole=Object.hasOwn(data,'role')&&previousRole&&data.role&&data.role!==previousRole;
-const rolePeers=renameRole?inventoryRows.filter(peer=>String(inventoryValue(peer,['角色'])||'').trim()===previousRole&&String(inventoryValue(peer,['IP','IP分類','IP類別'])||'').trim()===previousIp):[];
-if(rolePeers.some(peer=>inventoryProductSaves.has(Number(peer.row)))){button.disabled=false;button.textContent='SAVE';inventorySaveNotice('相同角色的商品正在背景儲存，請稍候再修改');return;}
-if(renameRole){data.renameSameRole=true;data.roleRenameFrom=previousRole;data.roleRenameIp=previousIp;}
-const lockedRows=[...new Set([Number(row),...rolePeers.map(peer=>Number(peer.row))])];
- if(mode==='single'&&index>=0){
-  const nextRole=String(items[0]?.role||'').trim();items[0].role=nextRole;
-  if(previousRole&&nextRole&&previousRole!==nextRole){launchPushUndo();launchCurrent.items.forEach(item=>{if(String(item.role||'').trim()===previousRole)item.role=nextRole;});}
- }
 <!DOCTYPE html>
 <!-- Calendar registration reuses the shared iCloud connection. -->
 <html lang="zh-Hant">
