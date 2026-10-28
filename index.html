@@ -2077,7 +2077,7 @@ function launchAvailabilityBadges(group){
 }
 function launchAvailabilityChangeClass(item){
  const state=item.availabilityMonitor;
- if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!String(item.url||'').trim()||state?.url!==String(item.url).trim()||state?.failed)return '';
+ if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!String(item.url||'').trim()||state?.url!==String(item.url).trim()||state?.failed||state?.acknowledged)return '';
  return state?.change==='out'?' launchAvailabilityOut':state?.change==='restocked'?' launchAvailabilityRestocked':'';
 }
 function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${launchAvailabilityBadges(g)}${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
@@ -3327,10 +3327,12 @@ async function launchToggleProductPause(index,button){
 }
 function launchToggleProductStock(index,button){
  const group=launchCurrent,item=group?.items[index];if(!item||!group?.id)return;
- const next=!item.stockOut,previous=item.stockOut,previousQuantity=item.stockQuantity??'';
+ const next=!item.stockOut,previous=item.stockOut,previousQuantity=item.stockQuantity??'',previousMonitor=item.availabilityMonitor;
+ const acknowledges=(next&&previousMonitor?.change==='out')||(!next&&previousMonitor?.change==='restocked');
+ if(acknowledges){item.availabilityMonitor={...previousMonitor,acknowledged:true};launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}
  item.stockOut=next;item.stockQuantity='';button.disabled=true;button.classList.toggle('isShortage',next);button.textContent=next?'已缺貨':'缺貨';
  const input=button.parentElement.querySelector('[data-launch-stock]');if(input)input.value='';
- launchPost('launchSetInventoryAvailability',{out:next,groupId:group.id,groupStatus:group.status,itemId:item.id}).catch(error=>{item.stockOut=previous;item.stockQuantity=previousQuantity;button.classList.toggle('isShortage',previous);button.textContent=previous?'已缺貨':'缺貨';if(input)input.value=previousQuantity;alert(error.message);}).finally(()=>{button.disabled=false;});
+ launchPost('launchSetInventoryAvailability',{out:next,groupId:group.id,groupStatus:group.status,itemId:item.id}).then(result=>{if(result.availabilityMonitor)item.availabilityMonitor=result.availabilityMonitor;if(result.availabilitySummary){group.availabilitySummary=result.availabilitySummary;const listed=launchGroups.find(entry=>entry.id===group.id);if(listed)listed.availabilitySummary=result.availabilitySummary;launchSaveListCache(group.status,launchGroups);}launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}).catch(error=>{item.availabilityMonitor=previousMonitor;launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));item.stockOut=previous;item.stockQuantity=previousQuantity;button.classList.toggle('isShortage',previous);button.textContent=previous?'已缺貨':'缺貨';if(input)input.value=previousQuantity;alert(error.message);}).finally(()=>{button.disabled=false;});
 }
 function launchAllSave(){
  const dialog=document.getElementById('launchDialog');
