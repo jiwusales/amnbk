@@ -3695,7 +3695,7 @@ let browserURL='';
 if(action==='launchProductInfo')browserURL=params.item?.url||'';
 else if(['launchScrape','launchCheckAvailability'].includes(action))browserURL=launchCurrent?.items?.find(item=>item.id===params.itemId)?.url||'';
 else if(action==='checkInventoryAvailability')browserURL=inventoryProductUrl(inventoryRows.find(item=>Number(item.row)===Number(params.row))||{});
-if(browserURL){let munyu=false;try{munyu=new URL(browserURL).hostname==='detail.tmall.com'||new URL(browserURL).hostname==='munyugurumi.jp'||new URL(browserURL).hostname==='re-writeinc.com';}catch(_){}if(munyu)params={...params,browserProduct:new URL(browserURL).hostname==='detail.tmall.com'&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)?await tmallRemoteBrowserRead(browserURL):await munyuBrowserRead(browserURL)};}
+if(browserURL){let munyu=false;try{munyu=new URL(browserURL).hostname==='detail.tmall.com'||new URL(browserURL).hostname==='munyugurumi.jp'||new URL(browserURL).hostname==='re-writeinc.com';}catch(_){}if(munyu&&!(action==='launchCheckAvailability'&&new URL(browserURL).hostname==='munyugurumi.jp'&&(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))))params={...params,browserProduct:new URL(browserURL).hostname==='detail.tmall.com'&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)?await tmallRemoteBrowserRead(browserURL):await munyuBrowserRead(browserURL)};}
 
 const requestId=params.requestId||crypto.randomUUID(),controller=new AbortController();
 const timer=setTimeout(()=>controller.abort(),action==='launchGet'?20000:90000);
