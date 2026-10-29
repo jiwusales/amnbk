@@ -4792,8 +4792,9 @@ function inventoryAvailabilityState(item){const names=['官網貨況','官網狀
 function inventoryIsRelisted(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes'&&!inventoryNoteHasUrl(item);}
 function inventoryNeedsOtherChannelCheck(item){const stock=inventoryCellState(item,['庫存','總庫存','數量']);return stock===0&&!inventoryHasPhysicalStock(item)&&inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item);}
 function inventoryIsPinned(item){return inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item);}
-function inventoryIsShortage(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
+function inventoryIsShortage(item){const manual=String(inventoryValue(item,['目錄狀態'])||'');if(manual==='下架')return true;if(manual==='上架')return false;return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
 function inventoryMatchesStatus(item){
+const manual=String(inventoryValue(item,['目錄狀態'])||'');if(manual==='下架'&&inventoryStatus==='目錄')return false;if(manual==='上架'&&inventoryStatus==='目錄')return true;
 const stock=inventoryCellState(item,['庫存','總庫存','數量']);
 const store=inventoryCellState(item,['店面','店面庫存','店鋪庫存','店面數量']);
 const hasStock=(typeof stock==='number'&&stock>0)||(typeof store==='number'&&store>0)||inventoryIsRelisted(item);
