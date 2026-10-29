@@ -2387,9 +2387,22 @@ function launchEditFooter(){
 }
 function launchBack(){if(launchBusy)return;if(launchCurrent?.status==='最新開團'&&launchCanvasEditing){launchCanvasEditing=false;launchRenderEditor();return;}if(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更嗎？'))return;sessionStorage.removeItem(LAUNCH_OPEN_KEY);launchMessage='';renderLaunch();}
 async function launchPersist(){launchNormalizeGroupURLs(launchCurrent);if(!launchCurrent.name.trim())throw new Error('請輸入團名');launchNotice('儲存中…');const d=await launchPost('launchSave',{group:launchCurrent,baseGroup:readBackendSnapshot('launchGroup_'+launchCurrent.id)});launchCurrent=launchPreserveEmptyPanels(d.group);saveBackendSnapshot('launchGroup_'+launchCurrent.id,d.group);launchClearListCache();sessionStorage.setItem(LAUNCH_OPEN_KEY,launchCurrent.id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);launchDirty=false;launchNotice('已儲存到「'+launchCurrent.status+'」');}
+function launchMergeProductMasterValues(target,baseline,actual){
+ if(!target||!actual)return target;
+ const before=new Map((baseline?.items||[]).map(item=>[String(item.id),item])),saved=new Map((actual.items||[]).map(item=>[String(item.id),item])),byMaster=new Map((actual.items||[]).filter(item=>item.productMasterId).map(item=>[item.productMasterId,item]));
+ const fields=[['name','名稱'],['role','角色'],['images','圖片'],['size','尺寸'],['format','格式']];
+ for(const item of target.items||[]){
+  const current=saved.get(String(item.id))||byMaster.get(item.productMasterId);if(!current)continue;
+  const previous=before.get(String(item.id)),base=previous?launchProductMasterFields(previous):item.productMasterBase;if(!base)continue;
+  const values=launchProductMasterFields(item);
+  for(const [key,label]of fields)if(String(values[label]??'')===String(base[label]??''))item[key]=key==='images'?structuredClone(current.images||[]):String(current[key]??'');
+  const master=current.productMasterId||item.productMasterId;if(master){item.productMasterId=master;item.productMasterBase=structuredClone(current.productMasterBase||launchProductMasterFields(current));}
+ }
+ return target;
+}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
-function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus','availabilityMonitor','availabilitySummary'].includes(key)?undefined:value);}
+function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus','availabilityMonitor','availabilitySummary','productMasterId','productMasterBase'].includes(key)?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){
  let toast=document.getElementById('launchCompletionToast');
@@ -2408,7 +2421,7 @@ function launchSaveClick(options={}){
  if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  launchNormalizeGroupURLs(launchCurrent);
  launchPreserveEmptyPanels(launchCurrent);
- const snapshot=structuredClone(launchCurrent),id=snapshot.id;
+ const snapshot=structuredClone(launchCurrent),id=snapshot.id;const submittedBase=structuredClone(readBackendSnapshot('launchGroup_'+id)||null);
  const signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
  launchSubmittedSignatures.set(id,savedSignature);
@@ -2424,6 +2437,7 @@ function launchSaveClick(options={}){
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
+  launchMergeProductMasterValues(snapshot,submittedBase,readBackendSnapshot('launchGroup_'+id));
   snapshot.revision=launchSavedRevisions.get(id);
   if(options.previousStatus&&!snapshot.revision){
    const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}},progressId);
@@ -2441,9 +2455,10 @@ function launchSaveClick(options={}){
   launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   if(launchCurrent?.id===id){
-   launchCurrent.revision=d.group.revision;
+   const clean=signature(launchCurrent)===savedSignature||signature(launchCurrent)===signature(snapshot);
+   if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{launchMergeProductMasterValues(launchCurrent,snapshot,d.group);launchCurrent.revision=d.group.revision;}
    sessionStorage.setItem(LAUNCH_OPEN_KEY,id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);
-   if(signature(launchCurrent)===savedSignature){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');}
+   if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(document.body.dataset.page==='launch')launchRenderEditor();}
   }
   saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(options.successMessage||'已完成：'+completed);
  }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast('儲存失敗：'+error.message+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
@@ -2826,7 +2841,7 @@ async function launchProductSubmit(e,index,mode){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
  }
- else{const p=Object.fromEntries(f);delete p.canvasTarget;delete p.insertPosition;const movePanel=f.has('movePanel')?Number(f.get('movePanel')):null;delete p.movePanel;p.name=p.name.trim();Object.assign(p,launchNormalizeProductSpec(String(p.size||'').trim(),String(p.format||'').trim()));p.url=String(p.url||'').trim();p.images=String(p.images||'').trim().split(/[、\s]+/).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?(Number.isInteger(movePanel)&&movePanel>=0&&movePanel<(launchCurrent.panels?.length||1)?movePanel:Number(launchCurrent.items[index].panel)||0):launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
+ else{const p=Object.fromEntries(f);delete p.canvasTarget;delete p.insertPosition;const movePanel=f.has('movePanel')?Number(f.get('movePanel')):null;delete p.movePanel;p.name=p.name.trim();Object.assign(p,launchNormalizeProductSpec(String(p.size||'').trim(),String(p.format||'').trim()));p.url=String(p.url||'').trim();p.images=String(p.images||'').trim().split(/[、\s]+/).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?(Number.isInteger(movePanel)&&movePanel>=0&&movePanel<(launchCurrent.panels?.length||1)?movePanel:Number(launchCurrent.items[index].panel)||0):launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();if(index>=0&&launchCurrent.items[index].productMasterId){p.productMasterId=launchCurrent.items[index].productMasterId;p.productMasterBase=structuredClone(launchCurrent.items[index].productMasterBase||launchProductMasterFields(launchCurrent.items[index]));}p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
  if(index<0&&launchCurrent.status==='最新開團'){
   launchPushUndo();
   if(f.get('canvasTarget')==='new'){
@@ -3132,22 +3147,25 @@ function launchImportProducts(){
  launchImportDestination={group:launchCurrent,panel:launchPanelIndex,canvas:launchCurrent.panels?.[launchPanelIndex]};
  launchDialog(`<h2>匯入商品</h2><p class="launchHelp">選擇來源，商品會加入目前的畫布 ${launchPanelLabel(launchPanelIndex)}。</p><div class="launchImportSourceChoices"><button class="btn light" type="button" onclick="launchImportClosedProducts()">已結單</button><button class="btn light" type="button" onclick="launchImportInventoryProducts()">商品庫存</button></div><div class="launchTools" style="margin-top:18px"><button class="btn light" type="button" onclick="launchAllProducts()">返回商品資訊</button></div>`);
 }
+function launchProductMasterFields(item){return {'名稱':String(item.name??''),'角色':String(item.role??''),'圖片':(Array.isArray(item.images)?item.images:[]).join('\n'),'尺寸':String(item.size??''),'格式':String(item.format??'')};}
 function launchInventoryImportProject(data){
  const normalize=value=>String(value||'').normalize('NFKC').replace(/[\s_　-]/g,'').toLowerCase(),headers=(data.headers||[]).map(normalize);
  const records=data.format==='inventory-matrix-v1'?(data.rows||[]).map(row=>({row:row[0],values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
  const columns=new Map(),col=names=>{const key=names.join('|');if(!columns.has(key)){const keys=new Set(names.map(normalize));columns.set(key,headers.findIndex(header=>keys.has(header)));}return columns.get(key);};
- return records.map(record=>{
+ return records.map((record,index)=>{
   const get=(names,display=false)=>{const index=col(names);if(index<0)return '';const shown=record.display?.[index],raw=record.values?.[index];return String(display&&shown!==''&&shown!=null?shown:raw??'').trim();};
   const imageIndex=col(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片','photo','image','img']),formula=String(record.formulas?.[imageIndex]||''),match=formula.match(/(?:IMAGE|HYPERLINK)\s*\(\s*["']([^"']+)/i);
   const images=[...new Set([record.image,get(['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片','photo','image','img']),match?.[1]].filter(Boolean).flatMap(value=>String(value).split(/[、\s]+/)).map(launchNormalizeURL).filter(launchSafeURL))];
-  return {name:get(['名稱','商品名稱','品名','商品']),role:get(['角色']),kind:get(['種類','類型']),ip:get(['IP','IP分類','IP類別']),code:get(['貨號','商品貨號','條碼','SN']),original:get(['原價','定價','原售價','牌價']),price:get(['售價','價格','銷售價']),...launchNormalizeProductSpec(get(['尺寸','大小','商品尺寸']),get(['格式'])),japaneseName:get(['日文名','日文原名']),url:launchNormalizeURL(get(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址'])),note:get(['備註','備註欄','說明']),images,sourceStock:get(['庫存','總庫存','數量','庫存量','商品庫存'],true),scale:1,showCost:true};
+  const product={name:get(['名稱','商品名稱','品名','商品']),role:get(['角色']),kind:get(['種類','類型']),ip:get(['IP','IP分類','IP類別']),code:get(['貨號','商品貨號','條碼','SN']),original:get(['原價','定價','原售價','牌價']),price:get(['售價','價格','銷售價']),...launchNormalizeProductSpec(get(['尺寸','大小','商品尺寸']),get(['格式'])),japaneseName:get(['日文名','日文原名']),url:launchNormalizeURL(get(['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址'])),note:get(['備註','備註欄','說明']),images,sourceStock:get(['庫存','總庫存','數量','庫存量','商品庫存'],true),scale:1,showCost:true};
+  const recordId=record.itemId??data.rowIds?.[index],master=recordId==null?'':data.productMasterIds?.[String(recordId)];
+  if(master){product.productMasterId=master;product.productMasterBase=launchProductMasterFields(product);}return product;
  }).filter(item=>item.name);
 }
 async function launchImportInventoryProducts(){
  const destination=launchImportDestination;if(!destination||launchCurrent!==destination.group)return;
  launchDialog('<h2>商品庫存</h2><p class="launchHelp">正在讀取商品庫存…</p><button class="btn light" type="button" onclick="launchImportProducts()">返回</button>');const dialog=document.getElementById('launchDialog');
  try{
-  const data=await api('inventory',{compact:'1',fresh:'1'});
+  const data=await api('inventory',{compact:'1',fresh:'1',productMasters:'1'});
   if(dialog!==document.getElementById('launchDialog')||!dialog.open||launchCurrent!==destination.group)return;
   launchInventoryImportItems=launchInventoryImportProject(data);launchInventoryImportSelected=new Set();launchInventoryImportSearch='';launchInventoryImportCategory='全部';launchInventoryImportPage=0;launchRenderInventoryImport();
  }catch(error){if(dialog===document.getElementById('launchDialog'))dialog.innerHTML=`<h2>商品庫存</h2><p role="alert">讀取失敗：${esc(error.message)}</p><button class="btn light" type="button" onclick="launchImportProducts()">返回</button>`;}
@@ -5204,7 +5222,7 @@ async function submitInventoryClosedImport(event){const savedDialog=document.get
  const source=launchImportSource,selected=[...event.currentTarget.querySelectorAll('[data-launch-import-item]:checked')].map(input=>source?.items[Number(input.dataset.launchImportItem)]?.id);
  if(!source||!selected.length)return alert('請至少選一樣商品');
  const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;button.textContent='匯入中…';
- try{const ip=inventorySelectedIp('inventoryImportIp');const result=await launchPostBackground('launchImportInventory',{id:source.id,itemIds:JSON.stringify(selected),ip});savedDialog?.remove();inventoryLoaded=false;await loadInventory(true);}catch(error){console.error(error.message);button.disabled=false;button.textContent='匯入商品庫存';}
+ try{const ip=inventorySelectedIp('inventoryImportIp');const result=await launchPostBackground('launchImportInventory',{id:source.id,itemIds:JSON.stringify(selected),ip});savedDialog?.remove();inventoryLoaded=false;await loadInventory(true);const skipped=Number(result.existingCount||0)+Number(result.duplicateSelectionCount||0);if(skipped)launchCompletionToast(result.count?`已匯入 ${result.count} 項，${skipped} 項未重複新增`:'所選商品已在庫存，未重複新增');}catch(error){console.error(error.message);button.disabled=false;button.textContent='匯入商品庫存';}
 }
 async function submitInventoryAdd(event){
  event.preventDefault();const form=event.currentTarget,savedDialog=form.closest('#appDialog'),button=form.querySelector('[type=submit]'),error=form.querySelector('[data-inventory-add-error]');button.disabled=true;error.textContent='';
