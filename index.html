@@ -7764,7 +7764,7 @@ function backendSyncPageBusy(page){return (backendSyncWriteCounts.get(page)||0)>
 async function backendDrainWrites(){
  const started=[];
  for(const job of backendWriteQueue.slice()){
-  const lane=backendWriteLane(job.action);if(job.running||backendWriteLanes.has(lane)||backendWriteLanes.size>=4)continue;
+  const pageLane=backendWriteLane(job.action),lane=job.action==='launchSetInventoryAvailability'?'launch-stock':pageLane;if(job.running||backendWriteLanes.has(lane)||backendWriteLanes.size>=4)continue;
   job.running=true;backendWriteLanes.add(lane);backendWriteRunning=true;
   started.push((async()=>{
   try{
@@ -7779,7 +7779,7 @@ async function backendDrainWrites(){
   }finally{
    const index=backendWriteQueue.indexOf(job);if(index>=0)backendWriteQueue.splice(index,1);
    backendWriteLanes.delete(lane);backendWriteRunning=backendWriteLanes.size>0;
-   if(job.mutation){backendSyncWrites--;backendSyncEpoch++;backendSyncWriteCounts.set(lane,Math.max(0,(backendSyncWriteCounts.get(lane)||1)-1));backendSyncPageEpochs.set(lane,(backendSyncPageEpochs.get(lane)||0)+1);}
+   if(job.mutation){backendSyncWrites--;backendSyncEpoch++;backendSyncWriteCounts.set(pageLane,Math.max(0,(backendSyncWriteCounts.get(pageLane)||1)-1));backendSyncPageEpochs.set(pageLane,(backendSyncPageEpochs.get(pageLane)||0)+1);}
    void backendDrainWrites();setTimeout(()=>backendSyncPoll(),0);
   }
   })());
