@@ -2098,10 +2098,14 @@ function launchAvailabilityBadges(group){
  const allFailed=total>0&&failed===total;
  return `<span class="launchAvailabilityBadges">${allFailed?'':`<span class="launchAvailabilityBadge" title="本輪貨況變動 ${changed} 樣" aria-label="本輪貨況變動 ${changed} 樣">${changed||'－'}</span>`}${failed?`<span class="launchAvailabilityBadge isUnknown" title="${failed} 樣商品貨況查不到" aria-label="${failed} 樣商品貨況查不到">！</span>`:''}<button type="button" class="launchAvailabilityBadge launchOrderCount" aria-label="查看 ${esc(group.name)} 訂購統計" title="訂購統計" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchShowOrderSummary(launchGroups[${launchGroups.indexOf(group)}])">計</button></span>`;
 }
+function launchOrderSummaryGroupKey(value){
+ const text=String(value||'').normalize('NFKC').trim(),marker=text.lastIndexOf('⛔');
+ return (marker<0?text:text.slice(marker+1)).replace(/\uFE0F/g,'').replace(/\s+/g,'');
+}
 function launchBuildOrderSummary(group,rows,headers){
  const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},customers=new Set(),items=new Map();
  for(const row of rows){
-  if(String(value(row,['團名','開團名稱'])||'').trim()!==String(group.name||'').trim())continue;
+  if(!launchOrderSummaryGroupKey(group.name)||launchOrderSummaryGroupKey(value(row,['團名','開團名稱']))!==launchOrderSummaryGroupKey(group.name))continue;
   if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
