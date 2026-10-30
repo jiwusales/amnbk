@@ -1758,7 +1758,7 @@ function launchPostShipping(g){
 }
 function launchPostText(g,ig=false){
  launchNormalizeGroupURLs(g);
- const tags=launchPostTags(g.tags),shipping=launchPostShipping(g),title=String(g.name||'').trim(),url=launchPostURL(g);
+ const tags=launchPostTags(g.tags),shipping=launchPostShipping(g),title=launchCanvasTitle(g,0),url=launchPostURL(g);
  const body=`${title}\n-\n${shipping}\n🌱預購無全額貨付，台中可店取\n📦官LINE有貨況進度表可追蹤`;
  if(ig)return `${body}${tags?`\n\n${tags}`:''}`;
  return `#代購\n${body}\n-\n下單網址：${url}\n\n🛒購物步驟：\n👉🏻點下單網址\n➡️右上角➕進購物車（點圖可放大）\n➡️點購物車按確認結帳\n➡️轉跳到官方LINE按送出\n➡️等花花回覆後就完成ㄌ🎉`;
@@ -1779,7 +1779,7 @@ function launchToggleGroupChannel(event,index,channel,button){
  try{localStorage.setItem('jiwu_supabase_test_post_channels_'+group.id,JSON.stringify(state));button.setAttribute('aria-pressed',String(selected));}
  catch(_){launchCompletionToast('無法保存平台標記，請確認瀏覽器儲存空間',true);}
 }
-function launchLineGroupText(g){return `${String(g.name||'').trim()}：${launchPostURL(g)}`;}
+function launchLineGroupText(g){return `${launchCanvasTitle(g,0)}：${launchPostURL(g)}`;}
 async function launchCopyPostText(button,id){
  const input=document.getElementById(id),text=input?.value||'';if(!text)return;
  try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);else{input.focus();input.select();if(!document.execCommand('copy'))throw new Error('複製失敗');}}
@@ -1962,7 +1962,8 @@ function launchRenderGroupURLs(){
  list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ontoggle="if(this.open)launchPrepareGroupImages(${i})" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}（${launchExportProductCount(g)}）</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchChooseGroupImage(${i},'download',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>下載</button><button class="btn light launchCopyImage" type="button" onclick="launchChooseGroupImage(${i},'copy',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>複製</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!launchGroupImagePanelCount(g)&&g.imagePanelError?`<small class="launchHelp">畫布讀取失敗：${esc(g.imagePanelError)} <button class="btn light" type="button" onclick="launchPrepareGroupImages(${i},true)">重試</button></small>`:''}${!g.postReady?`<small class="launchHelp">${g.urlError?'設定讀取失敗，請關閉後重試':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
 async function launchCopyGroupPost(index,type,button){
- const g=launchURLGroups[index];if(!g?.postReady)return;
+ const source=launchURLGroups[index];if(!source?.postReady)return;
+ let g;try{const detail=await launchReadExportGroup(source);g={...source,...detail.group};}catch(error){launchCompletionToast('文章讀取失敗：'+error.message,true);return;}
  const normal=type==='community'||type==='fb'?launchPostText(g):'',tags=type==='fb'?launchPostTags(g.tags):'';
  const text=type==='line'?launchLineGroupText(g):type==='ig'?launchPostText(g,true):type==='fb'?normal.replace(/^#代購\r?\n/,'')+(tags?'\n\n'+tags:''):normal;
  const input=document.getElementById('launchURLCopy'),message=document.getElementById('launchURLMessage');
