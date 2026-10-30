@@ -2004,7 +2004,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
     launchPanelIndex=i;blobs.push(await launchGetPNG());
    }
    if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
-   blobs.forEach((blob,i)=>launchDownloadPNG(blob,(g.name||'開團')+(count>1?'_'+launchPanelLabel(i):'')+'.png'));
+   blobs.forEach((blob,i)=>launchDownloadPNG(blob,launchImageFilename(g,i)));
    launchCompletionToast('已下載：'+g.name+(count>1?'（共 '+count+' 張畫布）':''));
   }
  }catch(error){launchCompletionToast(copying&&error.name==='NotAllowedError'?'無法複製圖片，請允許剪貼簿權限後重試，或使用下載圖片。':error.message||'圖片輸出失敗',true);}
@@ -3889,6 +3889,15 @@ function launchPNGDpi(buffer){
  while(offset<source.length){const view=new DataView(source.buffer,source.byteOffset+offset),length=view.getUint32(0),type=String.fromCharCode(...source.subarray(offset+4,offset+8));if(type!=='pHYs')parts.push(source.subarray(offset,offset+length+12));if(type==='IHDR'){parts.push(chunk);inserted=true;}offset+=length+12;}
  if(!inserted)throw new Error('PNG 格式錯誤');return new Blob(parts,{type:'image/png'});
 }
+function launchImageFilename(group,index=launchPanelIndex,now=new Date()){
+ let title=launchGroupTitle(launchCanvasTitle(group,index))||'開團';
+ if(!/^(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)|^\d{4}(?!\d)/.test(title.normalize('NFKC'))){
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
+  title=parts.month+parts.day+title;
+ }
+ title=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'_');
+ return title+((group.panels?.length||1)>1?'_'+launchPanelLabel(index):'')+'.png';
+}
 function launchDownloadPNG(blob,name){
  const url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
@@ -3900,7 +3909,7 @@ async function launchExport(mode){
  if(launchExportBusy)return;
  const paper=document.getElementById('launchPaper');
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
-  launchDownloadPNG(launchPNGPrepared.blob,(launchCurrent.name||'開團')+'.png');return;
+  launchDownloadPNG(launchPNGPrepared.blob,launchImageFilename(launchCurrent));return;
  }
  if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  if(mode!=='download')document.getElementById('launchDialog')?.close();
@@ -3913,7 +3922,7 @@ async function launchExport(mode){
    const promise=launchGetPNG();promise.catch(()=>{});
    try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
    launchNotice('已複製圖片（1080 × 1350 PNG）');
-  }else{const blob=await launchGetPNG(),name=(launchCurrent.name||'開團')+'.png';launchDownloadPNG(blob,name);}
+  }else{const blob=await launchGetPNG(),name=launchImageFilename(launchCurrent);launchDownloadPNG(blob,name);}
  }catch(error){launchCompletionToast(error.message||'圖片輸出失敗',true);}
  finally{launchExportBusy=false;if(button?.isConnected){button.disabled=false;button.textContent=label;}}
 }
