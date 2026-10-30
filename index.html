@@ -2270,9 +2270,9 @@ function launchAvailabilityChangeClass(item){
  if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!String(item.url||'').trim()||state?.url!==String(item.url).trim()||state?.failed||state?.acknowledged)return '';
  return state?.change==='out'?' launchAvailabilityOut':state?.change==='restocked'?' launchAvailabilityRestocked':'';
 }
-function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${launchAvailabilityBadges(g)}${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name,false))}</strong></button></article>`;}).join('');}
+function launchListCards(shown){return shown.map(g=>{const i=launchGroups.indexOf(g),banner=launchSafeURL(g.images?.[0])||launchPreviewFallback;return `<article class="launchTile" data-launch-index="${i}">${launchAvailabilityBadges(g)}${g.status==='尚未上架'?`<button class="launchDraftGroupDelete" type="button" aria-label="刪除 ${esc(g.name)}" title="刪除這團" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchDelete(launchGroups[${i}],false)">×</button>`:''}<button class="launchPreviewTile" onpointerdown="launchPressStart(event,'group',${i})" onclick="launchOpen(${i})"><span class="launchPreviewBanner"><img src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></span><strong class="launchPreviewName">${esc(launchGroupTitle(g.name))}</strong></button></article>`;}).join('');}
 function launchListVisualSignature(groups){
- return JSON.stringify(groups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus).filter(g=>launchStatus!=='已收單'||!launchClosedSearch||g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())).map(g=>[groups.indexOf(g),g.id,g.status,launchGroupTitle(g.name,false),launchSafeURL(g.images?.[0])||launchPreviewFallback,g.joined===true,launchAvailabilityBadges(g)]));
+ return JSON.stringify(groups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus).filter(g=>launchStatus!=='已收單'||!launchClosedSearch||g.name.toLocaleLowerCase().includes(launchClosedSearch.toLocaleLowerCase())).map(g=>[groups.indexOf(g),g.id,g.status,launchGroupTitle(g.name),launchSafeURL(g.images?.[0])||launchPreviewFallback,g.joined===true,launchAvailabilityBadges(g)]));
 }
 function launchRenderList(){
  launchGroups=launchGroups.filter(g=>!launchPendingMoves.has(g.id)||launchPendingMoves.get(g.id)===launchStatus);
@@ -3753,7 +3753,7 @@ function launchLoadImage(url){
 }
 let launchPNGPrepared=null,launchPNGTimer;
 function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
- const title=launchCanvasTitle(group,index),dates=launchTitleDateDefaults(title);
+ const title=launchGroupTitle(launchCanvasTitle(group,index)),dates=launchTitleDateDefaults(title);
  const datedPrefix=/^(?:⛔[\uFE0E\uFE0F]?\s*)?(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)/.test(title.normalize('NFKC').trim());
  if(dates.openDate||dates.closeDate||datedPrefix||launchDateFieldValue(group,'openDate')||launchDateFieldValue(group,'closeDate'))return launchGroupTitle(title);
  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
@@ -3766,7 +3766,7 @@ function launchDrawExportTitle(title,group,index,drawText){
 }
 function launchPNGKey(paper){
  const r=paper.getBoundingClientRect();
- return JSON.stringify([launchCurrent,launchPanelIndex,r.width,r.height,launchZoom,launchExportTitle(launchCurrent)]);
+ return JSON.stringify(['emoji-free-v2',launchCurrent,launchPanelIndex,r.width,r.height,launchZoom,launchExportTitle(launchCurrent)]);
 }
 function launchEnsureExportCanvas(){
  if(!launchListMode()||document.getElementById('launchPaper'))return;
