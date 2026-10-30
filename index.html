@@ -8786,25 +8786,49 @@ body[data-page="store"] .top{padding-left:48px}
 (()=>{
  const icon=document.getElementById('hostConnectionStatus');
  const nativeFetch=window.fetch.bind(window);
- function paint(connected){icon.classList.toggle('connected',connected);const label=connected?'主機已連線':'尚未確認連線';icon.title=label;icon.setAttribute('aria-label',label);}
+ let recovering=false,timer=null,controller=null,delay=10000,epoch=0;
+ function paint(connected){icon.classList.toggle('connected',connected);const label=connected?'主機已連線':recovering?'主機連線中斷':'尚未確認連線';icon.title=label;icon.setAttribute('aria-label',label);}
+ function clearTimer(){if(timer!==null)clearTimeout(timer);timer=null;}
+ function connected(){recovering=false;epoch++;clearTimer();controller?.abort();controller=null;delay=10000;paint(true);}
+ function schedule(){
+  if(!recovering||timer!==null||controller||document.hidden||!navigator.onLine)return;
+  timer=setTimeout(()=>{timer=null;void probe();},delay);
+ }
+ function disconnected(){if(!recovering){recovering=true;delay=10000;}paint(false);schedule();}
+ async function probe(){
+  if(!recovering||controller||document.hidden||!navigator.onLine)return;
+  const ticket=epoch,own=new AbortController();controller=own;
+  const timeout=setTimeout(()=>own.abort(),8000);
+  try{
+   const response=await nativeFetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'authWarmup'}),cache:'no-store',signal:own.signal});
+   const data=await response.json();
+   if(ticket!==epoch)return;
+   if(response.ok&&data.ok===true&&data.configured===true&&navigator.onLine){connected();return;}
+  }catch{}finally{
+   clearTimeout(timeout);
+   if(controller===own)controller=null;
+   if(ticket===epoch&&recovering){delay=Math.min(delay*2,60000);schedule();}
+  }
+ }
  window.fetch=async function(input,options){
   const url=typeof input==='string'?input:input?.url||String(input);
   if(new URL(url,location.href).href!==new URL(API_URL,location.href).href)return nativeFetch(input,options);
   try{
    const response=await nativeFetch(input,options);
-   if([502,503,504].includes(response.status))paint(false);
+   if([502,503,504].includes(response.status))disconnected();
    else if(response.ok){
     try{
      const data=await response.clone().json();
-     if(data.ok===true)paint(navigator.onLine);
-     else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data.error||''))paint(false);
+     if(data.ok===true){if(navigator.onLine)connected();else disconnected();}
+     else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data.error||''))disconnected();
     }catch{}
    }
    return response;
-  }catch(error){if(error?.name!=='AbortError')paint(false);throw error;}
+  }catch(error){if(error?.name!=='AbortError')disconnected();throw error;}
  };
- window.addEventListener('offline',()=>paint(false));
- window.addEventListener('online',()=>paint(false));
+ window.addEventListener('offline',()=>{clearTimer();disconnected();});
+ window.addEventListener('online',()=>{if(recovering){clearTimer();void probe();}});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimer();else if(recovering){clearTimer();void probe();}});
  paint(false);
 })();
 </script>
