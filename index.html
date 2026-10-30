@@ -1926,11 +1926,24 @@ function launchGroupURLs(){
  }).catch(()=>{if(dialog.open&&groups===launchURLGroups){groups.forEach(g=>g.urlError=true);launchRenderGroupURLs();}});
 }
 
+const launchExportGroupReads=new WeakMap();
+async function launchReadExportGroup(group){
+ await launchSaveTail;
+ if(launchCurrent?.id===group.id&&launchCurrent.status==='最新開團'&&!launchCurrent.summary)return {group:structuredClone(launchCurrent)};
+ const key=JSON.stringify([authToken,backendSyncPageVersions.get('launch')||'',backendSyncPageEpochs.get('launch')||0]);
+ let cached=launchExportGroupReads.get(group);
+ if(!cached||cached.key!==key){
+  const promise=api('launchGet',{id:group.id,status:'最新開團'}).then(result=>{if(!result.group)throw Error('找不到此團');return result;});
+  cached={key,promise};launchExportGroupReads.set(group,cached);
+  promise.catch(()=>{if(launchExportGroupReads.get(group)===cached)launchExportGroupReads.delete(group);});
+ }
+ return structuredClone(await cached.promise);
+}
 function launchGroupImagePanelCount(group){if(launchCurrent?.id===group?.id&&!launchCurrent.summary)return Math.max(1,launchCurrent.panels?.length||1);return Math.max(0,Number(group?.imagePanelCount)||0);}
 async function launchPrepareGroupImages(index,force=false){
  const group=launchURLGroups[index],dialog=document.getElementById('launchDialog');if(!group||!dialog?.open||group.imagePanelLoading||(!force&&(launchGroupImagePanelCount(group)||group.imagePanelError)))return;
  group.imagePanelLoading=true;group.imagePanelError='';
- try{await launchSaveTail;const result=await api('launchGet',{id:group.id,status:'最新開團'});if(!result.group)throw Error('找不到此團');if(dialog!==document.getElementById('launchDialog')||!dialog.open||launchURLGroups[index]!==group)return;group.imagePanelCount=Math.max(1,result.group.panels?.length||1);}
+ try{if(force)launchExportGroupReads.delete(group);const result=await launchReadExportGroup(group);if(!result.group)throw Error('找不到此團');if(dialog!==document.getElementById('launchDialog')||!dialog.open||launchURLGroups[index]!==group)return;group.imagePanelCount=Math.max(1,result.group.panels?.length||1);}
  catch(error){if(dialog===document.getElementById('launchDialog')&&dialog.open&&launchURLGroups[index]===group)group.imagePanelError=error.message||'讀取失敗';}
  finally{group.imagePanelLoading=false;if(dialog===document.getElementById('launchDialog')&&dialog.open&&launchURLGroups[index]===group)launchRenderGroupURLs();}
 }
@@ -1962,7 +1975,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
  try{
   imagePromise=(async()=>{
    await launchSaveTail;
-   const result=previous.group?.id===g.id&&previous.group.status==='最新開團'&&!previous.group.summary?{group:structuredClone(previous.group)}:await api('launchGet',{id:g.id,status:'最新開團'});
+   const result=await launchReadExportGroup(g);
    if(!dialog?.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
    if(!result.group)throw Error('找不到此團');
    document.getElementById('launchOffscreenExport')?.remove();
@@ -2377,7 +2390,7 @@ async function launchChooseGroupImage(index,mode,button){
  if(mode==='download'&&button)return launchDownloadGroupImage(index,button,mode,null);
  if(launchGroupImagePanelCount(g)===1&&button)return launchDownloadGroupImage(index,button,mode,0);
  launchDialog('<h2>選擇畫布</h2><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button>');const dialog=document.getElementById('launchDialog');
- try{await launchSaveTail;const result=launchCurrent?.id===g.id&&!launchCurrent.summary?{group:structuredClone(launchCurrent)}:await api('launchGet',{id:g.id,status:'最新開團'});if(dialog!==document.getElementById('launchDialog')||!dialog.open)return;if(!result.group)throw Error('找不到此團');const group=result.group,panels=group.panels?.length?group.panels:[{}];
+ try{await launchSaveTail;const result=await launchReadExportGroup(g);if(dialog!==document.getElementById('launchDialog')||!dialog.open)return;if(!result.group)throw Error('找不到此團');const group=result.group,panels=group.panels?.length?group.panels:[{}];
  dialog.innerHTML=`<h2>${mode==='copy'?'複製':'下載'}圖片</h2><p class="launchHelp">選擇要輸出的畫布。</p><div class="launchExportPanelChoices">${panels.map((p,i)=>`<button class="btn light" type="button" onclick="launchDownloadGroupImage(${index},this,'${mode}',${i})"><strong>${launchPanelLabel(i)}</strong><span>${esc(launchCanvasTitle(group,i))}</span></button>`).join('')}</div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button></div>`;
  }catch(error){if(dialog===document.getElementById('launchDialog'))dialog.innerHTML=`<h2>無法讀取畫布</h2><p class="launchHelp">${esc(error.message)}</p><button class="btn light" type="button" onclick="launchGroupURLs()">返回</button>`;}
 }
@@ -2718,10 +2731,18 @@ function launchInferProductKind(item,catalog){
  return matches.length&&(!matches[1]||matches[0].length>matches[1].length)?matches[0]:(name&&normalize(item.role)&&!rules.some(([,pattern])=>pattern.test(name))?'吊娃':'');
 }
 
+let launchKindsRead=null;
+function launchReadProductKinds(){
+ const key=JSON.stringify([authToken,backendSyncPageVersions.get('inventory')||'',backendSyncPageEpochs.get('inventory')||0]);
+ if(launchKindsRead?.key===key&&Date.now()-launchKindsRead.at<300000)return launchKindsRead.promise;
+ const entry={key,at:Date.now(),promise:api('launchAuxSheet',{kind:'product-kinds'})};launchKindsRead=entry;
+ entry.promise.catch(()=>{if(launchKindsRead===entry)launchKindsRead=null;});
+ return entry.promise;
+}
 async function launchLoadProductKinds(root){
  if(!root)return;
  try{
-  const data=await api('launchAuxSheet',{kind:'product-kinds'});
+  const data=await launchReadProductKinds();
   launchProductKinds=Array.isArray(data.kinds)?data.kinds:[];
   launchProductKindCatalog=Array.isArray(data.catalog)?data.catalog:launchProductKinds.map(kind=>({kind}));
   if(!root.isConnected||(root.tagName==='DIALOG'&&!root.open))return;
@@ -4681,6 +4702,7 @@ let cartRevision=0;
 let storeCartBase=[];
 let cartPendingWrites=0;
 let cartWriteQueue=Promise.resolve();
+let cartSavePending=null,cartSaveRunning=false;
 let cartUnsaved=false;
 let activeSalespersonLoading=false;
 let cartOperationBusy=false;
@@ -4722,26 +4744,38 @@ if(requestUser!==salesperson&&salesperson)loadStoreCart();
 /*
  * 將目前商品清單同步到 資料庫
  */
-async function saveStoreCart(){
-if(!salesperson)return;
-const user=salesperson;
-const revision=++cartRevision;
-const items=JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual,note:x.note||''})));
-cartPendingWrites++;
-cartUnsaved=true;
-const request=cartWriteQueue.catch(()=>{}).then(async()=>{
- const baseItems=JSON.stringify(storeCartBase);
- const result=await api('storeCartSet',{salesperson:user,items,baseItems});
- storeCartBase=JSON.parse(items);
- return result;
-});
-cartWriteQueue=request.catch(()=>{});
-try{
-const result=await request;
-if(revision===cartRevision){cartUnsaved=false;if(Array.isArray(result.cart)){storeCart=result.cart;storeCartBase=structuredClone(result.cart);renderCart();}}
-}catch(e){
-alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
-}finally{cartPendingWrites--;}
+function saveStoreCart(){
+ if(!salesperson)return Promise.resolve(false);
+ const user=salesperson,revision=++cartRevision;
+ const items=JSON.stringify(storeCart.map(x=>({code:x.code||'',name:x.name||'',price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual,note:x.note||''})));
+ cartUnsaved=true;
+ const request=new Promise(resolve=>{
+  if(cartSavePending&&cartSavePending.user===user){Object.assign(cartSavePending,{items,revision});cartSavePending.waiters.push(resolve);}
+  else if(cartSavePending){resolve(false);}
+  else{cartSavePending={user,items,revision,waiters:[resolve]};cartPendingWrites++;}
+ });
+ if(!cartSaveRunning){cartSaveRunning=true;cartWriteQueue=Promise.resolve().then(drainStoreCartSaves);}
+ return request;
+}
+async function drainStoreCartSaves(){
+ try{
+  while(cartSavePending){
+   const job=cartSavePending;cartSavePending=null;
+   try{
+    if(job.user!==salesperson)throw Error('店員已變更，購物車尚未送出');
+    const result=await api('storeCartSet',{salesperson:job.user,items:job.items,baseItems:JSON.stringify(storeCartBase)});
+    if(job.user!==salesperson)throw Error('店員已變更，請重新確認購物車');
+    storeCartBase=Array.isArray(result.cart)?structuredClone(result.cart):JSON.parse(job.items);
+    if(job.revision===cartRevision){cartUnsaved=false;if(Array.isArray(result.cart)){storeCart=result.cart;renderCart();}}
+    job.waiters.forEach(resolve=>resolve(true));
+   }catch(e){
+    cartUnsaved=true;job.waiters.forEach(resolve=>resolve(false));
+    // An uncertain response must not trigger another queued write.
+    if(cartSavePending){cartSavePending.waiters.forEach(resolve=>resolve(false));cartSavePending=null;cartPendingWrites--;}
+    alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
+   }finally{cartPendingWrites--;}
+  }
+ }finally{cartSaveRunning=false;}
 }
 /*
  * 自動同步
@@ -4957,9 +4991,9 @@ lockedRows.forEach(key=>inventoryProductSaves.set(key,pending));inventorySaveNot
 await pending;
 }
 function beginInventoryPriceEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['售價','價格','銷售價']);const input=document.createElement('input');input.className='inventoryInlinePriceInput';input.type='text';input.inputMode='decimal';input.value=String(current??'');input.setAttribute('aria-label','修改售價');button.replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const price=normalizeMoneyInput(input).replace(/[，,\s]/g,'');if(!/^\d+(?:\.\d+)?$/.test(price)){alert('請輸入有效售價');renderInventoryContent();return;}const old=String(current??'').replace(/,/g,'');if(price===old){renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryPrice',{row,price});const colIndex=inventoryHeaderIndex(['售價','價格','銷售價']);if(colIndex>=0){item.values[colIndex]=Number(price);if(item.display)item.display[colIndex]=price;}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('售價更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();input.blur();}else if(event.key==='Escape'){event.preventDefault();finish(false);}});}
-function beginInventoryStockEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['庫存','總庫存','數量']);const input=document.createElement('input');input.className='inventoryStockInput';input.type='text';input.inputMode='text';input.value=String(current??'');input.setAttribute('aria-label','修改庫存數量');button.closest('.inventoryStockGroup').replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const value=toHalfWidthDigits(input.value).trim().toLowerCase();if(!/^(?:x|\?|\d+)$/.test(value)){alert('庫存請輸入整數、x 或 ?');renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryStock',{row,stock:value});const i=inventoryHeaderIndex(['庫存','總庫存','數量']);if(i>=0){item.values[i]=value==='x'||value==='?'?value:Number(value);if(item.display)item.display[i]=value;}if(/^\d+$/.test(value)&&Number(value)>0){const si=inventoryHeaderIndex(['狀態']);if(si>=0){item.values[si]='';if(item.display)item.display[si]='';}}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('庫存更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();finish(false);}});}
+function beginInventoryStockEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['庫存','總庫存','數量']);const input=document.createElement('input');input.className='inventoryStockInput';input.type='text';input.inputMode='text';input.value=String(current??'');input.setAttribute('aria-label','修改庫存數量');button.closest('.inventoryStockGroup').replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const value=toHalfWidthDigits(input.value).trim().toLowerCase();if(!/^(?:x|\?|\d+)$/.test(value)){alert('庫存請輸入整數、x 或 ?');renderInventoryContent();return;}const original=toHalfWidthDigits(String(current??'')).trim().toLowerCase();const unchanged=/^\d+$/.test(value)&&/^\d+$/.test(original)?Number(value)===Number(original):value===original;const needsStatusClear=/^\d+$/.test(value)&&Number(value)>0&&String(inventoryValue(item,['狀態'],false)??'').trim()!=='';if(unchanged&&!needsStatusClear){renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryStock',{row,stock:value});const i=inventoryHeaderIndex(['庫存','總庫存','數量']);if(i>=0){item.values[i]=value==='x'||value==='?'?value:Number(value);if(item.display)item.display[i]=value;}if(/^\d+$/.test(value)&&Number(value)>0){const si=inventoryHeaderIndex(['狀態']);if(si>=0){item.values[si]='';if(item.display)item.display[si]='';}}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('庫存更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();finish(false);}});}
 
-function beginInventoryStoreEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['店面','店面庫存','店鋪庫存','店面數量']);const input=document.createElement('input');input.className='inventoryStockInput';input.type='text';input.inputMode='numeric';input.value=String(current??'');input.setAttribute('aria-label','修改店面數量');button.closest('.inventoryStockGroup').replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const value=toHalfWidthDigits(input.value).trim();if(!/^\d+$/.test(value)){alert('店面數量請輸入非負整數');renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryStore',{row,stock:value});const i=inventoryHeaderIndex(['店面','店面庫存','店鋪庫存','店面數量']);if(i>=0){item.values[i]=Number(value);if(item.display)item.display[i]=value;}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('店面數量更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();finish(false);}});}
+function beginInventoryStoreEdit(row,button){if(inventoryProductSaves.has(Number(row))){inventorySaveNotice('此商品正在背景儲存，請稍候再編輯');return;}const item=inventoryRows.find(x=>Number(x.row)===Number(row));if(!item)return;const current=inventoryValue(item,['店面','店面庫存','店鋪庫存','店面數量']);const input=document.createElement('input');input.className='inventoryStockInput';input.type='text';input.inputMode='numeric';input.value=String(current??'');input.setAttribute('aria-label','修改店面數量');button.closest('.inventoryStockGroup').replaceWith(input);input.focus();input.select();let finished=false;const finish=async save=>{if(finished)return;finished=true;if(!save){renderInventoryContent();return;}const value=toHalfWidthDigits(input.value).trim();if(!/^\d+$/.test(value)){alert('店面數量請輸入非負整數');renderInventoryContent();return;}const original=toHalfWidthDigits(String(current??'')).trim();if(/^\d+$/.test(original)&&Number(value)===Number(original)){renderInventoryContent();return;}input.disabled=true;try{await api('setInventoryStore',{row,stock:value});const i=inventoryHeaderIndex(['店面','店面庫存','店鋪庫存','店面數量']);if(i>=0){item.values[i]=Number(value);if(item.display)item.display[i]=value;}inventoryLoadedAt=Date.now();saveInventorySessionCache();renderInventoryContent();}catch(e){alert('店面數量更新失敗：'+e.message);renderInventoryContent();}};input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();finish(false);}});}
 function selectInventoryCategory(index){inventoryCategory=index===0?'全部':(inventoryCategoryValues[index-1]||'全部');renderInventoryContent();}
 function prepareInventoryRows(){inventoryRows.forEach(item=>{item._searchText=['角色','人物','角色名稱','名稱','商品名稱','品名','商品','貨號','商品貨號','條碼','SN','種類','類型','商品種類','品項'].map(name=>String(inventoryValue(item,[name])||'')).join(' ').normalize('NFKC').toLowerCase();});}
 function restoreInventorySessionCache(){if(inventoryLoaded)return;try{const raw=sessionStorage.getItem(INVENTORY_SESSION_CACHE_KEY)||localStorage.getItem(INVENTORY_PERSISTENT_CACHE_KEY)||'null';const cached=JSON.parse(raw);if(!cached||!Array.isArray(cached.rows)||!Array.isArray(cached.headers))return;inventoryRows=cached.rows;inventoryHeaders=cached.headers;prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Number(cached.savedAt)||0;}catch(_){}}
@@ -5730,7 +5764,7 @@ input.value='';
 }
 }
 async function clearStoreCart(){
- if(cartOperationBusy)return;
+ if(cartOperationBusy||cartPendingWrites){alert('請先等購物車儲存完成，再清空');return;}
  if(!storeCart.length||!confirm('確定清空全部商品？'))return;
  const before={cart:structuredClone(storeCart),payment};cartRevision++;
  const pending=salesperson?api('storeCartClear',{salesperson}):Promise.resolve();
@@ -5738,7 +5772,7 @@ async function clearStoreCart(){
  try{await pending;}catch(error){const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;if(document.body.dataset.page==='store')renderCart();console.error('清空尚未確認，商品已保留：'+error.message);}
 }
 async function checkout(){
-if(cartOperationBusy){alert('請先等購物車儲存完成，再結帳');return;}
+if(cartOperationBusy||cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
 if(!storeCart.length){
 alert('沒有商品');
 return
@@ -8468,4 +8502,5 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 <style id="launch-inventory-import-style">.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
 </body>
 </html>
+
 
