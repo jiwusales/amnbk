@@ -2763,7 +2763,8 @@ function launchInferProductKind(item,catalog){
  const unique=rows=>{const values=[...new Set(rows.map(x=>x.kind).filter(Boolean))];return values.length===1?values[0]:'';};
  const code=normalize(item.code),url=normalize(item.url).replace(/[?#].*$/,'').replace(/\/$/,'');
  const exact=catalog.filter(x=>(code&&normalize(x.code)===code)||(url&&normalize(x.url).replace(/[?#].*$/,'').replace(/\/$/,'')===url));
- if(exact.length)return unique(exact);
+ const classifiedExact=exact.filter(row=>row.kind&&!['未分類','未設定'].includes(row.kind));
+ if(classifiedExact.length)return unique(classifiedExact);
  const names=catalog.filter(x=>name.length>=2&&normalize(x.name)===name);
  if(names.length){const kind=unique(names);if(kind)return kind;}
  // Specific compound products must be tested before the broad "娃" label.
@@ -2774,7 +2775,7 @@ function launchInferProductKind(item,catalog){
  ['鑰匙圈',/鑰匙圈|钥匙扣|キーホルダー/],['立牌',/立牌|アクリルスタンド/],['徽章',/徽章|缶バッジ/],
  ['吊飾',/吊飾|チャーム/],['公仔',/公仔|フィギュア/],['貼紙',/貼紙|ステッカー/],['磁鐵',/磁鐵|マグネット/],['御守',/御守/],
  ['毛巾',/毛巾|浴巾|手帕|タオル/],['頭飾',/髮箍|髮夾|髮圈|髮束|ヘア/],['飾品',/耳環|項鍊|戒指|手鍊|胸針/],
- ['服飾',/外套|毛衣|長袖|短袖|上衣|圍巾|帽子|襪子|tシャツ|t恤|polo|(?:^|[^a-z])t$/],
+ ['服飾',/外套|毛衣|針織衫|長袖|短袖|上衣|圍巾|帽子|襪子|(?:長|短)t(?:恤|shirt)?|t-?shirt|tシャツ|ロングt|ロンt|スウェット|パーカー|t恤|polo|(?:^|[^a-z])t$/],
  ['文具',/資料夾|卡片組|便利貼|便條紙|便條|筆記本|原子筆|鉛筆|文具|クリアファイル/],['餐廚',/馬克杯|杯墊|餐盤|碗|筷子|湯匙|便當盒/],
  ['3C',/手機殼|手機掛|滑鼠墊|充電|耳機/],['居家',/抱枕|收納毯|毛毯|地墊|桌墊/]
  ];
