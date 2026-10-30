@@ -4945,7 +4945,7 @@ const item=inventoryRows.find(entry=>Number(entry.row)===Number(row));if(!item)r
 const fields={ip:['IP','IP分類','IP類別'],role:['角色'],kind:['種類','類型','商品種類','品項'],name:['名稱','商品名稱','品名','商品'],japaneseName:['日文名','日文原名'],code:['貨號','商品貨號','條碼','SN'],format:['格式'],original:['原價','定價','原售價','牌價'],price:['售價','價格','銷售價'],stock:['庫存','總庫存','數量','庫存量','商品庫存'],store:['店面','店面庫存','店鋪庫存','店面數量'],nonstock:['非現','非現貨','非現庫存'],size:['尺寸','大小','商品尺寸'],image:['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片'],url:['商品網址','官網網址','商品連結','官網連結','網址','URL','連結','來源網址'],note:['備註','備註欄','說明']};
 for(const key of Object.keys(fields)){const input=document.getElementById('inventoryEdit'+key[0].toUpperCase()+key.slice(1));if(input&&inventoryEditFieldValue(key,input.dataset.originalValue??input.defaultValue)===String(data[key]??''))delete data[key];}
 if(Object.keys(data).length===1){closeDialog();return;}
-const previous=[];
+const previous=[],lockedRows=[Number(row)];
 for(const [key,names] of Object.entries(fields)){if(!Object.hasOwn(data,key))continue;let col=inventoryHeaderIndex(names);if(col<0&&key==='japaneseName'){col=inventoryHeaders.length;inventoryHeaders.push('日文名');while(item.values.length<=col)item.values.push('');if(item.display)while(item.display.length<=col)item.display.push('');}if(col<0)continue;previous.push({col,value:item.values[col],display:item.display?.[col]});item.values[col]=data[key];if(item.display)item.display[col]=data[key];}
 closeDialog();prepareInventoryRows();renderInventoryContent();
 const pending=Promise.resolve().then(async()=>{
