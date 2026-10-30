@@ -1226,6 +1226,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 
 .launchAvailabilityBadges{position:absolute;right:-10px;top:0;transform:translateY(-50%);display:flex;gap:4px;z-index:2;pointer-events:none}
 .launchAvailabilityBadge{display:grid;place-items:center;width:20px;height:20px;min-width:20px;border-radius:50%;background:#779782;color:#fff;font:700 12px/1 system-ui;box-shadow:0 1px 4px #0002}
+.launchOrderCount{background:#7b79bc;border:0;padding:0;pointer-events:auto;cursor:pointer}.launchOrderSummaryTitle{margin:0;font-size:18px;overflow-wrap:anywhere}.launchOrderSummaryMeta{margin:8px 0 14px;color:#828579}.launchOrderSummaryRow{display:grid;grid-template-columns:minmax(0,1fr) 70px 60px;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid #eee}.launchOrderSummaryRow>span:first-child{overflow-wrap:anywhere}.launchOrderSummaryRow>span:not(:first-child){text-align:right}.launchOrderSummaryHeader{font-size:12px;color:#828579;border-top:1px solid #ddd}.launchOrderSummary .groupCardItems{padding:0 14px}.launchOrderSummary .groupCardCustomer{display:block}
 .launchAvailabilityBadge.isUnknown{background:#dfa637;order:-1}
 .launchAllItem.launchAvailabilityOut{border-color:#ca889d!important;box-shadow:inset 0 0 0 1px #ca889d}
 .launchAllItem.launchAvailabilityRestocked{border-color:#8da994!important;box-shadow:inset 0 0 0 1px #8da994}
@@ -2088,7 +2089,31 @@ function launchAvailabilityBadges(group){
  if(group.status!=='最新開團')return '';
  const summary=group.availabilitySummary||{},failed=Number(summary.failed)||0,total=Number(summary.total)||0,changed=Number(summary.changed)||0;
  const allFailed=total>0&&failed===total;
- return `<span class="launchAvailabilityBadges">${allFailed?'':`<span class="launchAvailabilityBadge" title="本輪貨況變動 ${changed} 樣" aria-label="本輪貨況變動 ${changed} 樣">${changed||'－'}</span>`}${failed?`<span class="launchAvailabilityBadge isUnknown" title="${failed} 樣商品貨況查不到" aria-label="${failed} 樣商品貨況查不到">！</span>`:''}</span>`;
+ return `<span class="launchAvailabilityBadges">${allFailed?'':`<span class="launchAvailabilityBadge" title="本輪貨況變動 ${changed} 樣" aria-label="本輪貨況變動 ${changed} 樣">${changed||'－'}</span>`}${failed?`<span class="launchAvailabilityBadge isUnknown" title="${failed} 樣商品貨況查不到" aria-label="${failed} 樣商品貨況查不到">！</span>`:''}<button type="button" class="launchAvailabilityBadge launchOrderCount" aria-label="查看 ${esc(group.name)} 訂購統計" title="訂購統計" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchShowOrderSummary(launchGroups[${launchGroups.indexOf(group)}])">計</button></span>`;
+}
+function launchBuildOrderSummary(group,rows,headers){
+ const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},customers=new Set(),items=new Map();
+ for(const row of rows){
+  if(String(value(row,['團名','開團名稱'])||'').trim()!==String(group.name||'').trim())continue;
+  if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
+  const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
+  const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
+  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name,price]);
+  if(!items.has(key))items.set(key,{name,price,quantity:0});items.get(key).quantity++;
+ }
+ return {people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()]};
+}
+async function launchShowOrderSummary(group){
+ if(!group)return;
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="開團訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+ const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
+ try{
+  const data=await api('online',{compact:'0',fresh:'1'});if(!dialog.isConnected)return;
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
+  const summary=launchBuildOrderSummary(group,rows,headers);
+  meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
+  dialog.querySelector('.groupCardItems').innerHTML=`<div class="launchOrderSummaryRow launchOrderSummaryHeader"><span>商品名稱</span><span>單價</span><span>總數量</span></div>`+summary.items.map(item=>`<div class="launchOrderSummaryRow"><span>${esc(item.name)}</span><span>${money(item.price)}</span><span>${item.quantity}</span></div>`).join('')+(summary.items.length?'':'<p>目前沒有訂購商品。</p>');
+ }catch(error){if(dialog.isConnected)meta.textContent='讀取失敗：'+error.message;}
 }
 function launchAvailabilityChangeClass(item){
  const state=item.availabilityMonitor;
