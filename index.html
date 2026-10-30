@@ -1431,7 +1431,9 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <script src="https://jiwusales.github.io/imgh/image-refresh.js?v=20261028-revision" defer></script>
 <style>.payment .paymentHuaLB{grid-column:-2 / -1}</style>
 <style id="launch-product-image-editor">
-.launchDialog .launchProductFields>.launchProductImages{grid-column:1/-1;min-width:0;display:block}.launchProductImagesTitle{display:block;font-size:14px;margin:4px 0 10px}.launchProductImageRows{display:grid;gap:8px}.launchProductImageRow{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px 10px;padding:10px;border:1px solid #e2e2e2;border-radius:9px;min-width:0}.launchProductImagePreview{grid-row:span 2;width:64px;height:64px;display:grid;place-items:center;background:#f7f7f7;border-radius:6px;overflow:hidden;font-size:11px;color:#999}.launchProductImagePreview img{width:100%;height:100%;object-fit:contain}.launchDialog .launchProductFields .launchProductImageRow>input{width:100%!important;min-width:0;flex:none!important;margin:0;padding:7px;font-size:12px}.launchProductImageActions{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap}.launchProductImageActions>span{font-size:11px;color:#888;margin-right:auto}.launchProductImageActions .btn{padding:4px 7px;font-size:12px}.launchProductImageTools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}.launchProductImageTools .btn{font-size:12px;padding:7px 10px}.launchProductImageTools small{font-size:11px;color:#888}.launchDialog .launchProductFields .launchProductImageActions .launchProductImageOrder{width:44px;min-width:44px;flex:0 0 44px;padding:4px;font-size:12px;text-align:center}
+.launchProductImageDragHandle{grid-column:1;grid-row:span 2;align-self:center;border:0;background:none;color:#888;padding:0;width:20px;height:60px;font-size:24px;line-height:1;cursor:grab;touch-action:none;user-select:none}.launchProductImageDragHandle:active{cursor:grabbing}.launchProductImageRow.isDragging{opacity:.6;background:#f2eee9}.launchProductImageRow>.launchProductImagePreview{grid-column:2}.launchProductImageRow>input,.launchProductImageRow>.launchProductImageActions{grid-column:3}
+
+.launchDialog .launchProductFields>.launchProductImages{grid-column:1/-1;min-width:0;display:block}.launchProductImagesTitle{display:block;font-size:14px;margin:4px 0 10px}.launchProductImageRows{display:grid;gap:8px}.launchProductImageRow{display:grid;grid-template-columns:20px 64px minmax(0,1fr);gap:6px 10px;padding:10px;border:1px solid #e2e2e2;border-radius:9px;min-width:0}.launchProductImagePreview{grid-row:span 2;width:64px;height:64px;display:grid;place-items:center;background:#f7f7f7;border-radius:6px;overflow:hidden;font-size:11px;color:#999}.launchProductImagePreview img{width:100%;height:100%;object-fit:contain}.launchDialog .launchProductFields .launchProductImageRow>input{width:100%!important;min-width:0;flex:none!important;margin:0;padding:7px;font-size:12px}.launchProductImageActions{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap}.launchProductImageActions>span{font-size:11px;color:#888;margin-right:auto}.launchProductImageActions .btn{padding:4px 7px;font-size:12px}.launchProductImageTools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}.launchProductImageTools .btn{font-size:12px;padding:7px 10px}.launchProductImageTools small{font-size:11px;color:#888}.launchDialog .launchProductFields .launchProductImageActions .launchProductImageOrder{width:44px;min-width:44px;flex:0 0 44px;padding:4px;font-size:12px;text-align:center}
 </style>
 </head>
 <body>
@@ -2973,11 +2975,11 @@ function launchFinishProductEditor(render=false){
 }
 function launchProductImagesMarkup(images=[]){
  images=launchSplitProductImages(images);
- return `<div class="launchProductImages"><span class="launchProductImagesTitle">商品圖片</span><input type="hidden" name="images" value="${esc(images.join('、'))}"><div class="launchProductImageRows">${images.map((url,index)=>launchProductImageRow(url,index,images.length)).join('')}</div><div class="launchProductImageTools"><button type="button" class="btn light" onclick="launchProductImageAdd(this)">＋ 新增圖片</button><button type="button" class="btn light" onclick="launchProductImagePaste(this)">批次貼上</button><small>第一張會用作商品主圖，按確定後套用。</small></div></div>`;
+ return `<div class="launchProductImages"><span class="launchProductImagesTitle">商品圖片</span><input type="hidden" name="images" value="${esc(images.join('、'))}"><div class="launchProductImageRows">${images.map((url,index)=>launchProductImageRow(url,index,images.length)).join('')}</div><div class="launchProductImageTools"><button type="button" class="btn light" onclick="launchProductImageAdd(this)">＋ 新增圖片</button><button type="button" class="btn light" onclick="launchProductImagePaste(this)">批次貼上</button><small>拖移或輸入編號排序；第一張是主圖，按確定後套用。</small></div></div>`;
 }
 function launchProductImageRow(url,index,count){
  const safe=launchSafeURL(url);
- return `<div class="launchProductImageRow"><div class="launchProductImagePreview"><img src="${safe?launchImage(safe):''}" alt="第 ${index+1} 張商品圖片" ${safe?'':'hidden'} loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span ${safe?'hidden':''}>無預覽</span></div><input type="url" data-product-image-url aria-label="第 ${index+1} 張圖片網址" placeholder="貼上圖片網址" value="${esc(url)}" oninput="launchProductImageInput(this)"><div class="launchProductImageActions"><span>${index+1}${index===0?' · 主圖':''}</span><button type="button" class="btn light" onclick="const input=this.closest('.launchProductImageRow').querySelector('[data-product-image-url]');input.focus();input.select()">更換</button><input type="number" class="launchProductImageOrder" inputmode="numeric" min="1" max="${count}" step="1" value="${index+1}" aria-label="第 ${index+1} 張圖片排序" title="輸入排序編號" onchange="launchProductImageReorder(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><button type="button" class="btn light" aria-label="刪除第 ${index+1} 張圖片" onclick="launchProductImageRemove(this)">刪除</button></div></div>`;
+ return `<div class="launchProductImageRow"><button type="button" class="launchProductImageDragHandle" aria-label="拖移第 ${index+1} 張圖片排序" title="拖移排序，也可用上下方向鍵" onpointerdown="launchProductImageDrag(event)" onkeydown="launchProductImageDragKey(event)">≡</button><div class="launchProductImagePreview"><img src="${safe?launchImage(safe):''}" alt="第 ${index+1} 張商品圖片" ${safe?'':'hidden'} loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span ${safe?'hidden':''}>無預覽</span></div><input type="url" data-product-image-url aria-label="第 ${index+1} 張圖片網址" placeholder="貼上圖片網址" value="${esc(url)}" oninput="launchProductImageInput(this)"><div class="launchProductImageActions"><span>${index+1}${index===0?' · 主圖':''}</span><button type="button" class="btn light" onclick="const input=this.closest('.launchProductImageRow').querySelector('[data-product-image-url]');input.focus();input.select()">更換</button><input type="number" class="launchProductImageOrder" inputmode="numeric" min="1" max="${count}" step="1" value="${index+1}" aria-label="第 ${index+1} 張圖片排序" title="輸入排序編號" onchange="launchProductImageReorder(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><button type="button" class="btn light" aria-label="刪除第 ${index+1} 張圖片" onclick="launchProductImageRemove(this)">刪除</button></div></div>`;
 }
 function launchProductImageValues(box){return [...box.querySelectorAll('[data-product-image-url]')].map(input=>input.value.trim());}
 function launchProductImageSync(box){box.querySelector('[name="images"]').value=launchProductImageValues(box).filter(Boolean).join('、');}
@@ -2995,6 +2997,31 @@ function launchProductImagePaste(button){
  const box=button.closest('.launchProductImages');launchProductImageRender(box,[...launchProductImageValues(box).filter(Boolean),...urls]);
 }
 function launchProductImageRemove(button){const box=button.closest('.launchProductImages'),rows=[...box.querySelectorAll('.launchProductImageRow')],index=rows.indexOf(button.closest('.launchProductImageRow')),images=launchProductImageValues(box);images.splice(index,1);launchProductImageRender(box,images);box.querySelector('.launchProductImageTools button').focus();}
+function launchProductImageDrag(event){
+ if(event.button!==0||event.isPrimary===false)return;
+ event.preventDefault();const handle=event.currentTarget,row=handle.closest('.launchProductImageRow'),box=row.closest('.launchProductImages'),list=row.parentElement,original=launchProductImageValues(box),pointer=event.pointerId;
+ let done=false;row.classList.add('isDragging');list.setPointerCapture(pointer);
+ function move(e){
+  if(e.pointerId!==pointer)return;e.preventDefault();
+  const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.launchProductImageRow');
+  if(target&&target!==row&&target.parentElement===list){const rect=target.getBoundingClientRect();list.insertBefore(row,e.clientY<rect.top+rect.height/2?target:target.nextSibling);}
+  const dialog=box.closest('dialog'),rect=dialog?.getBoundingClientRect();if(rect){if(e.clientY<rect.top+40)dialog.scrollTop-=16;else if(e.clientY>rect.bottom-40)dialog.scrollTop+=16;}
+ }
+ function finish(e){
+  if(e.pointerId!==pointer||done)return;done=true;
+  list.removeEventListener('pointermove',move);list.removeEventListener('pointerup',finish);list.removeEventListener('pointercancel',finish);list.removeEventListener('lostpointercapture',finish);
+  const index=[...list.children].indexOf(row),images=e.type==='pointerup'?launchProductImageValues(box):original;
+  if(list.hasPointerCapture(pointer))list.releasePointerCapture(pointer);
+  launchProductImageRender(box,images);box.querySelectorAll('.launchProductImageDragHandle')[Math.max(0,index)]?.focus();
+ }
+ list.addEventListener('pointermove',move);list.addEventListener('pointerup',finish);list.addEventListener('pointercancel',finish);list.addEventListener('lostpointercapture',finish);
+}
+function launchProductImageDragKey(event){
+ if(!['ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();
+ const handle=event.currentTarget,box=handle.closest('.launchProductImages'),rows=[...box.querySelectorAll('.launchProductImageRow')],index=rows.indexOf(handle.closest('.launchProductImageRow')),next=index+(event.key==='ArrowUp'?-1:1);
+ if(next<0||next>=rows.length)return;const input=rows[index].querySelector('.launchProductImageOrder');input.value=next+1;launchProductImageReorder(input);box.querySelectorAll('.launchProductImageDragHandle')[next].focus();
+}
+
 function launchProductImageReorder(input){
  const box=input.closest('.launchProductImages'),rows=[...box.querySelectorAll('.launchProductImageRow')],index=rows.indexOf(input.closest('.launchProductImageRow')),next=Number(input.value)-1,images=launchProductImageValues(box);
  if(!Number.isInteger(next)||next<0||next>=images.length){input.value=index+1;alert('請輸入 1 到 '+images.length+' 的排序編號');return;}
