@@ -1227,6 +1227,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .launchAvailabilityBadges{position:absolute;right:-10px;top:0;transform:translateY(-50%);display:flex;gap:4px;z-index:2;pointer-events:none}
 .launchAvailabilityBadge{display:grid;place-items:center;width:20px;height:20px;min-width:20px;border-radius:50%;background:#779782;color:#fff;font:700 12px/1 system-ui;box-shadow:0 1px 4px #0002}
 .launchOrderCount{background:#7b79bc;border:0;padding:0;pointer-events:auto;cursor:pointer}.launchOrderSummaryTitle{margin:0;font-size:18px;overflow-wrap:anywhere}.launchOrderSummaryMeta{margin:8px 0 14px;color:#828579}.launchOrderSummaryRow{display:grid;grid-template-columns:minmax(0,1fr) 70px 60px;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid #eee}.launchOrderSummaryRow>span:first-child{overflow-wrap:anywhere}.launchOrderSummaryRow>span:not(:first-child){text-align:right}.launchOrderSummaryHeader{font-size:12px;color:#828579;border-top:1px solid #ddd}.launchOrderSummary .groupCardItems{padding:0 14px}.launchOrderSummary .groupCardCustomer{display:block}
+.launchCountLabel{display:block;width:100%;border:0;background:none;padding:3px 0;color:inherit;font:inherit;cursor:pointer}.launchCountLabel:focus-visible{outline:2px solid var(--main)}.launchOrderSummaryGrid.purchaseProductGrid{grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin:14px 0}.launchOrderSummaryGrid .purchaseProductCard{border:1px solid #eee}.launchOrderSummaryGrid .purchaseQuantity{background:rgba(255,255,255,.9);border-radius:4px;padding:2px 4px;top:7px;left:7px}.launchOrderSummaryGrid .purchaseProductName{font-size:12px}.launchOrderSummaryPrice{font-size:12px;color:#828579;margin-top:4px}@media(max-width:600px){.launchOrderSummaryGrid.purchaseProductGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.launchOrderSummaryGrid .purchaseProductName{font-size:11px}}
 .launchAvailabilityBadge.isUnknown{background:#dfa637;order:-1}
 .launchAllItem.launchAvailabilityOut{border-color:#ca889d!important;box-shadow:inset 0 0 0 1px #ca889d}
 .launchAllItem.launchAvailabilityRestocked{border-color:#8da994!important;box-shadow:inset 0 0 0 1px #8da994}
@@ -2099,9 +2100,57 @@ function launchBuildOrderSummary(group,rows,headers){
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
   const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name,price]);
-  if(!items.has(key))items.set(key,{name,price,quantity:0});items.get(key).quantity++;
+  if(!items.has(key))items.set(key,{name,price,quantity:0,image:''});
+  const item=items.get(key);item.quantity++;
+  if(!item.image)item.image=launchSafeURL(value(row,['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']));
  }
  return {people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()]};
+}
+async function countLabelKey(group,name){
+ const data=new TextEncoder().encode(JSON.stringify([group.trim(),name.trim()]));
+ const digest=await crypto.subtle.digest('SHA-256',data);
+ return 'latest|count-label-v1:'+Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+}
+async function countLabelRead(group,names,request){
+ const unique=[...new Set(names)],keys=await Promise.all(unique.map(name=>countLabelKey(group,name))),labels={};
+ for(let i=0;i<keys.length;i+=500){
+  const data=await request('helperLoadPlan',{keys:keys.slice(i,i+500)});
+  for(let j=i;j<Math.min(i+500,keys.length);j++){
+   const plan=data.plans?.[keys[j]],entry=plan?.cars?.[0];
+   if(plan?.found&&plan.group===group&&entry?.[0]===unique[j]&&typeof entry[1]==='string')Object.defineProperty(labels,unique[j],{value:entry[1],enumerable:true,writable:true,configurable:true});
+  }
+ }
+ return {ok:true,labels};
+}
+async function countLabelWrite(group,name,label,request){
+ if(!group||!name||label.length>100)throw Error('縮寫最多 100 字');
+ return request('helperSavePlan',{key:await countLabelKey(group,name),group,limit:'',cars:[[name,label]]});
+}
+const launchCountLabels=new Map();
+function launchCountLabel(group,name){return launchCountLabels.get(group)?.[name]||name;}
+async function launchEditCountLabel(button){
+ if(button.closest('.launchOrderSummary')?.dataset.labelsReady!=='true')return;
+ const {group,name}=button.dataset;
+ const current=launchCountLabels.get(group)?.[name]||'';
+ const value=prompt('設定縮寫名（只在這裡與敗家小幫手數量統計顯示，留空恢復原名）',current||name);
+ if(value===null)return;
+ const label=value.trim();if(label.length>100){alert('縮寫最多 100 字');return;}
+ button.disabled=true;
+ try{
+  await countLabelWrite(group,name,label,api);
+  launchCountLabels.set(group,{...launchCountLabels.get(group),[name]:label});
+  document.querySelectorAll('.launchCountLabel').forEach(el=>{if(el.dataset.group===group&&el.dataset.name===name)el.textContent=label||name;});
+ }catch(error){alert('縮寫儲存失敗：'+error.message);}
+ finally{button.disabled=false;}
+}
+function launchOrderSummaryCards(items,products=[],groupName=''){
+ return '<div class="purchaseProductGrid launchOrderSummaryGrid">'+items.map(item=>{
+  const matches=products.filter(product=>launchDisplayName(product)===item.name);
+  const priced=matches.filter(product=>numberValue(product.price)===item.price);
+  const images=[...new Set((priced.length?priced:matches).map(product=>launchSafeURL(product.images?.[0]||product.image)).filter(Boolean))];
+  const image=item.image||(images.length===1?images[0]:'');
+  return `<article class="purchaseProductCard" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${image?`<img src="${esc(launchImage(image))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
+ }).join('')+'</div>'+(items.length?'':'<p>目前沒有訂購商品。</p>');
 }
 async function launchShowOrderSummary(group){
  if(!group)return;
@@ -2112,7 +2161,22 @@ async function launchShowOrderSummary(group){
   const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
   const summary=launchBuildOrderSummary(group,rows,headers);
   meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
-  dialog.querySelector('.groupCardItems').innerHTML=`<div class="launchOrderSummaryRow launchOrderSummaryHeader"><span>商品名稱</span><span>單價</span><span>總數量</span></div>`+summary.items.map(item=>`<div class="launchOrderSummaryRow"><span>${esc(item.name)}</span><span>${money(item.price)}</span><span>${item.quantity}</span></div>`).join('')+(summary.items.length?'':'<p>目前沒有訂購商品。</p>');
+  const content=dialog.querySelector('.groupCardItems');
+  content.innerHTML=launchOrderSummaryCards(summary.items,group.items||[],group.name);
+  const labelRead=countLabelRead(group.name,summary.items.map(item=>item.name),api).then(result=>{
+   if(!dialog.isConnected)return;
+   dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';
+   launchCountLabels.set(group.name,result.labels||{});
+   content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
+  }).catch(()=>{if(dialog.isConnected){content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='縮寫讀取失敗，請重新開啟統計';});}});
+  if(summary.items.length&&group.id){
+   try{
+    const detail=await api('launchGet',{id:group.id,status:group.status||launchStatus});
+    if(dialog.isConnected)content.innerHTML=launchOrderSummaryCards(summary.items,detail.group?.items||group.items||[],group.name);
+   }catch{} // Keep quantities visible if product images cannot be loaded.
+  }
+  await labelRead;
+  if(dialog.isConnected&&dialog.querySelector('.launchOrderSummary').dataset.labelsReady!=='true')content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='縮寫讀取失敗，請重新開啟統計';});
  }catch(error){if(dialog.isConnected)meta.textContent='讀取失敗：'+error.message;}
 }
 function launchAvailabilityChangeClass(item){
@@ -3731,7 +3795,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['helperLoadPlan','customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
