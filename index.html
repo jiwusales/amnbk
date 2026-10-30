@@ -1449,6 +1449,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 </main>
 <div id="protectedShell" class="protectedShell">
 <div class="top">
+<span id="hostConnectionStatus" role="img" aria-label="主機未連線" title="主機未連線">☻</span>
 <button id="onlineBackButton" class="btn light" type="button" onclick="backOnlineCustomer()" aria-label="返回上一頁" hidden>⬅︎</button>
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
 <span>JIWU吉物躺著賺後台</span>
@@ -8773,7 +8774,40 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 </style>
 <style id="launch-inventory-import-style">.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
 
-
+<style id="host-connection-style">
+#hostConnectionStatus{visibility:hidden;position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:Arial,sans-serif;font-size:26px;line-height:1;color:#d1d4d2;user-select:none;pointer-events:none}
+#hostConnectionStatus.connected{visibility:visible;color:#88a38d}
+.top:has(#hostConnectionStatus){padding-left:48px;box-sizing:border-box}
+.top:has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:90px}
+#onlineBackButton,#launchHeaderBack{left:46px}
+body[data-page="store"] .top{padding-left:48px}
+</style>
+<script id="host-connection-script">
+(()=>{
+ const icon=document.getElementById('hostConnectionStatus');
+ const nativeFetch=window.fetch.bind(window);
+ function paint(connected){icon.classList.toggle('connected',connected);const label=connected?'主機已連線':'尚未確認連線';icon.title=label;icon.setAttribute('aria-label',label);}
+ window.fetch=async function(input,options){
+  const url=typeof input==='string'?input:input?.url||String(input);
+  if(new URL(url,location.href).href!==new URL(API_URL,location.href).href)return nativeFetch(input,options);
+  try{
+   const response=await nativeFetch(input,options);
+   if([502,503,504].includes(response.status))paint(false);
+   else if(response.ok){
+    try{
+     const data=await response.clone().json();
+     if(data.ok===true)paint(navigator.onLine);
+     else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data.error||''))paint(false);
+    }catch{}
+   }
+   return response;
+  }catch(error){if(error?.name!=='AbortError')paint(false);throw error;}
+ };
+ window.addEventListener('offline',()=>paint(false));
+ window.addEventListener('online',()=>paint(false));
+ paint(false);
+})();
+</script>
 
 </body>
 </html>
