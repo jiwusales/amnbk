@@ -2839,6 +2839,7 @@ function launchExpandMultiProducts(rows,start=0){
 }
 let launchProductKinds=[],launchProductKindCatalog=[];
 function launchInferProductKind(item,catalog){
+ if(/單抽|抱盒/.test([item.format,item.size].filter(Boolean).join(' ')))return '抽抽';
  if(String(item.kind||'').trim())return item.kind;
  const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'').trim();
  const name=normalize(item.name),size=normalize([item.format,item.size].filter(Boolean).join(' ')),kinds=new Set(catalog.map(x=>x.kind).filter(Boolean));
@@ -2945,7 +2946,7 @@ async function launchLoadProductKinds(root){
   if(!root.isConnected||(root.tagName==='DIALOG'&&!root.open))return;
   root.querySelectorAll('select[name="kind"],select[data-launch-kind]').forEach(select=>{
    const item=select.hasAttribute('data-launch-kind')?launchCurrent?.items[Number(select.dataset.launchKind)]:null;
-   if(item&&!item.kind){const kind=launchInferProductKind(item,launchProductKindCatalog);if(kind){item.kind=kind;launchMark();}}
+   if(item&&(!item.kind||/單抽|抱盒/.test(launchVariantFormat(item)))){const kind=launchInferProductKind(item,launchProductKindCatalog);if(kind){item.kind=kind;launchMark();}}
    const value=item?.kind||select.value;select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;
   });
   launchSuggestFormKind(root.querySelector('form'));
@@ -2972,13 +2973,15 @@ function launchKindOptions(current=''){
 }
 function launchKindSelect(p,i){return `<select class="launchListKind" data-launch-kind="${i}" aria-label="${esc(launchDisplayName(p))} 種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this,${i})">${launchKindOptions(p.kind||'')}</select>`;}
 function launchSetProductKind(index,value){
- const item=launchCurrent?.items[index];if(!item||String(item.kind||'')===value)return;
+ const item=launchCurrent?.items[index];if(item&&/單抽|抱盒/.test(launchVariantFormat(item)))value='抽抽';if(!item||String(item.kind||'')===value)return;
  launchPushUndo();item.kind=String(value||'').trim();launchMark();
 }
 function launchSuggestFormKind(form){
  if(!form)return;
- const select=form.querySelector('select[name="kind"]');if(!select||select.dataset.manual==='true')return;
+ const select=form.querySelector('select[name="kind"]');if(!select)return;
  const field=name=>form.querySelector(`[name="${name}"]`)?.value||'';
+ if(/單抽|抱盒/.test(field('format'))){select.innerHTML=launchKindOptions('抽抽');select.dataset.autoKind='抽抽';select.dataset.kindValue='抽抽';select.dataset.manual='false';return;}
+ if(select.dataset.manual==='true')return;
  const previous=select.dataset.autoKind||'';
  if(select.value&&select.value!==previous)return;
  const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));
@@ -3125,7 +3128,7 @@ async function launchProductSubmit(e,index,mode){
   }
   items.forEach(item=>{item.panel=launchPanelIndex;item.visible=true;});
  }
- items.forEach(item=>{if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
+ items.forEach(item=>{if(/單抽|抱盒/.test(launchVariantFormat(item))){item.kind='抽抽';return;}if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
  if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();launchFinishProductEditor(true);
  if(mode==='multi'){const ids=items.filter(item=>String(item.url||'').trim()&&launchGrabNeedsData(item)).map(item=>item.id);if(ids.length)await launchGrabAddedProducts(ids);}
 }
