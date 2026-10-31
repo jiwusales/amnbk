@@ -1448,6 +1448,14 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 </style>
 <style id="draft-card-publish">.launchTile>button.launchDraftGroupPublish{position:absolute;z-index:2;left:-10px;top:26px;transform:translateY(-50%);width:20px;height:20px;border:0;border-radius:50%;background:#FDD365;color:#fff;font:700 18px/1 system-ui;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:0 1px 4px #0002}.launchTile>button.launchDraftGroupPublish:disabled{opacity:.5;cursor:wait}</style>
 <style>.launchTile>button.launchLatestUnpublish{font-size:14px}.launchTile>button.launchLatestUnpublish:disabled{opacity:.5;cursor:wait}</style>
+<style id="mobile-launch-card-icons">
+@media(max-width:600px){
+ .launchPreviewGrid>.launchTile{padding-top:28px;min-width:0}
+ .launchPreviewGrid>.launchTile>.launchAvailabilityBadges{right:6px;top:4px;transform:none;gap:4px}
+ .launchPreviewGrid>.launchTile>button.launchDraftGroupDelete{left:6px;top:4px;transform:none}
+ .launchPreviewGrid>.launchTile>button.launchDraftGroupPublish{left:32px;top:4px;transform:none}
+}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
