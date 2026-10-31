@@ -6842,26 +6842,21 @@ onlineSourceMatches(x,key)||
 );
 });
 }
-if(onlineCargo==='未訂購'){
-// 只顯示仍未訂購的品項，不讓同日其他團的待購商品帶回已訂購品項。
-rows=rows.filter(row=>cargoDisplay(row).text==='未');
-}else if(onlineCargo){
-// 其餘貨況沿用整筆訂單的篩選規則。
-const orderGroups=groupOnlineOrders(onlineRows);
+if(onlineCargo){
+// 依商品目前顯示的分類判斷；混合訂單可同時出現在各個有商品的分類。
 const includedRows=new Set();
-orderGroups.forEach(({items})=>{
-const section=faceToFaceOrderSection({items});
-const hasUnopenedPurchase=orderHasUnopenedPurchase(items);
-let include=false;
-// 現貨清單只收整張訂單皆為現貨的卡片，避免面交分區的混單規則帶入非現貨。
-if(onlineCargo==='現貨')include=items.length>0&&items.every(row=>cargoDisplay(row).text==='現');
-else if(onlineCargo==='未開單')include=(section==='現貨'&&items.every(row=>!isOpenedRow(row)))||hasUnopenedPurchase;
-// 已訂購只收尚未開單的品項；同張訂單混有已開單與已訂購時，優先留在已訂購。
-else if(onlineCargo==='已訂購')include=hasUnopenedPurchase;
-else if(onlineCargo==='受注')include=section==='受注';
-else if(onlineCargo==='補貨登記')include=section==='補貨登記';
-else if(onlineCargo==='已開單')include=items.some(isOpenedRow)&&!hasUnopenedPurchase;
-else include=items.some(row=>cargoCategory(getOnlineData(row,['貨況','狀態']))===onlineCargo);
+groupOnlineOrders(onlineRows).forEach(({items})=>{
+const include=items.some(row=>{
+const tag=cargoDisplay(row).text;
+if(onlineCargo==='現貨')return tag==='現';
+if(onlineCargo==='未訂購')return tag==='未';
+if(onlineCargo==='已訂購')return tag==='訂';
+if(onlineCargo==='受注')return /^(0[1-9]|1[0-2])$/.test(tag);
+if(onlineCargo==='補貨登記')return /^補\d*$/.test(tag);
+if(onlineCargo==='已開單')return tag==='完';
+if(onlineCargo==='未開單')return tag==='現'||tag==='訂';
+return tag===onlineCargo;
+});
 if(include)items.forEach(row=>includedRows.add(Number(row.row)));
 });
 rows=rows.filter(row=>includedRows.has(Number(row.row)));
