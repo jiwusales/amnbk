@@ -2268,10 +2268,10 @@ function launchPurchaseReconciliation(group,summary,products,orders){
 function launchPurchaseReconciliationText(result){
  const lines=[`已登記 ${result.orderCount} 筆訂單｜跟團需求 ${result.needed} 件｜已訂購 ${result.ordered} 件`,'',...result.entries.map(x=>`${x.name}：需求 ${x.needed}、已訂 ${x.ordered}${x.ordered>x.needed?'、多 '+(x.ordered-x.needed):x.ordered<x.needed?'、少 '+(x.needed-x.ordered):'、相符'}`),'','多訂品項：',...(result.extra.length?result.extra.map(x=>`${x.name} × ${x.ordered-x.needed}`):['無']),...(result.short.length?['','尚缺品項：',...result.short.map(x=>`${x.name} × ${x.needed-x.ordered}`)]:[])];return lines.join('\n');
 }
-function launchPurchaseReconciliationLabel(row){const difference=row.ordered-row.needed;return `已訂 ${row.ordered}（${difference<0?'-'+(-difference):difference>0?'+'+difference:'相符'}）`;}
+function launchPurchaseReconciliationLabel(row){const difference=row.ordered-row.needed;return difference===0?'':`(${difference>0?'+':''}${difference})`;}
 async function launchLoadPurchaseReconciliation(dialog,group,summary){
  const content=dialog.querySelector('.groupCardItems');if(!content)return;
- const paint=(card,text)=>{let label=card.querySelector('.launchPurchaseCount');if(!label){label=document.createElement('div');label.className='launchPurchaseCount';label.style.cssText='color:#39834b;font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin-top:4px';card.appendChild(label);}label.textContent=text;};
+ const paint=(card,text)=>{let label=card.querySelector('.launchPurchaseCount');if(!label){label=document.createElement('div');label.className='launchPurchaseCount';label.style.cssText='color:#39834b;font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin-top:4px';card.appendChild(label);}label.textContent=text;label.hidden=!text;};
  content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>paint(card,'核對中…'));
  try{const [p,d]=await Promise.all([api('purchaseOrders'),group.id?api('launchGet',{id:group.id,status:group.status||launchStatus}):Promise.resolve({group})]);if(!dialog.isConnected)return;
  const result=launchPurchaseReconciliation(group,summary,d.group?.items||group.items||[],p.orders||[]);
