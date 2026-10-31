@@ -3124,7 +3124,7 @@ function launchAutoProductInfo(form){
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(field==='format'&&formatTouched)&&!String(control.value||'').trim()&&data.item?.[field])control.value=data.item[field];
    if(data.item?.needsFormat){message.textContent='此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
-   message.textContent=[!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
+   message.textContent=[!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
    message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':'已帶入日文名、貨號與尺寸';
   }).catch(error=>{if(current===ticket&&form.isConnected)message.textContent='抓取未完成：'+error.message;});
   form.jiwuProductInfoPending=pending;await pending;if(form.jiwuProductInfoPending===pending)form.jiwuProductInfoPending=null;
