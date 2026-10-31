@@ -2252,16 +2252,19 @@ function launchOrderSummaryCards(items,products=[],groupName=''){
 function launchPurchaseReconciliation(group,summary,products,orders){
  const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=p=>String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
  const identity=p=>code(p)?'code:'+code(p):p.id?'id:'+p.id:'name:'+norm(launchDisplayName(p));
+ const linked=orders.filter(o=>o.status!=='砍單'&&(o.groupId?String(o.groupId)===String(group.id):launchOrderSummaryGroupKey(o.groupName)===launchOrderSummaryGroupKey(group.name)||!o.groupName&&o.items.some(x=>launchOrderSummaryGroupKey(x.group)===launchOrderSummaryGroupKey(group.name))));
+ const aliases=new Map();for(const p of products){const names=[p.japaneseName,p.originalName];for(const o of linked)for(const item of o.items)if(code(p)&&code(item)===code(p))names.push(item.originalName,item.japaneseName);aliases.set(identity(p),new Set(names.filter(Boolean).map(norm)));}
  const resolve=item=>{
   let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
-  if(!found.length)found=products.filter(p=>code(p)&&(item.codes||[item.code]).filter(Boolean).includes(code(p)));
+  const codes=[...(item.codes||[]),code(item)].filter(Boolean);
+  if(!found.length)found=products.filter(p=>code(p)&&codes.includes(code(p)));
+  if(!found.length){const japanese=[item.japaneseName,item.originalName].filter(Boolean).map(norm);found=products.filter(p=>japanese.some(n=>aliases.get(identity(p)).has(n)));}
   if(!found.length)found=products.filter(p=>launchSummaryProductNames(p).some(n=>norm(n)===norm(item.name))||norm(launchDisplayName(p))===norm(purchaseProductName(item)));
-  const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:'name:'+norm(purchaseProductName(item));
+  const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:null;
  };
  const rows=new Map();
- for(const item of summary.items){const key=resolve(item);if(!rows.has(key))rows.set(key,{name:item.name,needed:0,ordered:0});rows.get(key).needed+=Number(item.quantity)||0;}
- const linked=orders.filter(o=>o.status!=='砍單'&&(o.groupId?String(o.groupId)===String(group.id):launchOrderSummaryGroupKey(o.groupName)===launchOrderSummaryGroupKey(group.name)||!o.groupName&&o.items.some(x=>launchOrderSummaryGroupKey(x.group)===launchOrderSummaryGroupKey(group.name))));
- for(const order of linked)for(const item of order.items){if(item.status==='砍單')continue;const quantity=Number(item.quantity)||0;if(quantity<=0)continue;const key=resolve(item);if(!rows.has(key))rows.set(key,{name:purchaseProductName(item),needed:0,ordered:0});rows.get(key).ordered+=quantity;}
+ for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item);if(!key)continue;if(!rows.has(key))rows.set(key,{key,name:item.name,names:[],needed:0,ordered:0});const row=rows.get(key);if(!row.names.includes(item.name))row.names.push(item.name);row.needed+=Number(item.quantity)||0;}
+ for(const order of linked)for(const item of order.items){if(item.status==='砍單')continue;const quantity=Number(item.quantity)||0;if(quantity<=0)continue;const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=quantity;}
  const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
  return {entries,needed,ordered,extra,short,orderCount:linked.length};
 }
@@ -2275,8 +2278,8 @@ async function launchLoadPurchaseReconciliation(dialog,group,summary){
  content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>paint(card,'核對中…'));
  try{const [p,d]=await Promise.all([api('purchaseOrders'),group.id?api('launchGet',{id:group.id,status:group.status||launchStatus}):Promise.resolve({group})]);if(!dialog.isConnected)return;
  const result=launchPurchaseReconciliation(group,summary,d.group?.items||group.items||[],p.orders||[]);
- content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{const name=card.querySelector('.launchCountLabel')?.dataset.name,row=result.entries.find(x=>x.name===name);paint(card,row?launchPurchaseReconciliationLabel(row):'無法對應');});
- const extras=result.entries.filter(x=>x.needed===0&&x.ordered>0);if(extras.length){const box=document.createElement('div');box.className='purchaseProductGrid launchPurchaseExtraGrid';box.style.marginTop='12px';for(const row of extras){const card=document.createElement('article');card.className='purchaseProductCard';const name=document.createElement('div');name.className='purchaseProductName';name.textContent=row.name;card.appendChild(name);paint(card,launchPurchaseReconciliationLabel(row));box.appendChild(card);}content.appendChild(box);}
+ content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{const name=card.querySelector('.launchCountLabel')?.dataset.name,row=result.entries.find(x=>x.names.includes(name));card.hidden=!row;card.style.display=row?'':'none';if(row)paint(card,launchPurchaseReconciliationLabel(row));});
+ content.querySelectorAll('.launchPurchaseExtraGrid').forEach(box=>box.remove());
  }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchPurchaseCount').forEach(label=>{label.textContent='核對讀取失敗';label.title=error.message;});}
 }
 
