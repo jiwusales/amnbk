@@ -2105,11 +2105,34 @@ function launchSizePreviewGrids(){
  });
 }
 window.addEventListener('resize',()=>requestAnimationFrame(launchSizePreviewGrids));
+let launchOrderBadgeGroups=new Set(),launchOrderBadgeLoadedAt=0,launchOrderBadgePending=null;
+function launchPaintOrderBadges(){
+ if(document.body.dataset.page!=='launch'||launchCurrent||launchStatus!=='最新開團')return;
+ document.querySelectorAll('.launchTile[data-launch-index]').forEach(tile=>{
+  const group=launchGroups[Number(tile.dataset.launchIndex)],badges=tile.querySelector('.launchAvailabilityBadges');
+  if(group&&badges)badges.outerHTML=launchAvailabilityBadges(group);
+ });
+}
+function launchLoadOrderBadges(){
+ if(launchStatus!=='最新開團'||launchCurrent||!launchGroups.length)return Promise.resolve();
+ if(launchOrderBadgePending)return launchOrderBadgePending;
+ if(Date.now()-launchOrderBadgeLoadedAt<30000)return Promise.resolve();
+ launchOrderBadgePending=api('online',{compact:'1',fresh:'1'}).then(data=>{
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
+  const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},groups=new Set();
+  for(const row of rows){
+   if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記'||!String(value(row,['名稱','商品名稱'])||'').trim())continue;
+   const key=launchOrderSummaryGroupKey(value(row,['團名','開團名稱']));if(key)groups.add(key);
+  }
+  launchOrderBadgeGroups=groups;launchOrderBadgeLoadedAt=Date.now();launchPaintOrderBadges();
+ }).finally(()=>{launchOrderBadgePending=null;});
+ return launchOrderBadgePending;
+}
 function launchAvailabilityBadges(group){
  if(group.status!=='最新開團')return '';
  const summary=group.availabilitySummary||{},failed=Number(summary.failed)||0,total=Number(summary.total)||0,changed=Number(summary.changed)||0;
  const allFailed=total>0&&failed===total;
- return `<span class="launchAvailabilityBadges">${allFailed?'':`<span class="launchAvailabilityBadge" title="本輪貨況變動 ${changed} 樣" aria-label="本輪貨況變動 ${changed} 樣">${changed||'－'}</span>`}${failed?`<span class="launchAvailabilityBadge isUnknown" title="${failed} 樣商品貨況查不到" aria-label="${failed} 樣商品貨況查不到">！</span>`:''}<button type="button" class="launchAvailabilityBadge launchOrderCount" aria-label="查看 ${esc(group.name)} 訂購統計" title="訂購統計" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchShowOrderSummary(launchGroups[${launchGroups.indexOf(group)}])">計</button></span>`;
+ return `<span class="launchAvailabilityBadges">${allFailed?'':`<span class="launchAvailabilityBadge" title="本輪貨況變動 ${changed} 樣" aria-label="本輪貨況變動 ${changed} 樣">${changed||'－'}</span>`}${failed?`<span class="launchAvailabilityBadge isUnknown" title="${failed} 樣商品貨況查不到" aria-label="${failed} 樣商品貨況查不到">！</span>`:''}${launchOrderBadgeGroups.has(launchOrderSummaryGroupKey(group.name))?`<button type="button" class="launchAvailabilityBadge launchOrderCount" aria-label="查看 ${esc(group.name)} 訂購統計" title="訂購統計" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();launchShowOrderSummary(launchGroups[${launchGroups.indexOf(group)}])">㊖</button>`:''}</span>`;
 }
 function launchOrderSummaryGroupKey(value){
  const text=String(value||'').normalize('NFKC').trim(),marker=text.lastIndexOf('⛔');
@@ -2369,10 +2392,12 @@ function launchRenderList(){
  const listHint=launchStatus==='已收單'?`開團(${joined})　流團(${failed})`:launchStatus==='最新開團'?'長按並拖移卡片可調整排列順序；完成後按 SAVE 儲存。':'頁面預覽只載入 Banner；點選後才載入完整商品內容。';
  document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''}"><div class="launchListBar"><div class="launchTabs" role="tablist">${launchListTabs()}${launchStatus==='已收單'?`<input class="launchClosedSearch" aria-label="搜尋已收單團名" value="${esc(launchClosedSearch)}" placeholder="搜尋團名" onfocus="this.select()" oncompositionstart="this.dataset.composing='1'" oncompositionend="this.dataset.composing='';launchSearchClosed(this.value)" oninput="if(!this.dataset.composing)launchSearchClosed(this.value)">`:''}</div><div class="launchListActions">${launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">輸出</button>":''}<button class="btn light launchIconButton" title="重新整理" aria-label="重新整理" onclick="launchRefreshList()">↻</button><button class="btn launchSaveWord" id="launchSave" onclick="launchSaveOrder()">SAVE${launchDirty?' *':''}</button></div></div><p class="launchDragHint">${listHint}</p><div class="launchGrid launchPreviewGrid">${launchListCards(shown)}</div><p class="launchHelp launchSearchEmpty" ${shown.length?'hidden':''}>${launchGroups.length?'沒有符合的團名。':'這個分頁還沒有團。'}</p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div></section>`;
  launchSizePreviewGrids();
+ if(launchStatus==='最新開團')void launchLoadOrderBadges().catch(()=>{});
 }
 function launchRefreshList(){launchRequestRefresh();}
 function launchRequestRefresh(){
  if(launchBusy)return;
+ launchOrderBadgeLoadedAt=0;
  if(!launchDirty){launchDiscardAndRefresh();return;}
  launchDialog(`<h2>重新整理開團資料</h2><p>目前有尚未儲存的修改，要先儲存嗎？</p><div class="launchTools"><button class="btn" onclick="launchSaveAndRefresh()">SAVE 後重整</button><button class="btn light" onclick="launchDiscardAndRefresh()">不儲存重整</button><button class="btn light" onclick="document.getElementById('launchDialog').close()">取消</button></div>`);
 }
