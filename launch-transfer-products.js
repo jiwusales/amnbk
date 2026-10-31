@@ -16,7 +16,7 @@ async function launchOpenTransferProducts(){
   state.groups=lists.flatMap(list=>list.groups||[]).filter(group=>group.id!==state.sourceId&&['最新開團','尚未上架'].includes(group.status));
   form.elements.target.innerHTML='<option value="__new__">＋ 新增一個團</option><option value="" selected disabled>請選擇現有團</option>'+state.groups.map(group=>`<option value="${esc(group.id)}">${esc(group.name)}（${esc(group.status)}・${Number(group.itemCount)||0} 件）</option>`).join('');
   form.elements.target.disabled=false;form.querySelector('[type="submit"]').disabled=false;
- }catch(error){form.querySelector('[data-transfer-error]').textContent='團名讀取失敗：'+error.message+'，請取消後重試。';}
+ }catch(error){form.querySelector('[data-transfer-error]').textContent=jiwuErrorText(error,'data')+'，請取消後重試。';}
 }
 function launchTransferTargetChanged(select){
  const form=select.form,isNew=select.value==='__new__';

@@ -37,7 +37,7 @@ function jiwuEnhanceOrderBindingDialog(){
    if(document.body.dataset.page==='online')refreshCargoViewKeepingScroll();
    showSelection();render();status.textContent='已解除這張訂單的客戶綁定';
    launchCompletionToast('已解除這張訂單的客戶綁定');
-  }catch(error){status.textContent='解除綁定失敗：'+error.message;}
+  }catch(error){status.textContent=jiwuErrorText(error,'system');}
   finally{busy=false;for(const input of form.querySelectorAll('button,input'))input.disabled=false;}
  };
  const showSelection=()=>{selected.replaceChildren();if(!choice)return;const text=document.createElement('span');text.textContent=choice.name+' · '+choice.id;const clear=document.createElement('button');clear.type='button';clear.className='btn light';clear.textContent='取消選取';clear.onclick=clearSelection;selected.append(text,clear);};
@@ -60,7 +60,7 @@ function jiwuEnhanceOrderBindingDialog(){
    launchCompletionToast('已綁定 '+result.customer+' · '+result.customerId);
   }catch(error){button.disabled=false;console.error('綁定客戶失敗：'+error.message);}
  },true);
- jiwuLoadOrderBindingCustomers().then(list=>{if(!section.isConnected)return;customers=list;const currentIds=[...new Set(snapshots.map(ref=>onlineRows.find(row=>String(row.itemId)===String(ref.id))).filter(Boolean).map(row=>String(getOnlineData(row,['顧客編號'])||'')))];if(currentIds.length===1)choice=list.find(c=>c.id===currentIds[0])||null;showSelection();render();}).catch(error=>{status.textContent='無法載入客戶清單：'+error.message;});
+ jiwuLoadOrderBindingCustomers().then(list=>{if(!section.isConnected)return;customers=list;const currentIds=[...new Set(snapshots.map(ref=>onlineRows.find(row=>String(row.itemId)===String(ref.id))).filter(Boolean).map(row=>String(getOnlineData(row,['顧客編號'])||'')))];if(currentIds.length===1)choice=list.find(c=>c.id===currentIds[0])||null;showSelection();render();}).catch(error=>{status.textContent=jiwuErrorText(error,'data');});
 }
 function jiwuStartOrderBindingUI(){
  const style=document.createElement('style');style.textContent='.jiwuOrderBinding{margin-top:20px;padding-top:16px;border-top:1px solid #eee}.jiwuOrderBindingLabel{font-weight:700;display:block;margin-bottom:8px}.jiwuOrderBindingHint,.jiwuOrderBindingStatus{font-size:12px;color:#888;line-height:1.6;margin:8px 0}.jiwuOrderBinding input{box-sizing:border-box;width:100%;min-height:42px;margin:4px 0 12px}.jiwuOrderBindingResults{display:grid;gap:8px;max-height:220px;overflow:auto;overscroll-behavior:contain}.jiwuOrderBindingChoice{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;padding:12px;border:1px solid #e6ded5;border-radius:9px;background:white;color:#514639;cursor:pointer;font:inherit}.jiwuOrderBindingChoice[aria-pressed=true]{border-color:#a48b71;background:#f8f3ee}.jiwuOrderBindingChoice span{font-size:12px;color:#888}.jiwuOrderBindingSelected{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;font-size:13px}.jiwuOrderBindingSelected:empty{display:none}.jiwuOrderBoundCaption{display:inline-block;margin-left:8px;font-size:11px;font-weight:400;color:#8b7763}#appDialog:has(.jiwuOrderBinding) .dialogCard{max-height:calc(100dvh - 32px);overflow:auto}#appDialog:has(.jiwuOrderBinding) .dialogActions{margin-top:18px}';document.head.append(style);
