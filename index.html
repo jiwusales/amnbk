@@ -2432,12 +2432,18 @@ function launchSearchClosed(value){
 document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value);});
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 function launchProductNameKey(value){return String(value??'').normalize('NFKC').trim();}
+function launchProductNameParts(value){const text=String(value??'').trim(),match=text.match(/^(\S+)([\s\S]*)$/);return {base:match?.[1]||'',suffix:match?.[2]||''};}
 function launchApplyProductName(previousName,nextName){
  if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;
- const key=launchProductNameKey(previousName),name=String(nextName??'').trim();
- if(!key||!name||String(previousName??'').trim()===name)return;
+ const before=launchProductNameParts(previousName),after=launchProductNameParts(nextName),name=String(nextName??'').trim();
+ if(!before.base||!after.base||String(previousName??'').trim()===name)return;
+ const baseChanged=launchProductNameKey(before.base)!==launchProductNameKey(after.base);
  launchPushUndo();
- launchCurrent.items.forEach(item=>{if(launchProductNameKey(item.name)===key)item.name=name;});
+ launchCurrent.items.forEach(item=>{
+  const current=launchProductNameParts(item.name);
+  if(baseChanged&&launchProductNameKey(current.base)===launchProductNameKey(before.base))item.name=after.base+current.suffix;
+  else if(!baseChanged&&launchProductNameKey(item.name)===launchProductNameKey(previousName))item.name=name;
+ });
 }
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
 function launchDraftOriginalPriceKey(item){const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,'').toUpperCase(),match=text.match(/^(R)?(\d+(?:\.\d+)?)(R)?$/);return match?[(match[1]||match[3])?'CNY':'JPY',Number(match[2])].join('|'):text;}
