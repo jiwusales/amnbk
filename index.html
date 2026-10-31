@@ -2329,6 +2329,14 @@ function launchSearchClosed(value){
 }
 document.addEventListener('change',event=>{if(event.target instanceof HTMLInputElement&&event.target.classList.contains('launchClosedSearch'))launchSearchClosed(event.target.value);});
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
+function launchProductNameKey(value){return String(value??'').normalize('NFKC').trim();}
+function launchApplyProductName(previousName,nextName){
+ if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;
+ const key=launchProductNameKey(previousName),name=String(nextName??'').trim();
+ if(!key||!name||String(previousName??'').trim()===name)return;
+ launchPushUndo();
+ launchCurrent.items.forEach(item=>{if(launchProductNameKey(item.name)===key)item.name=name;});
+}
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
 function launchDraftOriginalPriceKey(item){const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,'').toUpperCase(),match=text.match(/^(R)?(\d+(?:\.\d+)?)(R)?$/);return match?[(match[1]||match[3])?'CNY':'JPY',Number(match[2])].join('|'):text;}
 function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item),original=launchDraftOriginalPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key&&launchDraftOriginalPriceKey(other)===original&&launchDrawType(other)===launchDrawType(item))other.price=value;});}
@@ -3136,7 +3144,7 @@ async function launchGrabAddedProducts(ids){
 async function launchProductSubmit(e,index,mode){
  e.preventDefault();const form=e.target,group=launchCurrent;
  if(mode==='single'&&form.jiwuFillProductInfo){await form.jiwuFillProductInfo();if(!form.isConnected||launchCurrent!==group)return;}
- const f=new FormData(form),previousPrice=index>=0?String(launchCurrent.items[index]?.price??''):'',previousRole=index>=0?String(launchCurrent.items[index]?.role||'').trim():'';let items=[];
+ const f=new FormData(form),previousName=index>=0?String(launchCurrent.items[index]?.name??''):'',previousPrice=index>=0?String(launchCurrent.items[index]?.price??''):'',previousRole=index>=0?String(launchCurrent.items[index]?.role||'').trim():'';let items=[];
  if(mode==='multi'){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
@@ -3156,6 +3164,7 @@ async function launchProductSubmit(e,index,mode){
   items.forEach(item=>{item.panel=launchPanelIndex;item.visible=true;});
  }
  items.forEach(item=>{if(/單抽|抱盒/.test(launchVariantFormat(item))){item.kind='抽抽';return;}if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
+ if(mode==='single'&&index>=0)launchApplyProductName(previousName,items[0]?.name);
  if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();launchFinishProductEditor(true);
  if(mode==='multi'){const ids=items.filter(item=>String(item.url||'').trim()&&launchGrabNeedsData(item)).map(item=>item.id);if(ids.length)await launchGrabAddedProducts(ids);}
 }
