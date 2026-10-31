@@ -2861,7 +2861,8 @@ function jiwuMainBodySize(value){
  return [height,width].map(part=>String(Number((Number(part[1])*(part[2]?.toLowerCase()==='mm'?1:10)).toFixed(3)))).join('x');
 }
 function launchNormalizeDotstSize(url,value){if(!/^https:\/\/(?:www\.)?dot-st\.com\//i.test(String(url||'')))return value;const mainBody=jiwuMainBodySize(value);if(mainBody)return mainBody;const text=String(value||'');if(!/たて|よこ/.test(text))return value;const parts=[...text.matchAll(/(?:\(本体\)|（本体）)?(?:たて|よこ)\s*(\d+(?:\.\d+)?)/g)];return parts.length>=2?parts.map(part=>String(Number((Number(part[1])*10).toFixed(3)))).join('x'):value;}
-function launchGrabNeedsData(item){const empty=value=>value==null||String(value).trim()==='';return empty(item.japaneseName)||empty(item.code)||empty(item.original)||empty(item.size)||!Array.isArray(item.images)||!item.images.some(image=>!empty(image));}
+function launchPokemonSizeFormat(value){const text=String(value||'').normalize('NFKC').trim().toUpperCase().replace(/^(?:サイズ|SIZE)\s*[:：]?\s*/,'').replace(/(?:號|号|碼|码|サイズ)$/,'').trim();return /^[ML]$/.test(text)?text:'';}
+function launchGrabNeedsData(item){const empty=value=>value==null||String(value).trim()==='';return (/^https:\/\/www\.pokemoncenter-online\.com\//i.test(String(item.url||''))&&!!launchPokemonSizeFormat(item.format))||empty(item.japaneseName)||empty(item.code)||empty(item.original)||empty(item.size)||!Array.isArray(item.images)||!item.images.some(image=>!empty(image));}
 function launchGrab(){return launchRun(async()=>{
  const pending=launchCurrent.items.filter(launchGrabNeedsData),targets=pending.filter(item=>String(item.url||'').trim()),noURL=pending.length-targets.length;
  if(!targets.length){launchMessage=pending.length?'缺資料的商品尚未填商品網址，請先補上網址':'商品資料已完整，無需抓取';return;}
@@ -3117,13 +3118,14 @@ function launchAutoProductInfo(form){
   const url=String(input.value||'').trim(),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
   if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
-  if(String(code?.value||'').trim()&&String(size?.value||'').trim()&&String(japaneseName?.value||'').trim()&&String(original?.value||'').trim())return;
+  if(String(code?.value||'').trim()&&String(size?.value||'').trim()&&String(japaneseName?.value||'').trim()&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
   message.textContent='正在抓取日文名、貨號與尺寸…';
+  const requestedValues={code:code?.value||'',size:size?.value||''};
   const pending=api('launchProductInfo',{item:{url,original:original?.value||'',code:code?.value||'',format:format?.value||'',size:size?.value||'',japaneseName:japaneseName?.value||''}}).then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
-   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(field==='format'&&formatTouched)&&!String(control.value||'').trim()&&data.item?.[field])control.value=data.item[field];
-   if(data.item?.needsFormat){message.textContent='此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
+   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
+   if(data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
    message.textContent=[!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
    message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':'已帶入日文名、貨號與尺寸';
   }).catch(error=>{if(current===ticket&&form.isConnected)message.textContent='抓取未完成：'+error.message;});
@@ -3131,7 +3133,7 @@ function launchAutoProductInfo(form){
  }
  input.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  input.addEventListener('change',()=>{clearTimeout(timer);void fill();});
- format?.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
+ formatControl?.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  form.jiwuFillProductInfo=fill;
  if(input.value)void fill();
 }
