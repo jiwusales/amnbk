@@ -2121,7 +2121,7 @@ function launchBuildOrderSummary(group,rows,headers){
   if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
-  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name,price]);
+  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
   if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[]});
   const item=items.get(key);item.quantity++;
   const code=String(value(row,['貨號','商品貨號','商品編號','SKU'])||'').trim(),id=String(value(row,['開團商品ID','商品ID','launchItemId'])||'').trim();
@@ -2258,8 +2258,12 @@ function launchPurchaseReconciliation(group,summary,products,orders){
   let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
   const codes=[...(item.codes||[]),code(item)].filter(Boolean);
   if(!found.length)found=products.filter(p=>code(p)&&codes.includes(code(p)));
+  if(codes.length&&!found.length)return null;
   if(!found.length){const japanese=[item.japaneseName,item.originalName].filter(Boolean).map(norm);found=products.filter(p=>japanese.some(n=>aliases.get(identity(p)).has(n)));}
   if(!found.length)found=products.filter(p=>launchSummaryProductNames(p).some(n=>norm(n)===norm(item.name))||norm(launchDisplayName(p))===norm(purchaseProductName(item)));
+  const variant=value=>{const text=String(value||'');return /抱盒|BOX|ボックス|整盒/i.test(text)?'box':/單抽|単品|單入/i.test(text)?'single':'';};
+  const itemVariant=variant([item.format,item.name,item.originalName].filter(Boolean).join(' '));
+  if(itemVariant)found=found.filter(p=>{const kind=variant([p.format,p.name,p.japaneseName].filter(Boolean).join(' '));return !kind||kind===itemVariant;});
   const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:null;
  };
  const rows=new Map();
