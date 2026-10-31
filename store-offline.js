@@ -78,7 +78,7 @@ apiRequest=async function(action,params={}){
  if(action==='storeCart'&&(carts[user]||unsettled))return {ok:true,cart:carts[user]||structuredClone(storeCart),localOnly:true};
  try{if((unsettled||window.jiwuStoreOfflineMode)&&['storeCartSet','storeCartClear','storeScan'].includes(action))throw Error('Mac connection pending receipt');const result=await originalRequest(action,params);
   if(action==='storeCartSet'){delete carts[user];save(CART,carts)}
-  if(action==='storeScan'){const product=(result.cart||[]).find(x=>x.code===params.barcode);if(product){const cache=read(PRODUCTS,{});cache[params.barcode]=product;save(PRODUCTS,cache)}}
+  if(action==='storeScan'){const product=(result.cart||[]).find(x=>x.code===(result.product?.code||params.barcode));if(product){const cache=read(PRODUCTS,{});cache[params.barcode]=product;save(PRODUCTS,cache)}}
   return result;
  }catch(e){if(!connectionError(e)||!['storeCartSet','storeCartClear','storeScan'].includes(action))throw e;
   if(!authorizedLocal())throw Error('此裝置的登入已到期，購物車保留，請在本機連線後登入');let cart;
