@@ -2121,7 +2121,6 @@ function launchLoadOrderBadges(){
   const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
   const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},groups=new Set();
   for(const row of rows){
-   if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記'||!String(value(row,['名稱','商品名稱'])||'').trim())continue;
    const key=launchOrderSummaryGroupKey(value(row,['團名','開團名稱']));if(key)groups.add(key);
   }
   launchOrderBadgeGroups=groups;launchOrderBadgeLoadedAt=Date.now();launchPaintOrderBadges();
