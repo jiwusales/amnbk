@@ -4,7 +4,7 @@
 <script id="jiwu-friendly-errors">
 // Display wording only: original errors remain available to retry/offline logic.
 window.jiwuErrorText=function(error,kind){
- const system="網站暫時罷工ㄌ，小法師維修中請稍等இдஇ",data="資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)",raw=String(error?.message??error??'');
+ const system="網站暫時罷工ㄌ，小法師維修中請稍等இдஇ",data="資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)",raw=String(error?.message??error??'');
  if(raw===system||raw===data)return raw;
  if(/密碼錯誤|密碼不正確|登入已失效|請先登入|報表已鎖定|剪貼簿權限|不支援|請允許|請輸入|請選擇|請填|請貼上|請先|庫存不足|無法訂購|數量不足|權限不足|沒有權限|購物車內容正在變更|價格或貨況已變更|資料已被更新|版本.*衝突/.test(raw))return raw;
  if(kind==='data'||/(?:資料|商品|團名|清單|畫布|名稱|圖片|設定|種類).*(?:載入失敗|讀取失敗|無法載入|暫時無法讀取)|(?:載入|讀取).*(?:失敗|逾時)|背景同步失敗/.test(raw))return data;
@@ -1666,7 +1666,7 @@ async function renderLaunch(){
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步試算表資料中…';launchRenderList();}
- try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage="資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)";launchRenderList();return;}launchMessage=jiwuErrorText(e,'data');launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){launchMessage="資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)";launchRenderList();return;}launchMessage=jiwuErrorText(e,'data');launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">網址</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button>${launchCurrent?'<button class="btn light launchMobileExport" type="button" onclick="launchExportMenu()">輸出</button>':''}<button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
 
@@ -1713,7 +1713,7 @@ function launchGroupURLs(){
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
  list.innerHTML=launchURLGroups.map((g,i)=>{
-  const url=launchSafeURL(g.shortUrl),note=url?'':g.urlError?"資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)":g.urlLoaded?'尚未設定短網址':'讀取短網址中…';
+  const url=launchSafeURL(g.shortUrl),note=url?'':g.urlError?"資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)":g.urlLoaded?'尚未設定短網址':'讀取短網址中…';
   return `<button class="btn light" type="button" style="text-align:left;white-space:normal" onclick="launchCopyGroupURL(${i})" ${url?'':'disabled'}>${esc(g.name||'未命名')}${note?`<small style="display:block">${esc(note)}</small>`:''}</button>`;
  }).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
@@ -3018,7 +3018,7 @@ async function purchaseEditDialog(i){
    select.innerHTML='<option value="">選擇對應名稱</option>'+candidates.map((c,j)=>`<option value="${j}">${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('');
    select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];row.querySelector('.purchaseEditName').value=c.name;row.purchaseCandidate=c;};
   });
- }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)</option>';});document.getElementById('purchaseEditError').textContent=jiwuErrorText(e,'data');}}
+ }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)</option>';});document.getElementById('purchaseEditError').textContent=jiwuErrorText(e,'data');}}
 }
 async function purchaseDeleteOrder(i,button){
  const order=purchaseOrders.find(o=>o.number===document.querySelector('#appDialog form').dataset.orderNumber),error=document.getElementById('purchaseEditError');

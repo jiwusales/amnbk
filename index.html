@@ -5,7 +5,7 @@
 <script id="jiwu-friendly-errors">
 // Display wording only: original errors remain available to retry/offline logic.
 window.jiwuErrorText=function(error,kind){
- const system="網站暫時罷工ㄌ，小法師維修中請稍等இдஇ",data="資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)",raw=String(error?.message??error??'');
+ const system="網站暫時罷工ㄌ，小法師維修中請稍等இдஇ",data="資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)",raw=String(error?.message??error??'');
  if(raw===system||raw===data)return raw;
  if(/密碼錯誤|密碼不正確|登入已失效|請先登入|報表已鎖定|剪貼簿權限|不支援|請允許|請輸入|請選擇|請填|請貼上|請先|庫存不足|無法訂購|數量不足|權限不足|沒有權限|購物車內容正在變更|價格或貨況已變更|資料已被更新|版本.*衝突/.test(raw))return raw;
  if(kind==='data'||/(?:資料|商品|團名|清單|畫布|名稱|圖片|設定|種類).*(?:載入失敗|讀取失敗|無法載入|暫時無法讀取)|(?:載入|讀取).*(?:失敗|逾時)|背景同步失敗/.test(raw))return data;
@@ -1910,7 +1910,7 @@ async function renderLaunch(){
  if(openId){document.getElementById('app').innerHTML='<div class="launchPage"><div class="loading">載入開團內容中…</div></div>';return launchLoadGroup(openId,ticket);}
  const cached=launchListCache(launchStatus);let showingCache=false;
  if(cached){launchGroups=cached;showingCache=true;launchRenderList();}else{launchGroups=[];launchMessage='背景同步資料庫資料中…';launchRenderList();}
- try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||backendDeferRead('launch',showingCache))return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);if(backendInputFocused()){backendDeferPaint('launch');const input=document.querySelector('.launchClosedSearch');if(input===document.activeElement)launchSearchClosed(input.value);}else launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){if(backendDeferRead('launch',true))return;launchMessage='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';launchRenderList();return;}launchMessage=jiwuErrorText(e,'data');launchRenderList();}
+ try{const d=await api('launchList',{status:launchStatus});if(ticket!==launchLoad||document.body.dataset.page!=='launch'||backendDeferRead('launch',showingCache))return;launchGroups=d.groups||[];launchMessage='';launchSaveListCache(launchStatus,launchGroups);if(backendInputFocused()){backendDeferPaint('launch');const input=document.querySelector('.launchClosedSearch');if(input===document.activeElement)launchSearchClosed(input.value);}else launchRenderList();if(launchStatus==='最新開團')void launchLoadURLs().catch(()=>{});}catch(e){if(ticket!==launchLoad||document.body.dataset.page!=='launch')return;if(showingCache){if(backendDeferRead('launch',true))return;launchMessage='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';launchRenderList();return;}launchMessage=jiwuErrorText(e,'data');launchRenderList();}
 }
 function launchSyncTopActions(){const host=document.querySelector('.topActions');if(!host)return;host.querySelector('.launchMobileActions')?.remove();if(document.body.dataset.page!=='launch')return;const statusAction=launchCurrent?.status==='最新開團'?'<button class="btn launchCloseButton" type="button" onclick="launchMove(\'已收單\')">下架</button>':['已收單','尚未上架'].includes(launchCurrent?.status)?'<button class="btn" type="button" onclick="launchMove(\'最新開團\')">上架</button>':'';host.insertAdjacentHTML('afterbegin',`<span class="launchMobileActions">${!launchCurrent&&!launchAuxPage&&launchStatus==='尚未上架'?'<button class="btn" type="button" onclick="launchNew()">＋ 新開團</button>':''}${!launchCurrent&&!launchAuxPage&&launchStatus==='最新開團'?"<button class=\"btn light\" type=\"button\" onclick=\"launchGroupURLs()\">輸出</button>":''}<button class="btn light" type="button" title="重新整理" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn" type="button" data-launch-save onclick="launchTopSave()">SAVE${launchDirty?' *':''}</button>${statusAction}</span>`);}
 
@@ -1971,7 +1971,7 @@ async function launchPrepareGroupImages(index,force=false){
 function launchRenderGroupURLs(){
  const list=document.getElementById('launchURLList');if(!list)return;
  const opened=new Set([...list.querySelectorAll('details[open]')].map(node=>node.dataset.groupIndex));
- list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ontoggle="if(this.open)launchPrepareGroupImages(${i})" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}（${launchExportProductCount(g)}）</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchChooseGroupImage(${i},'download',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>下載</button><button class="btn light launchCopyImage" type="button" onclick="launchChooseGroupImage(${i},'copy',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>複製</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!launchGroupImagePanelCount(g)&&g.imagePanelError?`<small class="launchHelp">${esc(jiwuErrorText(g.imagePanelError,'data'))} <button class="btn light" type="button" onclick="launchPrepareGroupImages(${i},true)">重試</button></small>`:''}${!g.postReady?`<small class="launchHelp">${g.urlError?'資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
+ list.innerHTML=launchURLGroups.map((g,i)=>`<details class="launchGroupExport" data-group-index="${i}" ontoggle="if(this.open)launchPrepareGroupImages(${i})" ${opened.has(String(i))?'open':''}><summary><span class="launchGroupExportTitle">${esc(g.name||'未命名')}（${launchExportProductCount(g)}）</span><span class="launchGroupChannelMarks" aria-label="發布標記">${['@','FB','IG','社團','地標'].map(channel=>`<button type="button" aria-label="標記${esc(channel)}" aria-pressed="${launchPostChannelState(g.id)[channel]===true}" onclick="launchToggleGroupChannel(event,${i},'${channel}',this)" onkeydown="event.stopPropagation()">${channel}</button>`).join('')}</span></summary><div class="launchGroupExportActions"><button class="btn" type="button" onclick="launchChooseGroupImage(${i},'download',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>下載</button><button class="btn light launchCopyImage" type="button" onclick="launchChooseGroupImage(${i},'copy',this)" ${launchGroupImagePanelCount(g)?'':'disabled'}>複製</button>${[['line','賴群'],['community','社團'],['fb','FB'],['ig','IG']].map(([type,label])=>`<button class="btn light" type="button" onclick="launchCopyGroupPost(${i},'${type}',this)" ${g.postReady?'':'disabled'}>${label}</button>`).join('')}</div>${!launchGroupImagePanelCount(g)&&g.imagePanelError?`<small class="launchHelp">${esc(jiwuErrorText(g.imagePanelError,'data'))} <button class="btn light" type="button" onclick="launchPrepareGroupImages(${i},true)">重試</button></small>`:''}${!g.postReady?`<small class="launchHelp">${g.urlError?'資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)':'讀取文章設定中…'}</small>`:''}</details>`).join('')||'<p class="launchHelp">目前沒有團。</p>';
 }
 async function launchCopyGroupPost(index,type,button){
  const source=launchURLGroups[index];if(!source?.postReady)return;
@@ -2267,7 +2267,7 @@ async function launchShowOrderSummary(group){
    dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';
    launchCountLabels.set(group.name,result.labels||{});
    content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
-  }).catch(()=>{if(dialog.isConnected){content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});}});
+  }).catch(()=>{if(dialog.isConnected){content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});}});
   if(summary.items.length&&group.id){
    try{
     const detail=await api('launchGet',{id:group.id,status:group.status||launchStatus});
@@ -2275,8 +2275,8 @@ async function launchShowOrderSummary(group){
    }catch{} // Keep quantities visible if product images cannot be loaded.
   }
   await labelRead;
-  if(dialog.isConnected){content.querySelectorAll('.launchSummaryDragHandle').forEach(button=>button.disabled=!orderLoaded);if(!orderLoaded)content.querySelector('.launchSummarySortHint').textContent='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
-  if(dialog.isConnected&&dialog.querySelector('.launchOrderSummary').dataset.labelsReady!=='true')content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});
+  if(dialog.isConnected){content.querySelectorAll('.launchSummaryDragHandle').forEach(button=>button.disabled=!orderLoaded);if(!orderLoaded)content.querySelector('.launchSummarySortHint').textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
+  if(dialog.isConnected&&dialog.querySelector('.launchOrderSummary').dataset.labelsReady!=='true')content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
 function launchAvailabilityChangeClass(item){
@@ -2977,7 +2977,7 @@ async function launchLoadProductKinds(root){
    const value=item?.kind||select.value;select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;
   });
   launchSuggestFormKind(root.querySelector('form'));
- }catch(error){const hint=root.querySelector('[data-kind-status]');if(hint)hint.textContent='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
+ }catch(error){const hint=root.querySelector('[data-kind-status]');if(hint)hint.textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
 }
 function launchCustomKinds(){try{const value=JSON.parse(localStorage.getItem('jiwu_launch_custom_kinds')||'[]');return Array.isArray(value)?value.filter(kind=>typeof kind==='string'):[];}catch(_){return [];}}
 function launchChooseKind(select,index=-1){
@@ -4583,7 +4583,7 @@ async function purchaseLoadGroupOptions(dialog){
   const groups=[...new Map(results.flatMap(result=>result.groups||[]).map(group=>[group.id,group])).values()];
   dialog.querySelector('form').purchaseGroups=groups;
   dialog.querySelector('#purchaseGroupSuggestions').outerHTML=purchaseGroupOptions(groups);
- }catch(error){if(dialog.isConnected){dialog.querySelector('[name="groupName"]').placeholder='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}}
+ }catch(error){if(dialog.isConnected){dialog.querySelector('[name="groupName"]').placeholder='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}}
 }
 function purchaseCancelOrder(i){
  const order=purchaseOrders[i];if(!order)return;
@@ -4662,7 +4662,7 @@ async function purchaseEditDialog(i){
    select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];row.querySelector('.purchaseEditName').value=c.name;row.purchaseCandidate=c;const role=row.querySelector('.purchaseEditRole');if(role)role.textContent='角色：'+(c.role||'—');};
   });
   void purchaseLoadNameSuggestions(dialog).catch(error=>{if(dialog.isConnected)document.getElementById('purchaseEditError').textContent=jiwuErrorText(error,'data');});
- }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)</option>';});document.getElementById('purchaseEditError').textContent=jiwuErrorText(e,'data');}}
+ }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)</option>';});document.getElementById('purchaseEditError').textContent=jiwuErrorText(e,'data');}}
 }
 async function purchaseDeleteOrder(i,button){const savedDialog=document.getElementById('appDialog');
  const order=purchaseOrders.find(o=>o.number===document.querySelector('#appDialog form').dataset.orderNumber),error=document.getElementById('purchaseEditError');
@@ -6206,7 +6206,7 @@ function manualOnlineSuggest(input,event){
       price.focus();}
     };button.onclick=choose;box.appendChild(button);
    }box.hidden=!box.childElementCount;
-  }catch(error){if(current()){box.textContent='資料暫時逃走中，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';box.hidden=false;}}
+  }catch(error){if(current()){box.textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';box.hidden=false;}}
  },220);
 }
 function manualOnlineSuggestBlur(input){const row=input.closest('.manualOnlineItem');clearTimeout(row?._suggestTimer);if(row)row._suggestTicket=(row._suggestTicket||0)+1;const box=row?.querySelector('.manualOnlineProductSuggestions');if(box)box.hidden=true;}
