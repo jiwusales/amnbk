@@ -2249,6 +2249,37 @@ function launchOrderSummaryCards(items,products=[],groupName=''){
   return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}"><button type="button" class="launchSummaryDragHandle" aria-label="拖移 ${esc(item.name)} 排序" title="拖移排序，也可用方向鍵" disabled onpointerdown="launchSummaryCardDrag(event)" onkeydown="launchSummaryCardDragKey(event)">≡</button>${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
  }).join('')+'</div>'+(items.length?'':'<p>目前沒有訂購商品。</p>');
 }
+function launchPurchaseReconciliation(group,summary,products,orders){
+ const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=p=>String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
+ const identity=p=>code(p)?'code:'+code(p):p.id?'id:'+p.id:'name:'+norm(launchDisplayName(p));
+ const resolve=item=>{
+  let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
+  if(!found.length)found=products.filter(p=>code(p)&&(item.codes||[item.code]).filter(Boolean).includes(code(p)));
+  if(!found.length)found=products.filter(p=>launchSummaryProductNames(p).some(n=>norm(n)===norm(item.name))||norm(launchDisplayName(p))===norm(purchaseProductName(item)));
+  const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:'name:'+norm(purchaseProductName(item));
+ };
+ const rows=new Map();
+ for(const item of summary.items){const key=resolve(item);if(!rows.has(key))rows.set(key,{name:item.name,needed:0,ordered:0});rows.get(key).needed+=Number(item.quantity)||0;}
+ const linked=orders.filter(o=>o.status!=='砍單'&&(o.groupId?String(o.groupId)===String(group.id):launchOrderSummaryGroupKey(o.groupName)===launchOrderSummaryGroupKey(group.name)||!o.groupName&&o.items.some(x=>launchOrderSummaryGroupKey(x.group)===launchOrderSummaryGroupKey(group.name))));
+ for(const order of linked)for(const item of order.items){if(item.status==='砍單')continue;const quantity=Number(item.quantity)||0;if(quantity<=0)continue;const key=resolve(item);if(!rows.has(key))rows.set(key,{name:purchaseProductName(item),needed:0,ordered:0});rows.get(key).ordered+=quantity;}
+ const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
+ return {entries,needed,ordered,extra,short,orderCount:linked.length};
+}
+function launchPurchaseReconciliationText(result){
+ const lines=[`已登記 ${result.orderCount} 筆訂單｜跟團需求 ${result.needed} 件｜已訂購 ${result.ordered} 件`,'',...result.entries.map(x=>`${x.name}：需求 ${x.needed}、已訂 ${x.ordered}${x.ordered>x.needed?'、多 '+(x.ordered-x.needed):x.ordered<x.needed?'、少 '+(x.needed-x.ordered):'、相符'}`),'','多訂品項：',...(result.extra.length?result.extra.map(x=>`${x.name} × ${x.ordered-x.needed}`):['無']),...(result.short.length?['','尚缺品項：',...result.short.map(x=>`${x.name} × ${x.needed-x.ordered}`)]:[])];return lines.join('\n');
+}
+function launchPurchaseReconciliationLabel(row){const difference=row.ordered-row.needed;return `已訂 ${row.ordered}（${difference<0?'-'+(-difference):difference>0?'+'+difference:'相符'}）`;}
+async function launchLoadPurchaseReconciliation(dialog,group,summary){
+ const content=dialog.querySelector('.groupCardItems');if(!content)return;
+ const paint=(card,text)=>{let label=card.querySelector('.launchPurchaseCount');if(!label){label=document.createElement('div');label.className='launchPurchaseCount';label.style.cssText='color:#39834b;font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin-top:4px';card.appendChild(label);}label.textContent=text;};
+ content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>paint(card,'核對中…'));
+ try{const [p,d]=await Promise.all([api('purchaseOrders'),group.id?api('launchGet',{id:group.id,status:group.status||launchStatus}):Promise.resolve({group})]);if(!dialog.isConnected)return;
+ const result=launchPurchaseReconciliation(group,summary,d.group?.items||group.items||[],p.orders||[]);
+ content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{const name=card.querySelector('.launchCountLabel')?.dataset.name,row=result.entries.find(x=>x.name===name);paint(card,row?launchPurchaseReconciliationLabel(row):'無法對應');});
+ const extras=result.entries.filter(x=>x.needed===0&&x.ordered>0);if(extras.length){const box=document.createElement('div');box.className='purchaseProductGrid launchPurchaseExtraGrid';box.style.marginTop='12px';for(const row of extras){const card=document.createElement('article');card.className='purchaseProductCard';const name=document.createElement('div');name.className='purchaseProductName';name.textContent=row.name;card.appendChild(name);paint(card,launchPurchaseReconciliationLabel(row));box.appendChild(card);}content.appendChild(box);}
+ }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchPurchaseCount').forEach(label=>{label.textContent='核對讀取失敗';label.title=error.message;});}
+}
+
 async function launchShowOrderSummary(group){
  if(!group)return;
  closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="開團訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
@@ -2275,6 +2306,7 @@ async function launchShowOrderSummary(group){
    }catch{} // Keep quantities visible if product images cannot be loaded.
   }
   await labelRead;
+  if(dialog.isConnected)void launchLoadPurchaseReconciliation(dialog,group,summary);
   if(dialog.isConnected){content.querySelectorAll('.launchSummaryDragHandle').forEach(button=>button.disabled=!orderLoaded);if(!orderLoaded)content.querySelector('.launchSummarySortHint').textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
   if(dialog.isConnected&&dialog.querySelector('.launchOrderSummary').dataset.labelsReady!=='true')content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
