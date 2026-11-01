@@ -3619,42 +3619,64 @@ function launchImportURLs(newGroup=false,seed=null){
 function launchCancelURLImport(){launchURLImportSession=null;document.getElementById('launchDialog')?.close();}
 function launchURLImportActive(session){return launchURLImportSession===session&&session.dialog===document.getElementById('launchDialog')&&session.dialog.open&&launchCurrent===(session.newGroup?session.originGroup:session.destination.group);}
 
+function launchURLImportItemKey(item){return JSON.stringify([String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
 async function launchReadImportURLs(event){
  event.preventDefault();const session=launchURLImportSession;if(!session||session.loading)return;
  const form=event.currentTarget,message=form.querySelector('[data-url-import-message]');
- const urls=[...new Set(String(new FormData(form).get('urls')||'').split(/\s+/).filter(Boolean))];
- if(!urls.length||urls.some(url=>!launchSafeURL(url))){message.textContent='請填入有效的 http/https 公告或商品網址';return;}
+ const rawURLs=[...new Set(String(new FormData(form).get('urls')||'').split(/\s+/).filter(Boolean))];
+ if(!rawURLs.length||rawURLs.some(url=>!launchSafeURL(url))){message.textContent='請填入有效的 http/https 公告或商品網址';return;}
+ const urls=[...new Set(rawURLs.map(value=>{const url=new URL(value);url.hash='';return url.href}))];
  if(urls.length>20){message.textContent='每次最多讀取 20 個網址，每團最多 200 項商品';return;}
- session.urls=String(new FormData(form).get('urls')||'');session.items=[];session.sources=[];session.warnings=[];session.loading=true;(form.querySelector('[data-url-read]')||form.querySelector('[type="submit"]')).disabled=true;const failures=[],seen=new Set();
- for(let index=0;index<urls.length;index++){
+ session.readResults??=new Map();
+ const previousKeys=new Set(session.items.map(launchURLImportItemKey)),selectedKeys=new Set(session.items.filter((_,index)=>session.selected.has(index)).map(launchURLImportItemKey));
+ const pending=urls.filter(url=>!session.readResults.has(url)),retained=urls.length-pending.length;
+ session.urls=String(new FormData(form).get('urls')||'');session.loading=true;(form.querySelector('[data-url-read]')||form.querySelector('[type="submit"]')).disabled=true;
+ const failures=[];
+ for(let index=0;index<pending.length;index++){
   if(!launchURLImportActive(session))return;
-  message.textContent=`正在讀取 ${index+1} / ${urls.length}…`;
+  message.textContent=`正在讀取 ${index+1} / ${pending.length}…${retained?'（保留 '+retained+' 個已讀網址）':''}`;
+  const url=pending[index];
   try{
-   const announcement=true;
-   const data=await api('launchAnnouncementPreview',{url:urls[index],expandRoles:true});
+   const data=await api('launchAnnouncementPreview',{url,expandRoles:true});
    if(!launchURLImportActive(session))return;
-   const sources=announcement?data.items:[data.item];if(!Array.isArray(sources)||!sources.length)throw Error('未辨識到商品，請確認公告或商品詳細頁網址');
-   for(const source of sources){
-    if(!source||!String(source.name||source.japaneseName||'').trim())continue;
-    const item={...source,name:String(source.name||source.japaneseName).trim(),url:source.url||urls[index],images:(Array.isArray(source.images)?source.images:[source.image]).filter(value=>launchSafeURL(value)),price:source.price??''};
-    const identity=JSON.stringify([item.url.replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);if(seen.has(identity))continue;seen.add(identity);session.items.push(item);
-   }
-   if(announcement){session.sources.push({source:data.source,group:data.group});session.warnings.push(...(data.warnings||[]));}
-  }catch(error){failures.push(`${urls[index]}：${error.message}`);}
+   if(!Array.isArray(data.items)||!data.items.some(source=>source&&String(source.name||source.japaneseName||'').trim()))throw Error('未辨識到商品，請確認公告或商品詳細頁網址');
+   session.readResults.set(url,data);
+  }catch(error){failures.push(`${url}：${error.message}`);}
  }
  if(!launchURLImportActive(session))return;
- session.loading=false;session.hasRead=true;session.failures=failures;session.selected=new Set(session.items.map((_,index)=>index));
+ session.items=[];session.sources=[];session.warnings=[];const seen=new Set();
+ for(const url of urls){
+  const data=session.readResults.get(url);if(!data)continue;
+  for(const source of data.items){
+   if(!source||!String(source.name||source.japaneseName||'').trim())continue;
+   const item={...source,name:String(source.name||source.japaneseName).trim(),url:source.url||url,images:(Array.isArray(source.images)?source.images:[source.image]).filter(value=>launchSafeURL(value)),price:source.price??''};
+   const identity=launchURLImportItemKey(item);if(seen.has(identity))continue;seen.add(identity);session.items.push(item);
+  }
+  session.sources.push({source:data.source,group:data.group});session.warnings.push(...(data.warnings||[]));
+ }
+ session.loading=false;session.hasRead=true;session.failures=failures;
+ session.selected=new Set(session.items.flatMap((item,index)=>!previousKeys.has(launchURLImportItemKey(item))||selectedKeys.has(launchURLImportItemKey(item))?[index]:[]));
  const group=session.newGroup?launchReadURLGroupForm(form):session.destination.group,suggestion=session.sources[0]?.group||{};
  session.group={};for(const field of ['name','openDate','openTime','closeDate','shipDate','domesticShipping','secondShipping','tags','storefrontNote','shortUrl','websiteUrl'])session.group[field]=String(group[field]||'');
  for(const field of ['name','openDate','openTime','websiteUrl'])if(!session.group[field]&&suggestion[field])session.group[field]=suggestion[field];
  if(session.newGroup)session.seed=group;
  session.group.noFreeShipping=!!group.noFreeShipping;session.group.needsSecondPayment=!!group.needsSecondPayment;
  launchRenderURLImport();
+ const summary=session.dialog.querySelector('[data-url-import-message]');
+ if(summary)summary.textContent=pending.length?`已保留 ${retained} 個已讀網址，讀取 ${pending.length-failures.length} 個新網址${failures.length?'，'+failures.length+' 個未完成，可再按讀取重試':''}`:'網址都已讀取，已保留原有商品';
+}
+function launchToggleURLImportShipping(button,name){
+ const input=button.form?.elements.namedItem(name);
+ if(!input||!['noFreeShipping','needsSecondPayment'].includes(name))return;
+ input.checked=!input.checked;
+ button.setAttribute('aria-pressed',String(input.checked));
+ button.style.color=input.checked?'#d9544d':'#777';
 }
 function launchURLImportGroupFields(session){
  const group=session.group;
  const field=(name,label,placeholder='')=>`<label><span>${label}</span><input name="${name}" aria-label="匯入${label}" value="${esc(group[name])}" placeholder="${esc(placeholder)}" ${name==='name'?'required':''}></label>`;
- return `<fieldset class="launchURLGroupFields"><legend>開團資訊</legend>${field('name','團名')}<div class="launchPair">${field('openDate','開團日期','例如 1105 或 2026-11-05')}${field('closeDate','收單日期','選填')}</div><div class="launchPair">${field('openTime','開賣時間','例如 10、1030')}${field('shipDate','出荷日期','選填')}</div><div class="launchPair">${field('domesticShipping','境內運','選填')}${field('secondShipping','二補運費','選填')}</div><div class="launchTools"><label class="launchSelectAll"><input name="noFreeShipping" type="checkbox" ${group.noFreeShipping?'checked':''}>沒有免運門檻</label><label class="launchSelectAll"><input name="needsSecondPayment" type="checkbox" ${group.needsSecondPayment?'checked':''}>需二補</label></div>${field('tags','標籤')}${field('websiteUrl','網站','商品公告網址')}${field('shortUrl','短網址','選填')}<label><span>前端備註</span><textarea name="storefrontNote" aria-label="匯入前端備註" rows="2">${esc(group.storefrontNote)}</textarea></label></fieldset>`;
+ const shipping=(name,label,flag,symbol,aria,title)=>`<label><span>${label}</span><div style="display:flex;align-items:center;gap:6px"><input name="${name}" aria-label="匯入${label}" value="${esc(group[name])}" placeholder="選填" style="min-width:0;flex:1"><input name="${flag}" type="checkbox" ${group[flag]?'checked':''} hidden style="display:none"><button type="button" class="launchURLShippingToggle" aria-label="${aria}" title="${title}" aria-pressed="${!!group[flag]}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${group[flag]?'#d9544d':'#777'}" onclick="launchToggleURLImportShipping(this,'${flag}')">${symbol}</button></div></label>`;
+ return `<fieldset class="launchURLGroupFields"><legend>開團資訊</legend>${field('name','團名')}<div class="launchPair">${field('openDate','開團日期','例如 1105 或 2026-11-05')}${field('closeDate','收單日期','選填')}</div><div class="launchPair">${field('openTime','開賣時間','例如 10、1030')}${field('shipDate','出荷日期','選填')}</div><div class="launchPair">${shipping('domesticShipping','境內運','noFreeShipping','✖︎','沒有免運門檻','紅色代表沒有免運門檻')}${shipping('secondShipping','二補運費','needsSecondPayment','○','需二補','紅色代表需二補，金額填在二補運費欄位')}</div>${field('tags','標籤')}${field('websiteUrl','網站','商品公告網址')}${field('shortUrl','短網址','選填')}<label><span>前端備註</span><textarea name="storefrontNote" aria-label="匯入前端備註" rows="2">${esc(group.storefrontNote)}</textarea></label></fieldset>`;
 }
 function launchRenderURLImport(){
  const session=launchURLImportSession;if(!session||!launchURLImportActive(session))return;
