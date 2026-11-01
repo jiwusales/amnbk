@@ -1493,7 +1493,7 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 .launchDialog:has(.launchCatalogGrid){width:calc(100vw - 24px);max-width:1600px}
 :is(#launchDialog,.launchProductListPage) .launchAllGrid.launchCatalogGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(112px,calc((100% - 21px)/4)),1fr));gap:7px;padding:2px;overflow:visible}
 :is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard{display:flex;flex-direction:column;align-items:center;width:100%;height:var(--inventory-card-height,146px);min-height:0;gap:0!important;padding:5px;border:2px solid #d8d8d8;border-radius:8px;position:relative;overflow:hidden;background:#fff;cursor:grab;box-sizing:border-box}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard:has([data-launch-product-select]:checked){border-color:#a68c73;box-shadow:inset 0 0 0 1px #a68c73}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard:has([data-launch-product-select]:checked){border-color:#a68c73!important;box-shadow:inset 0 0 0 1px #a68c73!important}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard [data-launch-product-select]{display:none!important}
 .launchCatalogSelect{position:absolute;inset:0;z-index:0;background:transparent;border:0;padding:0}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryImageWrap{position:relative;z-index:1;width:100%;min-height:0;height:auto;flex:1 1 0}
