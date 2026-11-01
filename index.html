@@ -1206,7 +1206,7 @@ body[data-page="store"] .topStoreToggle{display:none}
 
 .cartMoney{font-weight:700;color:#FAB460}
 .orderSelectAll{border:0;border-radius:6px;background:#eee;color:#777;font-size:20px;line-height:24px;min-width:30px;cursor:pointer}
-.dialogItem.orderEditItem{grid-template-columns:32px minmax(0,1fr) 80px 80px 80px}
+.dialogItem.orderEditItem{grid-template-columns:32px minmax(0,1fr) minmax(0,1.4fr) 80px 80px 80px}
 .orderDelete{background:#eb8190;color:white;border:0;border-radius:7px;cursor:pointer}
 .orderSwipeDelete{display:none}
 @media(max-width:850px){.showOrderDelete>.orderSwipeDelete{display:block;position:absolute;right:0;top:42px;bottom:40px;width:84px;z-index:5}.showOrderDelete>.groupCardItems{margin-right:84px}}
@@ -6542,7 +6542,7 @@ function manualOnlineSuggest(input,event){
  clearTimeout(row._suggestTimer);row._suggestTicket=(row._suggestTicket||0)+1;
  let box=row.querySelector('.manualOnlineProductSuggestions');if(!box){box=document.createElement('div');box.className='manualOnlineProductSuggestions';row.appendChild(box);}
  box.replaceChildren();box.hidden=true;
- const editing=input.classList.contains('orderEditName'),price=row.querySelector(editing?'.orderEditPrice':'.manualOnlinePrice');
+ const editing=row.classList.contains('orderEditItem'),price=row.querySelector(editing?'.orderEditPrice':'.manualOnlinePrice');
  if(!editing&&event?.type==='input'&&price.dataset.suggested!==undefined){if(price.value===price.dataset.suggested){price.value='';updateManualOnlineTotal();}delete price.dataset.suggested;}
  if(!query)return;
  const ticket=row._suggestTicket;
@@ -6557,7 +6557,7 @@ function manualOnlineSuggest(input,event){
     button.addEventListener('pointercancel',()=>{press=null;});
     button.addEventListener('pointerup',e=>{const start=press;press=null;if(!start||start.id!==e.pointerId||Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;e.preventDefault();choose();});
     const choose=()=>{if(picked)return;picked=true;clearTimeout(row._suggestTimer);row._suggestTicket++;box.hidden=true;
-     if(mode==='group'){input.value=item.group;row.querySelector('.manualOnlineName').focus();}
+     if(mode==='group'){input.value=item.group;row.querySelector(editing?'.orderEditName':'.manualOnlineName').focus();}
      else{row.querySelector(editing?'.orderEditName':'.manualOnlineName').value=item.label;if(item.group&&!editing)row.querySelector('.manualOnlineGroup').value=item.group;
       if(item.price!=null&&(!price.value||(!editing&&price.value===price.dataset.suggested))){price.value=String(item.price);price.dataset.suggested=price.value;updateManualOnlineTotal();}
       price.focus();}
@@ -6596,7 +6596,7 @@ box.hidden=!names.length;input.setAttribute('aria-expanded',String(!!names.lengt
 }
 function addManualOnlineItem(){const box=document.getElementById('manualOnlineItems');box.insertAdjacentHTML('beforeend',`<div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div>`);box.lastElementChild.querySelector('.manualOnlineGroup').value=box.dataset.defaultGroup||'';box.lastElementChild.querySelector('.manualOnlineName').focus();}
 function orderEditableNote(items){return [...new Set(items.flatMap(row=>String(getOnlineData(row,['備註','備註欄'])||'').split('｜').map(note=>note.trim()).filter(note=>note&&note!=='面交'))) ].join('｜');}
-function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}" data-edit-key="${esc(row.editKey||'')}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditName" autocomplete="off" aria-label="商品名稱" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditDeposit" inputmode="decimal" placeholder="訂金" aria-label="訂金" data-original="${esc(row?getOnlineData(row,['訂金']):'')}" value="${esc(row&&getOnlineData(row,['訂金'])!==''?numberValue(getOnlineData(row,['訂金'])):'')}" oninput="this.dataset.changed='1';normalizeMoneyInput(this)"><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
+function orderEditItemMarkup(row){return `<div class="dialogItem manualOnlineItem orderEditItem" ${row?`data-row="${Number(row.row)}" data-edit-key="${esc(row.editKey||'')}"`:''}><button type="button" class="btn light" aria-label="移除此商品" onclick="this.parentElement.remove()">×</button><input class="orderEditGroup manualOnlineGroup" autocomplete="off" aria-label="團名（選填）" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" value="${esc(row?getOnlineData(row,['團名','團組','團']):'')}"><input class="orderEditName" autocomplete="off" aria-label="商品名稱" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" value="${esc(row?getOnlineData(row,['名稱','商品名稱']):'')}" required><input class="orderEditPrice" inputmode="decimal" placeholder="金額" value="${esc(row?getOnlineData(row,['售價','價格']):'')}" oninput="normalizeMoneyInput(this)" required><input class="orderEditDeposit" inputmode="decimal" placeholder="訂金" aria-label="訂金" data-original="${esc(row?getOnlineData(row,['訂金']):'')}" value="${esc(row&&getOnlineData(row,['訂金'])!==''?numberValue(getOnlineData(row,['訂金'])):'')}" oninput="this.dataset.changed='1';normalizeMoneyInput(this)"><input class="orderEditShipping" inputmode="decimal" placeholder="運費" value="${esc(row?getOnlineData(row,['運費']):'')}" oninput="normalizeMoneyInput(this)"></div>`;}
 function orderEditTimeValue(items){
  const latest=items.map(onlineRowOrderTime).reduce((current,value)=>timeValue(value)>timeValue(current)?value:current,'');
  const timestamp=timeValue(latest);return timestamp?new Date(timestamp).toISOString().slice(0,19):'';
@@ -6682,7 +6682,7 @@ const timeInput=document.getElementById('orderEditTime'),clockInput=document.get
 if(timeInput.value.trim()!==event.target.dataset.originalTime||clockInput?.value.trim()!==event.target.dataset.originalClock){
  try{orderTime=orderEditDateTime(timeInput.value,event.target.dataset.originalTimestamp,clockInput?.value);timeChanged=orderTime!==event.target.dataset.originalTimestamp;}catch(error){return alert(error.message);}
 }
-const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));const depositInput=item.querySelector('.orderEditDeposit');const deposit=depositInput.dataset.changed?normalizeMoneyInput(depositInput):depositInput.dataset.original;return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping),deposit};});
+const items=[...document.querySelectorAll('.orderEditItem')].map(item=>{const shipping=normalizeMoneyInput(item.querySelector('.orderEditShipping'));const depositInput=item.querySelector('.orderEditDeposit');const deposit=depositInput.dataset.changed?normalizeMoneyInput(depositInput):depositInput.dataset.original;return {row:Number(item.dataset.row)||0,key:item.dataset.editKey||'edit-'+(++onlineEditKey),group:item.querySelector('.orderEditGroup').value.trim(),name:item.querySelector('.orderEditName').value.trim(),price:Number(normalizeMoneyInput(item.querySelector('.orderEditPrice'))||0),shipping:shipping===''?'':Number(shipping),deposit};});
 const rows=document.getElementById('orderEditRows').value.split(',').map(Number).filter(row=>row>=2);
 if(!items.length)return deleteWholeOnlineOrder(rows,event.submitter);
 if(items.some(item=>!item.name))return alert('每項商品都需要名稱');
@@ -6692,7 +6692,7 @@ const keys=JSON.parse(document.getElementById('orderEditRows').dataset.editKeys|
 if(!keys.length)return alert('找不到原訂單');
 const originalItems=keys.map(key=>onlineRows.find(row=>row.editKey===key)).filter(Boolean).sort((a,b)=>Number(a.row)-Number(b.row));
 try{allocateOrderEditDeposit(items,originalItems.map(row=>getOnlineData(row,['訂金'])),originalItems[0]?.row);}catch(e){return alert(e.message);}
-items.forEach(item=>{const original=originalItems.find(row=>row.editKey===item.key);if(!original)return;const values={name:String(getOnlineData(original,['名稱','商品名稱'])||''),price:numberValue(getOnlineData(original,['售價','價格'])),shipping:getOnlineData(original,['運費'])===''?'':numberValue(getOnlineData(original,['運費'])),deposit:String(getOnlineData(original,['訂金'])??'')};item.changedFields=Object.keys(values).filter(key=>String(item[key]??'')!==String(values[key]??''));});
+items.forEach(item=>{const original=originalItems.find(row=>row.editKey===item.key);if(!original)return;const values={group:String(getOnlineData(original,['團名','團組','團'])||''),name:String(getOnlineData(original,['名稱','商品名稱'])||''),price:numberValue(getOnlineData(original,['售價','價格'])),shipping:getOnlineData(original,['運費'])===''?'':numberValue(getOnlineData(original,['運費'])),deposit:String(getOnlineData(original,['訂金'])??'')};item.changedFields=Object.keys(values).filter(key=>String(item[key]??'')!==String(values[key]??''));});
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
 const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB','花LB'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
 const paymentChanged=payment!==event.target.dataset.originalPayment||last5!==event.target.dataset.originalLast5;
@@ -6708,13 +6708,13 @@ if(job.delete)return source.filter(row=>!keys.has(row.editKey));
 const kept=new Map(job.items.map(item=>[item.key,item]));
 const template=source.find(row=>keys.has(row.editKey));if(!template)return source;
 const header=names=>findHeader(onlineHeaders,names);
-const nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),dh=header(['訂金']),bh=header(['備註','備註欄']);
+const gh=header(['團名','團組','團']),nh=header(['名稱','商品名稱','品名','商品']),ph=header(['售價','價格']),sh=header(['運費']),dh=header(['訂金']),bh=header(['備註','備註欄']);
 const face=String(template.data[bh]||'').split('｜').some(v=>v.trim()==='面交');
 const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').join('｜');
 const fullNote=face?(note?note+'｜面交':'面交'):note;
 const paymentHeader=header(['付款方式','支付方式','付款','收款方式']),last5Header=header(['後五碼','匯款後五碼']);
 const timeHeader=header(['購買時間','時間']);
-const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
+const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(gh&&item.group!==undefined&&changed('group'))row.data[gh]=item.group;if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
 const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
@@ -9145,6 +9145,9 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 .top:has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:90px}
 #onlineBackButton,#launchHeaderBack{left:46px}
 body[data-page="store"] .top{padding-left:48px}
+
+/* Existing online orders: editable group before the item name. */
+@media(max-width:600px){.dialogItem.orderEditItem{grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}.orderEditItem>.orderEditGroup{grid-column:1/6;grid-row:1}.orderEditItem>.orderEditName{grid-column:6/12;grid-row:1}.dialogItem.orderEditItem>button:first-child{grid-column:12;grid-row:1;order:0}.orderEditItem>.orderEditPrice{grid-column:1/5;grid-row:2}.orderEditItem>.orderEditDeposit{grid-column:5/9;grid-row:2}.orderEditItem>.orderEditShipping{grid-column:9/13;grid-row:2}}
 </style>
 <script id="host-connection-script">
 (()=>{
@@ -9243,6 +9246,7 @@ function launchCatalogTouch(e,index){
 </script>
 </body>
 </html>
+
 
 
 
