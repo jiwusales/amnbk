@@ -8024,6 +8024,33 @@ const SHIP_MARKET_EXPORT_LIMIT=100;
 const SHIP_MARKET_HISTORY_KEY='jiwu_supabase_test_ship_market_exports_v1';
 let shipMarketHistory={};
 try{shipMarketHistory=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(!shipMarketHistory||typeof shipMarketHistory!=='object'||Array.isArray(shipMarketHistory))shipMarketHistory={};}catch(_){}
+
+function shipMarketApplyHistory(history){
+ if(!history||typeof history!=='object'||Array.isArray(history))return;
+ shipMarketHistory=history;
+ if(shipDataCache)shipDataCache.marketHistory=history;
+ document.querySelectorAll('.shipOrderCard').forEach(card=>{
+  const truck=card.querySelector('.shipMarketTruck');if(!truck)return;
+  const listed=shipMarketIsListed(card.dataset.marketKey);
+  truck.classList.toggle('isListed',listed);truck.setAttribute('aria-pressed',String(listed));
+  truck.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';truck.setAttribute('aria-label',truck.title);
+ });
+}
+async function shipMarketPersist(entries,migrate=false){
+ const result=await api('shipMarketUpdate',{entries,migrate});
+ shipMarketApplyHistory(result.marketHistory);
+ return result;
+}
+let shipMarketMigrationDone=false;
+async function shipMarketMigrateLegacy(){
+ if(shipMarketMigrationDone)return;
+ let legacy={};try{legacy=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');}catch(_){}
+ const entries=legacy&&typeof legacy==='object'&&!Array.isArray(legacy)?Object.entries(legacy).filter(([,v])=>v).map(([key])=>({key,listed:true})):[];
+ for(let i=0;i<entries.length;i+=100)await shipMarketPersist(entries.slice(i,i+100),true);
+ shipMarketMigrationDone=true;
+ // Existing browser records are retained for recovery; all new writes use the server.
+}
+
 let shipMarketOrders=new Map(),shipMarketExportBusy=false;
 function shipMarketIsListed(key){return !!shipMarketHistory[key];}
 function shipMarketKey(rows){
@@ -8053,16 +8080,15 @@ function selectShipMarketCard(event,card){
  if(window.getSelection()?.toString())return;
  shipMarketSetSelected(card,!shipMarketSelection.has(card.dataset.marketKey));
 }
-function toggleShipMarketListed(button){
- const key=button.closest('.shipOrderCard').dataset.marketKey;
- try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))shipMarketHistory=current;}catch(_){}
- const listed=!shipMarketIsListed(key);
- if(listed)shipMarketHistory[key]=new Date().toISOString();else delete shipMarketHistory[key];
- button.classList.toggle('isListed',listed);
- button.setAttribute('aria-pressed',String(listed));
- button.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';
- button.setAttribute('aria-label',button.title);
- try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){showShipCopyNotice('瀏覽器無法保存上架紀錄');}
+async function toggleShipMarketListed(button){
+ if(button.disabled)return;
+ button.disabled=true;
+ try{
+  const key=button.closest('.shipOrderCard').dataset.marketKey;
+  await shipMarketMigrateLegacy();
+  await shipMarketPersist([{key,listed:!shipMarketIsListed(key)}]);
+ }catch(e){showShipCopyNotice(jiwuErrorText(e,'system'));}
+ finally{button.disabled=false;}
 }
 function openShipMarketExport(){void downloadShipMarketExport();}
 async function downloadShipMarketExport(){
@@ -8079,21 +8105,15 @@ async function downloadShipMarketExport(){
   const date=new Date(),stamp=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('');
   link.href=url;link.download='賣貨便_客訂批次上架_'+stamp+'.xlsm';document.body.appendChild(link);
   try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-  try{const current=JSON.parse(localStorage.getItem(SHIP_MARKET_HISTORY_KEY)||'{}');if(current&&typeof current==='object'&&!Array.isArray(current))Object.assign(shipMarketHistory,current);}catch(_){}
-  const exportedAt=new Date().toISOString();orders.forEach(order=>{shipMarketHistory[order.key]=exportedAt;});
-  let saved=true;try{localStorage.setItem(SHIP_MARKET_HISTORY_KEY,JSON.stringify(shipMarketHistory));}catch(_){saved=false;}
-  document.querySelectorAll('.shipOrderCard').forEach(card=>{
-   const listed=shipMarketIsListed(card.dataset.marketKey),truck=card.querySelector('.shipMarketTruck');
-   truck.classList.toggle('isListed',listed);truck.title=listed?'已上架，點擊改為未上架':'尚未上架，點擊標記為已上架';truck.setAttribute('aria-label',truck.title);truck.setAttribute('aria-pressed',String(listed));
-  });
-  showShipCopyNotice(saved?'已下載上架檔':'已下載上架檔；瀏覽器無法保存上架紀錄');
+  try{
+   await shipMarketMigrateLegacy();
+   await shipMarketPersist(orders.map(order=>({key:order.key,listed:true})));
+   showShipCopyNotice('已下載上架檔');
+  }catch(e){showShipCopyNotice('已下載上架檔；上架紀錄尚未保存：'+jiwuErrorText(e,'system'));}
  }catch(e){showShipCopyNotice(e.message);}
  finally{shipMarketExportBusy=false;if(button){button.disabled=false;button.textContent='上架';}}
 }
-window.addEventListener('storage',event=>{
- if(event.key!==SHIP_MARKET_HISTORY_KEY)return;
- try{const value=JSON.parse(event.newValue||'{}');if(value&&typeof value==='object'&&!Array.isArray(value)){shipMarketHistory=value;if(document.body.dataset.page==='ship'&&shipDataCache)drawShip(shipDataCache);}}catch(_){}
-});
+
 const SHIP_HIDE_MS=5*60*1000;
 function shipRowExpired(row,now=Date.now()){
 const time=Date.parse(row.data['包貨完成時間']||'');
@@ -8110,6 +8130,7 @@ if(shipLoadPromise)return shipLoadPromise;
 const revision=shipRevision;
 const request=(async()=>{
 try{
+await shipMarketMigrateLegacy();
 const d=await api('ship');
 if(revision!==shipRevision)return;
 shipDataCache=d;shipLoadedAt=Date.now();saveBackendSnapshot('ship',d);
@@ -8124,6 +8145,7 @@ shipLoadPromise=request;
 try{await request;}finally{if(shipLoadPromise===request)shipLoadPromise=null;}
 }
 function drawShip(source){
+if(source.marketHistory)shipMarketHistory=source.marketHistory;
 warmCustomerLineChats();
 shipMarketOrders=new Map();
 const d={...source,rows:(source.rows||[]).filter(row=>!shipRowExpired(row))};
@@ -8393,7 +8415,7 @@ const backendSyncPages=['purchase','online','inventory','ship','store','launch']
 let backendSyncLegacyRevision=null,backendSyncRevision=null,backendSyncRunning=false,backendSyncWrites=0,backendSyncEpoch=0,backendSyncTimer=null,backendSyncComposing=false;
 const backendSyncDirty=new Set(backendSyncPages),backendSyncPendingPaint=new Set(),backendSyncLastRead=new Map(),backendSyncPageVersions=new Map(),backendSyncWriteCounts=new Map(),backendSyncPageEpochs=new Map();
 function backendSyncMutation(action){
- return /^(?:bindOnlineOrderCustomer|saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split|Batch)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineOrderCustomer|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
+ return /^(?:bindOnlineOrderCustomer|saveLineChatContact|bindCustomerLineChat|saveCustomerLineChat|saveOnlinePayment|setOnline|purchase(?:Restock|Save|Sync|Image|Check|Edit|Delete|Split|Batch)|addOnlineOrder|appendOnlineOrder|editOnlineOrder|deleteOnlineOrder|renameOnlineOrderCustomer|renameOnlineCustomer|deleteStoreSale|updateStoreSale|addStoreSale|setInventory|updateInventoryProduct|deleteInventoryProduct|reorderInventory|addInventoryProduct|checkInventoryAvailability|storeCheckout|createShip|setShip|shipMarketUpdate|deleteShipOrder|launch(?:CheckAvailability|CreateShortUrl|ImportInventory|GroupWork|SetProductHidden|SetInventoryAvailability|FillFromInventory|Save|Delete|Reorder|Scrape))/.test(action);
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
