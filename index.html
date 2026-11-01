@@ -1874,7 +1874,7 @@ async function launchCopyPostText(button,id){
  const previous=button.textContent;button.textContent='✅';setTimeout(()=>button.textContent=previous,1200);
 }
 
-function launchDisplayName(item){const blocked=['三小隻','其他角色','綜合角色','水族','動物','食物'];const role=String(item.role||'').trim();return `${String(item.name||'').trim()}${role&&!blocked.includes(role)?' '+role:''}`;}
+function launchDisplayName(item){const blocked=['其他角色','綜合角色','水族','動物','食物'];const role=String(item.role||'').trim();return `${String(item.name||'').trim()}${role&&!blocked.includes(role)?' '+role:''}`;}
 function launchHexColors(value){const found=String(value||'').match(/#[0-9a-fA-F]{3,8}\b/g)||[];return [...new Set(found.map(color=>{const c=color.toUpperCase();return c.length===4?'#'+[...c.slice(1)].map(x=>x+x).join(''):c;}))];}
 function jiwuClothingSize(value) {
   const text = String(value || '').normalize('NFKC');
