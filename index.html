@@ -3699,10 +3699,22 @@ function launchUpdateURLImportSelection(){
  session.dialog.querySelector('[data-url-import-count]').textContent=`已選 ${count} / ${session.items.length} 項`;
  session.dialog.querySelector('[data-url-import-confirm]').disabled=count===0;
 }
-function launchConfirmURLImport(event){
- event.preventDefault();const session=launchURLImportSession;if(!session||!launchURLImportActive(session)||session.loading||(!session.newGroup&&!session.selected.size))return;
+async function launchConfirmURLImport(event){
+ event.preventDefault();const session=launchURLImportSession;if(!session||!launchURLImportActive(session)||session.loading||session.autoCreating||(!session.newGroup&&!session.selected.size))return;
  const form=event.currentTarget,values=new FormData(form),groupInfo={},error=form.querySelector('[data-url-import-validation]');
- if(session.newGroup){const urls=String(values.get('urls')||'').trim();if(urls&&(!session.hasRead||urls!==String(session.urls||'').trim())){error.textContent='請先按「讀取網址商品」，再確認商品清單';return;}if(!urls&&session.items.length){error.textContent='公告網址已變更，請重新讀取';return;}if(urls&&!session.selected.size){error.textContent='請至少勾選一項商品';return;}}
+ if(session.newGroup){const urls=String(values.get('urls')||'').trim();if(urls&&(!session.hasRead||urls!==String(session.urls||'').trim()||session.failures?.length)){
+  session.autoCreating=true;
+  const button=form.querySelector('[data-url-import-confirm]');
+  if(button){button.disabled=true;button.textContent='讀取商品並建立…';}
+  form.inert=true;form.setAttribute('aria-busy','true');
+  try{await launchReadImportURLs({preventDefault(){},currentTarget:form});}
+  finally{session.autoCreating=false;form.inert=false;form.removeAttribute('aria-busy');if(button?.isConnected){button.disabled=false;button.textContent='建立開團頁';}}
+  if(!launchURLImportActive(session)||session.loading)return;
+  const nextForm=session.dialog.querySelector('form');
+  if(!session.hasRead||urls!==String(session.urls||'').trim())return;
+  if(session.failures?.length){const nextError=nextForm?.querySelector('[data-url-import-validation]');if(nextError)nextError.textContent='有 '+session.failures.length+' 個網址尚未讀取成功；再按「建立開團頁」只會重試未完成的網址';return;}
+  return launchConfirmURLImport({preventDefault(){},currentTarget:nextForm});
+ }if(!urls&&session.items.length){error.textContent='公告網址已變更，請重新讀取';return;}if(urls&&!session.selected.size){error.textContent='請至少勾選一項商品';return;}}
 
  for(const field of ['name','closeDate','shipDate','domesticShipping','secondShipping','tags','storefrontNote','shortUrl','websiteUrl'])groupInfo[field]=String(values.get(field)||'').trim();
  groupInfo.openDate=launchNormalizeOpenDate(values.get('openDate'),(session.newGroup?session.seed:session.destination.group).openDate||session.group.openDate);groupInfo.openTime=launchNormalizeOpenTime(values.get('openTime'));
