@@ -2646,9 +2646,17 @@ function launchHistoryFormItem(){const form=document.querySelector('#launchDialo
 function launchPaintPriceHistory(){
  if(launchExportRendering||launchHistoryState.groupId!==launchCurrent?.id)return;
  const show=(target,item)=>{if(!target)return;target.parentElement.querySelectorAll(':scope > .launchHistoryPrice').forEach(e=>e.remove());target.querySelectorAll('.launchHistoryPrice').forEach(e=>e.remove());
+  if(target.matches('input')&&target.dataset.historyBasePlaceholder!==undefined){target.placeholder=target.dataset.historyBasePlaceholder;target.title=target.dataset.historyBaseTitle||'';delete target.dataset.historyPricePlaceholder;}
   if(String(target.matches('input')?target.value:item?.price??'').trim()!=='')return;
   const references=launchHistoryState.prices[launchHistoryKey(item)]||[];if(!references.length)return;
-  const hint=document.createElement('span');hint.className='launchHistoryPrice';hint.dataset.html2canvasIgnore='true';hint.textContent='('+money(references[0].price)+')';hint.title=references.slice(0,10).map(r=>`${r.date||''} ${r.group}：$${money(r.price)}`).join('\n');hint.setAttribute('aria-label','過往開價 '+money(references[0].price));
+  if(target.matches('input')){
+   target.dataset.historyBasePlaceholder??=target.getAttribute('placeholder')||'售價';
+   target.dataset.historyBaseTitle??=target.getAttribute('title')||'';
+   target.placeholder='參考售價 '+money(references[0].price);
+   target.title=references.slice(0,10).map(r=>`${r.date||''} ${r.group}：${money(r.price)}`).join('\n');
+   target.dataset.historyPricePlaceholder='1';return;
+  }
+  const hint=document.createElement('span');hint.className='launchHistoryPrice';hint.dataset.html2canvasIgnore='true';hint.textContent='('+money(references[0].price)+')';hint.title=references.slice(0,10).map(r=>`${r.date||''} ${r.group}：${money(r.price)}`).join('\n');hint.setAttribute('aria-label','過往開價 '+money(references[0].price));
   if(target.closest('.launchProduct')){hint.tabIndex=0;hint.setAttribute('role','button');hint.style.cursor='pointer';hint.setAttribute('aria-label','套用過往開價 '+money(references[0].price));const group=launchCurrent,index=Number(target.closest('.launchProduct').dataset.launchIndex),value=references[0].price;
    const apply=event=>{event.preventDefault();event.stopPropagation();if(launchCurrent!==group)return;const item=group.items[index],number=launchNumber(value);if(!item||number===null||number<0)return;launchPushUndo();launchApplyProductPrice(item,String(Math.ceil(number)));launchMark();launchRenderEditor();};
    hint.addEventListener('pointerdown',event=>event.preventDefault());hint.addEventListener('click',apply);hint.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'||event.key===' ')apply(event);});
