@@ -2503,7 +2503,7 @@ function launchApplyProductName(previousName,nextName){
  launchCurrent.items.forEach(item=>{
   const current=launchProductNameParts(item.name);
   if(baseChanged&&launchProductNameKey(current.base)===launchProductNameKey(before.base))item.name=after.base+current.suffix;
-  else if(!baseChanged&&launchProductNameKey(item.name)===launchProductNameKey(previousName))item.name=name;
+  // Text after the first space belongs only to the edited variant.
  });
 }
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
