@@ -1885,6 +1885,8 @@ function jiwuExtractClothingSize(value) {
 // Axis-internal spaces are not option separators (H400 × W390 × D180 is one group).
 // Convert only explicit physical units; unitless numbers remain unchanged.
 function jiwuSizeToMillimeters(value){
+ // Stored unitless physical measurements use millimeters. Large items use centimeters.
+ function normalize(value){
  const original=String(value??''),text=original.normalize('NFKC').trim().replace(/(?:厘米|公分)/g,'cm').replace(/(?:毫米|公厘)/g,'mm').replace(/\(\s*(cm|mm)\s*\)/gi,'$1').replace(/^(?:約|约)\s*/,''),number='\\d+(?:\\.\\d+)?';
  if(!/(?:cm|mm)/i.test(text))return original;
  const mm=(n,unit)=>String(Number((Number(n)*(unit.toLowerCase()==='cm'?10:1)).toFixed(3)));
@@ -1898,6 +1900,13 @@ function jiwuSizeToMillimeters(value){
  }
  const scalar=text.match(new RegExp('^([HWD]?)\\s*('+number+')\\s*(cm|mm)$','i'));
  return scalar?scalar[1]+mm(scalar[2],scalar[3]):original;
+}
+ const result=normalize(value),text=String(result??'').trim();
+ const physical=text.match(/^([HWDø]?)(\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?){0,2})$/i);
+ if(!physical)return result;
+ const dimensions=physical[2].split(/x/i).map(Number);
+ if(!dimensions.some(n=>n>=1000))return result;
+ return physical[1]+dimensions.map(n=>String(Number((n/10).toFixed(4)))).join('x')+'公分';
 }
 function jiwuPhysicalSizeGroups(sizeValue) {
   const text=String(sizeValue??'').normalize('NFKC').trim();if(!text)return [];
