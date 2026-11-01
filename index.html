@@ -6761,13 +6761,9 @@ document
 .getElementById('customerSearch')
 .value
 .trim();
-/*
- * 搜尋顧客時自動顯示全部資料
- * 不再被原本「現貨」篩選限制
- */
-onlineCargo='';
+// 搜尋沿用手動選取的類別，輸入、清除或重新整理均不重設。
 const f=document.getElementById('cargoFilter');
-if(f)f.value='';
+if(f)onlineCargo=f.value;
 if(!onlineRows.length){
 await loadOnline();
 }
@@ -7040,8 +7036,11 @@ if(isStarredView){const included=new Set([...groupOnlineOrders(rows).values()].f
 if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
-const monthMatch=key.match(/^(\d{1,2})月$/);
-const wantedMonth=monthMatch?Number(monthMatch[1]):0;
+const monthQuery=key.normalize('NFKC').trim();
+const chineseMonths=['一','二','三','四','五','六','七','八','九','十','十一','十二'];
+const monthMatch=monthQuery.match(/^(\d{1,2})\s*月$/);
+const chineseMonthMatch=monthQuery.match(/^([一二三四五六七八九十]+)\s*月$/);
+const wantedMonth=monthMatch?Number(monthMatch[1]):chineseMonthMatch?chineseMonths.indexOf(chineseMonthMatch[1])+1:0;
 const searchDate=/^[0-9０-９\s/.-]+$/.test(key)?toHalfWidthDigits(key).replace(/\D/g,''):'';
 const searchDigits=/^(?:(?:寶中信|花LB|中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
 rows=rows.filter(x=>{
