@@ -1488,6 +1488,34 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 <style id="launch-announcement-import-style">
 .launchURLImportForm{min-width:0}.launchURLImportForm .launchSelectAll{font-size:14px!important}.launchURLImportForm>label{display:block}.launchURLImportForm textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;font:inherit;border:1px solid var(--border);border-radius:9px;padding:10px;color:var(--text);background:var(--card)}.launchURLSource{padding:12px;background:var(--soft);border-radius:9px;margin:12px 0;overflow-wrap:anywhere}.launchURLSource small{display:block;margin-top:6px}.launchURLProducts{grid-template-columns:1fr!important}.launchURLProduct{display:flex;align-items:center;gap:12px!important;min-width:0}.launchURLThumb{width:96px;height:96px;flex:0 0 96px;display:grid;place-items:center;background:var(--soft);border-radius:8px;overflow:hidden;font-size:12px;text-align:center}.launchURLThumb img{display:block;width:100%;height:100%;object-fit:contain}.launchURLProductText{min-width:0;overflow-wrap:anywhere}.launchURLProductText strong{font-weight:500}.launchURLProductText small{display:block;margin-top:5px;color:#777}.launchURLGroupFields{border:1px solid var(--border);border-radius:10px;padding:14px;display:grid;gap:12px;margin:20px 0}.launchURLGroupFields>label,.launchURLGroupFields .launchPair>label{display:flex;flex-direction:column;gap:6px;min-width:0}.launchURLGroupFields input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box}.launchURLGroupFields .launchPair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.launchURLGroupFields .launchTools{flex-wrap:wrap}.launchURLGroupFields .launchSelectAll{display:inline-flex;align-items:center;gap:6px;margin:0}.launchURLImportForm>.launchTools{flex-wrap:wrap}@media(max-width:500px){.launchURLThumb{width:72px;height:80px;flex-basis:72px}.launchURLGroupFields{padding:10px}.launchURLProduct{gap:9px!important}.launchURLProductText{font-size:13px}.launchURLImportForm textarea,.launchURLGroupFields input:not([type=checkbox]){font-size:16px}}
 </style>
+<style id="launch-product-cards-20261101">
+/* Product manager cards use the live inventory component. */
+.launchDialog:has(.launchCatalogGrid){width:calc(100vw - 24px);max-width:1600px}
+:is(#launchDialog,.launchProductListPage) .launchAllGrid.launchCatalogGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(112px,calc((100% - 21px)/4)),1fr));gap:7px;padding:2px;overflow:visible}
+:is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard{display:flex;flex-direction:column;align-items:center;width:100%;height:var(--inventory-card-height,146px);min-height:0;gap:0!important;padding:5px;border:2px solid #d8d8d8;border-radius:8px;position:relative;overflow:hidden;background:#fff;cursor:grab;box-sizing:border-box}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard:has([data-launch-product-select]:checked){border-color:#a68c73;box-shadow:inset 0 0 0 1px #a68c73}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard [data-launch-product-select]{display:none!important}
+.launchCatalogSelect{position:absolute;inset:0;z-index:0;background:transparent;border:0;padding:0}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryImageWrap{position:relative;z-index:1;width:100%;min-height:0;height:auto;flex:1 1 0}
+.launchCatalogImage{display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden;color:#aaa;text-decoration:none}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryInfo{position:relative;z-index:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogName{border:0;background:none;padding:0;color:inherit;text-align:center;cursor:pointer;min-width:0;font-size:10px;line-height:12px;font-weight:600}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchOrderInput{position:absolute;top:3px;right:3px;z-index:4;width:27px!important;height:24px;padding:0 2px;margin:0;border:1px solid #e5d9cf;border-radius:50%;background:rgba(255,255,255,.95);color:#a68c73;font:10px Arial;text-align:center}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchAvailability{position:absolute;top:3px;left:3px;z-index:4;min-width:20px;width:auto;height:20px;padding:0 3px;border:0;background:transparent;font-size:14px;line-height:20px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchPauseToggle{position:absolute;top:25px;left:3px;z-index:4;font-size:12px;padding:0 3px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{gap:3px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard :is(.launchListKind,.launchStockToggle){font:8px/11px Arial;color:#777;border:1px solid #aaa;border-radius:999px;background:transparent;padding:1px 5px;margin:0;min-width:0;width:auto;max-width:40%;height:auto;appearance:none;text-align:center}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchStockToggle.isShortage{color:#bc4250;border-color:#bc4250;background:#fff2f4}
+.launchCatalogCard.launchSortTarget{outline:2px solid #617aa6;outline-offset:1px}
+@media(max-width:850px){
+:is(#launchDialog,.launchProductListPage) .launchAllGrid.launchCatalogGrid{grid-template-columns:repeat(auto-fill,minmax(min(112px,calc((100% - 15px)/4)),1fr));gap:5px}
+:is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard{padding:4px 3px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogName{font-size:9px;line-height:11px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard :is(.launchListKind,.launchStockToggle){font-size:7px;line-height:11px;padding:0 3px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{gap:2px}
+}
+
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -9139,6 +9167,50 @@ body[data-page="store"] .top{padding-left:48px}
 })();
 </script>
 
+<script id="launch-product-card-runtime-20261101">
+// Product manager cards reuse the inventory card geometry and controls.
+function launchCatalogRows(){
+ return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">${esc(String(p.price??'').replace(/^\$/,''))}</span></div><div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">${p.stockOut?'已缺貨':'缺貨'}</button></div></div></article>`;}).join('')}</div>`;
+}
+function launchDraftRows(){return launchCatalogRows();}
+function launchListRows(){return launchCatalogRows();}
+function launchCatalogSelect(index){
+ if(performance.now()<(window.launchCatalogSuppressClick||0))return;
+ const input=document.querySelector(`[data-launch-product-select="${index}"]`);if(!input)return;
+ launchSetProductVisible(index,!input.checked);input.checked=launchCanvasSelectionMode()?launchCanvasContains(launchCurrent.items[index]):launchCurrent.items[index].visible!==false;
+ launchCatalogSyncSelection();
+}
+function launchCatalogSyncSelection(){document.querySelectorAll('.launchCatalogCard').forEach(card=>{const input=card.querySelector('[data-launch-product-select]');card.querySelector('.launchCatalogSelect')?.setAttribute('aria-pressed',!!input?.checked);});}
+function launchCatalogDragSession(card,index,x,y){
+ const host=card.closest('dialog')||card.closest('.launchProductListPage');let target=index,frame,done=false;
+ const locate=()=>{let best=Infinity;host.querySelectorAll('[data-launch-sort-index]').forEach(row=>{const r=row.getBoundingClientRect(),d=Math.hypot(x-(r.left+r.right)/2,y-(r.top+r.bottom)/2);if(d<best){best=d;target=Number(row.dataset.launchSortIndex);}});host.querySelectorAll('[data-launch-sort-index]').forEach(row=>row.classList.toggle('launchSortTarget',Number(row.dataset.launchSortIndex)===target));};
+ const tick=()=>{const page=host.classList.contains('launchProductListPage'),r=page?{top:0,bottom:innerHeight}:host.getBoundingClientRect(),scroll=page?document.scrollingElement:host;if(y<r.top+50)scroll.scrollTop-=10;else if(y>r.bottom-50)scroll.scrollTop+=10;locate();frame=requestAnimationFrame(tick);};
+ card.classList.add('launchDragging');frame=requestAnimationFrame(tick);
+ return {move(nx,ny){x=nx;y=ny;locate();},finish(cancel){if(done)return;done=true;cancelAnimationFrame(frame);card.classList.remove('launchDragging');host.querySelectorAll('.launchSortTarget').forEach(e=>e.classList.remove('launchSortTarget'));window.launchCatalogSuppressClick=performance.now()+400;if(!cancel&&target!==index)launchAllMove(index,target);}};
+}
+function launchCatalogPointer(e,index){
+ if(e.pointerType==='touch'||e.button!==0||launchBusy||e.target.closest('input,select,textarea,button:not(.launchCatalogSelect)'))return;
+ const card=e.currentTarget,startX=e.clientX,startY=e.clientY;let drag=null;
+ const move=ev=>{if(!drag&&Math.hypot(ev.clientX-startX,ev.clientY-startY)>8){document.activeElement?.blur();drag=launchCatalogDragSession(card,index,startX,startY);}if(drag){ev.preventDefault();drag.move(ev.clientX,ev.clientY);}};
+ const finish=cancel=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',abort);drag?.finish(cancel);};
+ const up=()=>finish(false),abort=()=>finish(true);document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',up,{once:true});document.addEventListener('pointercancel',abort,{once:true});
+}
+function launchCatalogTouch(e,index){
+ if(launchBusy||e.touches.length!==1||e.target.closest('input,select,textarea,button:not(.launchCatalogSelect)'))return;
+ const card=e.currentTarget,t=e.touches[0];let drag=null;let timer=setTimeout(()=>{drag=launchCatalogDragSession(card,index,t.clientX,t.clientY);},260);
+ const move=ev=>{const p=ev.touches[0];if(!p)return;if(drag){ev.preventDefault();drag.move(p.clientX,p.clientY);}else if(Math.hypot(p.clientX-t.clientX,p.clientY-t.clientY)>8){clearTimeout(timer);timer=null;}};
+ const finish=cancel=>{clearTimeout(timer);document.removeEventListener('touchmove',move);document.removeEventListener('touchend',up);document.removeEventListener('touchcancel',abort);drag?.finish(cancel);};
+ const up=()=>finish(false),abort=()=>finish(true);document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up,{once:true});document.addEventListener('touchcancel',abort,{once:true});
+}
+{
+ const seen=new WeakSet();let pending=false;
+ function scan(){pending=false;document.querySelectorAll('.launchCatalogGrid').forEach(grid=>{if(seen.has(grid))return;seen.add(grid);const size=()=>{const card=grid.querySelector('.launchCatalogCard');if(!card||!grid.clientWidth)return;const h=Math.max(1,Math.round(card.getBoundingClientRect().width/.65-(matchMedia('(max-width:850px)').matches?22:26)));grid.style.setProperty('--inventory-card-height',h+'px');};new ResizeObserver(size).observe(grid);size();});launchCatalogSyncSelection();}
+ new MutationObserver(()=>{if(!pending){pending=true;requestAnimationFrame(scan);}}).observe(document.body,{childList:true,subtree:true});
+ document.addEventListener('click',e=>{if(performance.now()<(window.launchCatalogSuppressClick||0)&&e.target.closest('.launchCatalogCard')){e.preventDefault();e.stopImmediatePropagation();}},true);
+ document.addEventListener('change',e=>{if(e.target.matches('#launchSelectAll,[data-launch-product-select]'))launchCatalogSyncSelection();});scan();
+}
+
+</script>
 </body>
 </html>
 
