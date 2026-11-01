@@ -1516,6 +1516,12 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 }
 
 </style>
+<style id="launch-kind-control-font-20261101">
+/* Keep the compact category label aligned with inventory card controls. */
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{--launch-kind-font:8px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard select.launchListKind{font-size:var(--launch-kind-font)!important;line-height:11px!important;zoom:1;text-size-adjust:100%;-webkit-text-size-adjust:100%;white-space:nowrap}
+@media(max-width:850px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{--launch-kind-font:7px}}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
