@@ -1259,6 +1259,13 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .launchHistoryPrice{font-size:.76em;font-weight:400;opacity:.85;margin-left:.25em;color:#a67761;white-space:nowrap}.launchHistoryPriceRow{white-space:nowrap}.launchProductFields label:has(.launchHistoryPrice){position:relative}.launchProductFields label>.launchHistoryPrice{position:absolute;right:10px;top:100%;font-size:12px}@media print{.launchHistoryPrice{display:none!important}}
 /* 商品視窗標題依寬度縮字，手機與電腦均保持一行。 */
 .launchDialog .launchAllHeading .launchAllProductsTitle{min-width:0;max-width:100%;white-space:nowrap;overflow-wrap:normal;flex:0 1 auto}
+
+/* Desktop group cards use available width; mobile layout keeps its existing rules. */
+@media(min-width:851px){
+ body[data-page="launch"] .launchPreviewGrid{grid-template-columns:repeat(auto-fill,minmax(min(260px,calc((100% - 52px)/3)),1fr))}
+ .launchPreviewGrid .launchPreviewTile{aspect-ratio:7/4;container-type:inline-size}
+ .launchPreviewGrid .launchPreviewTile>strong{flex:1;min-height:0;padding:2cqw 3cqw;font-size:clamp(10px,4.5cqw,14px)}
+}
 </style>
 <style>
 .purchaseManualTop,.purchaseManualItem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;margin-bottom:12px}
@@ -2130,12 +2137,7 @@ async function launchLoadGroup(id,ticket=++launchLoad){
 }
 const launchPendingMoves=new Map();
 function launchSizePreviewGrids(){
- document.querySelectorAll('.launchPreviewGrid').forEach(grid=>{
-  grid.style.gridTemplateColumns='';
-  if(window.innerWidth<=850||!grid.children.length||grid.children.length>8)return;
-  const base=parseFloat(getComputedStyle(grid).gridTemplateColumns);
-  if(Number.isFinite(base)&&base>0)grid.style.gridTemplateColumns=`repeat(auto-fill,${base*1.5}px)`;
- });
+ document.querySelectorAll('.launchPreviewGrid').forEach(grid=>{grid.style.gridTemplateColumns='';});
 }
 window.addEventListener('resize',()=>requestAnimationFrame(launchSizePreviewGrids));
 let launchOrderBadgeGroups=new Set(),launchOrderBadgeLoadedAt=0,launchOrderBadgePending=null;
