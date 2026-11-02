@@ -9469,7 +9469,19 @@ async function launchSetProductPreorderQuantity(index,input){
  finally{input.disabled=false;}
 }
 </script>
-</body>
+<style>
+@media(max-width:850px){
+body[data-page="ship"] .top{justify-content:flex-start;gap:8px;padding-left:32px;padding-right:8px}
+body[data-page="ship"] .top>span:not([id]){font-size:clamp(11px,3.575vw,15.4px);line-height:24.2px}
+body[data-page="ship"] #hostConnectionStatus{font-size:19.8px}
+body[data-page="ship"] .topActions{margin-left:0;flex:1;min-width:0}
+body[data-page="ship"] .shipMarketActions{flex:1;gap:4.4px;min-width:0;justify-content:flex-end}
+body[data-page="ship"] .shipMarketActions>.btn{flex:0 0 auto;min-width:0;height:auto;min-height:0;padding:3.3px;font-size:clamp(11px,3.575vw,15.4px);line-height:1;white-space:nowrap;border-radius:3.3px}
+body[data-page="ship"] .shipMarketActions>#shipMarketUpload{display:none}
+}
+</style><style>
+.shipDetailActions>.btn{box-sizing:border-box;width:26px;min-width:26px;height:20.4px;min-height:0;padding:0!important;font-size:11px;line-height:1.2;border-radius:5px;white-space:nowrap}
+</style></body>
 </html>
 
 
