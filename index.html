@@ -1575,7 +1575,25 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>:is(.launchListKind,.launchStockToggle,.inventoryChannelButton){width:100%;max-width:100%;min-width:0;box-sizing:border-box;height:14px;padding:0 2px;line-height:12px;text-align:center}
 @media(max-width:850px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard:has(.launchPauseToggle){--launch-pause-gap:4px}}
 </style>
-</head>
+<style>
+body[data-page="ship"] .top{justify-content:space-between;padding-right:12px;gap:8px}
+body[data-page="ship"] .top>span:not([id]){max-width:none;overflow:visible;white-space:nowrap;flex-shrink:0}
+body[data-page="ship"] .topActions{position:static;transform:none;flex-shrink:0}
+#shipCompletedButton[aria-pressed="true"]{background:var(--main);color:white}
+.shipDetailActions{display:inline-flex;gap:5px;flex-shrink:0;margin-left:auto}.shipMergeChoice{display:block;padding:12px;border:1px solid #e5dfda;border-radius:12px;margin:10px 0;cursor:pointer}.shipMergeChoice:has(input:checked){border-color:#a68c73;background:#faf6f1}.shipMergeChoiceHead{display:flex;align-items:center;gap:8px;font-weight:700}.shipMergeChoice p{margin:8px 0 0 24px;font-size:13px;color:#777;line-height:1.7}.shipMergeDialog h3{margin-top:0}.shipMergeDialog{max-width:480px}.shipMergeDialog>p{font-size:13px;color:#777}.shipHistoryHeading{display:flex;justify-content:space-between;align-items:center;margin:4px 0 14px;color:#555;gap:10px}
+.shipHistoryHeading span{font-size:12px;color:#888}
+@media(max-width:850px){
+body[data-page="ship"] #shipMarketUpload{display:none}
+body[data-page="ship"] .top{height:52px;flex-wrap:nowrap;padding-left:30px;padding-right:6px;gap:4px}
+body[data-page="ship"] .top>span:not([id]){font-size:clamp(10px,3.25vw,14px);width:auto;line-height:22px}
+body[data-page="ship"] .topActions{margin-left:auto;gap:3px}
+body[data-page="ship"] .shipMarketActions{gap:3px}
+body[data-page="ship"] .topActions .btn{padding:2px 5px;font-size:11px}
+body[data-page="ship"] .topActions .topRefreshButton{width:20px;min-width:20px}
+body[data-page="ship"] #hostConnectionStatus{top:50%;left:8px;font-size:18px}
+body[data-page="ship"] .page{height:calc(100dvh - 114px)}
+}
+</style></head>
 <body>
 <main id="loginScreen" class="loginScreen">
 <div class="loginCard">
@@ -1598,6 +1616,7 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 <div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
 <button id="shipMarketSelectAll" type="button" class="btn light" onclick="selectAllShipMarketCards()" title="全選尚未上架的訂單卡，每次最多 100 張">全選</button>
+<button id="shipCompletedButton" type="button" class="btn light" onclick="toggleShipCompleted()" aria-pressed="false">完成</button>
 <button id="shipMarketUpload" type="button" class="btn" onclick="openShipMarketExport()">上架</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(｡˃ ᵕ ˂ )b&#10;https://myship.7-11.com.tw/general/detail/GM2410014359686" onclick="copyShipText(this)">花</button>
 <button type="button" class="btn light" data-copy-text="客訂賣場：找你的名字下單(*`•ω•´)ゞ&#10;https://myship.7-11.com.tw/general/detail/GM2409264014680" onclick="copyShipText(this)">K</button>
@@ -8154,6 +8173,47 @@ async function downloadShipMarketExport(){
  finally{shipMarketExportBusy=false;if(button){button.disabled=false;button.textContent='上架';}}
 }
 
+let shipCompletedView=false,shipMergeDraft=null;
+function shipCustomerName(row){return String(['客戶名稱','顧客名稱','客人名稱','姓名'].map(key=>row.data[key]).find(value=>value!==undefined&&value!==null)??'');}
+function shipCompletedKey(row){return JSON.stringify([shipCustomerName(row),String(row.data['出貨批次ID']||row.data['包貨完成時間']||row.data['出貨請求編號']||row.data['時間']||'row-'+(row.itemId||row.row))]);}
+function shipCompletedTime(row){return Date.parse(row.data['包貨完成時間']||row.data['時間']||'')||0;}
+function shipCompletedOrders(rows){
+const groups=new Map();
+for(const row of rows){if(!isTruthy(row.data['已包貨']))continue;const key=shipCompletedKey(row);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);}
+return [...groups.values()].sort((a,b)=>Math.max(...b.map(shipCompletedTime))-Math.max(...a.map(shipCompletedTime))||Math.max(...b.map(row=>Number(row.row)))-Math.max(...a.map(row=>Number(row.row))));
+}
+function toggleShipCompleted(){
+if(shipPendingWrites)return;
+shipCompletedView=!shipCompletedView;
+const button=document.getElementById('shipCompletedButton');button.setAttribute('aria-pressed',String(shipCompletedView));button.textContent=shipCompletedView?'返回':'完成';
+if(shipDataCache)drawShip(shipDataCache);
+}
+function openShipMerge(event,button){
+event.stopPropagation();if(shipPendingWrites||button.disabled)return;
+const ids=new Set(button.closest('.shipOrderCard').dataset.rows.split(',').map(Number));
+const source=(shipDataCache?.rows||[]).filter(row=>ids.has(Number(row.row)));
+if(!source.length||source.length!==ids.size||source.some(row=>isTruthy(row.data['已包貨'])))return showShipCopyNotice('出貨資料已變更，請重新整理後再合併');
+const customer=shipCustomerName(source[0]);
+const orders=shipCompletedOrders(shipDataCache.rows.filter(row=>shipCustomerName(row)===customer));
+shipMergeDraft={source:structuredClone(source),orders:structuredClone(orders),requestId:crypto.randomUUID(),selected:null};
+closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard shipMergeDialog" role="dialog" aria-modal="true" aria-labelledby="shipMergeTitle"><h3 id="shipMergeTitle">合併出貨｜${esc(customer)}</h3>${orders.map((rows,i)=>{const time=rows[0].data['包貨完成時間']||rows[0].data['時間']||'';return `<label class="shipMergeChoice"><span class="shipMergeChoiceHead"><input type="radio" name="shipMergeTarget" value="${i}" onchange="shipMergeSelect(Number(this.value))">${esc(shipMergeDate(time))}<span style="margin-left:auto">${rows.length} 件</span></span><p>${rows.map(row=>esc(getShipData(row,['名稱','商品名稱']))).join('<br>')}</p><p>商品 $${money(rows.reduce((sum,row)=>sum+numberValue(getShipData(row,['售價','價格'])),0))}　運費 $${money(rows.reduce((sum,row)=>sum+numberValue(row.data['運費']),0))}</p></label>`;}).join('')||'<p>這位客人目前沒有可合併的已完成出貨單。</p>'}<div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button id="shipMergeConfirm" type="button" class="btn" disabled onclick="submitShipMerge(this)">確認合併</button></div><p id="shipMergeError" role="alert" hidden></p></div></div>`);
+}
+function shipMergeDate(value){const date=new Date(value);return Number.isFinite(date.getTime())?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(date):String(value||'未記錄日期');}
+function shipMergeSelect(index){if(!shipMergeDraft?.orders[index])return;if(shipMergeDraft.selected!==index)shipMergeDraft.requestId=crypto.randomUUID();shipMergeDraft.selected=index;document.getElementById('shipMergeConfirm').disabled=false;}
+async function submitShipMerge(button){
+if(shipPendingWrites||button.disabled||!shipMergeDraft||!Number.isInteger(shipMergeDraft.selected))return;
+const draft=shipMergeDraft,target=draft.orders[draft.selected],dialog=button.closest('.dialogOverlay');
+const snapshot=rows=>rows.map(row=>({id:String(row.itemId||''),data:row.data}));
+if([...draft.source,...target].some(row=>!row.itemId)){const error=document.getElementById('shipMergeError');error.hidden=false;error.textContent='出貨資料尚未更新，請重新整理後再合併';return;}
+const controls=[...dialog.querySelectorAll('button,input')];controls.forEach(control=>control.disabled=true);button.textContent='合併中';shipPendingWrites++;shipRevision++;
+try{
+const result=await api('mergeShipOrders',{selection:JSON.stringify({source:snapshot(draft.source),target:snapshot(target)}),requestId:draft.requestId});
+shipDataCache=result.ship;shipLoadedAt=Date.now();saveBackendSnapshot('ship',shipDataCache);shipMergeDraft=null;
+if(dialog.isConnected)dialog.remove();shipCompletedView=false;const entry=document.getElementById('shipCompletedButton');entry.textContent='完成';entry.setAttribute('aria-pressed','false');drawShip(shipDataCache);launchCompletionToast('已合併出貨');
+}catch(error){const message=dialog.querySelector('#shipMergeError');if(message){message.hidden=false;message.textContent=jiwuErrorText(error,'system');}}
+finally{shipPendingWrites--;controls.forEach(control=>control.disabled=false);button.textContent='確認合併';}
+}
+
 const SHIP_HIDE_MS=5*60*1000;
 function shipRowExpired(row,now=Date.now()){
 const time=Date.parse(row.data['包貨完成時間']||'');
@@ -8188,14 +8248,14 @@ function drawShip(source){
 if(source.marketHistory)shipMarketHistory=source.marketHistory;
 warmCustomerLineChats();
 shipMarketOrders=new Map();
-const d={...source,rows:(source.rows||[]).filter(row=>!shipRowExpired(row))};
+const d={...source,rows:(source.rows||[]).filter(row=>shipCompletedView?isTruthy(row.data['已包貨']):!shipRowExpired(row))};
 shipHeadersCache=
 d.headers||[];
 const res=document.getElementById('shipResult');
 if(!d.rows||!d.rows.length){
 if(res){
 res.innerHTML=
-'<div class="empty">目前沒有出貨單</div>';
+'<div class="empty">'+(shipCompletedView?'目前沒有已完成出貨單':'目前沒有出貨單')+'</div>';
 }
 return
 }
@@ -8251,20 +8311,15 @@ d.headers,
 );
 const shi=findHeader(d.headers,['運費']);
 const groups={};
-d.rows.forEach(x=>{
-const customer=
-x.data[ci]||
-'未填姓名';
-if(!groups[customer]){
-groups[customer]=[];
-}
-groups[customer].push(x);
-});
-if(res){
+ d.rows.forEach(x=>{
+ const customer=shipCustomerName(x),key=isTruthy(x.data['已包貨'])?'done:'+shipCompletedKey(x):'pending:'+customer;
+ if(!groups[key])groups[key]=[];groups[key].push(x);
+ });
+ if(res){
 res.innerHTML=
-Object
+(shipCompletedView?'<div class="shipHistoryHeading"><strong>已完成出貨單</strong></div>':'')+Object
 .values(groups)
-.sort((a,b)=>Math.max(0,...b.map(x=>Number(x.row)||0))-Math.max(0,...a.map(x=>Number(x.row)||0)))
+.sort((a,b)=>shipCompletedView?Math.max(...b.map(shipCompletedTime))-Math.max(...a.map(shipCompletedTime))||Math.max(...b.map(x=>Number(x.row)||0))-Math.max(...a.map(x=>Number(x.row)||0)):Math.max(0,...b.map(x=>Number(x.row)||0))-Math.max(0,...a.map(x=>Number(x.row)||0)))
 .map(g=>{
 const customer=
 g[0].data[ci]||
@@ -8296,7 +8351,7 @@ style="margin-bottom:10px">
 </span>
 <span class="shipCustomerMeta">${customerMessageButton(customer,true,g)}<strong>${customerIdentity(customer,g)}</strong>
 <span class="shipDateCount">${g.length} 件</span></span>
-<button type="button" class="btn light shipDetailsButton" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>
+<span class="shipDetailActions"><button type="button" class="btn light shipDetailsButton" style="padding:5px 9px" onclick="showShipDetails(this)">明細</button>${!shipCompletedView&&!packed?'<button type="button" class="btn light" style="padding:5px 9px" onclick="openShipMerge(event,this)">合併</button>':''}</span>
 </div>
 ${g.map(x=>`
 <div class="shipItem" data-row="${Number(x.row)}" data-item-id="${esc(x.itemId||'')}" data-name="${esc(x.data[ni]||'')}" data-price="${esc(x.data[pi]||0)}" data-deposit="${esc(x.data[di]||0)}">
@@ -8328,7 +8383,7 @@ ${shippingTotal?`<span>運費 $${money(shippingTotal)}</span>`:''}
 }
 }
 setInterval(()=>{
-if(document.body.dataset.page==='ship'&&shipDataCache&&!shipPendingWrites){
+if(document.body.dataset.page==='ship'&&shipDataCache&&!shipPendingWrites&&!shipCompletedView){
 const visible=[...document.querySelectorAll('.shipOrderCard')].flatMap(card=>card.dataset.rows.split(',').map(Number));
 if(shipDataCache.rows.some(row=>visible.includes(Number(row.row))&&shipRowExpired(row)))drawShip(shipDataCache);
 }
@@ -8459,7 +8514,7 @@ function backendSyncMutation(action){
 }
 function backendWriteProgressInfo(action,params={}){
  const page=/^purchase/.test(action)?'訂購':/^launch/.test(action)?'開團':/Inventory/.test(action)?'庫存':/Ship/.test(action)?'出貨':/^store|StoreSale/.test(action)?'店面':'線上';
- const labels={purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',bindOnlineOrderCustomer:'綁定訂單客戶',renameOnlineOrderCustomer:'儲存單筆姓名',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售',deleteStoreSale:'刪除銷售'};
+ const labels={mergeShipOrders:'合併出貨',purchaseSplit:'儲存包裹',purchaseSave:'新增訂單',purchaseEdit:'儲存訂單',purchaseDelete:'刪除訂單',purchaseImage:'儲存圖片',purchaseCheck:'儲存點貨',purchaseRestock:'登記補貨',launchSave:'儲存開團',launchMove:'移動開團',launchDelete:'刪除開團',launchReorder:'儲存排序',launchUpload:'上傳圖片',launchImportInventory:'匯入庫存',launchGroupWork:'儲存團務',launchGroupWorkAdd:'新增團務',launchGroupWorkBatchSave:'儲存團務',launchGroupWorkReorder:'儲存排序',launchSetProductHidden:'儲存顯示設定',launchSetInventoryAvailability:'儲存貨況',setInventoryPrice:'儲存售價',setInventoryStock:'儲存庫存',setInventoryStore:'儲存店面數量',setInventoryImage:'儲存圖片',updateInventoryProduct:'儲存商品',addInventoryProduct:'新增商品',deleteInventoryProduct:'刪除商品',reorderInventory:'儲存排序',checkInventoryAvailability:'更新貨況',addOnlineOrder:'新增訂單',editOnlineOrder:'儲存訂單',deleteOnlineOrder:'刪除訂單',bindOnlineOrderCustomer:'綁定訂單客戶',renameOnlineOrderCustomer:'儲存單筆姓名',renameOnlineCustomer:'儲存顧客名稱',saveOnlinePayment:'儲存付款',setOnlineItemBadge:'儲存標籤',setOnlineStar:'儲存星號',setOnlineFaceToFace:'儲存面交',setOnlineReconciled:'儲存對帳',setOnlineOpened:'儲存開單',createShip:'建立出貨單',setShip:'儲存出貨狀態',setShipPacked:'儲存包貨',deleteShipOrder:'刪除出貨商品',storeScan:'加入購物車',storeCartSet:'儲存購物車',storeCartClear:'清空購物車',storeCheckout:'儲存結帳',updateStoreSaleNote:'儲存備註',updateStoreSalePayment:'儲存付款',addStoreSale:'新增銷售',deleteStoreSale:'刪除銷售'};
  const detail=params.name||params.customer||params.newName||params.number||params.group?.name||'';
  return {name:detail?page+'・'+String(detail):page,action:labels[action]||'儲存資料'};
 }
@@ -9168,7 +9223,7 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 @media(max-width:850px){
 .shipCardHead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .shipCardHead>.shipCopyActions{grid-column:1;grid-row:1}
-.shipCardHead>.shipDetailsButton{grid-column:2;grid-row:1;justify-self:end}
+.shipCardHead>.shipDetailActions{grid-column:2;grid-row:1;justify-self:end}
 .shipCardHead>.shipCustomerMeta{grid-column:1/-1;grid-row:2;display:flex;align-items:center;gap:8px;min-width:0;width:100%}
 .shipCustomerMeta>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shipCustomerMeta>.shipDateCount{flex-shrink:0}
