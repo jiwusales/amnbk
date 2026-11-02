@@ -1560,6 +1560,11 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 :is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard.launchAvailabilityOut{border-color:#ca889d!important;box-shadow:inset 0 0 0 2px #ca889d!important}
 :is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard.launchAvailabilityRestocked{border-color:#8da994!important;box-shadow:inset 0 0 0 2px #8da994!important}
 </style>
+<style id="launch-stock-preorder-inputs-20261102">
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;width:100%;min-width:0;margin:3px 0}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities label{display:flex;flex-direction:column;gap:1px;min-width:0;font:8px/10px Arial;color:#777;text-align:center}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities input{display:block;width:100%;min-width:0;max-width:100%;height:20px;box-sizing:border-box;border:1px solid #d8dde6;border-radius:4px;padding:1px 2px;margin:0;background:#fff;color:#555;text-align:center;font:11px/16px Arial;appearance:none}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -3378,7 +3383,7 @@ async function launchProductSubmit(e,index,mode){
   try{items=launchExpandMultiProducts(launchParseMultiProducts(f.get('multiProducts')),launchCurrent.items.length);}
   catch(error){alert(error.message);return;}
  }
- else{const p=Object.fromEntries(f);delete p.canvasTarget;delete p.insertPosition;const movePanel=f.has('movePanel')?Number(f.get('movePanel')):null;delete p.movePanel;p.name=p.name.trim();Object.assign(p,launchNormalizeProductSpec(String(p.size||'').trim(),String(p.format||'').trim()));p.url=String(p.url||'').trim();p.images=String(p.images||'').trim().split(/[、\s]+/).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?(Number.isInteger(movePanel)&&movePanel>=0&&movePanel<(launchCurrent.panels?.length||1)?movePanel:Number(launchCurrent.items[index].panel)||0):launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();if(index>=0&&launchCurrent.items[index].productMasterId){p.productMasterId=launchCurrent.items[index].productMasterId;p.productMasterBase=structuredClone(launchCurrent.items[index].productMasterBase||launchProductMasterFields(launchCurrent.items[index]));}p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
+ else{const p=Object.fromEntries(f);delete p.canvasTarget;delete p.insertPosition;const movePanel=f.has('movePanel')?Number(f.get('movePanel')):null;delete p.movePanel;p.name=p.name.trim();Object.assign(p,launchNormalizeProductSpec(String(p.size||'').trim(),String(p.format||'').trim()));p.url=String(p.url||'').trim();p.images=String(p.images||'').trim().split(/[、\s]+/).filter(Boolean);p.scale=index>=0?Number(launchCurrent.items[index].scale)||1:1;p.panel=index>=0?(Number.isInteger(movePanel)&&movePanel>=0&&movePanel<(launchCurrent.panels?.length||1)?movePanel:Number(launchCurrent.items[index].panel)||0):launchPanelIndex;p.visible=index>=0?launchCurrent.items[index].visible!==false:launchCurrent.items.length<31;p.showCost=index>=0?launchCurrent.items[index].showCost!==false:true;p.id=index>=0?launchCurrent.items[index].id:launchId();if(index>=0&&launchCurrent.items[index].productMasterId){p.productMasterId=launchCurrent.items[index].productMasterId;p.productMasterBase=structuredClone(launchCurrent.items[index].productMasterBase||launchProductMasterFields(launchCurrent.items[index]));}p.availabilityStatus=index>=0?launchCurrent.items[index].availabilityStatus||'':'';p.paused=index>=0?!!launchCurrent.items[index].paused:false;p.stockOut=index>=0?!!launchCurrent.items[index].stockOut:false;p.stockQuantity=index>=0?launchCurrent.items[index].stockQuantity??'':'';p.preorderQuantity=index>=0?launchCurrent.items[index].preorderQuantity??'':'';if(!p.name||(p.url&&!launchSafeURL(p.url))||p.images.some(u=>!launchSafeURL(u))){alert('請確認名稱及 http/https 網址');return;}items=[p];}
  if(index<0&&launchCurrent.status==='最新開團'){
   launchPushUndo();
   if(f.get('canvasTarget')==='new'){
@@ -3834,7 +3839,7 @@ async function launchConfirmURLImport(event){
  const selected=session.items.filter((_,index)=>session.selected.has(index));
  if(session.newGroup){
   if(selected.length>200){error.textContent='每團最多 200 項商品，請減少選取數量';return;}
-  const items=selected.map(source=>({...structuredClone(source),note:[source.note,source.currency&&source.currency!=='JPY'?'來源幣別：'+source.currency:''].filter(Boolean).join('\n'),id:launchId(),panel:0,visible:true,stockQuantity:'',stockOut:false,paused:false,scale:1}));
+  const items=selected.map(source=>({...structuredClone(source),note:[source.note,source.currency&&source.currency!=='JPY'?'來源幣別：'+source.currency:''].filter(Boolean).join('\n'),id:launchId(),panel:0,visible:true,stockQuantity:'',preorderQuantity:'',stockOut:false,paused:false,scale:1}));
   const group={id:launchId(),status:'尚未上架',images:[],panels:[{image:'',mainColor:'#617AA6',productIds:items.map(item=>item.id)}],mainColor:'#617AA6',footer:'',cardColumns:8,revision:'',...groupInfo,items};
   launchLoad++;launchCurrent=group;launchPanelIndex=0;launchUndoStack=[];launchDirty=true;launchImportDestination=null;
   session.dialog.close();launchSyncDrawImages(group.items,group.items);launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);return;
@@ -3889,7 +3894,7 @@ function launchImportIntoCanvas(items,sourceName,groupInfo=null){
  if(group.items.length+items.length>200){alert('每團最多 200 項商品，請減少選取數量');return;}
  launchPushUndo();const panel=group.panels[destination.panel];
  if(!Array.isArray(panel.productIds))panel.productIds=group.items.filter(item=>launchCanvasContains(item,destination.panel)).map(item=>item.id);
- const copied=items.map(source=>{const item=structuredClone(source);item.id=launchId();item.panel=destination.panel;item.visible=true;item.stockQuantity='';item.stockOut=false;item.paused=false;item.images=Array.isArray(item.images)?item.images:[];item.scale=Number(item.scale)||1;delete item.sourceStock;delete item.ip;for(const key of ['order','sort','sortOrder','sortIndex','rank','row','source_row','sourceRow'])delete item[key];return item;});
+ const copied=items.map(source=>{const item=structuredClone(source);item.id=launchId();item.panel=destination.panel;item.visible=true;item.stockQuantity='';item.preorderQuantity='';item.stockOut=false;item.paused=false;item.images=Array.isArray(item.images)?item.images:[];item.scale=Number(item.scale)||1;delete item.sourceStock;delete item.ip;for(const key of ['order','sort','sortOrder','sortIndex','rank','row','source_row','sourceRow'])delete item[key];return item;});
  if(groupInfo)Object.assign(group,groupInfo);
  group.items.push(...copied);panel.productIds.push(...copied.map(item=>item.id));launchPanelIndex=destination.panel;launchSyncDrawImages(group.items,copied);launchMark();launchNotice(`已從「${sourceName}」匯入 ${copied.length} 樣商品到畫布 ${launchPanelLabel(destination.panel)}`);document.getElementById('launchDialog')?.close();launchImportDestination=null;launchRenderEditor();
 }
@@ -4018,7 +4023,7 @@ async function launchSetProductQuantity(index,input){
   const current=launchCurrent?.id===group.id?launchCurrent.items.find(p=>p.id===item.id):null;
   if(current){current.stockQuantity=result.quantity;current.stockOut=result.out;}
   input.value=result.quantity??'';
-  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=control.parentElement.querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
+  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=(control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
  }catch(error){input.value=previous;alert(jiwuErrorText(error,'system'));}
  finally{input.disabled=false;}
 }
@@ -4045,7 +4050,7 @@ function launchToggleProductStock(index,button){
  const acknowledges=(next&&previousMonitor?.change==='out')||(!next&&previousMonitor?.change==='restocked');
  if(acknowledges){item.availabilityMonitor={...previousMonitor,acknowledged:true};launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}
  item.stockOut=next;item.stockQuantity='';button.disabled=true;button.classList.toggle('isShortage',next);button.textContent='缺貨';
- const input=button.parentElement.querySelector('[data-launch-stock]');if(input)input.value='';
+ const input=(button.closest('.launchCatalogCard')||button.parentElement).querySelector('[data-launch-stock]');if(input)input.value='';
  launchPost('launchSetInventoryAvailability',{out:next,groupId:group.id,groupStatus:group.status,itemId:item.id}).then(result=>{if(result.availabilityMonitor)item.availabilityMonitor=result.availabilityMonitor;if(result.availabilitySummary){group.availabilitySummary=result.availabilitySummary;const listed=launchGroups.find(entry=>entry.id===group.id);if(listed)listed.availabilitySummary=result.availabilitySummary;launchSaveListCache(group.status,launchGroups);}launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}).catch(error=>{item.availabilityMonitor=previousMonitor;launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));item.stockOut=previous;item.stockQuantity=previousQuantity;button.classList.toggle('isShortage',previous);button.textContent='缺貨';if(input)input.value=previousQuantity;alert(error.message);}).finally(()=>{button.disabled=false;});
 }
 function launchAllSave(){
@@ -9273,7 +9278,7 @@ body[data-page="store"] .top{padding-left:48px}
 <script id="launch-product-card-runtime-20261101">
 // Product manager cards reuse the inventory card geometry and controls.
 function launchCatalogRows(){
- return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">&#36;${esc(String(p.price??'').replace(/^\$/,''))}</span></div><div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button></div></div></article>`;}).join('')}</div>`;
+ return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">&#36;${esc(String(p.price??'').replace(/^\$/,''))}</span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button></div></div></article>`;}).join('')}</div>`;
 }
 function launchDraftRows(){return launchCatalogRows();}
 function launchListRows(){return launchCatalogRows();}
@@ -9307,12 +9312,34 @@ function launchCatalogTouch(e,index){
 }
 {
  const seen=new WeakSet();let pending=false;
- function scan(){pending=false;document.querySelectorAll('.launchCatalogGrid').forEach(grid=>{if(seen.has(grid))return;seen.add(grid);const size=()=>{const card=grid.querySelector('.launchCatalogCard');if(!card||!grid.clientWidth)return;const h=Math.max(1,Math.round(card.getBoundingClientRect().width/.65-(matchMedia('(max-width:850px)').matches?22:26)));grid.style.setProperty('--inventory-card-height',h+'px');};new ResizeObserver(size).observe(grid);size();});launchCatalogSyncSelection();}
+ function scan(){pending=false;document.querySelectorAll('.launchCatalogGrid').forEach(grid=>{if(seen.has(grid))return;seen.add(grid);const size=()=>{const card=grid.querySelector('.launchCatalogCard');if(!card||!grid.clientWidth)return;const h=Math.max(1,Math.round(card.getBoundingClientRect().width/.65-(matchMedia('(max-width:850px)').matches?22:26)+35));grid.style.setProperty('--inventory-card-height',h+'px');};new ResizeObserver(size).observe(grid);size();});launchCatalogSyncSelection();}
  new MutationObserver(()=>{if(!pending){pending=true;requestAnimationFrame(scan);}}).observe(document.body,{childList:true,subtree:true});
  document.addEventListener('click',e=>{if(performance.now()<(window.launchCatalogSuppressClick||0)&&e.target.closest('.launchCatalogCard')){e.preventDefault();e.stopImmediatePropagation();}},true);
  document.addEventListener('change',e=>{if(e.target.matches('#launchSelectAll,[data-launch-product-select]'))launchCatalogSyncSelection();});scan();
 }
 
+</script>
+<script id="launch-stock-preorder-runtime-20261102">
+function launchCatalogQuantities(item,index){
+ const name=esc(launchDisplayName(item));
+ return '<div class="launchCatalogQuantities"><label><span>現貨</span><input type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" aria-label="'+name+' 現貨數量" data-launch-stock="'+index+'" value="'+esc(item.stockQuantity??'')+'" onchange="launchSetProductQuantity('+index+',this)"></label><label><span>預購</span><input type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" aria-label="'+name+' 預購數量" data-launch-preorder="'+index+'" value="'+esc(item.preorderQuantity??'')+'" onchange="launchSetProductPreorderQuantity('+index+',this)"></label></div>';
+}
+async function launchSetProductPreorderQuantity(index,input){
+ const group=launchCurrent,item=group?.items[index];if(!group||!item||input.disabled)return;
+ const raw=input.value.trim(),previous=item.preorderQuantity??'';
+ if(raw!==''&&(!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw)))){input.value=previous;alert('預購請輸入非負整數或留白');return;}
+ input.disabled=true;
+ try{
+  const result=await launchPost('launchSetInventoryAvailability',{groupId:group.id,groupStatus:group.status,itemId:item.id,preorderQuantity:raw});
+  const value=result.preorderQuantity??'';item.preorderQuantity=value;
+  if(result.out===false){item.stockOut=false;if(launchCurrent?.id===group.id)document.querySelectorAll('.launchCatalogCard').forEach(card=>{const control=card.querySelector('[data-launch-preorder]');if(control&&launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)card.querySelector('.launchStockToggle')?.classList.remove('isShortage');});}
+  if(launchCurrent?.id===group.id){const current=launchCurrent.items.find(p=>p.id===item.id);if(current)current.preorderQuantity=value;
+   document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)control.value=value;});
+  }
+  input.value=value;
+ }catch(error){input.value=previous;alert(jiwuErrorText(error,'system'));}
+ finally{input.disabled=false;}
+}
 </script>
 </body>
 </html>
