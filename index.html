@@ -9345,7 +9345,7 @@ function launchPaintCatalogReferences(group,entry){
   entry.counts=new Map(result.entries.map(row=>[row.key,row]));
  }
  document.querySelectorAll('[data-launch-preorder-reference]').forEach(node=>{
-  const item=launchCurrent.items[Number(node.dataset.launchPreorderReference)];if(!item||String(item.preorderQuantity??'')!=='')return;
+  const item=launchCurrent.items[Number(node.dataset.launchPreorderReference)];if(!item||(String(item.preorderQuantity??'')!==''&&Number(item.preorderQuantity)!==0))return;
   node.textContent=launchCatalogReferenceText(item);
   node.title=entry.error?'參考差額暫時無法讀取，重新整理可重試':'購買量減喊單量，僅供參考；點擊輸入預購數量';
  });
@@ -9364,7 +9364,7 @@ async function launchLoadCatalogReferences(group){
  await entry.pending;launchPaintCatalogReferences(group,entry);
 }
 function launchCatalogQuantityGroup(item,index,kind){
- const stock=kind==='stock',label=stock?'現貨':'預購',value=(stock?item.stockQuantity:item.preorderQuantity)??'',reference=!stock&&String(value)==='';
+ const stock=kind==='stock',label=stock?'現貨':'預購',value=(stock?item.stockQuantity:item.preorderQuantity)??'',reference=!stock&&(String(value)===''||Number(value)===0);
  const shown=reference?launchCatalogReferenceText(item):value===''?0:value;
  return `<span class="inventoryStockGroup" style="gap:0" data-launch-quantity-group="${kind}"><button type="button" class="inventoryStockButton inventoryStockLabel" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${label}</button><button type="button" class="inventoryStockButton${reference?' launchPreorderReference':''}" ${reference?'data-launch-preorder-reference="'+index+'"':''} onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="${reference?'購買量減喊單量，僅供參考；點擊輸入預購數量':'點擊修改'+label+'數量'}">${esc(shown)}</button></span>`;
 }
@@ -9384,7 +9384,7 @@ function launchBeginQuantityEdit(index,kind,button){
   if(launchCurrent?.id!==group.id||launchCurrent.items[index]?.id!==item.id){restore();return;}
   input.value=toHalfWidthDigits(input.value).trim();
   if(input.value!==''&&(!/^\d+$/.test(input.value)||!Number.isSafeInteger(Number(input.value)))){alert((stock?'現貨':'預購')+'請輸入非負整數或留白');restore();return;}
-  const unchanged=stock?Number(input.value)===Number(current):(input.value===''?String(current)==='':String(current)!==''&&Number(input.value)===Number(current));
+  const unchanged=Number(input.value)===Number(current);
   if(unchanged&&!(Number(input.value)>0&&item.stockOut)){restore();return;}
   try{await (stock?launchSetProductQuantity:launchSetProductPreorderQuantity)(index,input);}finally{restore();}
  };
