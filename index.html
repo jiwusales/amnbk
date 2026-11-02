@@ -1565,6 +1565,9 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 :is(#launchDialog,.launchProductListPage) .launchCatalogQuantities .inventoryStockGroup{gap:1px}
 :is(#launchDialog,.launchProductListPage) .launchCatalogQuantities .inventoryStockInput{width:34px;min-width:0;box-sizing:border-box;font-size:8px;line-height:11px;height:17px;padding:1px 2px}
 </style>
+<style id="launch-demand-reference-20261102">
+:is(#launchDialog,.launchProductListPage) .launchCatalogQuantities .launchPreorderReference{color:#b5b5b5;font-size:.85em;font-weight:400}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -2393,7 +2396,7 @@ function launchOrderSummaryCards(items,products=[],groupName=''){
   return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}"><button type="button" class="launchSummaryDragHandle" aria-label="拖移 ${esc(item.name)} 排序" title="拖移排序，也可用方向鍵" disabled onpointerdown="launchSummaryCardDrag(event)" onkeydown="launchSummaryCardDragKey(event)">≡</button>${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
  }).join('')+'</div>'+(items.length?'':'<p>目前沒有訂購商品。</p>');
 }
-function launchPurchaseReconciliation(group,summary,products,orders){
+function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
  const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=p=>String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
  const identity=p=>code(p)?'code:'+code(p):p.id?'id:'+p.id:'name:'+norm(launchDisplayName(p));
  const linked=orders.filter(o=>o.status!=='砍單'&&(o.groupId?String(o.groupId)===String(group.id):launchOrderSummaryGroupKey(o.groupName)===launchOrderSummaryGroupKey(group.name)||!o.groupName&&o.items.some(x=>launchOrderSummaryGroupKey(x.group)===launchOrderSummaryGroupKey(group.name))));
@@ -2411,6 +2414,7 @@ function launchPurchaseReconciliation(group,summary,products,orders){
   const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:null;
  };
  const rows=new Map();
+ if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),names:[],needed:0,ordered:0});}
  for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item);if(!key)continue;if(!rows.has(key))rows.set(key,{key,name:item.name,names:[],needed:0,ordered:0});const row=rows.get(key);if(!row.names.includes(item.name))row.names.push(item.name);row.needed+=Number(item.quantity)||0;}
  for(const order of linked)for(const item of order.items){if(item.status==='砍單')continue;const quantity=Number(item.quantity)||0;if(quantity<=0)continue;const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=quantity;}
  const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
@@ -9278,6 +9282,7 @@ body[data-page="store"] .top{padding-left:48px}
 <script id="launch-product-card-runtime-20261101">
 // Product manager cards reuse the inventory card geometry and controls.
 function launchCatalogRows(){
+ const referenceGroup=launchCurrent;queueMicrotask(()=>void launchLoadCatalogReferences(referenceGroup));
  return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchPauseButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">&#36;${esc(String(p.price??'').replace(/^\$/,''))}</span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button></div></div></article>`;}).join('')}</div>`;
 }
 function launchDraftRows(){return launchCatalogRows();}
@@ -9320,17 +9325,57 @@ function launchCatalogTouch(e,index){
 
 </script>
 <script id="launch-stock-preorder-runtime-20261102">
-function launchCatalogQuantityGroup(item,index,kind){
- const stock=kind==='stock',label=stock?'現貨':'預購',value=(stock?item.stockQuantity:item.preorderQuantity)??'';
- return `<span class="inventoryStockGroup" data-launch-quantity-group="${kind}"><button type="button" class="inventoryStockButton inventoryStockLabel" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${label}</button><button type="button" class="inventoryStockButton" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${esc(value===''?0:value)}</button></span>`;
+const launchCatalogReferenceCache=new Map();
+function launchCatalogReferenceKey(group){return JSON.stringify([group.id,group.status,group.name]);}
+function launchCatalogReferenceIdentity(p){
+ const code=String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
+ return code?'code:'+code:p.id?'id:'+p.id:'name:'+String(launchDisplayName(p)||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
 }
+function launchCatalogReferenceText(item){
+ const entry=launchCurrent&&launchCatalogReferenceCache.get(launchCatalogReferenceKey(launchCurrent));
+ if(!entry?.counts)return entry?.error?'—':'…';
+ const row=entry.counts.get(launchCatalogReferenceIdentity(item)),difference=row?row.ordered-row.needed:0;
+ return difference===0?'0':'('+(difference>0?'+':'')+difference+')';
+}
+function launchPaintCatalogReferences(group,entry){
+ if(!launchCurrent||launchCatalogReferenceKey(launchCurrent)!==launchCatalogReferenceKey(group))return;
+ if(entry.rows){
+  const products=launchCurrent.items||[],summary=launchBuildOrderSummary(launchCurrent,entry.rows,entry.headers);
+  const result=launchPurchaseReconciliation(launchCurrent,summary,products,entry.orders,true);
+  entry.counts=new Map(result.entries.map(row=>[row.key,row]));
+ }
+ document.querySelectorAll('[data-launch-preorder-reference]').forEach(node=>{
+  const item=launchCurrent.items[Number(node.dataset.launchPreorderReference)];if(!item||String(item.preorderQuantity??'')!=='')return;
+  node.textContent=launchCatalogReferenceText(item);
+  node.title=entry.error?'參考差額暫時無法讀取，重新整理可重試':'購買量減喊單量，僅供參考；點擊輸入預購數量';
+ });
+}
+async function launchLoadCatalogReferences(group){
+ const key=launchCatalogReferenceKey(group);let entry=launchCatalogReferenceCache.get(key);
+ if(entry?.pending){await entry.pending;launchPaintCatalogReferences(group,entry);return;}
+ if(entry&&!entry.error&&Date.now()-entry.loadedAt<30000){launchPaintCatalogReferences(group,entry);return;}
+ entry={loadedAt:0};launchCatalogReferenceCache.set(key,entry);
+ entry.pending=(async()=>{
+  try{
+   const [online,purchases]=await Promise.all([api('online',{compact:'0',fresh:'1'}),api('purchaseOrders')]);
+   const headers=online.headers||[];entry.headers=headers;entry.rows=online.format==='online-matrix-v1'?(online.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(online.rows||[]);entry.orders=purchases.orders||[];entry.loadedAt=Date.now();
+  }catch(error){entry.error=true;}finally{entry.pending=null;}
+ })();
+ await entry.pending;launchPaintCatalogReferences(group,entry);
+}
+function launchCatalogQuantityGroup(item,index,kind){
+ const stock=kind==='stock',label=stock?'現貨':'預購',value=(stock?item.stockQuantity:item.preorderQuantity)??'',reference=!stock&&String(value)==='';
+ const shown=reference?launchCatalogReferenceText(item):value===''?0:value;
+ return `<span class="inventoryStockGroup" style="gap:0" data-launch-quantity-group="${kind}"><button type="button" class="inventoryStockButton inventoryStockLabel" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${label}</button><button type="button" class="inventoryStockButton${reference?' launchPreorderReference':''}" ${reference?'data-launch-preorder-reference="'+index+'"':''} onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="${reference?'購買量減喊單量，僅供參考；點擊輸入預購數量':'點擊修改'+label+'數量'}">${esc(shown)}</button></span>`;
+}
+
 function launchCatalogQuantities(item,index){
  return `<div class="inventoryStockLine launchCatalogQuantities">${launchCatalogQuantityGroup(item,index,'stock')}<span aria-hidden="true">｜</span>${launchCatalogQuantityGroup(item,index,'preorder')}</div>`;
 }
 function launchBeginQuantityEdit(index,kind,button){
  const group=launchCurrent,item=group?.items[index];if(!item||!['stock','preorder'].includes(kind))return;
  const stock=kind==='stock',key=stock?'stockQuantity':'preorderQuantity',current=item[key]??'',input=document.createElement('input');
- input.className='inventoryStockInput';input.type='text';input.inputMode='numeric';input.value=String(current===''?0:current);input.setAttribute('aria-label','修改'+(stock?'現貨':'預購')+'數量');input.setAttribute('data-launch-'+kind,String(index));
+ input.className='inventoryStockInput';input.type='text';input.inputMode='numeric';input.value=String(current===''?(stock?0:''):current);input.placeholder='0';input.setAttribute('aria-label','修改'+(stock?'現貨':'預購')+'數量');input.setAttribute('data-launch-'+kind,String(index));
  button.closest('.inventoryStockGroup').replaceWith(input);input.focus();input.select();let finished=false;
  const restore=()=>{if(input.isConnected&&launchCurrent?.id===group.id&&launchCurrent.items[index]?.id===item.id)input.outerHTML=launchCatalogQuantityGroup(launchCurrent.items[index],index,kind);};
  const finish=async save=>{
@@ -9339,7 +9384,8 @@ function launchBeginQuantityEdit(index,kind,button){
   if(launchCurrent?.id!==group.id||launchCurrent.items[index]?.id!==item.id){restore();return;}
   input.value=toHalfWidthDigits(input.value).trim();
   if(input.value!==''&&(!/^\d+$/.test(input.value)||!Number.isSafeInteger(Number(input.value)))){alert((stock?'現貨':'預購')+'請輸入非負整數或留白');restore();return;}
-  if(Number(input.value)===Number(current)&&!(Number(input.value)>0&&item.stockOut)){restore();return;}
+  const unchanged=stock?Number(input.value)===Number(current):(input.value===''?String(current)==='':String(current)!==''&&Number(input.value)===Number(current));
+  if(unchanged&&!(Number(input.value)>0&&item.stockOut)){restore();return;}
   try{await (stock?launchSetProductQuantity:launchSetProductPreorderQuantity)(index,input);}finally{restore();}
  };
  input.addEventListener('blur',()=>finish(true));input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();input.blur();}else if(event.key==='Escape'){event.preventDefault();finish(false);}});
