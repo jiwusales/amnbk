@@ -4053,8 +4053,8 @@ function launchToggleProductStock(index,button){
  const next=!item.stockOut,previous=item.stockOut,previousQuantity=item.stockQuantity??'',previousMonitor=item.availabilityMonitor;
  const acknowledges=(next&&previousMonitor?.change==='out')||(!next&&previousMonitor?.change==='restocked');
  if(acknowledges){item.availabilityMonitor={...previousMonitor,acknowledged:true};launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}
- item.stockOut=next;item.stockQuantity='';button.disabled=true;button.classList.toggle('isShortage',next);button.textContent='缺貨';
- const input=(button.closest('.launchCatalogCard')||button.parentElement).querySelector('[data-launch-stock]');if(input)input.value='';
+ item.stockOut=next;button.disabled=true;button.classList.toggle('isShortage',next);button.textContent='缺貨';
+ const input=(button.closest('.launchCatalogCard')||button.parentElement).querySelector('[data-launch-stock]');if(input)input.value=previousQuantity;
  launchPost('launchSetInventoryAvailability',{out:next,groupId:group.id,groupStatus:group.status,itemId:item.id}).then(result=>{if(result.availabilityMonitor)item.availabilityMonitor=result.availabilityMonitor;if(result.availabilitySummary){group.availabilitySummary=result.availabilitySummary;const listed=launchGroups.find(entry=>entry.id===group.id);if(listed)listed.availabilitySummary=result.availabilitySummary;launchSaveListCache(group.status,launchGroups);}launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}).catch(error=>{item.availabilityMonitor=previousMonitor;launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));item.stockOut=previous;item.stockQuantity=previousQuantity;button.classList.toggle('isShortage',previous);button.textContent='缺貨';if(input)input.value=previousQuantity;alert(error.message);}).finally(()=>{button.disabled=false;});
 }
 function launchAllSave(){
