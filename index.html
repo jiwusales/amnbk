@@ -1539,6 +1539,7 @@ body[data-page="inventory"] .top{justify-content:flex-start;padding-left:42px;pa
 body[data-page="inventory"] .inventoryAvailabilityTime{display:block;margin-left:auto;text-align:right;font-size:12px;color:#737d8a;line-height:1.4;white-space:normal}
 body[data-page="inventory"] .top>span:not([id]){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 body[data-page="inventory"] .inventoryAvailabilityTime{flex:none;margin-left:8px}
+body[data-page="inventory"] .top .inventoryAvailabilityTime{white-space:nowrap;max-width:none}
 body[data-page="inventory"] .topActions{margin-left:12px}
 #inventoryGrabVisible.inventoryRefreshButton{width:auto;min-width:42px;padding:0 9px;font-size:14px;white-space:nowrap}
 @media(max-width:600px){body[data-page="inventory"] .top{gap:5px}body[data-page="inventory"] .top>span:not([id]){font-size:12px;min-width:0}body[data-page="inventory"] .inventoryAvailabilityTime{font-size:10px;max-width:115px}body[data-page="inventory"] .topActions{margin-left:0}#inventoryGrabVisible.inventoryRefreshButton{min-width:38px;padding:0 5px;font-size:12px}}
@@ -2491,7 +2492,7 @@ function launchListVisualSignature(groups){
 // Show persisted stock checks, independently of browser fetch/cache times.
 let inventoryAvailabilityCheckedAt=0;
 function availabilityTimestamp(value){const n=Number(value);const at=Number.isFinite(n)&&n>0?n:Date.parse(value);return Number.isFinite(at)&&at>0?at:0;}
-function availabilityTimeText(value){const at=availabilityTimestamp(value);if(!at)return '尚未更新';const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(at));return parts.replaceAll('-','/');}
+function availabilityTimeText(value){const at=availabilityTimestamp(value);if(!at)return '尚未更新';const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(at));return parts.replaceAll('-','/');}
 function inventoryPaintAvailabilityTime(){const el=document.getElementById('inventoryAvailabilityTime');if(el){el.textContent='貨況更新：'+availabilityTimeText(inventoryAvailabilityCheckedAt);el.title='最近一筆商品貨況檢查時間（台灣時間）';}}
 function launchAvailabilityUpdatedAt(){const groups=launchCurrent?[launchCurrent]:launchGroups;return groups.reduce((at,g)=>Math.max(at,availabilityTimestamp(g.availabilitySummary?.checkedAt),...(g.items||[]).map(item=>availabilityTimestamp(item.availabilityMonitor?.checkedAt))),0);}
 function launchAvailabilityFooter(){return `<footer class="launchAvailabilityTime" title="最近一筆商品貨況檢查時間（台灣時間）">貨況更新：${esc(availabilityTimeText(launchAvailabilityUpdatedAt()))}</footer>`;}
