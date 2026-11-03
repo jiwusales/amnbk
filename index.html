@@ -1600,7 +1600,7 @@ body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 <button id="onlineBackButton" class="btn light" type="button" onclick="backOnlineCustomer()" aria-label="返回上一頁" hidden>⬅︎</button>
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
 <span>JIWU吉物躺著賺後台</span>
-<span id="inventoryAvailabilityTime" class="inventoryAvailabilityTime" role="status">貨況更新：尚未更新</span>
+<span id="inventoryAvailabilityTime" class="inventoryAvailabilityTime" role="status">貨況更新：-</span>
 <div class="topActions">
 <div id="profitHeaderActions"><button type="button" class="btn light" onclick="profitToken?profitLoad():openProfitPage()">↻ 更新</button><button type="button" class="btn light" onclick="profitLock()">鎖定 ↗</button></div>
 <div class="shipMarketActions">
@@ -2551,8 +2551,8 @@ function launchListVisualSignature(groups){
 
 // Show persisted stock checks, independently of browser fetch/cache times.
 let inventoryAvailabilityCheckedAt=0;
-function availabilityTimestamp(value){const n=Number(value);const at=Number.isFinite(n)&&n>0?n:Date.parse(value);return Number.isFinite(at)&&at>0?at:0;}
-function availabilityTimeText(value){const at=availabilityTimestamp(value);if(!at)return '尚未更新';const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(at));return parts.replaceAll('-','/').slice(5);}
+function availabilityTimestamp(value){if(value==null||String(value).trim()==='')return 0;const n=Number(value);if(Number.isFinite(n))return n>0?n:0;const at=Date.parse(value);return Number.isFinite(at)&&at>0?at:0;}
+function availabilityTimeText(value){const at=availabilityTimestamp(value);if(!at)return '-';const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(at));return parts.replaceAll('-','/').slice(5);}
 function inventoryPaintAvailabilityTime(){const el=document.getElementById('inventoryAvailabilityTime');if(el){el.textContent='貨況更新：'+availabilityTimeText(inventoryAvailabilityCheckedAt);el.title='最近一筆商品貨況檢查時間（台灣時間）';}}
 function launchAvailabilityUpdatedAt(){const groups=launchCurrent?[launchCurrent]:launchGroups;return groups.reduce((at,g)=>Math.max(at,availabilityTimestamp(g.availabilitySummary?.checkedAt),...(g.items||[]).map(item=>availabilityTimestamp(item.availabilityMonitor?.checkedAt))),0);}
 function launchAvailabilityFooter(){return `<footer class="launchAvailabilityTime" title="最近一筆商品貨況檢查時間（台灣時間）">貨況更新：${esc(availabilityTimeText(launchAvailabilityUpdatedAt()))}</footer>`;}
