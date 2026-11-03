@@ -9386,7 +9386,7 @@ body[data-page="store"] .top{padding-left:48px}
 // Product manager cards reuse the inventory card geometry and controls.
 function launchCatalogRows(){
  const referenceGroup=launchCurrent;queueMicrotask(()=>void launchLoadCatalogReferences(referenceGroup));
- return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">&#36;${esc(String(p.price??'').replace(/^\$/,''))}</span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button>${launchPauseButton(p,i)}</div></div></article>`;}).join('')}</div>`;
+ return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${esc(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><button type="button" class="inventorySale inventorySaleButton" data-launch-catalog-price="${i}" aria-label="修改 ${esc(launchDisplayName(p))} 售價" onclick="launchEditCatalogPrice(${i},this)">&#36;${esc(String(p.price??'').replace(/^\$/,''))}</button></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button>${launchPauseButton(p,i)}</div></div></article>`;}).join('')}</div>`;
 }
 function launchDraftRows(){return launchCatalogRows();}
 function launchListRows(){return launchCatalogRows();}
@@ -9520,7 +9520,52 @@ body[data-page="ship"] .shipMarketActions>#shipMarketUpload{display:none}
 .shipDetailActions>.btn{box-sizing:border-box;width:26px;min-width:26px;height:20.4px;min-height:0;padding:0!important;font-size:11px;line-height:1.2;border-radius:5px;white-space:nowrap}
 </style><style>
 @media(max-width:850px){body[data-page="ship"] .shipItem{padding-right:15px}}
-</style></body>
+</style><style id="launch-card-controls-20261103">
+:is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogCard{min-height:150px;padding:5px!important;align-items:center!important}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryImageWrap{min-height:40px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryInfo{box-sizing:border-box;padding:0;min-width:0}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{display:flex;flex-wrap:wrap;justify-content:center;width:100%;min-width:0;gap:3px;margin-top:3px;box-sizing:border-box}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks :is(button,select){box-sizing:border-box;flex:0 1 auto;min-width:0;max-width:100%;width:auto!important;height:17px;margin:0;padding:1px 4px;border:1px solid #aaa;border-radius:999px;background:transparent;color:#777;font:8px/13px Arial;white-space:nowrap;cursor:pointer}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySaleButton{border:0;background:transparent;padding:0;color:#F2A000;font:700 11px/13px Arial;cursor:text;min-width:12px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogPriceInput{box-sizing:border-box;width:45px!important;min-width:0;max-width:100%;height:18px;margin:0!important;padding:0 2px;font:11px/16px Arial;text-align:center}
+</style>
+
+<script id="launch-catalog-price-edit-20261103">
+function launchEditCatalogPrice(index,button){
+ const group=launchCurrent,item=group?.items[index];if(!item||button.querySelector('input'))return;
+ const input=document.createElement('input');input.type='text';input.inputMode='decimal';input.className='launchCatalogPriceInput';input.value=String(item.price??'');input.setAttribute('aria-label','修改 '+launchDisplayName(item)+' 售價');
+ let finished=false;
+ const restore=()=>{if(!input.isConnected)return;button.textContent='
+</html>
+
+
+
+
+
+
+
++String(item.price??'');};
+ const finish=cancel=>{
+  if(finished)return;if(launchCurrent!==group||group.items[index]!==item){finished=true;restore();return;}
+  const raw=toHalfWidthDigits(input.value).trim(),number=raw===''?null:launchNumber(raw);
+  if(!cancel&&raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.focus();return;}
+  finished=true;const value=raw===''?'':String(Math.ceil(number));
+  if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}
+  restore();document.querySelectorAll('[data-launch-catalog-price]').forEach(node=>{const p=group.items[Number(node.dataset.launchCatalogPrice)];if(p&&!node.querySelector('input'))node.textContent='
+</html>
+
+
+
+
+
+
+
++String(p.price??'');});
+ };
+ input.addEventListener('click',event=>event.stopPropagation());input.addEventListener('input',()=>input.setCustomValidity(''));input.addEventListener('blur',()=>finish(false));input.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'&&!event.isComposing){event.preventDefault();finish(false);}else if(event.key==='Escape'){event.preventDefault();finish(true);}});
+ button.replaceChildren(input);input.focus();input.select();
+}
+</script></body>
 </html>
 
 
