@@ -2204,7 +2204,7 @@ function launchWorkMatchesFilters(entry){return (!launchWorkStatusFilter||entry.
 function launchSetWorkStatusFilter(status){launchWorkStatusFilter=launchWorkStatusFilter===status?'':status;launchRenderAux();}
 function launchSetWorkFilter(category){launchWorkFilter=category;launchRenderAux();}
 function launchFitWorkNames(){document.querySelectorAll('.launchWorkTile .launchPreviewName').forEach(name=>{let size=12;name.style.fontSize=size+'px';while(name.scrollWidth>name.clientWidth&&size>8){size-=.5;name.style.fontSize=size+'px';}});}
-function launchSuggestWorkCategory(name,categories){if(/吉伊|白熊/.test(String(name||'')))return '吉伊卡哇&白熊';const normalized=String(name||'').toLocaleLowerCase();return (categories||[]).filter(category=>normalized.includes(String(category).toLocaleLowerCase())).sort((a,b)=>String(b).length-String(a).length)[0]||'';}
+function launchSuggestWorkCategory(name,categories){if(/吉伊|白熊/.test(String(name||'')))return '吉伊&白熊';const normalized=String(name||'').toLocaleLowerCase();return (categories||[]).filter(category=>normalized.includes(String(category).toLocaleLowerCase())).sort((a,b)=>String(b).length-String(a).length)[0]||'';}
 function launchWorkPressStart(e,id){if(launchBusy||e.button!==0)return;const card=e.currentTarget,pointId=e.pointerId;let active=false,target=id;const move=ev=>{if(!active)return;const hit=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('[data-work-id]');if(hit)target=hit.dataset.workId;};const end=()=>{clearTimeout(timer);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);if(!active)return;launchPressConsumed=true;card.classList.remove('launchDragging');launchMoveWork(id,target);};const timer=setTimeout(()=>{active=true;launchPressConsumed=true;card.classList.add('launchDragging');try{card.setPointerCapture(pointId);}catch(_){}window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});},380);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});}
 function launchMoveWork(fromId,toId){if(fromId===toId)return;const all=(launchAuxData?.entries||[]).slice().sort(launchWorkNewestFirst),visible=all.filter(launchWorkMatchesFilters),from=visible.findIndex(entry=>String(entry.id)===String(fromId)),to=visible.findIndex(entry=>String(entry.id)===String(toId));if(from<0||to<0)return;const ids=new Set(visible.map(entry=>String(entry.id)));visible.splice(to,0,visible.splice(from,1)[0]);let next=0;all.map(entry=>ids.has(String(entry.id))?visible[next++]:entry).forEach((entry,index)=>entry.workOrder=index+1);launchWorkDirty=true;launchRenderAux();}
 function launchWorkPayload(){return JSON.stringify((launchAuxData?.entries||[]).slice().sort(launchWorkNewestFirst).map(entry=>({id:entry.id,status:entry.status,category:entry.category,arrival:entry.arrival,note:entry.note,imageScale:entry.imageScale,imageX:entry.imageX,imageY:entry.imageY})));}
@@ -3953,20 +3953,20 @@ function launchImportIntoCanvas(items,sourceName,groupInfo=null){
 }
 
 let launchImportTarget='launch';
-let launchImportSource=null,launchImportGroups=[],launchImportCategories=[],launchImportCategory='吉伊卡哇&白熊',launchImportSearch='',launchImportSearchTimer=null;
+let launchImportSource=null,launchImportGroups=[],launchImportCategories=[],launchImportCategory='吉伊&白熊',launchImportSearch='',launchImportSearchTimer=null;
 async function launchImportClosedProducts(target='launch'){
  launchImportTarget=target;
- launchImportSource=null;launchImportGroups=[];launchImportCategories=[];launchImportCategory='吉伊卡哇&白熊';launchImportSearch='';
+ launchImportSource=null;launchImportGroups=[];launchImportCategories=[];launchImportCategory='吉伊&白熊';launchImportSearch='';
  launchDialog('<h2>已結單商品</h2><p class="launchHelp">正在讀取已結單團…</p>');const importDialog=document.getElementById('launchDialog');
  try{
    const data=await api('launchList',{status:'已收單'}),groups=data.groups||[],dialog=document.getElementById('launchDialog');
    if(!dialog?.open||dialog!==importDialog)return;
    launchImportGroups=groups;
-   launchImportCategories=['吉伊卡哇&白熊',...new Set(groups.map(group=>String(group.ip||'').trim()).filter(Boolean).filter(category=>category!=='吉伊卡哇&白熊')),'全部'];
+   launchImportCategories=['吉伊&白熊',...new Set(groups.map(group=>String(group.ip||'').trim()).filter(Boolean).filter(category=>category!=='吉伊&白熊')),'全部'];
    launchRenderImportGroups();
  }catch(error){const dialog=document.getElementById('launchDialog');if(dialog)dialog.innerHTML=`<p>${esc(jiwuErrorText(error,'data'))}</p><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">關閉</button>`;}
 }
-function launchSetImportCategory(index){launchImportCategory=launchImportCategories[index]||'吉伊卡哇&白熊';launchRenderImportGroups();}
+function launchSetImportCategory(index){launchImportCategory=launchImportCategories[index]||'吉伊&白熊';launchRenderImportGroups();}
 function launchSetImportSearch(value){
  launchImportSearch=String(value||'').trim();
  clearTimeout(launchImportSearchTimer);
@@ -3979,7 +3979,7 @@ function launchImportSearchKeydown(event,value){
 }
 function launchRenderImportGroups(){
  const dialog=document.getElementById('launchDialog');if(!dialog)return;
- const category=launchImportCategory,keyword=launchImportSearch.toLocaleLowerCase(),groups=launchImportGroups.filter(group=>(category==='全部'||(category==='吉伊卡哇&白熊'?/吉伊卡哇|白熊/.test(String(group.ip||'')):String(group.ip||'').trim()===category))&&(!keyword||String(group.name||'').toLocaleLowerCase().includes(keyword)));
+ const category=launchImportCategory,keyword=launchImportSearch.toLocaleLowerCase(),groups=launchImportGroups.filter(group=>(category==='全部'||(category==='吉伊&白熊'?/吉伊卡哇|白熊/.test(String(group.ip||'')):String(group.ip||'').trim()===category))&&(!keyword||String(group.name||'').toLocaleLowerCase().includes(keyword)));
  dialog.innerHTML=`<h2>已結單商品</h2><div class="launchTabs" role="tablist">${launchImportCategories.map((name,index)=>`<button class="btn light" type="button" aria-selected="${name===category}" onclick="launchSetImportCategory(${index})">${esc(name)}</button>`).join('')}</div><label style="display:flex;align-items:center;gap:8px"><span style="white-space:nowrap">搜尋</span><input aria-label="搜尋團名" value="${esc(launchImportSearch)}" placeholder="輸入團名關鍵字" style="flex:1;min-width:0" oninput="launchSetImportSearch(this.value)" onkeydown="launchImportSearchKeydown(event,this.value)"></label><div class="launchTools" style="margin:12px 0 18px">${groups.map(group=>`<button class="btn light" type="button" onclick="launchChooseImportGroup('${esc(group.id)}')">${esc(group.name)}（${Number(group.itemCount)||0}）</button>`).join('')||'<p class="launchHelp">沒有符合的已結單團。</p>'}</div><div class="launchTools">${launchImportTarget==='launch'?'<button class="btn light" type="button" onclick="launchImportProducts()">選擇來源</button>':''}<button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button></div>`;
 }
 async function launchChooseImportGroup(id){
