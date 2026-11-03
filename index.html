@@ -5228,7 +5228,34 @@ function purchaseContentsMarkup(value='',draft=false,region=purchaseRegion){
  return `<div class="purchaseContentsFields" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds" style="grid-template-columns:repeat(${kinds.length},minmax(0,1fr))">${kinds.map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number min="0" step="1" data-content-kind="${kind}" aria-label="${kind}數量" value="${data.counts[kind]||''}"></label>`).join('')}</div><label class="purchaseContentsOtherRow"><span>其他</span><input class="purchaseContentsOther" aria-label="其他內容物" placeholder="輸入項目＋數字，例如：衣服1" value="${esc(data.other)}"></label></div>`;
 }
 
-function purchaseManualItemMarkup(china=document.querySelector('#appDialog form')?.dataset.china==='true'){return `<div class="purchaseManualItem ${china?'isChina':''}"><label><input class="purchaseManualName" aria-label="名稱" placeholder="名稱" required></label><label><input class="purchaseManualQuantity" placeholder="數量" aria-label="數量" type="text" inputmode="numeric" data-purchase-number value="1" oninput="purchaseManualTotal()" required></label>${china?'':`<label><input class="purchaseManualAmount" placeholder="金額" aria-label="金額" type="text" inputmode="decimal" data-purchase-number min="0" step="any" oninput="purchaseManualTotal()" required></label>`}<button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
+function purchaseManualSuggest(input,event){
+ const row=input.closest('.purchaseManualItem');if(!row)return;
+ if(event?.type==='compositionend'){setTimeout(()=>{if(input.isConnected&&document.activeElement===input)purchaseManualSuggest(input,{type:'compositioncommit'});},0);return;}
+ const query=input.value.trim();
+ if(event?.isComposing&&row.purchaseSuggestQuery===query)return;
+ row.purchaseSuggestQuery=query;row.purchaseCandidate=null;
+ clearTimeout(row.purchaseSuggestTimer);const ticket=row.purchaseSuggestTicket=(row.purchaseSuggestTicket||0)+1;
+ let box=row.querySelector('.purchaseManualSuggestions');
+ if(!box){box=document.createElement('div');box.className='manualOnlineProductSuggestions purchaseManualSuggestions';row.appendChild(box);}
+ box.replaceChildren();box.hidden=true;if(!query)return;
+ row.purchaseSuggestTimer=setTimeout(async()=>{
+  const current=()=>row.isConnected&&row.purchaseSuggestTicket===ticket&&document.activeElement===input&&input.value.trim()===query;
+  try{
+   const data=await api('manualOrderSuggestions',{mode:'product',query,group:''});if(!current())return;
+   for(const item of data.suggestions||[]){
+    const button=document.createElement('button');button.type='button';button.textContent=[item.label,item.group].filter(Boolean).join(' ｜ ');
+    button.addEventListener('pointerdown',event=>{if(event.button===0)event.preventDefault();});
+    button.onclick=()=>{if(!current())return;input.value=item.label;row.purchaseCandidate=item;row.purchaseSuggestTicket++;box.hidden=true;row.querySelector('.purchaseManualQuantity').focus();};box.appendChild(button);
+   }
+   if(!box.childElementCount)box.textContent='沒有符合的商品，可繼續手動輸入';box.hidden=false;
+  }catch(error){if(current()){box.textContent='商品建議暫時無法載入，可繼續手動輸入';box.hidden=false;}}
+ },220);
+}
+function purchaseManualSuggestBlur(input){
+ const row=input.closest('.purchaseManualItem');if(!row)return;clearTimeout(row.purchaseSuggestTimer);row.purchaseSuggestTicket=(row.purchaseSuggestTicket||0)+1;
+ const box=row.querySelector('.purchaseManualSuggestions');if(box)box.hidden=true;
+}
+function purchaseManualItemMarkup(china=document.querySelector('#appDialog form')?.dataset.china==='true'){return `<div class="purchaseManualItem ${china?'isChina':''}"><label><input class="purchaseManualName" aria-label="名稱" placeholder="名稱" autocomplete="off" oninput="purchaseManualSuggest(this,event)" onfocus="purchaseManualSuggest(this,event)" oncompositionend="purchaseManualSuggest(this,event)" onblur="purchaseManualSuggestBlur(this)" required></label><label><input class="purchaseManualQuantity" placeholder="數量" aria-label="數量" type="text" inputmode="numeric" data-purchase-number value="1" oninput="purchaseManualTotal()" required></label>${china?'':`<label><input class="purchaseManualAmount" placeholder="金額" aria-label="金額" type="text" inputmode="decimal" data-purchase-number min="0" step="any" oninput="purchaseManualTotal()" required></label>`}<button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
 function purchaseManualAdd(){document.getElementById('purchaseManualItems').insertAdjacentHTML('beforeend',purchaseManualItemMarkup());}
 function purchaseManualTotal(){const orderAmount=document.querySelector('#appDialog [name=orderAmount]');if(orderAmount){document.getElementById('purchaseManualTotal').textContent='總額 $'+money(Number(orderAmount.value)||0);return;}const sum=[...document.querySelectorAll('.purchaseManualAmount')].reduce((total,input)=>total+(Number(input.value)||0)*(Number(input.closest('.purchaseManualItem').querySelector('.purchaseManualQuantity').value)||0),0);document.getElementById('purchaseManualTotal').textContent='總額 $'+money(sum+(Number(document.querySelector('#appDialog [name=shipping]')?.value)||0));}
 async function purchaseManualDialog(){
@@ -5239,7 +5266,7 @@ async function purchaseManualDialog(){
 function purchaseManualSubmit(event){
  event.preventDefault();purchaseContentsSync(event.target.querySelector('.purchaseContentsFields'));const f=Object.fromEntries(new FormData(event.target)),number=purchaseNumericOrderNumber(f.number)||'MANUAL-'+crypto.randomUUID(),channel=f.channel.trim();
  const china=event.target.dataset.china==='true',orderAmount=china?Number(f.orderAmount):null,weight=String(f.weight??'').trim();if(weight!==''&&(!Number.isFinite(Number(weight))||Number(weight)<0)){document.getElementById('purchaseManualError').textContent='請輸入有效重量';return;}
- const items=[...event.target.querySelectorAll('.purchaseManualItem')].map((row,i)=>{const quantity=Number(row.querySelector('.purchaseManualQuantity').value.trim()),amount=china?0:Number(row.querySelector('.purchaseManualAmount').value);return {code:'',name:row.querySelector('.purchaseManualName').value.trim(),role:'',originalName:'',quantity,price:amount,total:china?(i===0?orderAmount:0):amount*quantity,source:'手動',group:'',candidates:[],choice:''};});
+ const items=[...event.target.querySelectorAll('.purchaseManualItem')].map((row,i)=>{const quantity=Number(row.querySelector('.purchaseManualQuantity').value.trim()),amount=china?0:Number(row.querySelector('.purchaseManualAmount').value);const name=row.querySelector('.purchaseManualName').value.trim(),candidate=row.purchaseCandidate?.label===name?row.purchaseCandidate:null;return {code:'',name:candidate?.name||name,role:candidate?.role||'',format:candidate?.format||'',originalName:'',quantity,price:amount,total:china?(i===0?orderAmount:0):amount*quantity,source:'手動',group:candidate?.group||'',candidates:[],choice:''};});
  if(china&&(!Number.isFinite(orderAmount)||orderAmount<0||String(f.orderAmount||'').trim()==='')){document.getElementById('purchaseManualError').textContent='請輸入有效總金額';return;}
 
  if(purchaseBusy||!number||!channel||!items.length||items.some(x=>!x.name||!Number.isFinite(x.price)||x.price<0||!Number.isInteger(x.quantity)||x.quantity<1)){document.getElementById('purchaseManualError').textContent='請確認輸入資料';return;}
