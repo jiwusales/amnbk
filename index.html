@@ -3663,6 +3663,7 @@ function launchCalendarEditConnection(){
 function launchCalendarSyncMessage(result,groupId){
  if(result.ok===false)throw Error(result.error||'同步失敗，稍後會自動重試');
  if(groupId&&result.selectedGroup?.hasDates===false)return '這團沒有開團日期或收單日期，不新增行程。';
+ if(groupId)return result.syncedGroupIds?.includes(groupId)?'這團已加入行事曆。':'這團已排入同步，稍後會自動完成。';
  return result.busy?'已排入同步，稍後會自動完成。':`已同步 ${result.synced||0} 個團。`;
 }
 async function launchConnectCalendar(event){
