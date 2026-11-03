@@ -2666,7 +2666,7 @@ function launchCanvasItemVisible(item,items=launchCurrent.items){
 }
 function launchRenderEditor(){
  if(!launchExportRendering)document.getElementById('launchOffscreenExport')?.remove();
- const g=launchCurrent;if(!g)return;if(launchSyncDrawImages(g.items))launchMark();launchSyncTopActions();
+ const g=launchCurrent;if(!g)return;launchSyncDrawImages(g.items);launchSyncTopActions();
  if(launchListMode()){launchRenderProductList();return;}
  if(!Array.isArray(g.panels)||!g.panels.length)g.panels=(g.images||[]).map(image=>({image,mainColor:g.mainColor}));if(!g.panels.length)g.panels=[{image:'',mainColor:g.mainColor||'#617AA6'}];
  launchPanelIndex=Math.max(0,Math.min(g.panels.length-1,launchPanelIndex));const activePanel=g.panels[launchPanelIndex],banner=activePanel.image||'',panelItems=g.items.map((p,i)=>({p,i})).filter(({p})=>launchCanvasContains(p,launchPanelIndex)&&(!launchDrawPair(p)||launchDrawType(p)!=='box'||!g.items.some(other=>launchCanvasContains(other,launchPanelIndex)&&launchDisplayName(other)===launchDisplayName(p)&&launchDrawType(other)==='single'))&&((g.status==='尚未上架'||Array.isArray(activePanel.productIds))||launchCanvasItemVisible(p,g.items))),isLatest=g.status==='最新開團',isDraft=g.status==='尚未上架',isClosed=g.status==='已收單';
@@ -3257,8 +3257,8 @@ async function launchLoadProductKinds(root){
   if(!root.isConnected||(root.tagName==='DIALOG'&&!root.open))return;
   root.querySelectorAll('select[name="kind"],select[data-launch-kind]').forEach(select=>{
    const item=select.hasAttribute('data-launch-kind')?launchCurrent?.items[Number(select.dataset.launchKind)]:null;
-   if(item&&(!item.kind||/單抽|抱盒/.test(launchVariantFormat(item)))){const kind=launchInferProductKind(item,launchProductKindCatalog);if(kind){item.kind=kind;launchMark();}}
-   const value=item?.kind||select.value;select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;
+   const inferred=item&&(!item.kind||/單抽|抱盒/.test(launchVariantFormat(item)))?launchInferProductKind(item,launchProductKindCatalog):'';
+   const value=inferred||item?.kind||select.value;select.innerHTML=launchKindOptions(value);select.dataset.kindValue=value;
   });
   launchSuggestFormKind(root.querySelector('form'));
  }catch(error){const hint=root.querySelector('[data-kind-status]');if(hint)hint.textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
