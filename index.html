@@ -9449,7 +9449,7 @@ function launchPaintCatalogReferences(group,entry){
  }
  document.querySelectorAll('[data-launch-preorder-reference]').forEach(node=>{
   const item=launchCurrent.items[Number(node.dataset.launchPreorderReference)];if(!item||(String(item.preorderQuantity??'')!==''&&Number(item.preorderQuantity)!==0))return;
-  node.textContent=launchCatalogReferenceText(item);
+  node.textContent=launchCatalogReferenceText(item);node.classList.toggle('isPositiveReference',/^\(\+/.test(node.textContent));
   node.title=entry.error?'參考差額暫時無法讀取，重新整理可重試':'購買量減喊單量，僅供參考；點擊輸入預購數量';
  });
 }
@@ -9469,7 +9469,7 @@ async function launchLoadCatalogReferences(group){
 function launchCatalogQuantityGroup(item,index,kind){
  const stock=kind==='stock',label=stock?'現貨':'預購',value=(stock?item.stockQuantity:item.preorderQuantity)??'',reference=!stock&&(String(value)===''||Number(value)===0);
  const shown=reference?launchCatalogReferenceText(item):value===''?0:value;
- return `<span class="inventoryStockGroup" style="gap:0" data-launch-quantity-group="${kind}"><button type="button" class="inventoryStockButton inventoryStockLabel" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${label}</button><button type="button" class="inventoryStockButton${reference?' launchPreorderReference':''}" ${reference?'data-launch-preorder-reference="'+index+'"':''} onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="${reference?'購買量減喊單量，僅供參考；點擊輸入預購數量':'點擊修改'+label+'數量'}">${esc(shown)}</button></span>`;
+ return `<span class="inventoryStockGroup" style="gap:0" data-launch-quantity-group="${kind}"><button type="button" class="inventoryStockButton inventoryStockLabel" onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="點擊修改${label}數量">${label}</button><button type="button" class="inventoryStockButton${reference?' launchPreorderReference'+(/^\(\+/.test(String(shown))?' isPositiveReference':''):''}" ${reference?'data-launch-preorder-reference="'+index+'"':''} onclick="launchBeginQuantityEdit(${index},'${kind}',this)" title="${reference?'購買量減喊單量，僅供參考；點擊輸入預購數量':'點擊修改'+label+'數量'}">${esc(shown)}</button></span>`;
 }
 
 function launchCatalogQuantities(item,index){
@@ -9588,8 +9588,18 @@ function launchDirectPriceKey(event,index,input){
   const escape=value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   if(count<=8||! /\s/.test(text))return '<span style="white-space:nowrap">'+escape(text).replace(/\s/g,'&nbsp;')+'</span>';
   return '<span style="white-space:normal;word-break:normal;overflow-wrap:normal">'+text.split(/\s+/).map(part=>'<span style="white-space:nowrap">'+escape(part)+'</span>').join(' ')+'</span>';
-}</script></body>
+}</script><style id="launch-card-bottom-20261103">
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:14px;justify-content:center;align-items:center;gap:4px 3px!important;margin-top:3px;min-height:14px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>:is(button,select){position:static;box-sizing:border-box;width:100%!important;max-width:100%;min-width:0;height:14px!important;padding:0 1px!important;margin:0;font-size:8px;line-height:12px!important;align-self:center;justify-self:center}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchListKind{grid-column:1;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.inventoryChannelButton:not(.launchStockToggle){grid-column:2;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchStockToggle{grid-column:3;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchPauseToggle{grid-column:2;grid-row:2;min-width:20px;width:20px!important;font-size:12px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities .launchPreorderReference{color:inherit;font-size:inherit;font-weight:700}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities .launchPreorderReference.isPositiveReference{color:#b5b5b5;font-size:.85em;font-weight:400}
+</style></body>
 </html>
+
 
 
 
