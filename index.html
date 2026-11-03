@@ -4209,7 +4209,7 @@ function launchFetchExportImage(url){
  return pending;
 }
 const launchExportImageCache=new Map();
-window.addEventListener('jiwu-images-updated',()=>{launchExportImageCache.clear();launchImageProxyRequests.clear();launchPNGPrepared=null;launchQueuePNG();});
+window.addEventListener('jiwu-images-updated',()=>{launchExportImageCache.clear();launchImageProxyRequests.clear();launchPNGBlobCache.clear();launchPNGPrepared=null;launchQueuePNG();});
 function launchLoadImage(url){
  url=window.jiwuImageURL?window.jiwuImageURL(url):url;
  if(launchExportImageCache.has(url))return launchExportImageCache.get(url);
@@ -4224,6 +4224,7 @@ function launchLoadImage(url){
  if(launchExportImageCache.size>96)launchExportImageCache.delete(launchExportImageCache.keys().next().value);
  return pending;
 }
+const launchPNGBlobCache=new Map();
 let launchPNGPrepared=null,launchPNGTimer;
 function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
  const title=launchGroupTitle(launchCanvasTitle(group,index)),dates=launchTitleDateDefaults(title);
@@ -4261,10 +4262,12 @@ function launchGetPNG(){
  if(!paper||!launchCurrent)return Promise.reject(new Error('找不到畫布'));
  const key=launchPNGKey(paper);
  if(launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===key)return launchPNGPrepared.promise;
+ const cached=launchPNGBlobCache.get(key);
+ if(cached){launchPNGPrepared={paper,key,blob:cached,promise:Promise.resolve(cached)};return launchPNGPrepared.promise;}
  const prepared={paper,key,promise:null};
  prepared.promise=launchBuildPNG().then(blob=>{
   if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
-  prepared.blob=blob;return blob;
+  prepared.blob=blob;launchPNGBlobCache.set(key,blob);if(launchPNGBlobCache.size>6)launchPNGBlobCache.delete(launchPNGBlobCache.keys().next().value);return blob;
  }).catch(error=>{if(launchPNGPrepared===prepared)launchPNGPrepared=null;throw error;});
  launchPNGPrepared=prepared;
  return prepared.promise;
@@ -4319,6 +4322,8 @@ async function launchBuildPNG(){
     const x=(box.left-base.left)*scale,y=(box.top-base.top)*scale+(box.height*scale-ascent-descent)/2+ascent;
     ctx.fillText(text,x,y);
    };
+   range.selectNodeContents(node);
+   if(range.getClientRects().length===1){paint(node.length);continue;}
    for(let index=0;index<node.length;index++){
     range.setStart(node,index);range.setEnd(node,index+1);
     const box=range.getBoundingClientRect();
@@ -9599,6 +9604,7 @@ function launchDirectPriceKey(event,index,input){
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities .launchPreorderReference.isPositiveReference{color:#b5b5b5;font-size:.85em;font-weight:400}
 </style></body>
 </html>
+
 
 
 
