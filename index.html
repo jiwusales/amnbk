@@ -684,7 +684,6 @@ flex-shrink:0;cursor:pointer;border:0;width:auto;min-width:18px;padding:0 3px!im
 /* 出貨 */
 .shipMarketActions{display:none}
 body[data-page="ship"] .shipMarketActions{display:flex;gap:6px}
-body[data-page="ship"] .top>span{max-width:calc(100% - 225px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .shipOrderCard{cursor:pointer}
 .shipOrderCard.shipMarketSelected{border-color:var(--main)}
 .shipMarketCheck{width:17px;height:17px;margin:0 3px 0 0;align-self:center;accent-color:var(--main);cursor:pointer;flex-shrink:0}
@@ -798,7 +797,6 @@ border-radius:6px
 body[data-page="store"] .topStoreToggle{display:block}
 body[data-page="online"] .topHomeButton,body[data-page="online"] .topFaceButton,body[data-page="online"] .topDetailsButton{display:inline-flex;align-items:center}
 .topDetailsButton{background:#8b8077!important;color:#fff!important}
-body[data-page="ship"] .topRefreshButton{display:block}
 .topActions .topRefreshButton{
 width:26px;
 min-width:26px;
@@ -1576,24 +1574,15 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 @media(max-width:850px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard:has(.launchPauseToggle){--launch-pause-gap:4px}}
 </style>
 <style>
-body[data-page="ship"] .top{justify-content:space-between;padding-right:12px;gap:8px}
-body[data-page="ship"] .top>span:not([id]){max-width:none;overflow:visible;white-space:nowrap;flex-shrink:0}
-body[data-page="ship"] .topActions{position:static;transform:none;flex-shrink:0}
 #shipCompletedButton[aria-pressed="true"]{background:var(--main);color:white}
 .shipDetailActions{display:inline-flex;gap:5px;flex-shrink:0;margin-left:auto}.shipMergeChoice{display:block;padding:12px;border:1px solid #e5dfda;border-radius:12px;margin:10px 0;cursor:pointer}.shipMergeChoice:has(input:checked){border-color:#a68c73;background:#faf6f1}.shipMergeChoiceHead{display:flex;align-items:center;gap:8px;font-weight:700}.shipMergeChoice p{margin:8px 0 0 24px;font-size:13px;color:#777;line-height:1.7}.shipMergeDialog h3{margin-top:0}.shipMergeDialog{max-width:480px}.shipMergeDialog>p{font-size:13px;color:#777}.shipHistoryHeading{display:flex;justify-content:space-between;align-items:center;margin:4px 0 14px;color:#555;gap:10px}
 .shipHistoryHeading span{font-size:12px;color:#888}
 @media(max-width:850px){
 body[data-page="ship"] #shipMarketUpload{display:none}
-body[data-page="ship"] .top{height:52px;flex-wrap:nowrap;padding-left:30px;padding-right:6px;gap:4px}
-body[data-page="ship"] .top>span:not([id]){font-size:clamp(10px,3.25vw,14px);width:auto;line-height:22px}
-body[data-page="ship"] .topActions{margin-left:auto;gap:3px}
-body[data-page="ship"] .shipMarketActions{gap:3px}
-body[data-page="ship"] .topActions .btn{padding:2px 5px;font-size:11px}
-body[data-page="ship"] .topActions .topRefreshButton{width:20px;min-width:20px}
-body[data-page="ship"] #hostConnectionStatus{top:50%;left:8px;font-size:18px}
 body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 }
-</style></head>
+</style><style id="group-item-statistics-style">.onlineGroupItemCount{border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.onlineGroupItemCount:focus-visible{outline:2px solid var(--main);outline-offset:3px;border-radius:2px}</style>
+</head>
 <body>
 <main id="loginScreen" class="loginScreen">
 <div class="loginCard">
@@ -2295,13 +2284,13 @@ function launchBuildOrderSummary(group,rows,headers){
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
   const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
-  if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[]});
-  const item=items.get(key);item.quantity++;
+  if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[],buyers:new Set()});
+  const item=items.get(key);item.quantity++;if(customer)item.buyers.add(customer);
   const code=String(value(row,['貨號','商品貨號','商品編號','SKU'])||'').trim(),id=String(value(row,['開團商品ID','商品ID','launchItemId'])||'').trim();
   if(code&&!item.codes.includes(code))item.codes.push(code);if(id&&!item.itemIds.includes(id))item.itemIds.push(id);
   if(!item.image)item.image=launchSummaryImageURLs(value(row,['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']))[0]||'';
  }
- return {people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()]};
+ return {people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()].map(({buyers,...item})=>({...item,people:buyers.size}))};
 }
 async function countLabelKey(group,name){
  const data=new TextEncoder().encode(JSON.stringify([group.trim(),name.trim()]));
@@ -2413,14 +2402,31 @@ function launchSummaryCardDragKey(event){
  if(next<0||next>=previous.length)return;const target=previous[next];grid.insertBefore(card,next>index?target.nextSibling:target);event.currentTarget.focus();void launchSaveSummaryOrder(grid,previous);
 }
 
+function launchSummaryMatchingProducts(item,products){
+ const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+ const ids=item.itemIds||[],codes=item.codes||[];
+ let matches=products.filter(product=>ids.includes(String(product.id||'')));
+ if(!matches.length&&codes.length)matches=products.filter(product=>codes.includes(String(product.code||'').trim()));
+ if(!matches.length)matches=products.filter(product=>launchSummaryProductNames(product).some(name=>normalize(name)===normalize(item.name)));
+ const named=matches.filter(product=>launchSummaryProductNames(product).some(name=>normalize(name)===normalize(item.name)));if(named.length)matches=named;
+ const priced=matches.filter(product=>numberValue(product.price)===item.price);if(priced.length)matches=priced;
+ return matches;
+}
+function launchSortSummaryItems(items,products){
+ const ranks=new Map(products.map((product,index)=>[product,index]));
+ const rank=item=>Math.min(Infinity,...launchSummaryMatchingProducts(item,products).map(product=>ranks.get(product)));
+ return items.map(item=>({item,rank:rank(item)})).sort((a,b)=>{
+  if(a.rank!==b.rank)return a.rank<b.rank?-1:1;
+  return a.item.name.localeCompare(b.item.name,'zh-Hant',{numeric:true})||a.item.price-b.item.price;
+ }).map(entry=>entry.item);
+}
 function launchOrderSummaryCards(items,products=[],groupName=''){
- const order=launchSummaryOrders.get(groupName)||[],rank=key=>{const index=order.indexOf(key);return index<0?Infinity:index;};
- items=[...items].sort((a,b)=>rank(launchSummaryItemKey(a))-rank(launchSummaryItemKey(b)));
- return '<p class="launchSummarySortHint">拖移卡片右上角 ≡ 調整順序，自動儲存。</p><div class="purchaseProductGrid launchOrderSummaryGrid" data-group="'+esc(groupName)+'">'+items.map(item=>{
+ items=launchSortSummaryItems(items,products);
+ return '<p class="launchSummarySortHint">依開團商品順序排列；未對應品項列於最後。</p><div class="purchaseProductGrid launchOrderSummaryGrid" data-group="'+esc(groupName)+'">'+items.map(item=>{
   const sources=launchResolveOrderSummaryImages(item,products),image=sources[0]||'';
   const sourceURL=url=>window.jiwuImageURL?window.jiwuImageURL(url):url;
-  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}"><button type="button" class="launchSummaryDragHandle" aria-label="拖移 ${esc(item.name)} 排序" title="拖移排序，也可用方向鍵" disabled onpointerdown="launchSummaryCardDrag(event)" onkeydown="launchSummaryCardDragKey(event)">≡</button>${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
- }).join('')+'</div>'+(items.length?'':'<p>目前沒有訂購商品。</p>');
+  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
+ }).join('')+'</div>';
 }
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
  const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=p=>String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
@@ -2469,35 +2475,42 @@ async function launchLoadPurchaseReconciliation(dialog,group,summary){
  }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchPurchaseCount').forEach(label=>{label.textContent='核對讀取失敗';label.title=error.message;});}
 }
 
-async function launchShowOrderSummary(group){
+async function onlineShowGroupSummary(name){
+ if(!String(name||'').trim())return;
+ return launchShowOrderSummary({name:String(name).trim()},{fromOnline:true});
+}
+async function launchSummaryCatalogGroup(group,fromOnline=false){
+ if(fromOnline){
+  const statuses=['最新開團','已收單','尚未上架'];
+  const lists=await Promise.all(statuses.map(async status=>({status,...await api('launchList',{status})})));
+  const matches=lists.flatMap(list=>(list.groups||[]).filter(item=>launchOrderSummaryGroupKey(item.name)===launchOrderSummaryGroupKey(group.name)).map(item=>({...item,status:list.status})));
+  group=matches.find(item=>item.name===group.name)||matches[0]||group;
+ }
+ if(group.id){
+  const result=await api('launchGet',{id:group.id,status:group.status||launchStatus});
+  if(!result.group)throw Error('找不到原開團商品資料，請重新開啟統計');
+  return {...group,...result.group};
+ }
+ return group;
+}
+async function launchShowOrderSummary(group,{fromOnline=false}={}){
  if(!group)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="開團訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
  const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
  try{
-  const data=await api('online',{compact:'0',fresh:'1'});if(!dialog.isConnected)return;
+  const [data,catalog]=await Promise.all([api('online',{compact:'0',fresh:'1'}),launchSummaryCatalogGroup(group,fromOnline)]);if(!dialog.isConnected)return;
   const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
   const summary=launchBuildOrderSummary(group,rows,headers);
   meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
-  let orderLoaded=false;try{await launchReadSummaryOrder(group.name);orderLoaded=true;}catch{}
-  if(!dialog.isConnected)return;
   const content=dialog.querySelector('.groupCardItems');
-  content.innerHTML=launchOrderSummaryCards(summary.items,group.items||[],group.name);
-  const labelRead=countLabelRead(group.name,summary.items.map(item=>item.name),api).then(result=>{
-   if(!dialog.isConnected)return;
-   dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';
-   launchCountLabels.set(group.name,result.labels||{});
+  content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name):'<p class="empty">尚無購買紀錄</p>';
+  if(summary.items.length&&!(catalog.items||[]).length)content.querySelector('.launchSummarySortHint').textContent='找不到原開團商品資料，暫依品名排列。';
+  try{
+   const result=await countLabelRead(group.name,summary.items.map(item=>item.name),api);if(!dialog.isConnected)return;
+   dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';launchCountLabels.set(group.name,result.labels||{});
    content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
-  }).catch(()=>{if(dialog.isConnected){content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});}});
-  if(summary.items.length&&group.id){
-   try{
-    const detail=await api('launchGet',{id:group.id,status:group.status||launchStatus});
-    if(dialog.isConnected)content.innerHTML=launchOrderSummaryCards(summary.items,detail.group?.items||group.items||[],group.name);
-   }catch{} // Keep quantities visible if product images cannot be loaded.
-  }
-  await labelRead;
-  if(dialog.isConnected)void launchLoadPurchaseReconciliation(dialog,group,summary);
-  if(dialog.isConnected){content.querySelectorAll('.launchSummaryDragHandle').forEach(button=>button.disabled=!orderLoaded);if(!orderLoaded)content.querySelector('.launchSummarySortHint').textContent='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';}
-  if(dialog.isConnected&&dialog.querySelector('.launchOrderSummary').dataset.labelsReady!=='true')content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)';});
+  }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
+  if(dialog.isConnected&&!fromOnline)void launchLoadPurchaseReconciliation(dialog,catalog,summary);
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
 function launchAvailabilityChangeClass(item){
@@ -7747,8 +7760,9 @@ if(singleCustomerView){
 let totalAmount=0;
 rows.forEach(row=>{if(isRestockRow(row))return;totalAmount+=numberValue(getOnlineData(row,['售價','價格']))+numberValue(getOnlineData(row,['運費']));});
 const searchCounts=onlineSearchCounts(rows,orders);
+const groupItemStats=isGroupView?launchBuildOrderSummary({name:summary},rows,onlineHeaders):null;
 const summaryStats=isGroupView
-?`${customerNames.size}人｜${rows.length}件｜共計 $${money(totalAmount)}`
+?`${groupItemStats.people}人｜<button type="button" class="onlineGroupItemCount" data-group="${esc(summary)}" aria-label="查看 ${esc(summary)} 各品項購買統計" title="各品項購買統計" onclick="onlineShowGroupSummary(this.dataset.group)">${groupItemStats.total}件</button>｜共計 $${money(totalAmount)}`
 :`${searchCounts.orderCount} 筆訂單(${searchCounts.itemCount})｜總金額 $${money(totalAmount)}`;
 let html=isFaceToFaceView?'':`
 <div class="card">
@@ -9498,12 +9512,8 @@ async function launchSetProductPreorderQuantity(index,input){
 </script>
 <style>
 @media(max-width:850px){
-body[data-page="ship"] .top{justify-content:flex-start;gap:8px;padding-left:32px;padding-right:8px}
-body[data-page="ship"] .top>span:not([id]){font-size:clamp(11px,3.575vw,15.4px);line-height:24.2px}
-body[data-page="ship"] #hostConnectionStatus{font-size:19.8px}
-body[data-page="ship"] .topActions{margin-left:0;flex:1;min-width:0}
-body[data-page="ship"] .shipMarketActions{flex:1;gap:4.4px;min-width:0;justify-content:flex-end}
-body[data-page="ship"] .shipMarketActions>.btn{flex:0 0 auto;min-width:0;height:auto;min-height:0;padding:3.3px;font-size:clamp(11px,3.575vw,15.4px);line-height:1;white-space:nowrap;border-radius:3.3px}
+body[data-page="ship"] .top>span:not([id]){max-width:calc(100% - 190px)}
+body[data-page="ship"] .shipMarketActions>.btn{font-size:12px;height:26px;min-height:24px;line-height:20px;padding:2px 8px}
 body[data-page="ship"] .shipMarketActions>#shipMarketUpload{display:none}
 }
 </style><style>
