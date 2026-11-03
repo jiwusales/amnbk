@@ -9566,8 +9566,8 @@ function launchEditCatalogPrice(index,button){
  button.replaceChildren(input);input.focus();input.select();
 }
 </script><style id="launch-direct-price-20261103">
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice{display:inline-block;box-sizing:border-box;width:42px!important;max-width:48px;min-width:0;height:19px;margin:0!important;padding:1px 2px;border:1px solid #efd6a3;border-radius:4px;background:#fffaf0;color:#e99500;font:700 11px/15px Arial;text-align:center;cursor:text}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice:focus{outline:2px solid #d4ad70;outline-offset:1px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice{display:inline-block;box-sizing:border-box;width:42px!important;max-width:48px;min-width:0;height:19px;margin:0!important;padding:1px 2px;border:1px solid transparent;border-radius:0;background:transparent;box-shadow:none;appearance:none;color:#e99500;font:700 11px/15px Arial;text-align:center;cursor:text}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice:focus{outline:none;border-color:transparent;background:transparent;box-shadow:none}
 </style><script id="launch-direct-price-runtime-20261103">
 function launchCommitDirectPrice(index,input){
  const item=launchCurrent?.items[index];if(!item)return false;
