@@ -4779,10 +4779,15 @@ async function purchaseSubmitJapanFreight(event){
  if(button.disabled)return;button.disabled=true;
  try{await api('purchaseBatch',{mode:'japanShipping',packedDate:form.elements.packedDate.value,shipping:raw,expectedFreight:form.purchaseExpectedFreight});closeDialog();await purchaseLoad();purchaseEditToast('打包運費已儲存');}catch(e){error.textContent=e.message;}finally{if(button.isConnected)button.disabled=false;}
 }
+function purchaseJapanKindChecked(members,kind){const orders=members.filter(o=>purchaseContentCounts(o.contents)[kind]>0);return orders.length>0&&orders.every(o=>o.checkedKinds?.[kind]?.count===purchaseContentCounts(o.contents)[kind]&&o.checkedKinds[kind].signature===purchaseCheckSignature(o));}
+function purchaseCheckJapanBatchKind(button){
+ const date=button.dataset.packingDate,kind=button.dataset.kind,members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status)&&purchaseContentCounts(o.contents)[kind]>0);if(!members.length)return;
+ purchaseQueueCheck({type:'kind',kind,checked:!purchaseJapanKindChecked(members,kind),orders:members.map(o=>({number:o.number,signature:purchaseCheckSignature(o)}))});
+}
 function purchaseJapanBatchContents(members){
  const totals=new Map();members.forEach(order=>Object.entries(purchaseContentCounts(order.contents)).forEach(([kind,count])=>totals.set(kind,(totals.get(kind)||0)+count)));
  if(!totals.size)return '';
- return `<div class="purchaseCheckKinds purchaseBatchContentTotals" aria-label="此批內容物統計" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${[...totals].map(([kind,count])=>`<span class="btn light">${esc(kind)} × ${count}</span>`).join('')}</div>`;
+ return `<div class="purchaseCheckKinds purchaseBatchContentTotals" aria-label="此批內容物統計" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${[...totals].map(([kind,count])=>{const checked=purchaseJapanKindChecked(members,kind);return `<button type="button" class="btn light ${checked?'isChecked':''}" aria-pressed="${checked}" data-packing-date="${esc(purchasePackingDate(members[0]))}" data-kind="${esc(kind)}" onclick="purchaseCheckJapanBatchKind(this)">${esc(kind)} × ${count}</button>`;}).join('')}</div>`;
 }
 function purchaseJapanPackingSummary(date,visible){
  const orders=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status));
@@ -4818,7 +4823,7 @@ function purchaseApplyCheck(job){
  if(job.type==='items')target.indexes.forEach(index=>{if(order.items[index])order.items[index].checkedAt=job.checked?job.at:0;});
  else{order.checkedKinds={...(order.checkedKinds||{})};if(purchaseContentCounts(order.contents)[job.kind]){if(job.checked)order.checkedKinds[job.kind]={count:purchaseContentCounts(order.contents)[job.kind],signature:target.signature};else delete order.checkedKinds[job.kind];}}
  });
- if(job.type==='kind'){const orders=job.orders.map(x=>purchaseOrders.find(o=>o.number===x.number)).filter(Boolean);const complete=orders.length>0&&orders.every(purchaseKindsComplete);orders.forEach(o=>o.items.forEach(item=>item.checkedAt=complete?job.at:0));}
+ if(job.type==='kind'){const orders=job.orders.map(x=>purchaseOrders.find(o=>o.number===x.number)).filter(Boolean);const complete=orders.length>0&&orders.every(purchaseKindsComplete);orders.filter(o=>purchaseOrderRegion(o)!=='').forEach(o=>o.items.forEach(item=>item.checkedAt=complete?job.at:0));}
 }
 function purchaseRefreshChecks(){if(document.body.dataset.page!=='purchase')return;const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;}
 function purchaseQueueCheck(job){job.id='check-'+launchId();job.at=Date.now();purchaseCheckJobs.push(job);purchaseApplyCheck(job);purchaseKeepChecks();launchMoveProgress(job.id,'點貨確認','排隊中','','儲存點貨');purchaseRefreshChecks();void purchaseDrainChecks();}
@@ -5064,7 +5069,7 @@ function purchaseFilterRecords(status){purchaseRecordStatus=purchaseRecordStatus
 function purchaseRecordsTitle(){return purchaseView==='packed'||purchaseView==='arrived'?`訂單記錄 (${purchaseVisibleOrders().length})`:'訂單記錄';}
 function purchaseDailyView(){
  const allDays=purchaseDailyTotals(purchaseFilteredOrders());if(!allDays.length)return (purchaseView==='packed'||purchaseView==='arrived'?'<h3>訂單記錄 (0)</h3>':`<h3 class="purchaseRecordsHeading">訂單記錄 ${purchaseRecordFilters()}</h3>`)+(purchaseRegion==='cn'&&purchaseView==='manage'?'<div class="purchaseDateTabs"><button type="button" class="btn" aria-label="手動登記訂單" onclick="purchaseManualDialog()">＋</button></div>':'')+'<p>尚無訂購紀錄</p>';
- if(purchaseNoMonths())return `${purchaseContentSummary()}<h3>${purchaseRecordsTitle()}</h3>${purchasePackingGroups()}${purchaseProductCards(purchaseVisibleProducts())}`;
+ if(purchaseNoMonths())return `${purchaseContentSummary()}<h3>${purchaseRecordsTitle()}</h3>${purchasePackingGroups()}${purchaseJapanChecking()?'':purchaseProductCards(purchaseVisibleProducts())}`;
  const months=[...new Set(allDays.map(d=>purchaseMonthKey(d.date)))];
  if(!months.includes(purchaseSelectedMonth))purchaseSelectedMonth=months.includes(purchaseMonthKey(purchaseSelectedDate))?purchaseMonthKey(purchaseSelectedDate):months[months.length-1];
  const days=allDays.filter(d=>purchaseMonthKey(d.date)===purchaseSelectedMonth);
