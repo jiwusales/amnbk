@@ -1283,6 +1283,8 @@ body[data-page="online"] .topStarButton{display:inline-flex}
  .purchaseCheckKinds{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important;width:100%;box-sizing:border-box;align-items:stretch}
  .purchaseCheckKinds>.btn{display:flex;align-items:center;justify-content:center;min-width:0;width:100%;height:100%;box-sizing:border-box;text-align:center;white-space:normal;overflow-wrap:anywhere;font-size:12px;padding:8px 4px}
 }
+
+.purchasePackingDateGroup.purchaseBatchCard.isChecked{filter:grayscale(1);opacity:.48}
 </style>
 <style>
 .purchaseManualTop,.purchaseManualItem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;margin-bottom:12px}
@@ -4784,6 +4786,7 @@ function purchaseCheckJapanBatchKind(button){
  const date=button.dataset.packingDate,kind=button.dataset.kind,members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status)&&purchaseContentCounts(o.contents)[kind]>0);if(!members.length)return;
  purchaseQueueCheck({type:'kind',kind,checked:!purchaseJapanKindChecked(members,kind),orders:members.map(o=>({number:o.number,signature:purchaseCheckSignature(o)}))});
 }
+function purchaseJapanBatchComplete(members){const kinds=new Set(members.flatMap(o=>Object.keys(purchaseContentCounts(o.contents))));return kinds.size>0&&[...kinds].every(kind=>purchaseJapanKindChecked(members,kind));}
 function purchaseJapanBatchContents(members){
  const totals=new Map();members.forEach(order=>Object.entries(purchaseContentCounts(order.contents)).forEach(([kind,count])=>totals.set(kind,(totals.get(kind)||0)+count)));
  if(!totals.size)return '';
@@ -4802,8 +4805,8 @@ function purchasePackingGroups(){
  return [...groups].sort(([a],[b])=>a&&b?b.localeCompare(a):a?-1:b?1:0).map(([date,orders])=>{
   const label=date?esc(purchaseDateLabel(date))+' 打包':'未填打包日期';
   if(!purchaseJapanChecking())return `<section class="purchasePackingDateGroup"><h3>${label}</h3>${purchaseOrderCards(orders)}</section>`;
-  const expanded=purchaseExpandedPackingDates.has(date);
-  return `<section class="purchasePackingDateGroup purchaseBatchCard"><header class="purchaseBatchHeading"><button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
+  const expanded=purchaseExpandedPackingDates.has(date);const members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status));const done=purchaseJapanBatchComplete(members.length?members:orders);
+  return `<section class="purchasePackingDateGroup purchaseBatchCard ${done?'isChecked':''}"><header class="purchaseBatchHeading"><button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
  }).join('');
 }
 
@@ -4975,7 +4978,7 @@ function parsePurchaseText(text){
  if(!items.length)throw new Error('沒有辨識到商品，請貼上包含商品コード、金額、数量與合計金額的訂單');
  return {number,date,items};
 }
-function purchaseTable(items,editable=false){return `<div style="overflow:auto"><table class="launchAuxTable"><thead><tr><th>貨號</th><th>對應名稱</th><th>原商品名</th><th>數量</th><th>日幣單價</th><th>日幣小計</th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${esc(x.code)}</td><td>${editable?(x.candidates.length?`<select aria-label="選擇對應名稱" onchange="purchaseChoose(${i},this.value)"><option value="">請！選！擇！👐🏻！</option>${x.candidates.map((c,j)=>`<option value="${j}" ${x.choice===String(j)?'selected':''}>${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('')}</select>`:`<input aria-label="輸入名稱" placeholder="輸入名稱" value="${esc(x.name||'')}" oninput="purchaseDraft.items[${i}].name=this.value">`):esc(purchaseProductName(x))}</td><td>${esc(x.originalName)}</td><td>${x.quantity}</td><td>¥${x.price.toLocaleString()}</td><td>¥${x.total.toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`;}
+function purchaseTable(items,editable=false){return `<div style="overflow:auto"><table class="launchAuxTable"><thead><tr><th>貨號</th><th>對應名稱</th><th>原商品名</th><th>數量</th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${esc(x.code)}</td><td>${editable?(x.candidates.length?`<select aria-label="選擇對應名稱" onchange="purchaseChoose(${i},this.value)"><option value="">請！選！擇！👐🏻！</option>${x.candidates.map((c,j)=>`<option value="${j}" ${x.choice===String(j)?'selected':''}>${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('')}</select>`:`<input aria-label="輸入名稱" placeholder="輸入名稱" value="${esc(x.name||'')}" oninput="purchaseDraft.items[${i}].name=this.value">`):esc(purchaseProductName(x))}</td><td>${esc(x.originalName)}</td><td>${x.quantity}</td></tr>`).join('')}</tbody></table></div>`;}
 function purchaseChoose(i,value){const x=purchaseDraft.items[i];x.choice=value;const c=value===''?{}:x.candidates[Number(value)];Object.assign(x,{name:'',source:'',group:'',role:'',url:'',image:''},c);}
 function purchaseSharedNameUpdates(orders,blocked=new Set()){
  const norm=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').trim();
@@ -5257,8 +5260,7 @@ try{const saved=JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_p
 
 function purchaseApplyEditedAmount(order,fields){
  if(fields.orderAmount===undefined)return;
- const cents=order.items.map(item=>Math.max(0,Math.round((Number(item.total)||0)*100))),total=cents.reduce((a,b)=>a+b,0),amount=Math.round(Number(fields.orderAmount)*100);let remaining=amount;
- order.items.forEach((item,i)=>{const value=i===cents.length-1?remaining:total>0?Math.min(remaining,Math.round(amount*cents[i]/total)):i===0?remaining:0;remaining-=value;item.total=value/100;});
+ order.items.forEach((item,i)=>{item.total=i===0?Number(fields.orderAmount):0;});
 }
 function purchaseOverlayPending(){purchaseOrders.forEach(o=>{const pending=purchaseEditQueue.get(o.number);if(pending){purchaseApplyEditedAmount(o,pending.fields);Object.assign(o,pending.fields);}});}
 function purchaseQueueEdit(order,changed,defer=false){
@@ -5495,7 +5497,7 @@ function purchaseSave(){
   renderPurchase();document.getElementById('purchaseOrderURL')?.focus();purchaseDrainRegistrations();
  }catch(e){purchaseMessage=jiwuErrorText(e,'data');renderPurchase();}
 }
-async function purchaseCopy(index){const o=Number.isInteger(index)?purchaseOrders[index]:purchaseDraft;if(!o)return;try{await navigator.clipboard.writeText([`訂單編號：${purchaseOrderRegion(o)==='cn'?(purchaseOriginalNumbers(o)||'未填寫'):o.number}`,`日期：${purchaseDateLabel(o.date)}`,'貨號\t名稱\t數量\t日幣單價\t日幣小計',...o.items.map(x=>[x.code,purchaseProductName(x),x.quantity,x.price,x.total].join('\t'))].join('\n'));purchaseMessage='已複製';}catch(e){purchaseMessage='無法複製：'+e.message;}renderPurchase();}
+async function purchaseCopy(index){const o=Number.isInteger(index)?purchaseOrders[index]:purchaseDraft;if(!o)return;try{await navigator.clipboard.writeText([`訂單編號：${purchaseOrderRegion(o)==='cn'?(purchaseOriginalNumbers(o)||'未填寫'):o.number}`,`日期：${purchaseDateLabel(o.date)}`,'貨號\t名稱\t數量',...o.items.map(x=>[x.code,purchaseProductName(x),x.quantity].join('\t'))].join('\n'));purchaseMessage='已複製';}catch(e){purchaseMessage='無法複製：'+e.message;}renderPurchase();}
 const storeDesktopMedia=window.matchMedia('(min-width:851px)');
 function isDesktopStore(){return storeDesktopMedia.matches;}
 let storeView='checkout';
