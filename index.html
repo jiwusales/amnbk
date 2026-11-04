@@ -4754,9 +4754,20 @@ function purchasePackingDate(order){
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(at),part=type=>parts.find(x=>x.type===type).value;
  return part('year')+'-'+part('month')+'-'+part('day');
 }
+const purchaseExpandedPackingDates=new Set();
+function purchaseJapanChecking(){return purchaseView==='arrived'&&purchaseRegion==='';}
+function purchaseTogglePackingDate(button){
+ const date=button.dataset.packingDate;if(purchaseExpandedPackingDates.has(date))purchaseExpandedPackingDates.delete(date);else purchaseExpandedPackingDates.add(date);
+ renderPurchase();purchaseLoadImages();
+}
 function purchasePackingGroups(){
  const groups=new Map();for(const order of purchaseVisibleOrders()){const date=purchasePackingDate(order);if(!groups.has(date))groups.set(date,[]);groups.get(date).push(order);}
- return [...groups].sort(([a],[b])=>a&&b?b.localeCompare(a):a?-1:b?1:0).map(([date,orders])=>`<section class="purchasePackingDateGroup"><h3>${date?esc(purchaseDateLabel(date))+' 打包':'未填打包日期'}</h3>${purchaseOrderCards(orders)}</section>`).join('');
+ return [...groups].sort(([a],[b])=>a&&b?b.localeCompare(a):a?-1:b?1:0).map(([date,orders])=>{
+  const label=date?esc(purchaseDateLabel(date))+' 打包':'未填打包日期';
+  if(!purchaseJapanChecking())return `<section class="purchasePackingDateGroup"><h3>${label}</h3>${purchaseOrderCards(orders)}</section>`;
+  const expanded=purchaseExpandedPackingDates.has(date);
+  return `<section class="purchasePackingDateGroup purchaseBatchCard"><header class="purchaseBatchHeading"><button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button><span style="margin-left:16px">${orders.length}筆訂單</span></header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
+ }).join('');
 }
 
 function purchaseProductChecked(product){return product.refs.length>0&&product.refs.every(ref=>Number(purchaseOrders.find(o=>o.number===ref.number)?.items[ref.index]?.checkedAt)>0);}
@@ -5005,7 +5016,7 @@ function purchaseDailyTotals(orders,mergeMonth=false){
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
 function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseNoMonths()||(purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate))).filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.items.length&&o.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000)&&!purchaseCheckJobs.some(job=>job.orders.some(x=>x.number===o.number)))).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
-function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.packId)).map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseNoMonths()&&!purchaseSelectedDate&&!purchaseSearch.trim())[0]?.items||[];}
+function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.packId)).filter(o=>!purchaseJapanChecking()||purchaseExpandedPackingDates.has(purchasePackingDate(o))).map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseNoMonths()&&!purchaseSelectedDate&&!purchaseSearch.trim())[0]?.items||[];}
 function purchaseMonthCompletionTargets(){return purchaseOrders.filter(order=>purchaseOrderRegion(order)===purchaseRegion&&purchaseMonthKey(order.date)===purchaseSelectedMonth&&!['已完成','砍單'].includes(order.status));}
 function purchaseCompleteMonth(){
  if(!purchaseSelectedMonth)return;
