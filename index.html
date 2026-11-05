@@ -2640,7 +2640,7 @@ function launchEditCanvasPrice(price){
  const group=launchCurrent,index=Number(price.dataset.launchPriceIndex??price.closest('.launchProduct')?.dataset.launchIndex),item=group?.items[index];if(!item||price.querySelector('input'))return;
  const input=document.createElement('input');input.className='launchCanvasPriceInput';input.type='text';input.inputMode='decimal';input.setAttribute('aria-label','修改 '+launchDisplayName(item)+(price.dataset.launchPriceLabel?' '+price.dataset.launchPriceLabel:'')+' 售價');input.value=String(item.price??'');
  let finished=false;
- const finish=cancel=>{if(finished)return;if(launchCurrent!==group){finished=true;return;}const raw=input.value.trim(),number=raw===''?null:launchNumber(raw);if(!cancel&&raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.focus();return;}finished=true;const value=raw===''?'':String(Math.ceil(number));if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}launchRenderEditor();};
+ const finish=cancel=>{if(finished)return;if(launchCurrent!==group){finished=true;return;}const raw=input.value.trim(),number=raw===''?null:launchNumber(raw);if(!cancel&&raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.focus();return;}finished=true;const value=raw===''?'':String(Math.ceil(number));if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();launchSaveProductCard();}launchRenderEditor();};
  input.addEventListener('click',event=>event.stopPropagation());input.addEventListener('input',()=>input.setCustomValidity(''));input.addEventListener('blur',()=>finish(false));input.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'&&!event.isComposing){event.preventDefault();finish(false);}else if(event.key==='Escape'){event.preventDefault();finish(true);}});
  price.replaceChildren(input);input.focus();input.select();
 }
@@ -2846,7 +2846,7 @@ function launchPaintPriceHistory(){
   }
   const hint=document.createElement('span');hint.className='launchHistoryPrice';hint.dataset.html2canvasIgnore='true';hint.textContent='('+money(references[0].price)+')';hint.title=references.slice(0,10).map(r=>`${r.date||''} ${r.group}：${money(r.price)}`).join('\n');hint.setAttribute('aria-label','過往開價 '+money(references[0].price));
   if(target.closest('.launchProduct')){hint.tabIndex=0;hint.setAttribute('role','button');hint.style.cursor='pointer';hint.setAttribute('aria-label','套用過往開價 '+money(references[0].price));const group=launchCurrent,index=Number(target.closest('.launchProduct').dataset.launchIndex),value=references[0].price;
-   const apply=event=>{event.preventDefault();event.stopPropagation();if(launchCurrent!==group)return;const item=group.items[index],number=launchNumber(value);if(!item||number===null||number<0)return;launchPushUndo();launchApplyProductPrice(item,String(Math.ceil(number)));launchMark();launchRenderEditor();};
+   const apply=event=>{event.preventDefault();event.stopPropagation();if(launchCurrent!==group)return;const item=group.items[index],number=launchNumber(value);if(!item||number===null||number<0)return;launchPushUndo();launchApplyProductPrice(item,String(Math.ceil(number)));launchMark();launchSaveProductCard();launchRenderEditor();};
    hint.addEventListener('pointerdown',event=>event.preventDefault());hint.addEventListener('click',apply);hint.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'||event.key===' ')apply(event);});
   }
   if(target.matches('input')){target.closest('label').appendChild(hint);}else if(target.matches('b')){target.after(hint);hint.parentElement.classList.add('launchHistoryPriceRow');}else target.appendChild(hint);
@@ -2885,8 +2885,8 @@ function launchDraftOriginals(){
  if(launchCurrent?.status!=='尚未上架')return;
  document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index],original=launchNumber(item?.original);if(item?.showCost===false||original==null||original<0)return;const row=document.createElement('p');row.className='launchDraftPrice';row.innerHTML=`<button class="launchDraftDelete" aria-label="不顯示原價" onclick="event.stopPropagation();launchHideCost(${index})">✖</button><span>¥${Math.ceil(original)}｜$${Math.ceil(original*(launchIsRMB(item)?1.05*5:.21))}</span>`;card.querySelector('p:not(.launchCode)')?.before(row);});
 }
-function launchHideCost(index){if(!launchCurrent.items[index])return;launchPushUndo();launchCurrent.items[index].showCost=false;launchMark();document.querySelector(`[data-launch-index="${index}"] .launchDraftPrice`)?.remove();launchFitCardText();}
-function launchHideAllCosts(){if(!launchCurrent)return;const targets=launchCurrent.items.filter(item=>item.showCost!==false&&launchNumber(item.original)!=null);if(!targets.length){launchNotice('沒有可移除的原價列');return;}launchPushUndo();targets.forEach(item=>item.showCost=false);launchMark();launchMessage='已移除全部原價列';launchRenderEditor();}
+function launchHideCost(index){if(!launchCurrent.items[index])return;launchPushUndo();launchCurrent.items[index].showCost=false;launchMark();launchSaveProductCard();document.querySelector(`[data-launch-index="${index}"] .launchDraftPrice`)?.remove();launchFitCardText();}
+function launchHideAllCosts(){if(!launchCurrent)return;const targets=launchCurrent.items.filter(item=>item.showCost!==false&&launchNumber(item.original)!=null);if(!targets.length){launchNotice('沒有可移除的原價列');return;}launchPushUndo();targets.forEach(item=>item.showCost=false);launchMark();launchSaveProductCard();launchMessage='已移除全部原價列';launchRenderEditor();}
 function launchCardColumns(index=launchPanelIndex){if(!launchCurrent||launchBusy)return;const panels=launchCurrent.panels||[];if(!panels.length)return;launchPanelIndex=Math.max(0,Math.min(panels.length-1,Number(index)||0));const current=launchActiveCardColumns();launchDialog(`<button type="button" class="launchDialogClose" aria-label="取消" onclick="document.getElementById('launchDialog').close()">✖</button><h2>每行卡片數量 (${launchCurrent.items.filter(item=>launchCanvasContains(item,launchPanelIndex)).length})</h2>${panels.length>1?`<div class="launchCardColumnsDialog" style="margin-bottom:16px" aria-label="選擇畫布">${panels.map((_,i)=>`<button class="btn light" type="button" aria-pressed="${i===launchPanelIndex}" onclick="launchCardColumns(${i})">${launchPanelLabel(i)}</button>`).join('')}</div>`:''}<div class="launchCardColumnsDialog">${[4,5,6,7,8].map(n=>`<button class="btn light" aria-pressed="${n===current}" onclick="launchSetCardColumns(${n})">${n}</button>`).join('')}</div>`);}
 function launchSetCardColumns(count){const panel=launchCurrent?.panels?.[launchPanelIndex];if(!panel)return;launchPushUndo();panel.cardColumns=Math.max(4,Math.min(8,Number(count)||8));launchMark();document.getElementById('launchDialog').close();launchRenderEditor();}
 function launchAds(){
@@ -3376,7 +3376,7 @@ function launchKindOptions(current=''){
 function launchKindSelect(p,i){return `<select class="launchListKind" data-launch-kind="${i}" aria-label="${esc(launchDisplayName(p))} 種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this,${i})">${launchKindOptions(p.kind||'')}</select>`;}
 function launchSetProductKind(index,value){
  const item=launchCurrent?.items[index];if(item&&/單抽|抱盒/.test(launchVariantFormat(item)))value='抽抽';if(!item||String(item.kind||'')===value)return;
- launchPushUndo();item.kind=String(value||'').trim();launchMark();
+ launchPushUndo();item.kind=String(value||'').trim();launchMark();launchSaveProductCard();
 }
 function launchSuggestFormKind(form){
  if(!form)return;
@@ -3558,7 +3558,7 @@ async function launchProductSubmit(e,index,mode){
  }
  items.forEach(item=>{if(/單抽|抱盒/.test(launchVariantFormat(item))){item.kind='抽抽';return;}if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
  if(mode==='single'&&index>=0)launchApplyProductName(previousName,items[0]?.name);
- if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();launchFinishProductEditor(true);
+ if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();launchFinishProductEditor(true);launchSaveProductCard();
 
 }
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image??launchCurrent.images?.[launchPanelIndex]??'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
@@ -3612,11 +3612,11 @@ function launchPressStart(e,kind,index){
  const timer=setTimeout(()=>{active=true;launchPressConsumed=true;card.classList.add('launchDragging');try{card.setPointerCapture(pointId);}catch(_){ }window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});},380);
  window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});
 }
-function launchRemoveProduct(index){if(!confirm('移除此商品卡？'))return;launchCurrent.items.splice(index,1);launchMark();launchFinishProductEditor(true);}
+function launchRemoveProduct(index){if(!confirm('移除此商品卡？'))return;launchCurrent.items.splice(index,1);launchMark();launchFinishProductEditor(true);launchSaveProductCard();}
 function launchResizeStart(e,index){
  if(launchBusy)return;e.preventDefault();e.stopPropagation();const card=e.currentTarget.closest('.launchProduct'),startX=e.clientX,startY=e.clientY,base=Number(launchCurrent.items[index].scale)||1;
  const move=ev=>{const grow=Math.max(ev.clientX-startX,ev.clientY-startY)>12;launchCurrent.items[index].scale=grow?2:base;card.classList.toggle('launchResized',grow||base>=1.5);launchMark();};
- const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);};
+ const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);if((Number(launchCurrent.items[index]?.scale)||1)!==base)launchSaveProductCard();};
  window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});
 }
 function launchMoveIndex(kind,from,to){const arr=kind==='group'?launchGroups:launchCurrent.items;if(to<0||to>=arr.length||to===from)return;const scroll=kind==='product'?launchOrderScrollState():null;if(kind==='product')launchPushUndo();arr.splice(to,0,arr.splice(from,1)[0]);launchMark();kind==='group'?launchRenderList():launchRenderEditor();if(scroll){launchRestoreProductScroll(scroll);return launchSaveProductOrder();}}
@@ -3631,6 +3631,7 @@ function launchOrderScrollState(){
  const dialog=document.getElementById('launchDialog'),all=!!(dialog?.open&&dialog.querySelector('.launchAllHeading')),app=document.getElementById('app');
  return {groupId:launchCurrent.id,mode:all?'all':'page',pageTop:document.scrollingElement.scrollTop,pageLeft:document.scrollingElement.scrollLeft,appTop:app?.scrollTop||0,appLeft:app?.scrollLeft||0,scrollTop:all?dialog.scrollTop:0,scrollLeft:all?dialog.scrollLeft:0};
 }
+function launchSaveProductCard(){return launchSaveClick({actionLabel:'商品修改',successMessage:'商品修改已儲存',preserveScroll:true,render:false});}
 function launchSaveProductOrder(){return launchSaveClick({actionLabel:'商品排序',successMessage:'商品排序已儲存',preserveScroll:true,render:false});}
 function launchAllMove(from,to,keepControls=false){
  if(launchBusy||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||from>=launchCurrent.items.length||to<0||to>=launchCurrent.items.length)return;
@@ -4236,8 +4237,8 @@ function launchCanvasSelection(){const panel=launchCurrent.panels[launchPanelInd
 function launchCanvasRowClick(event,index){if(event.target.closest('button,input,select,textarea,a'))return;launchSetProductVisible(index,!launchCanvasContains(launchCurrent.items[index]));}
 function launchCanvasSelectionMode(){return launchCurrent?.status==='尚未上架'||(launchCurrent?.status==='最新開團'&&launchCanvasEditing);}
 function launchUpdateSelectAll(){const all=document.getElementById('launchSelectAll');if(!all||!launchCurrent)return;const selected=launchCurrent.items.filter(item=>launchCanvasSelectionMode()?launchCanvasContains(item):item.visible!==false).length;all.checked=selected===launchCurrent.items.length&&selected>0;all.indeterminate=selected>0&&selected<launchCurrent.items.length;}
-function launchToggleAllProducts(visible){if(!launchCurrent)return;if(launchCanvasSelectionMode()){launchPushUndo();launchCurrent.panels[launchPanelIndex].productIds=visible?launchCurrent.items.map(item=>item.id):[];launchRenderEditor();}else launchCurrent.items.forEach(item=>item.visible=visible);document.querySelectorAll('[data-launch-product-select]').forEach(input=>input.checked=visible);launchMark();launchUpdateSelectAll();}
-function launchSetProductVisible(index,visible){const item=launchCurrent.items[index];if(!item)return;if(launchCanvasSelectionMode()){launchPushUndo();const ids=launchCanvasSelection();launchCurrent.panels[launchPanelIndex].productIds=visible?[...new Set([...ids,item.id])]:ids.filter(id=>id!==item.id);launchRenderEditor();const input=document.querySelector('[data-launch-product-select="'+index+'"]');if(input)input.checked=visible;}else item.visible=visible;launchMark();launchUpdateSelectAll();}
+function launchToggleAllProducts(visible){if(!launchCurrent)return;if(launchCanvasSelectionMode()){launchPushUndo();launchCurrent.panels[launchPanelIndex].productIds=visible?launchCurrent.items.map(item=>item.id):[];launchRenderEditor();}else launchCurrent.items.forEach(item=>item.visible=visible);document.querySelectorAll('[data-launch-product-select]').forEach(input=>input.checked=visible);launchMark();launchSaveProductCard();launchUpdateSelectAll();}
+function launchSetProductVisible(index,visible){const item=launchCurrent.items[index];if(!item)return;if(launchCanvasSelectionMode()){launchPushUndo();const ids=launchCanvasSelection();launchCurrent.panels[launchPanelIndex].productIds=visible?[...new Set([...ids,item.id])]:ids.filter(id=>id!==item.id);launchRenderEditor();const input=document.querySelector('[data-launch-product-select="'+index+'"]');if(input)input.checked=visible;}else item.visible=visible;launchMark();launchSaveProductCard();launchUpdateSelectAll();}
 function launchNameLines(text,width,measure){
 const source=String(text||'').trim(),words=source.split(/\s+/),lines=[];
 let line='';
@@ -9736,7 +9737,7 @@ function launchEditCatalogPrice(index,button){
   const raw=toHalfWidthDigits(input.value).trim(),number=raw===''?null:launchNumber(raw);
   if(!cancel&&raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.focus();return;}
   finished=true;const value=raw===''?'':String(Math.ceil(number));
-  if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}
+  if(!cancel&&value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();launchSaveProductCard();}
   restore();document.querySelectorAll('[data-launch-catalog-price]').forEach(node=>{const p=group.items[Number(node.dataset.launchCatalogPrice)];if(p&&!node.querySelector('input'))node.textContent='$'+String(p.price??'');});
  };
  input.addEventListener('click',event=>event.stopPropagation());input.addEventListener('input',()=>input.setCustomValidity(''));input.addEventListener('blur',()=>finish(false));input.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter'&&!event.isComposing){event.preventDefault();finish(false);}else if(event.key==='Escape'){event.preventDefault();finish(true);}});
@@ -9751,7 +9752,7 @@ function launchCommitDirectPrice(index,input){
  const raw=toHalfWidthDigits(input.value).trim(),number=raw===''?null:launchNumber(raw);
  if(raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.value=String(item.price??'');return false;}
  input.setCustomValidity('');const value=raw===''?'':String(Math.ceil(number));
- if(value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}
+ if(value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();launchSaveProductCard();}
  document.querySelectorAll('[data-launch-direct-price]').forEach(node=>{const p=launchCurrent.items[Number(node.dataset.launchDirectPrice)];if(p)node.value=String(p.price??'');});launchPaintCatalogSuggestedPrices();return true;
 }
 function launchDirectPriceKey(event,index,input){
