@@ -2987,7 +2987,7 @@ function launchSaveClick(options={}){
    const clean=signature(launchCurrent)===savedSignature||signature(launchCurrent)===signature(snapshot);
    if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{launchMergeProductMasterValues(launchCurrent,snapshot,d.group);launchCurrent.revision=d.group.revision;}
    sessionStorage.setItem(LAUNCH_OPEN_KEY,id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);
-   if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(document.body.dataset.page==='launch')launchRenderEditor();}
+   if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(document.body.dataset.page==='launch'){const scroll=options.preserveScroll?launchOrderScrollState():null;launchRenderEditor();if(scroll)launchRestoreProductScroll(scroll);}}
   }
   saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(options.successMessage||'已完成：'+completed);
  }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
@@ -3603,7 +3603,7 @@ function launchResizeStart(e,index){
  const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);};
  window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',end,{once:true});
 }
-function launchMoveIndex(kind,from,to){const arr=kind==='group'?launchGroups:launchCurrent.items;if(to<0||to>=arr.length||to===from)return;if(kind==='product')launchPushUndo();arr.splice(to,0,arr.splice(from,1)[0]);launchMark();kind==='group'?launchRenderList():launchRenderEditor();}
+function launchMoveIndex(kind,from,to){const arr=kind==='group'?launchGroups:launchCurrent.items;if(to<0||to>=arr.length||to===from)return;const scroll=kind==='product'?launchOrderScrollState():null;if(kind==='product')launchPushUndo();arr.splice(to,0,arr.splice(from,1)[0]);launchMark();kind==='group'?launchRenderList():launchRenderEditor();if(scroll){launchRestoreProductScroll(scroll);return launchSaveProductOrder();}}
 function launchKeyMove(e,kind,i){if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)||launchBusy)return;e.preventDefault();e.stopPropagation();const to=i+(['ArrowLeft','ArrowUp'].includes(e.key)?-1:1);launchMoveIndex(kind,i,to);document.querySelectorAll('.launchHandle')[Math.max(0,to)]?.focus();}
 function launchDrag(e,kind,index){
  if(launchBusy||e.button!==0)return;e.preventDefault();e.stopPropagation();const handle=e.currentTarget,card=handle.closest('[data-launch-index]');let target=index;handle.setPointerCapture(e.pointerId);card.classList.add('launchDragging');
@@ -3611,9 +3611,14 @@ function launchDrag(e,kind,index){
  const done=ev=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',cancel);card.classList.remove('launchDragging');if(handle.hasPointerCapture(e.pointerId))handle.releasePointerCapture(e.pointerId);launchMoveIndex(kind,index,target);};
  const cancel=()=>{target=index;done();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',cancel);
 }
+function launchOrderScrollState(){
+ const dialog=document.getElementById('launchDialog'),all=!!(dialog?.open&&dialog.querySelector('.launchAllHeading')),app=document.getElementById('app');
+ return {groupId:launchCurrent.id,mode:all?'all':'page',pageTop:document.scrollingElement.scrollTop,pageLeft:document.scrollingElement.scrollLeft,appTop:app?.scrollTop||0,appLeft:app?.scrollLeft||0,scrollTop:all?dialog.scrollTop:0,scrollLeft:all?dialog.scrollLeft:0};
+}
+function launchSaveProductOrder(){return launchSaveClick({actionLabel:'商品排序',successMessage:'商品排序已儲存',preserveScroll:true});}
 function launchAllMove(from,to,keepControls=false){
  if(launchBusy||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||from>=launchCurrent.items.length||to<0||to>=launchCurrent.items.length)return;
- const listMode=launchListMode(),scroll=listMode?document.scrollingElement.scrollTop:document.getElementById('launchDialog').scrollTop;
+ const listMode=launchListMode(),scroll=launchOrderScrollState();
  launchPushUndo();launchCurrent.items.splice(to,0,launchCurrent.items.splice(from,1)[0]);launchMark();
  if(keepControls){
   // Keep SAVE and other controls mounted when blurring the order input by clicking them.
@@ -3621,13 +3626,14 @@ function launchAllMove(from,to,keepControls=false){
   const host=listMode?document.querySelector('.launchProductListPage'):document.getElementById('launchDialog');
   host.querySelector('.launchAllGrid').outerHTML=listMode?launchListRows():launchDraftRows();
   launchUpdateSelectAll();void launchLoadProductKinds(host);
-  if(listMode)document.scrollingElement.scrollTop=scroll;else host.scrollTop=scroll;
-  return;
+  launchRestoreProductScroll(scroll);
+  return launchSaveProductOrder();
  }
  launchRenderEditor();launchAllProducts();
- const dialog=listMode?document.querySelector('.launchProductListPage'):document.getElementById('launchDialog');if(listMode)document.scrollingElement.scrollTop=scroll;else dialog.scrollTop=scroll;dialog.querySelector(`[data-launch-sort-index="${to}"] .launchAllSortHandle`)?.focus({preventScroll:true});
+ const dialog=listMode?document.querySelector('.launchProductListPage'):document.getElementById('launchDialog');launchRestoreProductScroll(scroll);dialog.querySelector(`[data-launch-sort-index="${to}"] .launchAllSortHandle`)?.focus({preventScroll:true});
+ return launchSaveProductOrder();
 }
-function launchProductOrderInput(p,index){return `<input class="launchOrderInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="${esc(launchDisplayName(p))} 排序" title="輸入第幾位，按 Enter 或離開欄位套用；按 SAVE 儲存" value="${index+1}" onchange="launchSetProductOrder(${index},this)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}else if(event.key==='Escape'){event.preventDefault();this.value='${index+1}';this.blur();}">`;}
+function launchProductOrderInput(p,index){return `<input class="launchOrderInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="${esc(launchDisplayName(p))} 排序" title="輸入第幾位，按 Enter 或離開欄位後自動儲存" value="${index+1}" onchange="launchSetProductOrder(${index},this)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}else if(event.key==='Escape'){event.preventDefault();this.value='${index+1}';this.blur();}">`;}
 function launchSetProductOrder(index,input){
  const value=String(input.value||'').normalize('NFKC').trim(),count=launchCurrent?.items.length||0,position=Number(value);
  if(launchBusy){input.value=String(index+1);return;}
