@@ -9736,5 +9736,19 @@ function launchDirectPriceKey(event,index,input){
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryOriginal{flex:0 0 auto;font-size:8px}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice{width:30px!important;max-width:30px;padding:1px 0;font-size:10px!important}
 </style>
+<style id="launch-mobile-product-fields-20261105">
+@media(max-width:600px){
+ .launchDialog .launchProductFields{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .launchDialog .launchProductFields>.launchProductCompactField{grid-column:auto!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="kind"]){grid-area:1 / 1!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="code"]){grid-area:1 / 2!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="role"]){grid-area:2 / 1!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="name"]){grid-area:2 / 2!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="original"]){grid-area:3 / 1!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="price"]){grid-area:3 / 2!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="format"]){grid-area:4 / 1!important}
+ .launchDialog .launchProductFields>.launchProductCompactField:has([name="size"]){grid-area:4 / 2!important}
+}
+</style>
 </body>
 </html>
