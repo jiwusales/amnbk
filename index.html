@@ -7337,7 +7337,7 @@ if(page&&pagePosition){page.scrollTop=pagePosition.top;page.scrollLeft=pagePosit
 }
 function editCargoTag(rowNumber){const id=Number(rowNumber);if(pendingBadgeRows.has(id))return;activeCargoPickerRow=activeCargoPickerRow===id?0:id;refreshCargoViewKeepingScroll();}
 async function chooseCargoTag(rowNumber,choice){
-const id=Number(rowNumber),row=onlineRows.find(item=>Number(item.row)===id);if(!row||pendingBadgeRows.has(id))return;
+const id=Number(rowNumber),row=onlineRows.find(item=>Number(item.row)===id);if(!row||pendingBadgeRows.has(id))return;if(pendingGroupRestocks.has(String(getGroupName(row)||'').trim())){alert('此團正在處理補貨登記，請完成後再修改標籤');return;}
 let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(choice==='ordered'){type='ordered';value='已訂購';}else if(choice==='stock'){type='cargo';value='現貨';}else if(choice==='restock'){type='cargo';value='補登';}else if(choice==='month'){const current=String(getOnlineData(row,['貨況'])||'').match(/^(0?[1-9]|1[0-2])月$/);const input=prompt('受注月份（1～12）',current?String(Number(current[1])):'');if(input===null)return;const month=input.normalize('NFKC').trim().replace(/月$/,'').trim();if(!/^(0?[1-9]|1[0-2])$/.test(month)){alert('請輸入 1～12 的月份');return;}type='cargo';value=Number(month)+'月';}else if(choice==='opened'){type='opened';value='已開單';}else return;
 const previous={...row.data};
 if(type==='cargo'){const h=findHeader(onlineHeaders,['貨況']);if(h)row.data[h]=value;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='';const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph&&typeof row.data[ph]==='boolean')row.data[ph]=false;const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
@@ -7347,6 +7347,27 @@ activeCargoPickerRow=0;pendingBadgeRows.add(id);refreshCargoViewKeepingScroll();
 try{await api('setOnlineItemBadge',{row:id,type,value});saveOnlineSessionCache();}
 catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert(jiwuErrorText(e,'system'));}
 finally{pendingBadgeRows.delete(id);}
+}
+const pendingGroupRestocks=new Set();
+async function onlineRestockPendingGroup(group){
+ const target=String(group||'').trim();if(!target||pendingGroupRestocks.has(target))return;
+ if(pendingBadgeRows.size||onlineOrderEditPending){alert('商品標籤或訂單正在儲存，請完成後再試');return;}
+ pendingGroupRestocks.add(target);
+ const revision=onlineMutationRevision;
+ const controls=()=>document.querySelectorAll('[data-online-restock-group]');
+ controls().forEach(b=>{if(b.dataset.onlineRestockGroup===target)b.disabled=true;});
+ try{
+  const preview=await api('setOnlineItemBadge',{groupRestock:'preview',group:target});
+  if(!preview.count){alert('「'+target+'」沒有未訂購的品項');return;}
+  if(!confirm('確定將「'+target+'」全部 '+preview.count+' 件未訂購品項轉成「補貨登記」？\n已訂購及其他貨況的品項會保留。'))return;
+  if(pendingBadgeRows.size||onlineOrderEditPending||revision!==onlineMutationRevision){alert('訂單正在更新，請完成後重新點擊團名');return;}
+  onlineMutationRevision++;
+  const result=await api('setOnlineItemBadge',{groupRestock:'apply',group:target});
+  if(result.online){if(onlineOrderEditPending){onlineEditBase=applyOnlineDelta(onlineEditBase,result.online).rows;renderPendingOnlineEdits();}else{const updated=applyOnlineDelta(onlineRows,result.online);onlineRows=updated.rows;onlineHeaders=updated.headers;}onlineLoadedAt=Date.now();saveOnlineSessionCache();}
+  activeCargoPickerRow=0;refreshCargoViewKeepingScroll();
+  alert('「'+target+'」已將 '+result.updated+' 件未訂購品項轉成補貨登記');
+ }catch(error){alert(jiwuErrorText(error,'system'));}
+ finally{onlineMutationRevision++;pendingGroupRestocks.delete(target);controls().forEach(b=>{if(b.dataset.onlineRestockGroup===target)b.disabled=false;});}
 }
 function cargoChoiceMarkup(row){
 const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['month','注','#85C2D0','cargoChoiceMonth'],['opened','完','#555','cargoChoiceOpened']];
@@ -7962,7 +7983,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`${customerMessageButton(summary,false,rows)}<span class="orderSummaryLabel">${customerIdentity(summary||'未填姓名',rows)}</span>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary,false,rows)}<span class="orderSummaryLabel">${customerIdentity(summary||'未填姓名',rows)}</span>`:`${isGroupView?`<button type="button" class="orderSummaryLabel onlineGroupRestockButton" data-online-restock-group="${esc(summary)}" onclick="onlineRestockPendingGroup(this.dataset.onlineRestockGroup)" title="將此團未訂購品項轉成補貨登記" ${pendingGroupRestocks.has(String(summary).trim())?'disabled':''}>${esc(summary)}</button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -9808,5 +9829,5 @@ function launchDirectPriceKey(event,index,input){
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryPriceDivider{display:none}
 @media(max-width:360px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryOriginal{font-size:7px}}
 </style>
-<style>:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown){flex-wrap:wrap;justify-content:center;height:auto!important;min-height:19px;row-gap:0}:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown){flex-basis:100%;justify-content:center}</style></body>
+<style>:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown){flex-wrap:wrap;justify-content:center;height:auto!important;min-height:19px;row-gap:0}:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown){flex-basis:100%;justify-content:center}</style><style>.onlineGroupRestockButton{appearance:none;border:0;background:transparent;padding:0;color:inherit;font:inherit;font-weight:inherit;text-align:left;cursor:pointer}.onlineGroupRestockButton:disabled{opacity:.6;cursor:wait}</style></body>
 </html>
