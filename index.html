@@ -2815,7 +2815,23 @@ function launchHistoryKey(item){
  return kind&&m&&Number(m[2])>0?[(m[1]||m[3])?'CNY':'JPY',Number(m[2]),kind].join('|'):'';
 }
 function launchHistoryFormItem(){const form=document.querySelector('#launchDialog [data-launch-product-form]');return form?.elements.kind?{kind:form.elements.kind.value,original:form.elements.original.value}:null;}
+function launchCatalogSuggestedPrice(item){
+ if(!item||String(item.price??'').trim()!=='')return null;
+ const references=launchHistoryState.groupId===launchCurrent?.id?launchHistoryState.prices[launchHistoryKey(item)]||[]:[];
+ const historical=launchNumber(references[0]?.price);
+ return references.length&&historical!==null&&historical>0?Math.ceil(historical):launchSaleValue(item);
+}
+function launchPaintCatalogSuggestedPrices(){
+ if(!launchCurrent||launchExportRendering)return;
+ document.querySelectorAll('[data-launch-direct-price]').forEach(input=>{
+  const item=launchCurrent.items[Number(input.dataset.launchDirectPrice)];
+  const suggested=String(input.value||'').trim()===''?launchCatalogSuggestedPrice(item):null;
+  if(suggested!==null){input.placeholder='('+String(suggested)+')';input.dataset.launchSuggestedPrice=String(suggested);}
+  else{input.placeholder='售價';delete input.dataset.launchSuggestedPrice;}
+ });
+}
 function launchPaintPriceHistory(){
+ launchPaintCatalogSuggestedPrices();
  if(launchExportRendering||launchHistoryState.groupId!==launchCurrent?.id)return;
  const show=(target,item)=>{if(!target)return;target.parentElement.querySelectorAll(':scope > .launchHistoryPrice').forEach(e=>e.remove());target.querySelectorAll('.launchHistoryPrice').forEach(e=>e.remove());
   if(target.matches('input')&&target.dataset.historyBasePlaceholder!==undefined){target.placeholder=target.dataset.historyBasePlaceholder;target.title=target.dataset.historyBaseTitle||'';delete target.dataset.historyPricePlaceholder;}
@@ -6481,7 +6497,7 @@ function toggleStoreSaleLast5(){const method=document.getElementById('editStoreS
 async function saveStoreSalePayment(event){const savedDialog=document.getElementById('appDialog');
 event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
 const rows=document.getElementById('editStoreSaleRows').value.split(',').map(Number),method=document.getElementById('editStoreSaleMethod').value,last5=document.getElementById('editStoreSaleLast5').value.trim();
-if(['寶中信','中信','LB','花LB'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
+if(['寶中信','中信','LB','花LB','國泰'].includes(method)&&last5&&!/^\d{5}$/.test(last5)){alert('請輸入 5 碼後五碼');button.disabled=false;return;}
 try{await apiBackground('updateStoreSalePayment',{rows:JSON.stringify(rows),method,last5});savedDialog?.remove();storeSalesData=await api('storeSales');storeSalesLoadedAt=Date.now();drawStoreSales();}catch(error){console.error('付款資料更新失敗：'+error.message);button.disabled=false;}
 }
 function formatStoreSalesDate(date){
@@ -6736,7 +6752,7 @@ const last5Input=document.getElementById('last5');
 last5Input.value=toHalfWidthDigits(last5Input.value);
 const last5=last5Input.value.trim();
 if(payment!=='LP'&&last5&&!/^\d{5}$/.test(last5)){alert('後五碼請輸入 5 碼，或留白後結帳再補');return;}
-if(last5)paymentValue=['寶中信','中信'].includes(payment)?payment+last5:payment+' '+last5;
+if(last5)paymentValue=['寶中信','中信','國泰'].includes(payment)?payment+last5:payment+' '+last5;
 }
 note=document.getElementById('storeNote').value.trim();
 if(received!==''&&change<0&&!confirm('收到金額不足，仍要結帳嗎？')){
@@ -6871,7 +6887,7 @@ const customer=isCustomerView&&!isGroupView?String(onlineSearchText||'').trim():
 const customerRows=customer?onlineRows.filter(row=>String(getCustomerName(row)||'').trim()===customer):[];
 const sourceRow=customerRows.find(row=>String(getOnlineData(row,['來源','通路','平台'])||'').trim());
 const customerSource=sourceRow?String(getOnlineData(sourceRow,['來源','通路','平台'])||'').trim():'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><h3>手動輸入訂單</h3><form onsubmit="submitOnlineOrder(event)"><div class="manualOnlineHeader"><select id="manualOnlineSource"><option>IG</option><option>@</option><option selected>LINE</option><option>熊帳</option><option>本帳</option><option>蟲帳</option></select><input id="manualOnlineDate" class="manualOnlineDate" aria-label="訂購日期" placeholder="日期"><input id="manualOnlineClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" placeholder="時間" title="例如 2036，代表 20:36"><div class="manualOnlineCustomerField"><input id="manualOnlineCustomer" placeholder="顧客名稱" autocomplete="off" aria-label="顧客名稱" aria-controls="manualOnlineCustomerSuggestions" aria-expanded="false" oninput="updateManualOnlineCustomerSuggestions()" onfocus="updateManualOnlineCustomerSuggestions()" onblur="document.getElementById('manualOnlineCustomerSuggestions').hidden=true;this.setAttribute('aria-expanded','false')" required><div id="manualOnlineCustomerSuggestions" class="manualOnlineCustomerSuggestions" hidden></div></div></div><div id="manualOnlineItems" style="margin-top:10px"><div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div></div><button type="button" class="btn light" onclick="addManualOnlineItem()">＋ 新增商品</button><div class="manualOnlineMoneyRow"><strong id="manualOnlineTotal" class="manualOnlineTotal">總金額 $0</strong><strong id="manualOnlineDeposit" class="manualOnlineDeposit" aria-live="polite">訂金 $0</strong></div><div class="manualOnlinePaymentRow"><select id="manualOnlinePayment" onchange="syncManualOnlinePayment()"><option>LB</option><option>中信</option><option>LP</option><option>ipass</option><option>賣貨便</option><option>面交</option><option>寶中信</option><option>花LB</option></select><input id="manualOnlineLast5" type="text" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增訂單</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><h3>手動輸入訂單</h3><form onsubmit="submitOnlineOrder(event)"><div class="manualOnlineHeader"><select id="manualOnlineSource"><option>IG</option><option>@</option><option selected>LINE</option><option>熊帳</option><option>本帳</option><option>蟲帳</option></select><input id="manualOnlineDate" class="manualOnlineDate" aria-label="訂購日期" placeholder="日期"><input id="manualOnlineClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" placeholder="時間" title="例如 2036，代表 20:36"><div class="manualOnlineCustomerField"><input id="manualOnlineCustomer" placeholder="顧客名稱" autocomplete="off" aria-label="顧客名稱" aria-controls="manualOnlineCustomerSuggestions" aria-expanded="false" oninput="updateManualOnlineCustomerSuggestions()" onfocus="updateManualOnlineCustomerSuggestions()" onblur="document.getElementById('manualOnlineCustomerSuggestions').hidden=true;this.setAttribute('aria-expanded','false')" required><div id="manualOnlineCustomerSuggestions" class="manualOnlineCustomerSuggestions" hidden></div></div></div><div id="manualOnlineItems" style="margin-top:10px"><div class="dialogItem manualOnlineItem"><select class="manualOnlineCargo" aria-label="商品貨況" onchange="this.style.background={未訂購:'#E78790',已訂購:'#FBB550',補貨登記:'#7E88A0',現貨:'#DABBD8'}[this.value];updateManualOnlineTotal()"><option value="未訂購" selected>未</option><option value="已訂購">訂</option><option value="補貨登記">補</option><option value="現貨">現</option></select><input class="manualOnlineGroup" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="團名" aria-label="團名（選填）"><input class="manualOnlineName" autocomplete="off" oninput="manualOnlineSuggest(this,event)" onfocus="manualOnlineSuggest(this,event)" oncompositionend="manualOnlineSuggest(this,event)" onblur="manualOnlineSuggestBlur(this)" placeholder="商品名稱" aria-label="商品名稱" required><input class="manualOnlinePrice" inputmode="decimal" placeholder="售價" aria-label="售價" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()" required><input class="manualOnlineItemDeposit" inputmode="decimal" placeholder="訂金" aria-label="商品訂金" oninput="normalizeMoneyInput(this);updateManualOnlineTotal()"><button type="button" class="btn light" aria-label="刪除商品" onclick="this.parentElement.remove();updateManualOnlineTotal()">－</button></div></div><button type="button" class="btn light" onclick="addManualOnlineItem()">＋ 新增商品</button><div class="manualOnlineMoneyRow"><strong id="manualOnlineTotal" class="manualOnlineTotal">總金額 $0</strong><strong id="manualOnlineDeposit" class="manualOnlineDeposit" aria-live="polite">訂金 $0</strong></div><div class="manualOnlinePaymentRow"><select id="manualOnlinePayment" onchange="syncManualOnlinePayment()"><option>LB</option><option>中信</option><option>LP</option><option>ipass</option><option>賣貨便</option><option>面交</option><option>寶中信</option><option>花LB</option><option>國泰</option></select><input id="manualOnlineLast5" type="text" placeholder="後五碼"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增訂單</button></div></form></div></div>`);
 const customerInput=document.getElementById('manualOnlineCustomer'),sourceInput=document.getElementById('manualOnlineSource');
 customerInput.value=customer;
 const group=isGroupView&&!isCustomerView?String(onlineSearchText||'').trim():'';
@@ -6921,7 +6937,7 @@ if(!items.length)return;
 const storedMethod=normalizePayment(getPaymentMethod(items[0]));
 const payment=storedMethod==='面交'?'LB':storedMethod||'LB';
 const last5=items.map(getLast5).find(value=>String(value||'').trim())||'';
-document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><select id="orderEditSource" aria-label="訂單來源" title="訂單來源">${[...new Set([String(getOnlineData(items[0],['來源','通路','平台'])||'LINE'),'LINE','IG','官網','本帳','熊帳','@'])].map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><input id="orderEditClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" title="時間（四位數字，例如 2036）" placeholder="例如 2036" value="${esc(orderEditTimeValue(items).slice(11,16).replace(':','')||'0000')}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信','花LB'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB','花LB'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB','花LB'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light orderMergeButton" style="margin-right:auto" onclick="openOnlineOrderMergePicker()">合併</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard manualOnlineDialog"><form onsubmit="submitOrderEdit(event)"><div class="orderEditHeader" style="margin-bottom:12px"><select id="orderEditSource" aria-label="訂單來源" title="訂單來源">${[...new Set([String(getOnlineData(items[0],['來源','通路','平台'])||'LINE'),'LINE','IG','官網','本帳','熊帳','@'])].map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select><input id="orderEditTime" type="text" inputmode="numeric" maxlength="5" aria-label="日期" title="月/日" placeholder="月/日" value="${esc(orderEditTimeValue(items).slice(5,10).replace('-','/'))}"><input id="orderEditClock" type="text" inputmode="numeric" maxlength="4" aria-label="時間（四位數字，24小時制）" title="時間（四位數字，例如 2036）" placeholder="例如 2036" value="${esc(orderEditTimeValue(items).slice(11,16).replace(':','')||'0000')}"><select id="orderEditPayment" aria-label="付款方式" onchange="syncOrderEditPayment()">${['LB','中信','LP','ipass','寶中信','花LB','國泰'].map(value=>`<option value="${value}" ${payment===value?'selected':''}>${value}</option>`).join('')}</select><input id="orderEditLast5" aria-label="匯款後五碼" placeholder="後五碼（選填）" type="text" value="${esc(['寶中信','中信','LB','花LB','國泰'].includes(payment)?paymentLast5Value(last5):'')}" ${['寶中信','中信','LB','花LB','國泰'].includes(payment)?'':'disabled'}></div><div id="orderEditItems">${items.map(orderEditItemMarkup).join('')}</div><button type="button" class="btn light" onclick="addOrderEditItem()">＋ 新增商品</button><p class="salesHint" style="margin:10px 0 0">只新增備註時，不需要修改上方商品。</p><textarea id="orderEditNote" class="full" rows="3" placeholder="備註（會顯示在商品清單尾端）" style="width:100%;margin-top:6px;resize:vertical">${esc(orderEditableNote(items))}</textarea><input id="orderEditRows" type="hidden" data-edit-keys="${esc(JSON.stringify(items.map(row=>row.editKey)))}" value="${esc(orderRows.join(','))}"><div class="dialogActions"><button type="button" class="btn orderDelete" onclick="deleteWholeOnlineOrder(document.getElementById('orderEditRows').value.split(',').map(Number),this)">整筆刪除</button><button type="button" class="btn light orderMergeButton" style="margin-right:auto" onclick="openOnlineOrderMergePicker()">合併</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
 const form=document.querySelector('#appDialog form');form.dataset.originalTimestamp=orderEditTimeValue(items);form.dataset.originalTime=document.getElementById('orderEditTime').value;form.dataset.originalClock=document.getElementById('orderEditClock').value;form.dataset.originalPayment=payment;form.dataset.originalLast5=document.getElementById('orderEditLast5').value;
 document.querySelector('.orderEditName')?.focus();
 }
@@ -6960,7 +6976,7 @@ function selectOnlineOrderMerge(){
  box.remove();form.querySelector('.orderMergeButton').textContent='已選合併';form.querySelector('.orderDelete').disabled=true;
  const hint=document.createElement('p');hint.className='salesHint';hint.textContent='已選擇合併，按 SAVE 完成。';form.querySelector('.dialogActions').before(hint);
 }
-function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['寶中信','中信','LB','花LB'].includes(document.getElementById('orderEditPayment').value);}
+function syncOrderEditPayment(){const input=document.getElementById('orderEditLast5');input.disabled=!['寶中信','中信','LB','花LB','國泰'].includes(document.getElementById('orderEditPayment').value);}
 
 function addOrderEditItem(){const box=document.getElementById('orderEditItems');box.insertAdjacentHTML('beforeend',orderEditItemMarkup(null));box.lastElementChild.querySelector('.orderEditName')?.focus();}
 function allocateOrderEditDeposit(items,originalDeposits,originalFirstRow){
@@ -6992,7 +7008,7 @@ const originalItems=keys.map(key=>onlineRows.find(row=>row.editKey===key)).filte
 try{allocateOrderEditDeposit(items,originalItems.map(row=>getOnlineData(row,['訂金'])),originalItems[0]?.row);}catch(e){return alert(e.message);}
 items.forEach(item=>{const original=originalItems.find(row=>row.editKey===item.key);if(!original)return;const values={group:String(getOnlineData(original,['團名','團組','團'])||''),name:String(getOnlineData(original,['名稱','商品名稱'])||''),price:numberValue(getOnlineData(original,['售價','價格'])),shipping:getOnlineData(original,['運費'])===''?'':numberValue(getOnlineData(original,['運費'])),deposit:String(getOnlineData(original,['訂金'])??'')};item.changedFields=Object.keys(values).filter(key=>String(item[key]??'')!==String(values[key]??''));});
 if(!onlineOrderEditPending)onlineEditBase=structuredClone(onlineRows);
-const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB','花LB'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
+const payment=document.getElementById('orderEditPayment').value,last5=['寶中信','中信','LB','花LB','國泰'].includes(payment)?document.getElementById('orderEditLast5').value.trim():'';
 const paymentChanged=payment!==event.target.dataset.originalPayment||last5!==event.target.dataset.originalLast5;
 const mergeOrders=event.target.dataset.mergeOrders?JSON.parse(event.target.dataset.mergeOrders):undefined;
 const source=document.getElementById('orderEditSource').value;const sourceChanged=originalItems.some(row=>String(getOnlineData(row,['來源','通路','平台'])||'')!==source);
@@ -7012,7 +7028,7 @@ const note=job.note.split('｜').map(v=>v.trim()).filter(v=>v&&v!=='面交').joi
 const fullNote=face?(note?note+'｜面交':'面交'):note;
 const paymentHeader=header(['付款方式','支付方式','付款','收款方式']),last5Header=header(['後五碼','匯款後五碼']);
 const timeHeader=header(['購買時間','時間']);
-const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(gh&&item.group!==undefined&&changed('group'))row.data[gh]=item.group;if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
+const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信','國泰'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(gh&&item.group!==undefined&&changed('group'))row.data[gh]=item.group;if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
 const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
@@ -7054,7 +7070,7 @@ finally{onlineEditWorkerRunning=false;onlineOrderEditPending=false;onlineRows=on
 }
 
 function updateManualOnlineTotal(){const box=document.getElementById('manualOnlineItems');if(!box)return;const sum=selector=>[...box.querySelectorAll(selector)].reduce((total,input)=>total+(selector==='.manualOnlinePrice'&&input.closest('.manualOnlineItem').querySelector('.manualOnlineCargo').value==='補貨登記'?0:Number(normalizeMoneyInput(input)||0)),0);const total=document.getElementById('manualOnlineTotal'),deposit=document.getElementById('manualOnlineDeposit');if(total)total.textContent='總金額 $'+money(sum('.manualOnlinePrice'));if(deposit)deposit.textContent='訂金 $'+money(sum('.manualOnlineItemDeposit'));}
-function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['寶中信','中信','LB','花LB'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
+function syncManualOnlinePayment(){const select=document.getElementById('manualOnlinePayment'),input=document.getElementById('manualOnlineLast5');if(!select||!input)return;fitSelectWidth(select);const enabled=['寶中信','中信','LB','花LB','國泰'].includes(select.value);input.disabled=!enabled;if(!enabled)input.value='';}
 function normalizeManualOrderDate(value){
 const text=String(value||'').trim().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248));
 const match=text.match(/^(\d{1,2})\/(\d{1,2})$/)||text.match(/^(\d{2})(\d{2})$/);
@@ -7379,6 +7395,7 @@ getOnlineData(row,['付款方式','支付方式','付款','收款方式'])||''
 if(direct)return direct;
 const last5=String(getLast5(row)||'').trim();
 if(last5.toUpperCase().startsWith('花LB'))return '花LB';
+if(last5.startsWith('國泰'))return '國泰';
 if(last5.startsWith('寶中信'))return '寶中信';
 if(last5.startsWith('中信'))return '中信';
 if(last5.toUpperCase().startsWith('LB'))return 'LB';
@@ -7391,11 +7408,12 @@ return ''
 function needsLast5(rows){
 return rows.some(row=>{
 const method=getPaymentMethod(row).toUpperCase();
-return method.includes('中信')||['LB','花LB'].includes(method)
+return method.includes('中信')||['LB','花LB','國泰'].includes(method)
 })
 }
 function normalizePayment(v){
 const value=String(v||'').trim().toLowerCase();
+if(value==='國泰')return '國泰';
 if(value==='寶中信')return '寶中信';
 if(value==='中信')return '中信';
 if(value==='花lb')return '花LB';
@@ -7407,10 +7425,10 @@ return ''
 }
 function orderCardPaymentText(last5,payment){
  if(['LP','ipass'].includes(payment))return payment;
- return String(last5||'').split(/\r?\n/).map(value=>value.trim()).filter(value=>value&&!/^(?:LB|寶中信|花LB|中信)\s*$/i.test(value)).map(value=>value==='現金'?'💰':value).join('\n');
+ return String(last5||'').split(/\r?\n/).map(value=>value.trim()).filter(value=>value&&!/^(?:LB|寶中信|花LB|中信|國泰)\s*$/i.test(value)).map(value=>value==='現金'?'💰':value).join('\n');
 }
 function paymentLast5Value(v){
-return String(v||'').replace(/^(?:寶中信|花LB|中信|LB)\s*/i,'').trim()
+return String(v||'').replace(/^(?:寶中信|花LB|中信|LB|國泰)\s*/i,'').trim()
 }
 function onlineMonthNumber(v){
 const s=String(v||'').trim();
@@ -7442,7 +7460,7 @@ const monthMatch=monthQuery.match(/^(\d{1,2})\s*月$/);
 const chineseMonthMatch=monthQuery.match(/^([一二三四五六七八九十]+)\s*月$/);
 const wantedMonth=monthMatch?Number(monthMatch[1]):chineseMonthMatch?chineseMonths.indexOf(chineseMonthMatch[1])+1:0;
 const searchDate=/^[0-9０-９\s/.-]+$/.test(key)?toHalfWidthDigits(key).replace(/\D/g,''):'';
-const searchDigits=/^(?:(?:寶中信|花LB|中信|LB)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
+const searchDigits=/^(?:(?:寶中信|花LB|中信|LB|國泰)\s*)?[0-9０-９]+$/i.test(onlineSearchText.trim())?toHalfWidthDigits(onlineSearchText).replace(/\D/g,''):'';
 rows=rows.filter(x=>{
 const customer=
 String(
@@ -7974,7 +7992,7 @@ const showItemDates=!!order.depositMergeKey&&orderDates.size>1;
 const latestOrderDate=order.items.map(onlineRowOrderTime).filter(value=>value!==undefined&&value!==null&&value!=='').reduce((latest,value)=>timeValue(value)>=timeValue(latest)?value:latest,order.time||'');
 const storedPayment=normalizePayment(getPaymentMethod(order.items[0]));
 const payment=storedPayment==='面交'?'LB':(storedPayment||'LB');
-const acceptsLast5=['寶中信','中信','LB','花LB'].includes(payment);
+const acceptsLast5=['寶中信','中信','LB','花LB','國泰'].includes(payment);
 const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
 const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
@@ -8197,7 +8215,7 @@ rows.forEach(row=>pendingReconcileRows.delete(row));
 }
 function handleOrderPaymentChange(select){
 const meta=select.closest('.groupCardMeta');
-const needsCode=['寶中信','中信','LB','花LB'].includes(select.value);
+const needsCode=['寶中信','中信','LB','花LB','國泰'].includes(select.value);
 const input=meta.querySelector('.orderLast5Input');
 if(input)input.disabled=!needsCode;
 if(!needsCode)saveOrderPayment(meta)
@@ -8207,7 +8225,7 @@ if(!meta)return;
 const payment=meta.querySelector('.orderPayment')?.value||meta.dataset.payment||'';
 if(!payment)return;
 const last5=meta.querySelector('.orderLast5Input')?.value.trim()||meta.dataset.last5||'';
-if(['寶中信','中信','LB','花LB'].includes(payment)&&!last5)return;
+if(['寶中信','中信','LB','花LB','國泰'].includes(payment)&&!last5)return;
 const rows=(meta.dataset.rows||'')
 .split(',')
 .map(Number)
@@ -8216,11 +8234,11 @@ try{
 await api('saveOnlinePayment',{
 rows:JSON.stringify(rows),
 payment,
-last5:['寶中信','中信','LB','花LB'].includes(payment)?last5:''
+last5:['寶中信','中信','LB','花LB','國泰'].includes(payment)?last5:''
 });
 const paymentHeader=findHeader(onlineHeaders,['付款方式','支付方式','付款','收款方式']);
 const last5Header=findHeader(onlineHeaders,['後五碼','匯款後五碼']);
-onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=['寶中信','中信'].includes(payment)?payment+last5:['LB','花LB'].includes(payment)?payment+' '+last5:payment;});
+onlineRows.filter(row=>rows.includes(Number(row.row))).forEach(row=>{if(paymentHeader)row.data[paymentHeader]=payment;if(last5Header)row.data[last5Header]=['寶中信','中信','國泰'].includes(payment)?payment+last5:['LB','花LB'].includes(payment)?payment+' '+last5:payment;});
 onlineLoadedAt=Date.now();saveOnlineSessionCache();
 }catch(e){
 alert(jiwuErrorText(e,'system'))
@@ -8716,7 +8734,7 @@ ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;}
 renderStore();
 Object.entries(draft).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
 const codeBox=document.getElementById('last5Box');
-if(codeBox)codeBox.style.display=['寶中信','中信','LB','花LB'].includes(payment)?'block':'none';
+if(codeBox)codeBox.style.display=['寶中信','中信','LB','花LB','國泰'].includes(payment)?'block':'none';
 document.querySelectorAll('.payment button').forEach(button=>button.classList.toggle('active',button.textContent===payment));
 calcChange();
 });
@@ -9562,8 +9580,8 @@ body[data-page="store"] .top{padding-left:48px}
 <script id="launch-product-card-runtime-20261101">
 // Product manager cards reuse the inventory card geometry and controls.
 function launchCatalogRows(){
- const referenceGroup=launchCurrent;queueMicrotask(()=>void launchLoadCatalogReferences(referenceGroup));
- return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${launchCardNameHtml(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale">$<input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${i}" aria-label="修改 ${esc(launchDisplayName(p))} 售價" placeholder="售價" value="${esc(String(p.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${i},this)" onkeydown="launchDirectPriceKey(event,${i},this)"></span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button>${launchPauseButton(p,i)}</div></div></article>`;}).join('')}</div>`;
+ const referenceGroup=launchCurrent;queueMicrotask(()=>{void launchLoadCatalogReferences(referenceGroup);if(launchCurrent===referenceGroup)launchPaintCatalogSuggestedPrices();});
+ return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchSafeURL(p.url);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${launchCardNameHtml(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${i}" aria-label="修改 ${esc(launchDisplayName(p))} 售價" placeholder="售價" value="${esc(String(p.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${i},this)" onkeydown="launchDirectPriceKey(event,${i},this)"></span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button>${launchPauseButton(p,i)}</div></div></article>`;}).join('')}</div>`;
 }
 function launchDraftRows(){return launchCatalogRows();}
 function launchListRows(){return launchCatalogRows();}
@@ -9734,7 +9752,7 @@ function launchCommitDirectPrice(index,input){
  if(raw!==''&&(!/^\d+(?:\.\d+)?$/.test(raw)||number===null||number<0)){input.setCustomValidity('請輸入有效售價');input.reportValidity();input.value=String(item.price??'');return false;}
  input.setCustomValidity('');const value=raw===''?'':String(Math.ceil(number));
  if(value!==String(item.price??'')){launchPushUndo();launchApplyProductPrice(item,value);launchMark();}
- document.querySelectorAll('[data-launch-direct-price]').forEach(node=>{const p=launchCurrent.items[Number(node.dataset.launchDirectPrice)];if(p)node.value=String(p.price??'');});return true;
+ document.querySelectorAll('[data-launch-direct-price]').forEach(node=>{const p=launchCurrent.items[Number(node.dataset.launchDirectPrice)];if(p)node.value=String(p.price??'');});launchPaintCatalogSuggestedPrices();return true;
 }
 function launchDirectPriceKey(event,index,input){
  event.stopPropagation();if(event.isComposing)return;
@@ -9780,6 +9798,14 @@ function launchDirectPriceKey(event,index,input){
 .launchDialog .launchProductFields>.launchProductNameField{position:relative}
 .launchDialog .launchProductFields>.launchProductNameField>input{padding-right:30px!important}
 .launchDialog .launchProductNameClear{position:absolute;right:3px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:26px;height:30px;margin:0;padding:0;border:0;border-radius:6px;background:transparent;color:#999;font-size:20px;line-height:1;cursor:pointer}
+</style>
+<style id="launch-catalog-suggested-price-20261105">
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice[data-launch-suggested-price]:placeholder-shown{width:6ch!important;max-width:44px!important;font-size:8px!important}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice[data-launch-suggested-price]::placeholder{color:#b5b5b5;opacity:1;font-weight:400}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown)>.launchCatalogPricePrefix{display:none}
+
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryPriceDivider{display:none}
+@media(max-width:360px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryOriginal{font-size:7px}}
 </style>
 </body>
 </html>
