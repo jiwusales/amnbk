@@ -2826,7 +2826,7 @@ function launchPaintCatalogSuggestedPrices(){
  document.querySelectorAll('[data-launch-direct-price]').forEach(input=>{
   const item=launchCurrent.items[Number(input.dataset.launchDirectPrice)];
   const suggested=String(input.value||'').trim()===''?launchCatalogSuggestedPrice(item):null;
-  if(suggested!==null){input.placeholder='('+String(suggested)+')';input.dataset.launchSuggestedPrice=String(suggested);}
+  if(suggested!==null){const original=launchNumber(item?.original),base=!launchIsRMB(item)&&original!==null&&original>0?Math.ceil(original*.21):null;input.placeholder='('+(base!==null?String(base)+'／':'')+String(suggested)+')';input.dataset.launchSuggestedPrice=String(suggested);}
   else{input.placeholder='售價';delete input.dataset.launchSuggestedPrice;}
  });
 }
@@ -9801,12 +9801,12 @@ function launchDirectPriceKey(event,index,input){
 .launchDialog .launchProductNameClear{position:absolute;right:3px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:26px;height:30px;margin:0;padding:0;border:0;border-radius:6px;background:transparent;color:#999;font-size:20px;line-height:1;cursor:pointer}
 </style>
 <style id="launch-catalog-suggested-price-20261105">
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice[data-launch-suggested-price]:placeholder-shown{width:6ch!important;max-width:44px!important;font-size:8px!important}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice[data-launch-suggested-price]:placeholder-shown{width:12ch!important;max-width:70px!important;font-size:7px!important}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard input.launchDirectPrice[data-launch-suggested-price]::placeholder{color:#b5b5b5;opacity:1;font-weight:400}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown)>.launchCatalogPricePrefix{display:none}
 
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryPriceDivider{display:none}
 @media(max-width:360px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryOriginal{font-size:7px}}
 </style>
-</body>
+<style>:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown){flex-wrap:wrap;justify-content:center;height:auto!important;min-height:19px;row-gap:0}</style></body>
 </html>
