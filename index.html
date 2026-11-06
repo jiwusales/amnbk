@@ -2963,10 +2963,11 @@ function launchPreserveEmptyPanels(group){
  return group;
 }
 function launchSaveClick(options={}){
- if(!launchCurrent?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
- launchNormalizeGroupURLs(launchCurrent);
- launchPreserveEmptyPanels(launchCurrent);
- const snapshot=structuredClone(launchCurrent),id=snapshot.id;const submittedBase=structuredClone(readBackendSnapshot('launchGroup_'+id)||null);
+ const source=options.group||launchCurrent;
+ if(!source?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
+ launchNormalizeGroupURLs(source);
+ launchPreserveEmptyPanels(source);
+ const snapshot=structuredClone(source),id=snapshot.id;const submittedBase=structuredClone(readBackendSnapshot('launchGroup_'+id)||null);
  const signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
  launchSubmittedSignatures.set(id,savedSignature);
@@ -3393,7 +3394,13 @@ function launchSuggestFormKind(form){
 }
 function launchAutoProductInfo(form){
  const input=form?.elements?.namedItem('url');if(!input)return;
- let ticket=0,timer,formatTouched=false;
+ let ticket=0,timer,formatTouched=false,readKey='',readPromise;
+ const read=()=>{
+  const item=Object.fromEntries(['url','original','code','format','size','japaneseName'].map(key=>[key,String(form.elements.namedItem(key)?.value||'').trim()])),key=JSON.stringify(item);
+  if(key!==readKey){readKey=key;readPromise=api('launchProductInfo',{item});}
+  return readPromise;
+ };
+ form.jiwuReadProductInfo=()=>{clearTimeout(timer);++ticket;return read();};
  const formatControl=form.elements.namedItem('format');for(const event of ['input','change'])formatControl?.addEventListener?.(event,()=>{formatTouched=true;});
  async function fill(){
   const url=String(input.value||'').trim(),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
@@ -3403,7 +3410,7 @@ function launchAutoProductInfo(form){
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
   message.textContent='正在抓取日文名、貨號與尺寸…';
   const requestedValues={code:code?.value||'',size:size?.value||''};
-  const pending=api('launchProductInfo',{item:{url,original:original?.value||'',code:code?.value||'',format:format?.value||'',size:size?.value||'',japaneseName:japaneseName?.value||''}}).then(data=>{
+  const pending=read().then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
    if(data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
@@ -3529,9 +3536,40 @@ async function launchGrabAddedProducts(ids){
   launchClearListCache();launchMessage=`已儲存新增商品，完成 ${completed} / ${ids.length} 項資料辨識`+(failures.length?'\n'+failures.join('\n'):'');
  });
 }
+async function launchCompleteProductInfo(groupId,submitted,pending){
+ const progressId='product-info-'+launchId();
+ launchMoveProgress(progressId,submitted.name,'讀取中','','商品資料');
+ try{
+  const data=await pending;
+  if(data?.ok===false||!data?.item)throw Error(data?.error||'未取得商品資料');
+  if(data.item.needsFormat)throw Error(data.item.formatChoices?.length?'請補填格式：'+data.item.formatChoices.join('、'):'請補填單抽或抱盒');
+  await launchSaveTail;
+  if(launchFailedSaves.has(groupId))throw Error('請先重試商品儲存，再抓抓補入資料');
+  const group=launchCurrent?.id===groupId?launchCurrent:(await api('launchGet',{id:groupId})).group;
+  const item=group?.items.find(item=>item.id===submitted.id);
+  // A later URL/variant edit or deletion makes this result obsolete.
+  if(!item||item.url!==submitted.url||String(item.format||'')!==String(submitted.format||'')){
+   launchMoveProgress(progressId,submitted.name,'完成','','商品資料');return;
+  }
+  let changed=false;
+  for(const field of ['code','original','format','size','japaneseName']){
+   const current=String(item[field]||''),before=String(submitted[field]||'');
+   if(current===before&&(!current.trim()||(data.item.selectedFormat&&['code','size'].includes(field)))&&data.item[field]){item[field]=data.item[field];changed=true;}
+  }
+  if(changed){
+   Object.assign(item,launchNormalizeProductSpec(item.size,item.format));
+   if(launchCurrent?.id===groupId)launchMark();
+   await launchSaveClick({group,actionLabel:'商品資料',successMessage:'商品資料已補入',preserveScroll:true,render:false});
+   if(launchFailedSaves.has(groupId))throw Error('資料補入儲存失敗，請重試儲存');
+  }
+  launchMoveProgress(progressId,submitted.name,'完成','','商品資料');
+ }catch(error){
+  launchMoveProgress(progressId,submitted.name,'失敗',error.message,'商品資料');
+  launchCompletionToast('網址已保留，商品資料抓取未完成：'+error.message,true);
+ }
+}
 async function launchProductSubmit(e,index,mode){
  e.preventDefault();const form=e.target,group=launchCurrent;
- if(mode==='single'&&form.jiwuFillProductInfo){await form.jiwuFillProductInfo();if(!form.isConnected||launchCurrent!==group)return;}
  const f=new FormData(form),previousName=index>=0?String(launchCurrent.items[index]?.name??''):'',previousPrice=index>=0?String(launchCurrent.items[index]?.price??''):'',previousRole=index>=0?String(launchCurrent.items[index]?.role||'').trim():'';let items=[];
  if(mode==='multi'){
   if(form.dataset.multiReading==='true')return;
@@ -3558,7 +3596,12 @@ async function launchProductSubmit(e,index,mode){
  }
  items.forEach(item=>{if(/單抽|抱盒/.test(launchVariantFormat(item))){item.kind='抽抽';return;}if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
  if(mode==='single'&&index>=0)launchApplyProductName(previousName,items[0]?.name);
- if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();launchFinishProductEditor(true);launchSaveProductCard();
+ if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();
+ const product=mode==='single'?structuredClone(items[0]):null;
+ const needsInfo=product?.url&&(['code','size','japaneseName','original'].some(field=>!String(product[field]||'').trim())||(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(product.url)&&launchPokemonSizeFormat(product.format)));
+ const info=needsInfo&&form.jiwuReadProductInfo?form.jiwuReadProductInfo():null;
+ launchFinishProductEditor(true);launchSaveProductCard();
+ if(info)void launchCompleteProductInfo(group.id,product,info);
 
 }
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image??launchCurrent.images?.[launchPanelIndex]??'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
