@@ -3856,6 +3856,8 @@ function launchShippingMerchant(value){
  try{
   const u=new URL(value);if(!['https:','http:'].includes(u.protocol)||u.username||u.password)return '';
   const host=u.hostname.toLowerCase().replace(/^www\./,''),parts=u.pathname.split('/').filter(Boolean);
+  if(/(^|\.)taobao\.com$/.test(host))return 'taobao.com';
+  if(/(^|\.)tmall\.com$/.test(host))return 'tmall.com';
   if(['item.rakuten.co.jp','store.shopping.yahoo.co.jp'].includes(host))return parts[0]?host+'/'+parts[0].toLowerCase():'';
   if(/(^|\.)(?:amazon\.[a-z.]+|taobao\.com|tmall\.com|rakuten\.co\.jp|yahoo\.co\.jp|mercari\.com|buyee\.jp)$/.test(host))return '';
   return host;
@@ -3867,10 +3869,15 @@ function launchShippingMerchants(group){
  return new Set(urls.map(launchShippingMerchant));
 }
 function launchShippingMerchantKey(group){const keys=launchShippingMerchants(group);return keys.size===1&&!keys.has('')?[...keys][0]:'';}
+function launchShippingAutoKey(group){const key=launchShippingMerchantKey(group);if(key)return key;const keys=[...launchShippingMerchants(group)];return keys.length>1&&keys.every(value=>['taobao.com','tmall.com'].includes(value))?keys.sort().join(' + '):'';}
 function launchShippingReference(group,references,profiles=[]){
+ const keys=[...launchShippingMerchants(group)];
+ if(keys.length>1&&keys.every(key=>['taobao.com','tmall.com'].includes(key))){const settings=keys.map(key=>profiles.find(profile=>profile.merchant===key));return settings.every(profile=>profile&&/^0+(?:\.0+)?$/.test(String(profile.domesticShipping).trim()))?{domesticShipping:'0',noFreeShipping:true,merchant:keys.sort().join(' + '),source:'網站運費'}:null;}
  const key=launchShippingMerchantKey(group);if(!key)return null;
  const saved=profiles.find(profile=>profile.merchant===key);
+ if(saved&&['taobao.com','tmall.com'].includes(key)&&!/^0+(?:\.0+)?$/.test(String(saved.domesticShipping).trim()))return null;
  if(saved&&String(saved.domesticShipping??'').trim()!=='')return {domesticShipping:String(saved.domesticShipping),noFreeShipping:saved.noFreeShipping===true,merchant:key,source:'網站運費'};
+ if(['taobao.com','tmall.com'].includes(key))return null;
  const matches=(references||[]).filter(other=>other.id!==group.id&&String(other.domesticShipping??'').trim()!==''&&launchShippingMerchantKey(other)===key);
  if(!matches.length)return null;
  const normalized=other=>String(other.domesticShipping).trim().replace(/^境內運\s*/,'').replace(/[（(]滿額免[）)]/g,'').replace(/同車平分/g,'').replace(/^[$＄¥￥]\s*/,'').trim();
@@ -3887,7 +3894,7 @@ async function launchLoadShippingReferences(){
  launchShippingLookupPending=pending;return pending;
 }
 function launchShippingHint(group,data){
- const key=launchShippingMerchantKey(group);
+ const key=launchShippingAutoKey(group);
  if(!key)return '請先加入同一網站的商品或填寫網站網址；多網站請分別設定。';
  const reference=launchShippingReference(group,data?.shippingReferences,data?.shippingProfiles);
  if(reference)return '已帶入'+reference.source+'：'+key+'（'+reference.domesticShipping+'）';
@@ -3897,7 +3904,7 @@ function launchShippingHint(group,data){
 function launchShippingTools(){const key=launchShippingMerchantKey(launchCurrent);return `<div class="launchShippingTools"><button class="btn light" type="button" onclick="launchRememberWebsiteShipping(this)" ${key?'':'disabled'}>記住此網站運費</button><button class="btn light" type="button" onclick="launchWebsiteShippingSettings()">網站運費</button><small style="display:block;overflow-wrap:anywhere">${esc(key||'請先加入同一網站的商品或填寫網站網址')}</small><p class="launchHelp" data-launch-shipping-status role="status"></p></div>`;}
 function launchShippingStatus(text){const node=document.querySelector('[data-launch-shipping-status]');if(node)node.textContent=text;}
 async function launchAutoDomesticShipping(){
- const group=launchCurrent;if(!group||String(group.domesticShipping??'').trim()!==''||!launchShippingMerchantKey(group))return;
+ const group=launchCurrent;if(!group||String(group.domesticShipping??'').trim()!==''||!launchShippingAutoKey(group))return;
  const signature=JSON.stringify([group.websiteUrl,(group.items||[]).map(item=>[item.url,!!item.referenceOnly])]),initialToggle=group.noFreeShipping;
  const dialog=document.getElementById('launchDialog'),input=dialog?.querySelector('input[aria-label="境內運"]');
  if(input&&(input.value.trim()||input.dataset.shippingTouched))return;
@@ -3917,7 +3924,7 @@ async function launchAutoImportShipping(session=launchURLImportSession){
  if(!session||!launchURLImportActive(session))return;
  const form=session.dialog.querySelector('form'),input=form?.elements.namedItem('domesticShipping'),toggle=form?.elements.namedItem('noFreeShipping');
  if(!input||!toggle)return;
- const group=launchImportShippingGroup(session,form),merchant=launchShippingMerchantKey(group),previous=session.shippingAutofill;
+ const group=launchImportShippingGroup(session,form),merchant=launchShippingAutoKey(group),previous=session.shippingAutofill;
  if(previous&&previous.merchant!==merchant){
   if(!input.dataset.shippingTouched&&input.value===previous.domesticShipping&&toggle.checked===previous.noFreeShipping){input.value='';toggle.checked=false;session.group.domesticShipping='';session.group.noFreeShipping=false;const button=form.querySelector('[aria-label="沒有免運門檻"]');if(button){button.setAttribute('aria-pressed','false');button.style.color='#777';}}
   delete session.shippingAutofill;const hint=form.querySelector('[data-launch-import-shipping-status]');if(hint)hint.textContent='';
