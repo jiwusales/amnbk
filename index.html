@@ -3165,10 +3165,9 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
   row.url=launchNormalizeURL(row.url);
   if(!row.url){expanded.push(row);continue;}
   onProgress(++completed,rows.filter(row=>row.url).length);
-  const spec=launchNormalizeProductSpec(String(row.size||'').trim(),''),key=JSON.stringify([row.url,row.amount,spec]);
+  const spec=launchNormalizeProductSpec(String(row.size||'').trim(),'');
   try{
-   const pageURL=new URL(row.url);
-   if(/^\/collections\/[^/]+\/?$/.test(pageURL.pathname)||/^\/(?:itemlist|news(?:\/|$)|blogs\/|goods\/\d{4}\/)/.test(pageURL.pathname)){
+   { // Use the same translated import as 尚未上架 for product and announcement URLs.
     const pageKey='page:'+row.url;
     if(!cache.has(pageKey))cache.set(pageKey,api('launchAnnouncementPreview',{url:row.url,expandRoles:true}));
     const data=await cache.get(pageKey);
@@ -3177,23 +3176,10 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
      const name=String(info.name||info.japaneseName||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
      if(info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
-     expanded.push({...row,name,role:row.role||String(info.role||''),amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:String(info.format||''),url:info.url||row.url,japaneseName:String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
+     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:String(info.format||''),url:info.url||row.url,japaneseName:String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
     }
     continue;
    }
-   if(!cache.has(key))cache.set(key,api('launchProductInfo',{item:{url:row.url,original:row.amount||'',...spec}}));
-   const data=await cache.get(key),info=data?.item;
-   if(!data||data.ok===false||!info)throw Error(data?.error||'未取得商品資料');
-   if(![info.name,info.japaneseName,info.image,info.code,info.original,info.size,...(info.images||[])].some(value=>String(value||'').trim()))throw Error('官網未提供可帶入的商品資料');
-   if(info.needsFormat)throw Error(info.formatChoices?.length?'請填寫商品格式（'+info.formatChoices.join('、')+'）後重試':'此商品有多種格式，請先填寫單抽或抱盒');
-   if(!row.name)row.name=String(info.name||info.japaneseName||'').trim();
-   if(!row.name||launchSafeURL(row.name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
-   row.amount=row.amount||String(info.original||'');
-   if(!row.size){row.size=String(info.size||'');row.format=String(info.format||'');}else row.format=spec.format;
-   row.japaneseName=String(info.japaneseName||'');row.code=String(info.code||'');
-   row.images=(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url));
-   row.role=row.role||String(info.role||'');row.kind=String(info.kind||'');
-   expanded.push(row);
   }catch(error){throw Error('第 '+row.line+' 行：'+error.message);}
  }
  return launchExpandMultiProducts(expanded,start);
