@@ -3,6 +3,11 @@
 <!-- Calendar registration reuses the shared iCloud connection. -->
 <html lang="zh-Hant">
 <head>
+<!-- JIWU_FAILOVER:BEGIN -->
+<script id="jiwu-failover-config">window.JIWU_FAILOVER_CONFIG={"primaryOrigin":"https://jiwu-mac-relay.jiwusales.workers.dev","backupOrigin":"https://jiwu-api.eu1.netbird.services","preferredRoute":"backup"};</script>
+<script id="jiwu-failover-transport" src="jiwu-transport.js?v=20261107-failover-3"></script>
+<!-- JIWU_FAILOVER:END -->
+
 <script id="jiwu-friendly-errors">
 // Display wording only: original errors remain available to retry/offline logic.
 window.jiwuErrorText=function(error,kind){
@@ -17,7 +22,7 @@ window.jiwuErrorText=function(error,kind){
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="preconnect" href="https://jiwu-mac-relay.jiwusales.workers.dev">
+<link rel="preconnect" href="https://jiwu-api.eu1.netbird.services">
 
 <title>JIWU吉物躺著賺後台</title>
 <link rel="icon" type="image/png" sizes="180x180" href="https://jiwusales.github.io/amnbk/icons/jiwu-admin-20261105.png">
@@ -5853,7 +5858,6 @@ refreshCurrentMobileTab(name,el);return;
 }
 if(document.body.dataset.page==='profit'&&name!=='profit')profitLock(false);
 resetOnlineCardLayout();
-if(name!=='store')stopStoreCartSync();
 document.body.dataset.page=name;
 setTimeout(()=>backendSyncPoll(),0);
 document
@@ -5900,7 +5904,6 @@ const button=el||document.getElementById('btn-'+name);
 if(button){button.classList.add('isRefreshing');button.setAttribute('aria-busy','true');}
 const url=new URL(location.href);url.searchParams.set('v',String(Date.now()));location.replace(url.href);
 }
-let storeCartSyncTimer=null,storeCartSyncPending=false;
 let storeCartLoading=false;
 let cartRevision=0;
 let storeCartBase=[];
@@ -5908,7 +5911,6 @@ let cartPendingWrites=0;
 let cartWriteQueue=Promise.resolve();
 let cartSavePending=null,cartSaveRunning=false;
 let cartUnsaved=false;
-let activeSalespersonLoading=false;
 let cartOperationBusy=false;
 function cartContentsKey(items){
 return JSON.stringify(items.map(x=>({code:String(x.code||''),name:String(x.name||''),price:Number(x.price||0),qty:Number(x.qty||1),manual:!!x.manual,note:x.note||'',offerQty:x.offerQty,offerTotal:x.offerTotal})));
@@ -5943,7 +5945,6 @@ console.error('讀取購物車失敗',e);
 }finally{
 storeCartLoading=false;
 if(requestUser!==salesperson&&salesperson)loadStoreCart();
-else if(storeCartSyncPending&&!activeSalespersonLoading)void syncActiveStoreSalesperson();
 }
 }
 /*
@@ -5980,27 +5981,7 @@ async function drainStoreCartSaves(){
     alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
    }finally{cartPendingWrites--;}
   }
- }finally{cartSaveRunning=false;if(storeCartSyncPending)void syncActiveStoreSalesperson();}
-}
-/*
- * 自動同步
- */
-function requestStoreCartSync(){
-storeCartSyncPending=true;
-void syncActiveStoreSalesperson();
-}
-function startStoreCartSync(){
-stopStoreCartSync();
-// Changes arrive through backend push; this sparse foreground check recovers a missed signal.
-storeCartSyncTimer=setInterval(()=>{
-if(!document.hidden&&navigator.onLine)requestStoreCartSync();
-},60000);
-}
-function stopStoreCartSync(){
-if(storeCartSyncTimer){
-clearInterval(storeCartSyncTimer);
-storeCartSyncTimer=null;
-}
+ }finally{cartSaveRunning=false;}
 }
 function inventoryHeaderIndex(names){
 if(names.includes('庫存'))names=[...names,'庫存量','商品庫存'];
@@ -6527,17 +6508,6 @@ async function submitInventoryAdd(event){
    店面
 ========================================================= */
 function detectSalesperson(){return salesperson;}
-async function syncActiveStoreSalesperson(){
-if(document.hidden||!navigator.onLine||sessionStorage.getItem('jiwu_supabase_test_current_tab')!=='store'||(!isDesktopStore()&&storeView!=='checkout'))return;
-if(activeSalespersonLoading||storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
-storeCartSyncPending=false;
-activeSalespersonLoading=true;
-try{await loadStoreCart();}finally{
-activeSalespersonLoading=false;
-// A change received during this read must not be lost or overwrite an unfinished edit.
-if(storeCartSyncPending)queueMicrotask(()=>void syncActiveStoreSalesperson());
-}
-}
 const STORE_SCAN_SHORTCUT='吉物2.0';
 function runShortcut(){
 if(cartPendingWrites||cartUnsaved||cartOperationBusy){alert('請先等購物車儲存完成，再開啟掃描');return;}
@@ -6561,7 +6531,7 @@ const value=toHalfWidthDigits(before).replace(/[．。]/g,'.').replace(/[－−]
 if(value!==before){input.value=value;if(start!=null)input.setSelectionRange(start+(value.length-before.length),start+(value.length-before.length));}
 return value;
 }
-function renderStore(){
+function renderStore(loadCart=true){
 if(!isDesktopStore()&&storeView==='sales'){renderStoreSales();return;}
 document.getElementById('storeViewToggle').textContent='結帳';
 detectSalesperson();
@@ -6637,16 +6607,14 @@ document.getElementById('received').addEventListener('input',event=>{normalizeMo
 document.getElementById('manualPrice').addEventListener('input',event=>normalizeMoneyInput(event.currentTarget));
 document.getElementById('last5').addEventListener('input',event=>{const input=event.currentTarget;const start=input.selectionStart;const value=toHalfWidthDigits(input.value);if(value!==input.value){input.value=value;if(start!=null)input.setSelectionRange(start,start);}});
 renderCart();
-if(salesperson)loadStoreCart();
-startStoreCartSync();
-syncActiveStoreSalesperson();
+if(loadCart&&salesperson)loadStoreCart();
 if(desktop)renderStoreSales();
 }
 function toggleStoreView(){
 if(isDesktopStore())return;
 if(cartOperationBusy||cartPendingWrites||cartUnsaved){alert('請先等購物車處理完成，再切換畫面');return;}
 storeView=storeView==='checkout'?'sales':'checkout';
-if(storeView==='sales'){stopStoreCartSync();renderStoreSales();}else renderStore();
+if(storeView==='sales')renderStoreSales();else renderStore();
 }
 function refreshStoreSalesToday(){
 // 強制略過 30 秒快取，並在回應後以伺服器的今天日期為準。
@@ -6874,7 +6842,7 @@ renderCart();
 }catch(e){
 alert(e.message);
 input.focus();
-}finally{cartOperationBusy=false;cartRevision++;if(storeCartSyncPending)void syncActiveStoreSalesperson();}
+}finally{cartOperationBusy=false;cartRevision++;}
 }
 async function addManualProduct(){
 if(cartOperationBusy){alert('正在處理購物車，請稍候');return;}
@@ -7014,17 +6982,40 @@ async function clearStoreCart(){
  if(!storeCart.length||!confirm('確定清空全部商品？'))return;
  const before={cart:structuredClone(storeCart),payment};cartRevision++;
  const pending=salesperson?api('storeCartClear',{salesperson}):Promise.resolve();
- storeCart=[];storeCartBase=[];payment='';cartUnsaved=false;renderStore();
+ storeCart=[];storeCartBase=[];payment='';cartUnsaved=false;renderStore(false);
  try{await pending;}catch(error){const empty=!storeCart.length;storeCart=[...before.cart,...storeCart];if(empty)payment=before.payment;cartUnsaved=true;cartRevision++;if(document.body.dataset.page==='store')renderCart();console.error('清空尚未確認，商品已保留：'+error.message);}
 }
 async function checkout(){
-if(cartOperationBusy||cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
+if(cartOperationBusy||storeCartLoading||cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
+if(!salesperson){alert('請選擇銷售員');return;}
+// Read once when checkout is requested. Never replace the visible cart in the background.
+const checkoutUser=salesperson,checkoutAuth=authToken,checkoutRevision=cartRevision;
+const refreshButton=document.getElementById('storeCheckoutButton');
+cartOperationBusy=true;
+if(refreshButton){refreshButton.disabled=true;refreshButton.textContent='更新中⋯';}
+let localCartOnly=false;
+try{
+ const latest=await api('storeCart',{salesperson:checkoutUser});
+ if(checkoutUser!==salesperson||checkoutAuth!==authToken||checkoutRevision!==cartRevision||cartPendingWrites||cartUnsaved||document.body.dataset.page!=='store')throw Error('購物車或登入狀態已變更，請重新確認');
+ if(latest?.ok===false||!Array.isArray(latest?.cart))throw Error('沒有取得完整購物車');
+ localCartOnly=latest.localOnly===true;
+ const changed=cartContentsKey(latest.cart)!==cartContentsKey(storeCart);
+ storeCartBase=structuredClone(latest.cart);
+ if(changed){
+  storeCart=structuredClone(latest.cart);cartRevision++;renderCart();
+  alert((localCartOnly?'裝置保留的購物車已載入':'購物車已更新')+'，目前總金額 $'+money(cartOfferTotal(storeCart))+'。請確認商品與金額後，再按一次結帳。');
+  return;
+ }
+}catch(error){
+ alert('結帳前更新購物車失敗，尚未結帳，請確認連線後重試：'+error.message);
+ return;
+}finally{
+ cartOperationBusy=false;
+ if(refreshButton){refreshButton.disabled=false;refreshButton.textContent='結帳';}
+}
+if(localCartOnly&&!confirm('目前只能讀取這台裝置保留的購物車，無法確認主機最新清單。要依這份清單繼續結帳／離線備援嗎？'))return;
 if(!storeCart.length){
 alert('沒有商品');
-return
-}
-if(!salesperson){
-alert('請選擇銷售員');
 return
 }
 if(!payment){
@@ -9042,7 +9033,7 @@ if(document.body.dataset.page!=='store')return;
 const ids=['manualName','manualPrice','barcode','received','last5','storeNote'];
 const draft={};
 ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;});
-renderStore();
+renderStore(false);
 Object.entries(draft).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
 const codeBox=document.getElementById('last5Box');
 if(codeBox)codeBox.style.display=['寶中信','中信','LB','花LB','國泰'].includes(payment)?'block':'none';
@@ -9417,7 +9408,7 @@ async function backendSyncPoll(){
   if(state.revision!==backendSyncRevision){
    const legacyChanged=backendSyncLegacyRevision!==null&&state.legacyRevision!==undefined&&backendSyncLegacyRevision!==state.legacyRevision,scoped=!legacyChanged&&state.pageRevisions&&Object.keys(state.pageRevisions).length>0,changed=scoped?backendSyncPages.filter(page=>backendSyncPageVersions.get(page)!==(state.pageRevisions[page]||'')):backendSyncPages;
    backendSyncRevision=state.revision;backendSyncLegacyRevision=state.legacyRevision??null;for(const page of backendSyncPages)backendSyncPageVersions.set(page,state.pageRevisions?.[page]||'');
-   changed.forEach(page=>backendSyncDirty.add(page));if(changed.includes('online')&&onlineLoadedAt)onlineLoadedAt=1;if(changed.includes('inventory')&&inventoryLoadedAt)inventoryLoadedAt=1;if(changed.includes('ship'))shipLoadedAt=1;if(changed.includes('store')){storeSalesLoadedAt=1;requestStoreCartSync();}
+   changed.forEach(page=>backendSyncDirty.add(page));if(changed.includes('online')&&onlineLoadedAt)onlineLoadedAt=1;if(changed.includes('inventory')&&inventoryLoadedAt)inventoryLoadedAt=1;if(changed.includes('ship'))shipLoadedAt=1;if(changed.includes('store'))storeSalesLoadedAt=1;
   }
   }
   const page=document.body.dataset.page;
@@ -9431,12 +9422,12 @@ function backendSyncStart(){
 }
 document.addEventListener('compositionstart',()=>backendSyncComposing=true);
 document.addEventListener('compositionend',()=>{backendSyncComposing=false;backendPushResumePending();});
-window.addEventListener('focus',()=>{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
-window.addEventListener('pageshow',()=>{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();});
-window.addEventListener('online',()=>{backendPushWake(true);if(document.body.dataset.page==='store')requestStoreCartSync();});
+window.addEventListener('focus',()=>backendPushWake());
+window.addEventListener('pageshow',()=>backendPushWake());
+window.addEventListener('online',()=>backendPushWake(true));
 window.addEventListener('offline',()=>backendPushClient?.stop());
-document.addEventListener('visibilitychange',()=>{if(document.hidden)backendPushClient?.stop();else{backendPushWake();if(document.body.dataset.page==='store')syncActiveStoreSalesperson();}});
-document.addEventListener('focusout',()=>setTimeout(()=>{backendPushResumePending();if(storeCartSyncPending)void syncActiveStoreSalesperson();},200));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)backendPushClient?.stop();else backendPushWake();});
+document.addEventListener('focusout',()=>setTimeout(backendPushResumePending,200));
 
 // jiwu-push-invalidation:end
 
@@ -9719,7 +9710,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
  .launchProductListPage .launchListPrices>.launchListOriginal,.launchProductListPage .launchListPrices>.launchListPrice{flex:none;white-space:nowrap;margin:0}
 }
 </style>
-<script src="store-offline.js?v=20261026-discord-auto-store"></script>
+<script src="store-offline.js?v=20261107-failover-3-netbird"></script>
 
 <style id="store-side-checkout-layout">
 body[data-page="store"] .top{position:relative;padding-right:62px}
