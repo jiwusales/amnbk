@@ -3944,7 +3944,46 @@ function launchImportURLs(newGroup=false,seed=null){
 function launchCancelURLImport(){launchURLImportSession=null;document.getElementById('launchDialog')?.close();}
 function launchURLImportActive(session){return launchURLImportSession===session&&session.dialog===document.getElementById('launchDialog')&&session.dialog.open&&launchCurrent===(session.newGroup?session.originGroup:session.destination.group);}
 
-function launchURLImportItemKey(item){return JSON.stringify([String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
+function launchURLImportItemKey(item){const detailURL=launchURLImportDetailURL(item.url);return JSON.stringify(detailURL?[detailURL,item.japaneseName||item.name,item.role||'',item.variantKey||'']:[String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
+function launchURLImportDetailURL(value){
+ try{const u=new URL(launchNormalizeURL(value));if(u.origin!=='https://munyugurumi.jp'||u.username||u.password||u.port||u.pathname!=='/itemdetail'||!/^\d+$/.test(u.searchParams.get('ItemID')||''))return '';u.hash='';u.searchParams.sort();return u.href;}catch{return '';}
+}
+function launchURLImportMetadataText(item){return [item.code?'貨號 '+item.code:'',item.format?'格式 '+item.format:'',item.size?'尺寸 '+item.size:''].filter(Boolean).join('｜');}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='');}
+function launchReuseURLImportCachedItems(data,session){
+ const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
+ for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
+ for(const item of data.items||[]){const url=launchURLImportDetailURL(item?.url);if(url)counts.set(url,(counts.get(url)||0)+1);}
+ data.items=(data.items||[]).map(item=>{const url=launchURLImportDetailURL(item?.url);if(!url)return item;const exact=byKey.get(launchURLImportItemKey(item));if(exact)return exact;const matches=byURL.get(url)||[];return counts.get(url)===1&&matches.length===1?matches[0]:item;});
+}
+async function launchEnrichURLImportDetails(data,session,onProgress=()=>{}){
+ const items=(Array.isArray(data.items)?data.items:[]).filter(item=>item&&typeof item==='object'),groups=new Map(),metadataWarning=/：(?:商品詳細資料暫時無法讀取(?:，尺寸待補)?|官網未提供尺寸)$/,warnings=new Set((data.warnings||[]).filter(value=>!metadataWarning.test(String(value))));let next=0,done=0;
+ const label=item=>String(item.name||item.japaneseName||'商品');
+ const missing=value=>value==null||String(value).trim()==='';
+ const unavailable=item=>warnings.add(label(item)+'：商品詳細資料暫時無法讀取'+(missing(item.size)?'，尺寸待補':''));
+ for(const item of items){if(!launchURLImportNeedsDetails(item))continue;const url=launchURLImportDetailURL(item.url);if(!url){unavailable(item);continue;}if(!groups.has(url))groups.set(url,[]);groups.get(url).push(item);}
+ const queue=[...groups];
+ const validation=(async()=>{
+  await Promise.all(Array.from({length:Math.min(2,queue.length)},async()=>{while(next<queue.length){
+   if(session&&!launchURLImportActive(session))return;
+   const [url,targets]=queue[next++];
+   try{
+    const response=await api('launchImportProductDetails',{url}),detail=response?.item;
+    if(session&&!launchURLImportActive(session))return;
+    if(response?.ok===false||!detail||launchURLImportDetailURL(detail.url)!==url)throw Error('商品詳細網址不符');
+    for(const item of targets){
+     for(const key of ['size','code','format','original']){const value=detail[key];if(missing(item[key])&&(typeof value==='string'||typeof value==='number')&&!missing(value))item[key]=String(value).trim();}
+     if(missing(item.size))warnings.add(label(item)+'：官網未提供尺寸');
+    }
+   }catch{if(session&&!launchURLImportActive(session))return;targets.forEach(unavailable);}
+   onProgress(++done,queue.length);
+  }}));
+  if(!session||launchURLImportActive(session))data.warnings=[...warnings];
+  return data;
+ })();
+ if(session)session.detailValidation=validation;
+ try{return await validation;}finally{if(session?.detailValidation===validation)delete session.detailValidation;}
+}
 function launchURLImportImageURLs(item){
  return [...new Set([...(Array.isArray(item.images)?item.images:[]),item.image].map(launchSafeURL).filter(Boolean))];
 }
@@ -4000,15 +4039,24 @@ async function launchReadImportURLs(event){
  if(urls.length>20){message.textContent='每次最多讀取 20 個網址，每團最多 200 項商品';return;}
  session.readResults??=new Map();
  const previousKeys=new Set(session.items.map(launchURLImportItemKey)),selectedKeys=new Set(session.items.filter((_,index)=>session.selected.has(index)).map(launchURLImportItemKey));
- const pending=urls.filter(url=>!session.readResults.has(url)),retained=urls.length-pending.length;
+ const retainedURLs=urls.filter(url=>session.readResults.has(url)),pending=urls.filter(url=>!session.readResults.has(url)),retained=retainedURLs.length;
  session.urls=String(new FormData(form).get('urls')||'');session.loading=true;(form.querySelector('[data-url-read]')||form.querySelector('[type="submit"]')).disabled=true;
- const failures=[];
+ const failures=[];let detailRetried=0;
+ for(const url of retainedURLs){
+  if(!launchURLImportActive(session))return;
+  if(new URL(url).origin!=='https://munyugurumi.jp')continue;
+  const data=session.readResults.get(url);launchReuseURLImportCachedItems(data,session);
+  if((data.items||[]).some(launchURLImportNeedsDetails))detailRetried++;
+  await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
+ }
  for(let index=0;index<pending.length;index++){
   if(!launchURLImportActive(session))return;
   message.textContent=`正在讀取 ${index+1} / ${pending.length}…${retained?'（保留 '+retained+' 個已讀網址）':''}`;
   const url=pending[index];
   try{
    const data=await api('launchAnnouncementPreview',{url,expandRoles:true});
+   if(!launchURLImportActive(session))return;
+   if(new URL(url).origin==='https://munyugurumi.jp')await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
    await launchValidateURLImportImages(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在檢查圖片 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
@@ -4036,7 +4084,7 @@ async function launchReadImportURLs(event){
  session.group.noFreeShipping=!!group.noFreeShipping;session.group.needsSecondPayment=!!group.needsSecondPayment;
  launchRenderURLImport();
  const summary=session.dialog.querySelector('[data-url-import-message]');
- if(summary)summary.textContent=pending.length?`已保留 ${retained} 個已讀網址，讀取 ${pending.length-failures.length} 個新網址${failures.length?'，'+failures.length+' 個未完成，可再按讀取重試':''}`:'網址都已讀取，已保留原有商品';
+ if(summary)summary.textContent=pending.length?`已保留 ${retained} 個已讀網址，讀取 ${pending.length-failures.length} 個新網址${failures.length?'，'+failures.length+' 個未完成，可再按讀取重試':''}`:detailRetried?'網址都已讀取，已保留原有商品並重試缺少的商品詳細資料':'網址都已讀取，已保留原有商品';
 }
 function launchToggleURLImportShipping(button,name){
  const input=button.form?.elements.namedItem(name);
@@ -4055,13 +4103,13 @@ function launchRenderURLImport(){
  const session=launchURLImportSession;if(!session||!launchURLImportActive(session))return;
  if(session.newGroup){launchRenderNewAnnouncementForm(session);return;}
  const reference=session.sources.map(({source,group})=>source?`<div><strong>${esc(source.title||'公告')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small>${group?.name?`<small>團名參考：${esc(group.name)}</small>`:''}</div>`:'').join('');
- session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc([item.original?'原價 '+(item.currency||'原幣')+' '+item.original:'原價待填',item.code?'貨號 '+item.code:'',item.format,item.size].filter(Boolean).join('｜'))}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
+ session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc([item.original?'原價 '+(item.currency||'原幣')+' '+item.original:'原價待填',launchURLImportMetadataText(item)].filter(Boolean).join('｜'))}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
  launchUpdateURLImportSelection();
 }
 function launchRenderNewAnnouncementForm(session){
  const source=session.sources[0]?.source;
  const reference=source?`<div class="launchURLSource"><strong>${esc(source.title||'')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small></div>`:'';
- const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>原價 ${esc(item.currency||'原幣')} ${esc(item.original||'待填')} · 售價${item.price?' $'+esc(item.price):'待填'}</small></span></label>`).join('');
+ const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>原價 ${esc(item.currency||'原幣')} ${esc(item.original||'待填')} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
  session.dialog.innerHTML=`<form class="launchURLImportForm launchNewAnnouncementForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>建立新團</h2><label>商品／公告網址（選填）<textarea name="urls" aria-label="匯入商品網址" rows="2" placeholder="貼上任一公開商品或公告網址，自動帶入商品與圖片">${esc(session.urls||'')}</textarea></label><div class="launchTools" style="margin:10px 0"><button class="btn light" type="button" data-url-read onclick="launchReadImportURLs({preventDefault(){},currentTarget:this.form})">讀取網址商品</button></div><p data-url-import-message role="status"></p>${reference}${launchURLImportGroupFields(session)}${session.items.length?`<h3>辨識到的商品</h3><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${products}</div>`:''}${session.warnings.length?`<p class="launchHelp">${esc(session.warnings.join('；'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit" data-url-import-confirm>建立開團頁</button></div></form>`;
  if(session.items.length)launchUpdateURLImportSelection();
 }
@@ -4073,7 +4121,7 @@ function launchUpdateURLImportSelection(){
  session.dialog.querySelector('[data-url-import-confirm]').disabled=count===0;
 }
 async function launchConfirmURLImport(event){
- event.preventDefault();const session=launchURLImportSession,form=event.currentTarget;if(session?.imageValidation)await session.imageValidation;if(!session||!launchURLImportActive(session)||session.loading||session.autoCreating||(!session.newGroup&&!session.selected.size)||!form?.isConnected||session.dialog.querySelector('form')!==form)return;
+ event.preventDefault();const session=launchURLImportSession,form=event.currentTarget;if(session?.detailValidation||session?.imageValidation)await Promise.all([session?.detailValidation,session?.imageValidation].filter(Boolean));if(!session||!launchURLImportActive(session)||session.loading||session.autoCreating||(!session.newGroup&&!session.selected.size)||!form?.isConnected||session.dialog.querySelector('form')!==form)return;
  const values=new FormData(form),groupInfo={},error=form.querySelector('[data-url-import-validation]');
  if(session.newGroup){const urls=String(values.get('urls')||'').trim();if(urls&&(!session.hasRead||urls!==String(session.urls||'').trim()||session.failures?.length)){
   session.autoCreating=true;
@@ -4657,7 +4705,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['launchAnnouncementPreview','helperLoadPlan','customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['launchAnnouncementPreview','launchImportProductDetails','helperLoadPlan','customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
