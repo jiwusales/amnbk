@@ -4637,18 +4637,13 @@ async function tmallRemoteBrowserRead(url){
 }
 
 async function apiRequest(action,params={}){
-if(action==='launchAnnouncementPreview'){
- const u=new URL(params.url);
- if(u.origin==='https://munyugurumi.jp'&&['/itemlist','/itemdetail'].includes(u.pathname))params={...params,browserPage:await munyuBrowserRead(params.url,true)};
-}
 let browserURL='';
 if(action==='launchProductInfo')browserURL=params.item?.url||'';
-else if(['launchScrape','launchCheckAvailability'].includes(action))browserURL=launchCurrent?.items?.find(item=>item.id===params.itemId)?.url||'';
-else if(action==='checkInventoryAvailability')browserURL=inventoryProductUrl(inventoryRows.find(item=>Number(item.row)===Number(params.row))||{});
+else if(action==='launchScrape')browserURL=launchCurrent?.items?.find(item=>item.id===params.itemId)?.url||'';
 if(browserURL){let munyu=false;try{munyu=new URL(browserURL).hostname==='detail.tmall.com'||new URL(browserURL).hostname==='munyugurumi.jp'||new URL(browserURL).hostname==='re-writeinc.com';}catch(_){}if(munyu&&!(action==='launchCheckAvailability'&&new URL(browserURL).hostname==='munyugurumi.jp'&&(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))))params={...params,browserProduct:new URL(browserURL).hostname==='detail.tmall.com'&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)?await tmallRemoteBrowserRead(browserURL):await munyuBrowserRead(browserURL)};}
 
 const requestId=params.requestId||crypto.randomUUID(),controller=new AbortController();
-const timer=setTimeout(()=>controller.abort(),action==='launchGet'?20000:90000);
+const timer=setTimeout(()=>controller.abort(),action==='launchGet'?20000:action==='launchAnnouncementPreview'?120000:90000);
 try{
 const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...(authToken?{token:authToken}:{}),...params,requestId}),signal:controller.signal});
 const responseText=await r.text();let data;
