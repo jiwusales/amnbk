@@ -4048,8 +4048,14 @@ function launchURLImportActive(session){return launchURLImportSession===session&
 
 function launchURLImportItemKey(item){const detailURL=launchURLImportDetailURL(item.url);return JSON.stringify(detailURL?[detailURL,item.japaneseName||item.name,item.role||'',item.variantKey||'']:[String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
 function launchURLImportDetailURL(value){
+ const neowing=launchURLImportNeowingURL(value,true);if(neowing)return neowing;
  try{const u=new URL(launchNormalizeURL(value));if(u.origin!=='https://munyugurumi.jp'||u.username||u.password||u.port||u.pathname!=='/itemdetail'||!/^\d+$/.test(u.searchParams.get('ItemID')||''))return '';u.hash='';u.searchParams.sort();return u.href;}catch{return '';}
 }
+function launchURLImportNeowingURL(value,detailOnly=false){
+ try{const u=new URL(launchNormalizeURL(value));if(u.protocol!=='https:'||!['www.neowing.co.jp','neowing.co.jp'].includes(u.hostname)||u.username||u.password||u.port)return '';const path=u.pathname.replace(/\/$/,'');if(!/^\/product\/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(path)&&(detailOnly||!/^\/series\/\d+$/.test(path)))return '';u.hostname='www.neowing.co.jp';u.pathname=path;u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|dclid|msclkid|yclid|ttclid|twclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
+}
+function launchURLImportSourceURL(value){const neowing=launchURLImportNeowingURL(value);if(neowing)return neowing;const u=new URL(value);u.hash='';return u.href;}
+function launchURLImportSupportsDetails(value){try{return new URL(value).origin==='https://munyugurumi.jp'||!!launchURLImportNeowingURL(value);}catch{return false;}}
 function launchURLImportMetadataText(item){return [item.code?'貨號 '+item.code:'',item.format?'格式 '+item.format:'',item.size?'尺寸 '+item.size:''].filter(Boolean).join('｜');}
 function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='');}
 function launchReuseURLImportCachedItems(data,session){
@@ -4137,7 +4143,7 @@ async function launchReadImportURLs(event){
  const form=event.currentTarget,message=form.querySelector('[data-url-import-message]');
  const rawURLs=[...new Set(String(new FormData(form).get('urls')||'').split(/\s+/).filter(Boolean))];
  if(!rawURLs.length||rawURLs.some(url=>!launchSafeURL(url))){message.textContent='請填入有效的 http/https 公告或商品網址';return;}
- const urls=[...new Set(rawURLs.map(value=>{const url=new URL(value);url.hash='';return url.href}))];
+ const urls=[...new Set(rawURLs.map(launchURLImportSourceURL))];
  if(urls.length>20){message.textContent='每次最多讀取 20 個網址，每團最多 200 項商品';return;}
  session.readResults??=new Map();
  const previousKeys=new Set(session.items.map(launchURLImportItemKey)),selectedKeys=new Set(session.items.filter((_,index)=>session.selected.has(index)).map(launchURLImportItemKey));
@@ -4146,7 +4152,7 @@ async function launchReadImportURLs(event){
  const failures=[];let detailRetried=0;
  for(const url of retainedURLs){
   if(!launchURLImportActive(session))return;
-  if(new URL(url).origin!=='https://munyugurumi.jp')continue;
+  if(!launchURLImportSupportsDetails(url))continue;
   const data=session.readResults.get(url);launchReuseURLImportCachedItems(data,session);
   if((data.items||[]).some(launchURLImportNeedsDetails))detailRetried++;
   await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
@@ -4158,7 +4164,7 @@ async function launchReadImportURLs(event){
   try{
    const data=await api('launchAnnouncementPreview',{url,expandRoles:true});
    if(!launchURLImportActive(session))return;
-   if(new URL(url).origin==='https://munyugurumi.jp')await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
+   if(launchURLImportSupportsDetails(url))await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
    await launchValidateURLImportImages(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在檢查圖片 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
