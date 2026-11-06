@@ -2637,7 +2637,7 @@ document.addEventListener('change',event=>{if(event.target instanceof HTMLInputE
 document.addEventListener('click',e=>{if(e.target instanceof HTMLInputElement&&e.target.classList.contains('launchClosedSearch'))e.target.select();});
 function launchProductNameKey(value){return String(value??'').normalize('NFKC').trim();}
 function launchProductNameParts(value){const text=String(value??'').trim(),match=text.match(/^(\S+)([\s\S]*)$/);return {base:match?.[1]||'',suffix:match?.[2]||''};}
-function launchApplyProductName(previousName,nextName){
+function launchApplyProductName(previousName,nextName,sourceItem){
  if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;
  const before=launchProductNameParts(previousName),after=launchProductNameParts(nextName),name=String(nextName??'').trim();
  if(!before.base||!after.base||String(previousName??'').trim()===name)return;
@@ -2645,10 +2645,11 @@ function launchApplyProductName(previousName,nextName){
  launchPushUndo();
  launchCurrent.items.forEach(item=>{
   const current=launchProductNameParts(item.name);
-  if(baseChanged&&launchProductNameKey(current.base)===launchProductNameKey(before.base))item.name=after.base+current.suffix;
+  if(baseChanged&&launchProductNameKey(current.base)===launchProductNameKey(before.base)&&launchDraftOriginalPriceKey(item)===launchDraftOriginalPriceKey(sourceItem)&&launchProductNamePriceKey(item)===launchProductNamePriceKey(sourceItem))item.name=after.base+current.suffix;
   // Text after the first space belongs only to the edited variant.
  });
 }
+function launchProductNamePriceKey(item){const text=String(item?.price??'').normalize('NFKC').replace(/[,\s$＄]/g,'');return /^\d+(?:\.\d+)?$/.test(text)?String(Number(text)):text;}
 function launchDraftPriceKey(item){return String(item?.name||'').normalize('NFKC').trim().split(/\s+/)[0]||'';}
 function launchDraftOriginalPriceKey(item){const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,'').toUpperCase(),match=text.match(/^(R)?(\d+(?:\.\d+)?)(R)?$/);return match?[(match[1]||match[3])?'CNY':'JPY',Number(match[2])].join('|'):text;}
 function launchApplyProductPrice(item,value){item.price=value;if(!['尚未上架','最新開團'].includes(launchCurrent?.status))return;const key=launchDraftPriceKey(item),original=launchDraftOriginalPriceKey(item);if(!key)return;launchCurrent.items.forEach(other=>{if(launchDraftPriceKey(other)===key&&launchDraftOriginalPriceKey(other)===original&&launchDrawType(other)===launchDrawType(item))other.price=value;});}
@@ -3597,7 +3598,7 @@ async function launchProductSubmit(e,index,mode){
   items.forEach(item=>{item.panel=launchPanelIndex;item.visible=true;});
  }
  items.forEach(item=>{if(/單抽|抱盒/.test(launchVariantFormat(item))){item.kind='抽抽';return;}if(!item.kind&&!(mode==='single'&&e.target.querySelector?.('select[name="kind"]')?.dataset.manual==='true')){const catalog=launchProductKindCatalog.length?launchProductKindCatalog:launchProductKinds.map(kind=>({kind}));item.kind=/單抽|抱盒/.test(launchVariantFormat(item))?'抽抽':launchInferProductKind(item,catalog);}});
- if(mode==='single'&&index>=0)launchApplyProductName(previousName,items[0]?.name);
+ if(mode==='single'&&index>=0)launchApplyProductName(previousName,items[0]?.name,launchCurrent.items[index]);
  if(index>=0)launchCurrent.items.splice(index,1,...items);else if(f.get('insertPosition')==='front')launchCurrent.items.unshift(...items);else launchCurrent.items.push(...items);if(index<0&&launchCurrent.status==='最新開團'&&Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)){const ids=launchCurrent.panels[launchPanelIndex].productIds;items.forEach(item=>{if(!ids.includes(item.id))ids.push(item.id);});}if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);launchSyncDrawImages(launchCurrent.items,items);launchMark();
  const product=mode==='single'?structuredClone(items[0]):null;
  const needsInfo=product?.url&&(['code','size','japaneseName','original'].some(field=>!String(product[field]||'').trim())||(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(product.url)&&launchPokemonSizeFormat(product.format)));
