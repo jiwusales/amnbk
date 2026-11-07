@@ -4190,7 +4190,7 @@ async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true
  do{
   if(!isActive())throw Error('已取消讀取');
   const params={url,expandRoles:true,allPages:true,...(pagination?{pagination}:{})};
-  let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',params);break;}catch(error){if(attempt===2||!isActive())throw error;}}
+  let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',params);break;}catch(error){if(attempt===2||!isActive())throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
   if(!isActive())throw Error('已取消讀取');
   output||=data;for(const item of data.items||[]){const key=launchURLImportItemKey(item);if(!items.has(key))items.set(key,item);}
   for(const warning of data.warnings||[])warnings.add(warning);
