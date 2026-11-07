@@ -3202,7 +3202,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
    { // Use the same translated import as 尚未上架 for product and announcement URLs.
     const pageKey='page:'+row.url;
     if(!cache.has(pageKey))cache.set(pageKey,(async()=>{
-     const data=await api('launchAnnouncementPreview',{url:row.url,expandRoles:true});
+     const data=await launchReadAllAnnouncement(row.url,(pages,count)=>onProgress(pages,count,'列表分頁'));
      if(!data||data.ok===false||!Array.isArray(data.items)||!data.items.length)throw Error(data?.error||'未辨識到商品，請確認公告或商品詳細頁網址');
      if(launchURLImportSupportsDetails(row.url))await launchEnrichURLImportDetails(data,null,(done,total)=>onProgress(done,total,'詳細資料'));
      const detailFailures=(data.warnings||[]).filter(warning=>/：商品詳細資料暫時無法讀取(?:，尺寸待補)?$/.test(String(warning)));
@@ -4086,7 +4086,7 @@ function launchImportURLs(newGroup=false,seed=null){
  if(!newGroup&&prior?.newGroup){launchOpenNewAnnouncement();return;}
  const destination=newGroup?null:launchImportDestination;if(!newGroup&&(!destination||launchCurrent!==destination.group))return;
  const session={destination,newGroup,seed:seed||{},originGroup:launchCurrent,items:[],selected:new Set(),sources:[],warnings:[]};
- launchDialog(`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchReadImportURLs(event)"><h2>${newGroup?'貼公告開新團':'貼網址匯入'}</h2><label>公告或商品網址<textarea name="urls" aria-label="匯入商品網址" rows="4" required placeholder="貼上任一公開商品或公告網址，可每行貼一個"></textarea></label><p class="launchHelp">公告頁會拆出商品名稱、原幣價格與對應圖片，讀取後可勾選商品並填寫開團資訊。</p><p data-url-import-message role="status"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit">讀取商品</button></div></form>`);
+ launchDialog(`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchReadImportURLs(event)"><h2>${newGroup?'貼公告開新團':'貼網址匯入'}</h2><label>公告、商品或列表網址<textarea name="urls" aria-label="匯入商品網址" rows="4" required placeholder="貼上任一公開商品或公告網址，可每行貼一個"></textarea></label><p class="launchHelp">商品列表會自動讀取全部分頁並合併重複商品，再勾選商品填寫開團資訊。</p><p data-url-import-message role="status"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit">讀取商品</button></div></form>`);
  launchURLImportSession=session;session.dialog=document.getElementById('launchDialog');
  session.dialog.addEventListener('close',()=>{if(launchURLImportSession===session)launchURLImportSession=null;},{once:true});
 }
@@ -4185,11 +4185,27 @@ function launchURLImportImageFailed(index,image,expectedURL){
  if(next){image.onerror=()=>launchURLImportImageFailed(index,image,next);image.dataset.urlImportImage=next;image.src=launchURLImportDisplayImageURL(next);}
  else{const box=image.closest('.launchURLThumb');if(box)box.textContent='待補圖';else image.remove();}
 }
+async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true){
+ const items=new Map(),warnings=new Set(),seen=new Set();let pagination,output;
+ do{
+  if(!isActive())throw Error('已取消讀取');
+  const params={url,expandRoles:true,allPages:true,...(pagination?{pagination}:{})};
+  let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',params);break;}catch(error){if(attempt===2||!isActive())throw error;}}
+  if(!isActive())throw Error('已取消讀取');
+  output||=data;for(const item of data.items||[]){const key=launchURLImportItemKey(item);if(!items.has(key))items.set(key,item);}
+  for(const warning of data.warnings||[])warnings.add(warning);
+  output.source={...output.source,pageCount:data.source?.pageCount||1};
+  pagination=data.pagination;onProgress(output.source.pageCount,items.size);
+  if(pagination){const key=JSON.stringify(pagination);if(seen.has(key))throw Error('商品列表分頁未能接續，請重試');seen.add(key);}
+ }while(pagination);
+ return {...output,items:[...items.values()],warnings:[...warnings],pagination:undefined};
+}
+
 async function launchReadImportURLs(event){
  event.preventDefault();const session=launchURLImportSession;if(!session||session.loading)return;
  const form=event.currentTarget,message=form.querySelector('[data-url-import-message]');
  const rawURLs=[...new Set(String(new FormData(form).get('urls')||'').split(/\s+/).filter(Boolean))];
- if(!rawURLs.length||rawURLs.some(url=>!launchSafeURL(url))){message.textContent='請填入有效的 http/https 公告或商品網址';return;}
+ if(!rawURLs.length||rawURLs.some(url=>!launchSafeURL(url))){message.textContent='請填入有效的 http/https 公告、商品或列表網址';return;}
  const urls=[...new Set(rawURLs.map(launchURLImportSourceURL))];
  if(urls.length>20){message.textContent='每次最多讀取 20 個網址，每團最多 200 項商品';return;}
  session.readResults??=new Map();
@@ -4206,10 +4222,10 @@ async function launchReadImportURLs(event){
  }
  for(let index=0;index<pending.length;index++){
   if(!launchURLImportActive(session))return;
-  message.textContent=`正在讀取 ${index+1} / ${pending.length}…${retained?'（保留 '+retained+' 個已讀網址）':''}`;
+  message.textContent=`正在讀取 ${index+1} / ${pending.length}（列表自動讀取全部分頁）…${retained?'（保留 '+retained+' 個已讀網址）':''}`;
   const url=pending[index];
   try{
-   const data=await api('launchAnnouncementPreview',{url,expandRoles:true});
+   const data=await launchReadAllAnnouncement(url,(pages,count)=>{if(launchURLImportActive(session))message.textContent='已讀取 '+pages+' 頁、'+count+' 項商品，正在自動讀取全部分頁…';},()=>launchURLImportActive(session));
    if(!launchURLImportActive(session))return;
    if(launchURLImportSupportsDetails(url))await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
