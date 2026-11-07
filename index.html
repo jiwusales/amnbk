@@ -3184,18 +3184,27 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
  const rows=launchParseMultiProducts(value);
  // Validate the whole batch before reading URLs or changing the canvas.
  launchExpandMultiProducts(rows.map(row=>({...row,name:row.name||(row.url?'讀取商品名稱':'')})),start);
- const cache=new Map(),expanded=[];let completed=0;
+ const cache=new Map(),expanded=[],warnings=new Set();let completed=0;
  for(const row of rows){
   row.url=launchNormalizeURL(row.url);
   if(!row.url){expanded.push(row);continue;}
+  row.url=launchURLImportSourceURL(row.url);
   onProgress(++completed,rows.filter(row=>row.url).length);
   const spec=launchNormalizeProductSpec(String(row.size||'').trim(),'');
   try{
    { // Use the same translated import as 尚未上架 for product and announcement URLs.
     const pageKey='page:'+row.url;
-    if(!cache.has(pageKey))cache.set(pageKey,api('launchAnnouncementPreview',{url:row.url,expandRoles:true}));
+    if(!cache.has(pageKey))cache.set(pageKey,(async()=>{
+     const data=await api('launchAnnouncementPreview',{url:row.url,expandRoles:true});
+     if(!data||data.ok===false||!Array.isArray(data.items)||!data.items.length)throw Error(data?.error||'未辨識到商品，請確認公告或商品詳細頁網址');
+     if(launchURLImportSupportsDetails(row.url))await launchEnrichURLImportDetails(data,null,(done,total)=>onProgress(done,total,'詳細資料'));
+     const detailFailures=(data.warnings||[]).filter(warning=>/：商品詳細資料暫時無法讀取(?:，尺寸待補)?$/.test(String(warning)));
+     if(detailFailures.length)throw Error('有 '+detailFailures.length+' 項商品詳細資料讀取未完成，尚未新增商品，請重試：\n'+detailFailures.join('\n'));
+     await launchValidateURLImportImages(data,null,(done,total)=>onProgress(done,total,'圖片'));
+     return data;
+    })());
     const data=await cache.get(pageKey);
-    if(!data||data.ok===false||!Array.isArray(data.items)||!data.items.length)throw Error(data?.error||'未辨識到商品，請確認公告或商品詳細頁網址');
+    for(const warning of data.warnings||[])warnings.add(warning);
     for(const info of data.items){
      const name=String(info.name||info.japaneseName||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
@@ -3206,7 +3215,8 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
    }
   }catch(error){throw Error('第 '+row.line+' 行：'+error.message);}
  }
- return launchExpandMultiProducts(expanded,start);
+ const products=launchExpandMultiProducts(expanded,start);
+ Object.defineProperty(products,'importWarnings',{value:[...warnings]});return products;
 }
 function launchNormalizeProductSpec(size,format){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:launchFormatProductSize(spec.size)};}
 function launchFormatProductSize(input){input=jiwuSizeToMillimeters(input);const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
@@ -3586,7 +3596,7 @@ async function launchProductSubmit(e,index,mode){
   form.dataset.multiReading='true';
   const submit=form.querySelector('[type="submit"]'),originalText=submit?.textContent;
   if(submit)submit.disabled=true;
-  try{items=await launchReadMultiProducts(f.get('multiProducts'),group.items.length,(done,total)=>{if(submit)submit.textContent='讀取商品資料 '+done+' / '+total+'…';});if(!form.isConnected||launchCurrent!==group)return;}
+  try{items=await launchReadMultiProducts(f.get('multiProducts'),group.items.length,(done,total,phase)=>{if(submit)submit.textContent='讀取'+(phase||'商品資料')+' '+done+' / '+total+'…';});if(!form.isConnected||launchCurrent!==group)return;}
   catch(error){alert(error.message);return;}
   finally{delete form.dataset.multiReading;if(submit){submit.disabled=false;submit.textContent=originalText;}}
  }
@@ -3610,7 +3620,9 @@ async function launchProductSubmit(e,index,mode){
  const product=mode==='single'?structuredClone(items[0]):null;
  const needsInfo=product?.url&&(['code','size','japaneseName','original'].some(field=>!String(product[field]||'').trim())||(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(product.url)&&launchPokemonSizeFormat(product.format)));
  const info=needsInfo&&form.jiwuReadProductInfo?form.jiwuReadProductInfo():null;
- launchFinishProductEditor(true);void launchAutoDomesticShipping();launchSaveProductCard();
+ launchFinishProductEditor(true);void launchAutoDomesticShipping();
+ const importWarnings=mode==='multi'&&Array.isArray(items.importWarnings)?items.importWarnings:[];
+ if(importWarnings.length){const message='商品已新增，以下資料待補：\n'+importWarnings.join('\n');launchNotice(message);launchSaveClick({actionLabel:'新增商品',successMessage:'商品已儲存；有 '+importWarnings.length+' 項資料待確認',preserveScroll:true,render:false,onSuccess:()=>{if(launchCurrent?.id===group.id)launchNotice(message);}});}else launchSaveProductCard();
  if(info)void launchCompleteProductInfo(group.id,product,info);
 
 }
