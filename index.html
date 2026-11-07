@@ -4423,6 +4423,7 @@ function launchCopyClosedProducts(event){
 const launchAvailabilityChecks=new Map();
 function launchAvailabilityKey(group,item){return JSON.stringify([group.id,item.id,item.url||'']);}
 function launchAvailabilityButton(item,index){
+ if(tmallStockBadgeHidden(item.url,item.note))return '';
  const cached=launchAvailabilityChecks.get(launchAvailabilityKey(launchCurrent,item)),saved=String(item.availabilityStatus||'');
  const state=cached?.busy?cached:{available:/⭕/.test(saved)?true:/❌/.test(saved)?false:null};
  const mark=state.available===true?'⭕️':state.available===false?'❌':'⚠️';
@@ -6135,7 +6136,13 @@ function inventoryProductImageMarkup(item,name){
  const picture=img?`<img class="inventoryProductImage" src="${esc(img)}" alt="${esc(name)}" loading="lazy" onerror="this.closest('.inventoryImageEdit').innerHTML='<div class=&quot;inventoryNoImage&quot;>▧</div>'">`:'<div class="inventoryNoImage">▧</div>';
  return url?`<a class="inventoryImageEdit" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(name)} 商品頁面">${picture}</a>`:`<button type="button" class="inventoryImageEdit" title="點擊更新圖片網址" aria-label="更新 ${esc(name)} 的圖片" onclick="openInventoryImageDialog(${Number(item.row)})">${picture}</button>`;
 }
-function inventoryAvailabilityState(item){const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
+function tmallStockBadgeHidden(url,note=''){
+ const isTmall=value=>{try{const host=new URL(value).hostname.toLowerCase();return host==='tmall.com'||host.endsWith('.tmall.com');}catch{return false;}};
+ const primary=String(url||'').trim();if(primary)return isTmall(primary);
+ const links=String(note||'').match(/(?:https?:\/\/|www\.)[^\s<>"'，。；、（）【】]+/gi)||[];
+ return links.length>0&&links.every(link=>isTmall(/^www\./i.test(link)?'https://'+link:link));
+}
+function inventoryAvailabilityState(item){if(tmallStockBadgeHidden(inventoryProductUrl(item),inventoryValue(item,['備註','備註欄','說明'])))return '';const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
 function inventoryIsRelisted(item){return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes'&&!inventoryNoteHasUrl(item);}
 function inventoryNeedsOtherChannelCheck(item){const stock=inventoryCellState(item,['庫存','總庫存','數量']);return stock===0&&!inventoryHasPhysicalStock(item)&&inventoryQty(item,['非現','非現貨','非現庫存'])<=0&&(inventoryAvailabilityState(item)==='unknown'||inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item));}
 function inventoryIsPinned(item){return inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item);}
