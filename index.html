@@ -1966,7 +1966,7 @@ function launchToggleGroupChannel(event,index,channel,button){
  try{localStorage.setItem('jiwu_supabase_test_post_channels_'+group.id,JSON.stringify(state));button.setAttribute('aria-pressed',String(selected));}
  catch(_){launchCompletionToast('無法保存平台標記，請確認瀏覽器儲存空間',true);}
 }
-function launchLineGroupText(g){return `${launchCanvasTitle(g,0)}：${launchPostURL(g)}`;}
+function launchLineGroupText(g){const title=(String(g.name||'').trim()||launchCanvasTitle(g,0)).replace(/(?:收單\s*)?⛔\uFE0F?/g,'收單⛔️');return `${title}：${launchPostURL(g)}`;}
 async function launchCopyPostText(button,id){
  const input=document.getElementById(id),text=input?.value||'';if(!text)return;
  try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);else{input.focus();input.select();if(!document.execCommand('copy'))throw new Error('複製失敗');}}
