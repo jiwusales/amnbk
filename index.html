@@ -5958,14 +5958,14 @@ return JSON.stringify(items.map(x=>({code:String(x.code||''),name:String(x.name|
 /*
  * 從 資料庫 取得共用購物車
  */
-async function loadStoreCart(){
+async function loadStoreCart(push=false){
 if(!salesperson){
 storeCart=[];
 renderCart();
 return;
 }
 if(storeCartLoading||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
-const requestUser=salesperson;
+const requestUser=salesperson,requestAuth=authToken;
 const requestRevision=cartRevision;
 storeCartLoading=true;
 try{
@@ -5973,23 +5973,60 @@ const d=await api(
 'storeCart',
 {salesperson:requestUser}
 );
-if(requestUser!==salesperson||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved||cartOperationBusy)return;
+if(requestUser!==salesperson||requestAuth!==authToken||requestRevision!==cartRevision||cartPendingWrites||cartUnsaved||cartOperationBusy)return false;
+if(push&&(!storeCartPushVisible()||d?.localOnly===true||d?.ok===false||!Array.isArray(d.cart)))return false;
 const nextCart=Array.isArray(d.cart)?d.cart:[];
 storeCartBase=structuredClone(nextCart);
 if(cartContentsKey(nextCart)!==cartContentsKey(storeCart)){
 storeCart=nextCart;
 renderCart();
 }
+return true;
 }catch(e){
 console.error('讀取購物車失敗',e);
+return false;
 }finally{
 storeCartLoading=false;
 if(requestUser!==salesperson&&salesperson)loadStoreCart();
+storeCartPushResume();
 }
 }
 /*
  * 將目前商品清單同步到 資料庫
  */
+// A content-free push invalidates only the shared cart; no polling or writes.
+let storeCartPushTarget='',storeCartPushApplied='',storeCartPushScope='',storeCartPushTimer=null,storeCartPushBusy=false,storeCartPushFailures=0;
+function storeCartPushCurrentScope(){return JSON.stringify([authToken,salesperson]);}
+function storeCartPushVisible(){return document.body.dataset.page==='store'&&!document.hidden&&navigator.onLine&&!!document.getElementById('storeCart');}
+function storeCartPushCanRead(){return storeCartPushVisible()&&!!authToken&&!!salesperson&&!window.jiwuStoreOfflineMode&&!storeCartLoading&&!cartPendingWrites&&!cartUnsaved&&!cartOperationBusy&&!backendWriteQueue.some(job=>backendWriteLane(job.action)==='store');}
+function storeCartPushCancelTimer(){if(storeCartPushTimer!==null)clearTimeout(storeCartPushTimer);storeCartPushTimer=null;}
+function storeCartPushSignal(revision){
+ const scope=storeCartPushCurrentScope(),next=String(revision??'');if(!next)return;
+ if(scope!==storeCartPushScope){storeCartPushScope=scope;storeCartPushTarget='';storeCartPushApplied='';storeCartPushFailures=0;storeCartPushCancelTimer();}
+ if(next!==storeCartPushTarget){storeCartPushTarget=next;storeCartPushFailures=0;storeCartPushCancelTimer();}
+ storeCartPushResume();
+}
+function storeCartPushResume(resetFailures=false){
+ if(resetFailures)storeCartPushFailures=0;
+ if(storeCartPushBusy||storeCartPushTimer!==null||storeCartPushScope!==storeCartPushCurrentScope()||!storeCartPushTarget||storeCartPushTarget===storeCartPushApplied||storeCartPushFailures>=3||!storeCartPushCanRead())return;
+ storeCartPushTimer=setTimeout(()=>{storeCartPushTimer=null;void storeCartPushRead();},0);
+}
+async function storeCartPushRead(){
+ if(storeCartPushBusy||storeCartPushScope!==storeCartPushCurrentScope()||!storeCartPushCanRead())return;
+ const scope=storeCartPushScope,target=storeCartPushTarget,revision=cartRevision;
+ storeCartPushBusy=true;
+ let applied=false;
+ try{applied=await loadStoreCart(true);}finally{storeCartPushBusy=false;}
+ if(scope!==storeCartPushScope||scope!==storeCartPushCurrentScope()){storeCartPushResume();return;}
+ const deferred=revision!==cartRevision||!storeCartPushCanRead();
+ if(applied){storeCartPushApplied=target;storeCartPushFailures=0;}
+ else if(!deferred&&target===storeCartPushTarget)storeCartPushFailures++;
+ if(storeCartPushTarget!==target)storeCartPushFailures=0;
+ if(storeCartPushTarget!==storeCartPushApplied&&storeCartPushFailures<3&&storeCartPushCanRead()){
+  const delay=applied||deferred||target!==storeCartPushTarget?0:1000*2**(storeCartPushFailures-1);
+  storeCartPushTimer=setTimeout(()=>{storeCartPushTimer=null;void storeCartPushRead();},delay);
+ }
+}
 function saveStoreCart(){
  if(!salesperson)return Promise.resolve(false);
  const user=salesperson,revision=++cartRevision;
@@ -6021,7 +6058,7 @@ async function drainStoreCartSaves(){
     alert('購物車尚未儲存，暫停背景同步以保留你的修改。請確認網路後再修改商品重試：'+e.message);
    }finally{cartPendingWrites--;}
   }
- }finally{cartSaveRunning=false;}
+ }finally{cartSaveRunning=false;storeCartPushResume();}
 }
 function inventoryHeaderIndex(names){
 if(names.includes('庫存'))names=[...names,'庫存量','商品庫存'];
@@ -6882,7 +6919,7 @@ renderCart();
 }catch(e){
 alert(e.message);
 input.focus();
-}finally{cartOperationBusy=false;cartRevision++;}
+}finally{cartOperationBusy=false;cartRevision++;storeCartPushResume();}
 }
 async function addManualProduct(){
 if(cartOperationBusy){alert('正在處理購物車，請稍候');return;}
@@ -7028,7 +7065,7 @@ async function clearStoreCart(){
 async function checkout(){
 if(cartOperationBusy||storeCartLoading||cartPendingWrites||cartUnsaved){alert('請先等購物車儲存完成，再結帳');return;}
 if(!salesperson){alert('請選擇銷售員');return;}
-// Read once when checkout is requested. Never replace the visible cart in the background.
+// Always recheck the complete cart when checkout is requested.
 const checkoutUser=salesperson,checkoutAuth=authToken,checkoutRevision=cartRevision;
 const refreshButton=document.getElementById('storeCheckoutButton');
 cartOperationBusy=true;
@@ -7051,6 +7088,7 @@ try{
  return;
 }finally{
  cartOperationBusy=false;
+ storeCartPushResume();
  if(refreshButton){refreshButton.disabled=false;refreshButton.textContent='結帳';}
 }
 if(localCartOnly&&!confirm('目前只能讀取這台裝置保留的購物車，無法確認主機最新清單。要依這份清單繼續結帳／離線備援嗎？'))return;
@@ -9190,7 +9228,7 @@ async function backendDrainWrites(){
    const index=backendWriteQueue.indexOf(job);if(index>=0)backendWriteQueue.splice(index,1);
    backendWriteLanes.delete(lane);backendWriteRunning=backendWriteLanes.size>0;
    if(job.mutation){backendSyncWrites--;backendSyncEpoch++;backendSyncWriteCounts.set(pageLane,Math.max(0,(backendSyncWriteCounts.get(pageLane)||1)-1));backendSyncPageEpochs.set(pageLane,(backendSyncPageEpochs.get(pageLane)||0)+1);}
-   void backendDrainWrites();setTimeout(()=>backendSyncPoll(),0);
+   void backendDrainWrites();storeCartPushResume();setTimeout(()=>backendSyncPoll(),0);
   }
   })());
  }
@@ -9423,10 +9461,12 @@ function backendPushSchedule(){
  backendPushTimer=setTimeout(()=>{backendPushTimer=null;void backendSyncPoll();},100);
 }
 function backendPushResumePending(){
+ storeCartPushResume();
  if(backendPushReady&&(backendSyncNeedsRevision||backendSyncDirty.has(document.body.dataset.page)))void backendSyncPoll();
 }
 function backendPushWake(reconnect=false){
  if(!authToken||!appStarted||document.hidden||!navigator.onLine){backendPushClient?.stop();return;}
+ storeCartPushResume(true);
  if(!backendPushClient){
   const runtime=window.JIWU_RUNTIME_CONFIG||{};
   backendPushClient=createJiwuBackendPush({...backendPushDefaults,...runtime},()=>{
@@ -9444,6 +9484,7 @@ async function backendSyncPoll(){
  try{
   if(backendSyncNeedsRevision){
   const state=await api('backendSync');
+  if(state.pageRevisions&&Object.hasOwn(state.pageRevisions,'store'))storeCartPushSignal(state.pageRevisions.store);
   if(signalAtStart===backendPushSignalVersion)backendSyncNeedsRevision=false;
   if(state.revision!==backendSyncRevision){
    const legacyChanged=backendSyncLegacyRevision!==null&&state.legacyRevision!==undefined&&backendSyncLegacyRevision!==state.legacyRevision,scoped=!legacyChanged&&state.pageRevisions&&Object.keys(state.pageRevisions).length>0,changed=scoped?backendSyncPages.filter(page=>backendSyncPageVersions.get(page)!==(state.pageRevisions[page]||'')):backendSyncPages;
