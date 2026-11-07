@@ -2993,7 +2993,8 @@ function launchPreserveEmptyPanels(group){
 }
 async function launchSaveClick(options={}){
  const source=options.group||launchCurrent;
- if(source===launchCurrent){await launchAutoDomesticShipping();if(source!==launchCurrent)return;}
+ // Background moves clear launchCurrent immediately; capture their snapshot before yielding.
+ if(!options.previousStatus&&source===launchCurrent){await launchAutoDomesticShipping();if(source!==launchCurrent)return;}
  if(!source?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  launchNormalizeGroupURLs(source);
  launchPreserveEmptyPanels(source);
