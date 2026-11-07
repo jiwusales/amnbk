@@ -4101,13 +4101,13 @@ function launchURLImportActive(session){return launchURLImportSession===session&
 function launchURLImportItemKey(item){const detailURL=launchURLImportDetailURL(item.url);return JSON.stringify(detailURL?[detailURL,item.japaneseName||item.name,item.role||'',item.variantKey||'']:[String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
 function launchURLImportDetailURL(value){
  const neowing=launchURLImportNeowingURL(value,true);if(neowing)return neowing;
- try{const u=new URL(launchNormalizeURL(value));if(u.origin!=='https://munyugurumi.jp'||u.username||u.password||u.port||u.pathname!=='/itemdetail'||!/^\d+$/.test(u.searchParams.get('ItemID')||''))return '';u.hash='';u.searchParams.sort();return u.href;}catch{return '';}
+ try{const u=new URL(launchNormalizeURL(value));if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port)return '';u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid)$/.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
 }
 function launchURLImportNeowingURL(value,detailOnly=false){
  try{const u=new URL(launchNormalizeURL(value));if(u.protocol!=='https:'||!['www.neowing.co.jp','neowing.co.jp'].includes(u.hostname)||u.username||u.password||u.port)return '';const path=u.pathname.replace(/\/$/,'');if(!/^\/product\/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(path)&&(detailOnly||!/^\/(?:series\/\d+|searchuni)$/.test(path)))return '';u.hostname='www.neowing.co.jp';u.pathname=path;u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|dclid|msclkid|yclid|ttclid|twclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
 }
 function launchURLImportSourceURL(value){const neowing=launchURLImportNeowingURL(value);if(neowing)return neowing;const u=new URL(value);u.hash='';return u.href;}
-function launchURLImportSupportsDetails(value){try{return new URL(value).origin==='https://munyugurumi.jp'||!!launchURLImportNeowingURL(value);}catch{return false;}}
+function launchURLImportSupportsDetails(value){return !!launchURLImportDetailURL(value);}
 function launchURLImportMetadataText(item){const size=launchProductSpec(item).size;return [item.code?'貨號 '+item.code:'',item.format?'格式 '+item.format:'',size?'尺寸 '+size:''].filter(Boolean).join('｜');}
 function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='');}
 function launchReuseURLImportCachedItems(data,session){
@@ -4128,7 +4128,7 @@ async function launchEnrichURLImportDetails(data,session,onProgress=()=>{}){
    if(session&&!launchURLImportActive(session))return;
    const [url,targets]=queue[next++];
    try{
-    const response=await api('launchImportProductDetails',{url}),detail=response?.item;
+    const response=await api('launchImportProductDetails',{url,item:targets.length===1?{code:targets[0].code||'',format:targets[0].format||''}:{}}),detail=response?.item;
     if(session&&!launchURLImportActive(session))return;
     if(response?.ok===false||!detail||launchURLImportDetailURL(detail.url)!==url)throw Error('商品詳細網址不符');
     for(const item of targets){
