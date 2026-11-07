@@ -4863,7 +4863,7 @@ const apiReadActions=new Set(['launchAnnouncementPreview','launchImportProductDe
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
-const key=JSON.stringify([action,authToken,backendSyncEpoch,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
+const key=JSON.stringify([action,authToken,backendSyncEpoch,Object.entries(params).filter(([name,value])=>name!=='ifRevision'||value!=='').sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
 apiPendingReads.set(key,request);
@@ -4898,6 +4898,7 @@ try{
 const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...(authToken?{token:authToken}:{}),...params,requestId}),signal:controller.signal});
 const responseText=await r.text();let data;
 try{data=JSON.parse(responseText);}catch(_){throw new Error([502,503,504].includes(r.status)?'伺服器連線暫時失敗（'+r.status+'），請稍後重試；尚未儲存的修改會保留。':'伺服器回應格式異常（'+r.status+'），請稍後重試。');}
+try{window.jiwuHostConnectionResult?.(r,data);}catch(_){}
 if(!r.ok||data?.ok===false){if(data?.error==='登入已失效，請重新登入')showLogin();throw new Error(data?.error||'資料讀取失敗');}
 return data;
 }finally{clearTimeout(timer);}
@@ -9895,19 +9896,18 @@ body[data-page="store"] .top{padding-left:48px}
    if(ticket===epoch&&recovering){delay=Math.min(delay*2,60000);schedule();}
   }
  }
+ window.jiwuHostConnectionResult=function(response,data){
+  if(response.ok){
+   if(data?.ok===true){if(navigator.onLine)connected();else disconnected();}
+   else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data?.error||''))disconnected();
+  }
+ };
  window.fetch=async function(input,options){
   const url=typeof input==='string'?input:input?.url||String(input);
   if(new URL(url,location.href).href!==new URL(API_URL,location.href).href)return nativeFetch(input,options);
   try{
    const response=await nativeFetch(input,options);
    if([502,503,504].includes(response.status))disconnected();
-   else if(response.ok){
-    try{
-     const data=await response.clone().json();
-     if(data.ok===true){if(navigator.onLine)connected();else disconnected();}
-     else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data.error||''))disconnected();
-    }catch{}
-   }
    return response;
   }catch(error){if(error?.name!=='AbortError')disconnected();throw error;}
  };
