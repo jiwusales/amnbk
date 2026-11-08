@@ -6657,7 +6657,7 @@ async function saveInventoryOrder(){
   inventoryOrderDirty=false;inventoryPendingMoves=[];inventoryPendingMoveIds=[];inventoryOrderSaveRequest=null;inventoryLoadedAt=Date.now();
   prepareInventoryRows();saveInventorySessionCache();renderInventoryContent();
   const known=new Set(inventoryRows.map(item=>String(item.itemId??'')));
-  if(inventoryPendingPublishIds.some(id=>!known.has(id)))await loadInventory(true,true);
+  if(publishSnapshot.length||inventoryPendingPublishIds.some(id=>!known.has(id)))await loadInventory(true,true);
  }catch(e){alert(jiwuErrorText(e,'system'));}
  finally{inventoryOrderSaving=false;const current=document.getElementById('inventorySaveOrderButton');if(current)current.disabled=false;inventoryRefreshOrderSaveButton();}
 }
