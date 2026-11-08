@@ -3218,10 +3218,11 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
     const data=await cache.get(pageKey);
     for(const warning of data.warnings||[])warnings.add(warning);
     for(const info of data.items){
-     const name=String(info.name||info.japaneseName||'').trim();
+     const tmall=productInfoIsTmallURL(info.url||row.url);
+     const name=String(info.name||(!tmall&&info.japaneseName)||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
-     if(info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
-     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:String(info.format||''),url:info.url||row.url,japaneseName:String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
+     if(!tmall&&info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
+     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
     }
     continue;
    }
@@ -3445,6 +3446,9 @@ function launchSuggestFormKind(form){
  const kind=/單抽|抱盒/.test(field('format')||field('size'))?'抽抽':launchInferProductKind({name:field('name'),role:field('role'),format:field('format'),size:field('size'),code:field('code'),url:field('url')},catalog);
  select.innerHTML=launchKindOptions(kind);select.dataset.autoKind=kind;select.dataset.kindValue=kind;
 }
+function productInfoIsTmallURL(value){try{const url=new URL(String(value||''));return /^https?:$/.test(url.protocol)&&/(^|\.)tmall\.com$/i.test(url.hostname);}catch(_){return false;}}
+function productInfoAutomaticFields(item,keys){return productInfoIsTmallURL(item?.url)?keys.filter(key=>!['japaneseName','format'].includes(key)):keys;}
+function productInfoSyncJapanesePlaceholder(form,url){const input=form?.querySelector('[name=japaneseName],#inventoryEditJapaneseName,#inventoryAddJapaneseName');if(!input)return;if(input.dataset.productInfoPlaceholder===undefined)input.dataset.productInfoPlaceholder=input.getAttribute('placeholder')||'';input.placeholder=productInfoIsTmallURL(url)?'選填，可手動填寫':input.dataset.productInfoPlaceholder;}
 function launchAutoProductInfo(form){
  const input=form?.elements?.namedItem('url');if(!input)return;
  let ticket=0,timer,formatTouched=false,readKey='',readPromise;
@@ -3456,26 +3460,27 @@ function launchAutoProductInfo(form){
  form.jiwuReadProductInfo=()=>{clearTimeout(timer);++ticket;return read();};
  const formatControl=form.elements.namedItem('format');for(const event of ['input','change'])formatControl?.addEventListener?.(event,()=>{formatTouched=true;});
  async function fill(){
-  const url=String(input.value||'').trim(),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
+  const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
+  productInfoSyncJapanesePlaceholder(form,url);
   if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
-  if(String(code?.value||'').trim()&&String(size?.value||'').trim()&&String(japaneseName?.value||'').trim()&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
+  if(String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
-  message.textContent='正在抓取日文名、貨號與尺寸…';
+  message.textContent=tmall?'正在抓取貨號與尺寸…':'正在抓取日文名、貨號與尺寸…';
   const requestedValues={code:code?.value||'',size:size?.value||''};
   const pending=read().then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
-   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
-   if(data.item?.needsFormat&&data.item?.detail){message.textContent=data.item.detail;return;}
-   if(data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
-   message.textContent=[!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
-   message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':'已帶入日文名、貨號與尺寸';
+   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
+   if(!tmall&&data.item?.needsFormat&&data.item?.detail){message.textContent=data.item.detail;return;}
+   if(!tmall&&data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
+   message.textContent=[!tmall&&!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
+   message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':tmall?'已帶入貨號與尺寸':'已帶入日文名、貨號與尺寸';
   }).catch(error=>{if(current===ticket&&form.isConnected)message.textContent='抓取未完成：'+error.message;});
   form.jiwuProductInfoPending=pending;await pending;if(form.jiwuProductInfoPending===pending)form.jiwuProductInfoPending=null;
  }
  input.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  input.addEventListener('change',()=>{clearTimeout(timer);void fill();});
- formatControl?.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
+ formatControl?.addEventListener('input',()=>{if(productInfoIsTmallURL(input.value))return;++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  form.elements.namedItem('role')?.addEventListener('change',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  form.jiwuFillProductInfo=fill;
  if(input.value)void fill();
@@ -6292,7 +6297,7 @@ async function inventoryGrabVisibleNames(button){
   for(const [index,item] of targets.entries()){
    button.textContent=`${index+1}/${targets.length}`;
    if(String(inventoryValue(item,['日文名','日文原名'])||'').trim()||inventoryProductSaves.has(Number(item.row))){skipped++;continue;}
-   const url=inventoryProductUrl(item);if(!url){skipped++;continue;}
+   const url=inventoryProductUrl(item);if(!url||productInfoIsTmallURL(url)){skipped++;continue;}
    const task=(async()=>{
     const result=await api('launchProductInfo',{item:{url}}),name=result.item?.japaneseName;
     if(!name)throw Error('官網未提供日文原名');
@@ -6324,12 +6329,14 @@ function inventoryBindProductInfo(form,prefix){
  let message=form.querySelector('[data-inventory-product-info]');if(!message){message=document.createElement('p');message.dataset.inventoryProductInfo='';message.hidden=true;message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';(urlInput.closest('label')||urlInput).after(message);}
  let epoch=0,timer,pendingURL='',pending=null;
  const currentURL=()=>String(urlInput.value||'').trim();
+ productInfoSyncJapanesePlaceholder(form,currentURL());
  const valid=url=>{try{const parsed=new URL(url);return /^https?:$/.test(parsed.protocol)&&!!parsed.hostname;}catch(_){return false;}};
  async function fill(manual=false){
-  clearTimeout(timer);const url=currentURL();
+  clearTimeout(timer);const url=currentURL();productInfoSyncJapanesePlaceholder(form,url);
   if(!valid(url)){if(manual)message.textContent='請先填寫有效的商品網址';return;}
   if(pending&&pendingURL===url)return pending;
-  const missing=fields.filter(field=>field.key!=='format'&&!field.input.value.trim());if(!missing.length){message.textContent='資料已填寫完成';return;}
+  const automaticFields=fields.filter(field=>!productInfoIsTmallURL(url)||!['japaneseName','format'].includes(field.key));
+  const missing=automaticFields.filter(field=>field.key!=='format'&&!field.input.value.trim());if(!missing.length){message.textContent='資料已填寫完成';return;}
   const ticket=++epoch,item={url,role:form.querySelector('#'+prefix+'Role')?.value.trim()||''};for(const field of fields)item[field.key]=field.input.value.trim();
   message.hidden=false;message.textContent='正在抓取商品資料…';for(const button of buttons){button.disabled=true;button.textContent='抓取中…';}
   pendingURL=url;
@@ -6337,10 +6344,10 @@ function inventoryBindProductInfo(form,prefix){
    try{
     const data=await api('launchProductInfo',{item});
     if(ticket!==epoch||!form.isConnected||currentURL()!==url)return;
-    let count=0;for(const field of fields){const value=data.item?.[field.key];if(!field.input.value.trim()&&value!==undefined&&value!==null&&String(value).trim()){field.input.value=inventoryIsHalfWidthField(field.input)?inventoryHalfWidth(value):String(value);count++;}}
+    let count=0;for(const field of automaticFields){const value=data.item?.[field.key];if(!field.input.value.trim()&&value!==undefined&&value!==null&&String(value).trim()){field.input.value=inventoryIsHalfWidthField(field.input)?inventoryHalfWidth(value):String(value);count++;}}
     form.jiwuInventoryDetected={...data.item,url};
-    const absent=fields.filter(field=>field.key!=='format'&&!field.input.value.trim()).map(field=>field.label);
-    message.textContent=data.item?.needsFormat?(data.item?.detail||'此商品有多種規格，未辨識的資料請手動填寫'):(count?'已補上 '+count+' 個欄位':'未取得新的商品資料')+(absent.length?'；官網未提供'+absent.join('、')+'，可手動填寫':'');
+    const absent=automaticFields.filter(field=>field.key!=='format'&&!field.input.value.trim()).map(field=>field.label);
+    message.textContent=!productInfoIsTmallURL(url)&&data.item?.needsFormat?(data.item?.detail||'此商品有多種規格，未辨識的資料請手動填寫'):(count?'已補上 '+count+' 個欄位':'未取得新的商品資料')+(absent.length?'；官網未提供'+absent.join('、')+'，可手動填寫':'');
    }catch(error){if(ticket===epoch&&form.isConnected)message.textContent='抓取未完成：'+error.message;}
    finally{if(pending===task){pending=null;pendingURL='';form.jiwuInventoryInfoPending=null;for(const button of buttons)if(button.isConnected){button.disabled=false;button.textContent='抓抓';}}}
   })();
@@ -6659,7 +6666,7 @@ async function submitInventoryAdd(event){
    items=launchExpandMultiProducts(launchParseMultiProducts(form.querySelector('[name=multiProducts]').value),0).map(item=>({name:item.name,role:item.role,original:inventoryNormalizeOriginal(item.original),size:item.size,format:item.format,url:item.url}));
    for(const [index,item] of items.entries()){
     button.textContent='辨識 '+(index+1)+'/'+items.length+'…';
-    if(item.url){try{const data=await api('launchProductInfo',{item});for(const key of ['code','original','format','size','image','japaneseName'])if(!String(item[key]??'').trim()&&data.item?.[key])item[key]=data.item[key];}catch(_){}}
+    if(item.url){try{const data=await api('launchProductInfo',{item});for(const key of productInfoAutomaticFields(item,['code','original','format','size','image','japaneseName']))if(!String(item[key]??'').trim()&&data.item?.[key])item[key]=data.item[key];}catch(_){}}
     item.kind=launchInferProductKind(item,launchProductKindCatalog);
    }
   }else{
