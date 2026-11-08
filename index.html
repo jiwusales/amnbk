@@ -4926,12 +4926,28 @@ let inventoryPendingPublishIds=[],inventoryPublishScopeRows=[];
 function inventorySetPendingPublish(ids){const next=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(Boolean))].sort();const changed=JSON.stringify(next)!==JSON.stringify(inventoryPendingPublishIds);inventoryPendingPublishIds=next;return changed;}
 function inventoryKnownPendingPublishIds(){const known=new Set(inventoryPublishScopeRows.map(item=>String(item.itemId??'')));return inventoryPendingPublishIds.filter(id=>known.has(id));}
 function inventoryIsPendingPublish(item){return inventoryPendingPublishIds.includes(String(item?.itemId??''));}
+function inventoryNewestDraftFirst(a,b){const left=String(a.itemId??''),right=String(b.itemId??'');return right.length-left.length||right.localeCompare(left)||Number(b.row)-Number(a.row);}
+function inventoryRetainUnpublishedDraftOrder(){
+const privateIds=new Set(inventoryPendingPublishIds),retained=new Set();
+for(const [source] of inventoryPendingMoveIds)if(privateIds.has(source))retained.add(source);
+const rows=inventoryRows.filter(item=>item.itemId!=null&&String(inventoryValue(item,['名稱','商品名稱','品名','商品'])??'').trim()),moves=[],moveIds=[];
+const append=(item,target,side)=>{moves.push([Number(item.row),Number(target.row),side]);moveIds.push([String(item.itemId),String(target.itemId),side]);};
+for(let index=0;index<rows.length;){
+ if(!retained.has(String(rows[index].itemId))){index++;continue;}
+ const start=index;while(index<rows.length&&retained.has(String(rows[index].itemId)))index++;
+ const group=rows.slice(start,index);let anchor=rows[start-1]||null;
+ if(anchor){for(const item of group){append(item,anchor,'a');anchor=item;}}
+ else if(index<rows.length){append(group[0],rows[index],'b');anchor=group[0];for(const item of group.slice(1)){append(item,anchor,'a');anchor=item;}}
+ else{anchor=group[0];for(const item of group.slice(1)){append(item,anchor,'a');anchor=item;}}
+}
+inventoryPendingMoves=moves;inventoryPendingMoveIds=moveIds;inventoryOrderDirty=moves.length>0;
+}
 function inventoryOrderSaveLabel(){return inventoryKnownPendingPublishIds().length?'儲存並上架':'SAVE';}
 function inventoryRefreshOrderSaveButton(){const button=document.getElementById('inventorySaveOrderButton');if(!button)return;const pending=inventoryKnownPendingPublishIds().length;button.classList.toggle('isVisible',inventoryOrderDirty||pending>0);button.title=pending?'儲存排序，並將目前草稿顯示於前端目錄':'儲存排序';if(!inventoryOrderSaving)button.textContent=inventoryOrderSaveLabel();}
 function inventoryObserveQueuedWrites(){const jobs=backendWriteQueue.filter(job=>backendWriteLane(job.action)==='inventory'&&job.action!=='reorderInventory');return Promise.all(jobs.map(job=>new Promise(resolve=>{const complete=job.resolve,failed=job.reject;job.resolve=value=>{complete(value);resolve({status:'fulfilled'});};job.reject=error=>{failed(error);resolve({status:'rejected'});};})));}
 function inventoryRestoreOrderCache(cached){inventoryPendingMoves=cached.orderDirty&&Array.isArray(cached.pendingMoves)?cached.pendingMoves.filter(move=>Array.isArray(move)&&move.length===3):[];inventoryPendingMoveIds=Array.isArray(cached.pendingMoveIds)?cached.pendingMoveIds:inventoryPendingMoves.map(([source,target,side])=>[String(inventoryRows.find(item=>Number(item.row)===Number(source))?.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side]);inventoryOrderDirty=inventoryPendingMoves.length>0;inventoryOrderSaveRequest=cached.orderSaveRequest&&typeof cached.orderSaveRequest==='object'?cached.orderSaveRequest:null;if(typeof cached.category==='string')inventoryCategory=cached.category;if(typeof cached.search==='string')inventorySearch=cached.search;if(['目錄','有庫存','無庫存','缺貨','全部'].includes(cached.status))inventoryStatus=cached.status;}
 function inventoryResolvedPendingMoves(){const rows=new Map(inventoryRows.map(item=>[String(item.itemId??''),Number(item.row)]));return inventoryPendingMoves.map((move,index)=>{const ids=inventoryPendingMoveIds[index];if(!ids?.[0]||!ids?.[1]||!rows.has(String(ids[0]))||!rows.has(String(ids[1])))throw new Error('排序中的商品資料已變更，請重新載入後再調整排序');return [rows.get(String(ids[0])),rows.get(String(ids[1])),move[2]];});}
-function inventoryMergeSortedRows(rows){const key=item=>item.itemId!=null?'id:'+item.itemId:'row:'+item.row;const fresh=new Map(rows.map(item=>[key(item),item])),merged=[];for(const item of inventoryRows){const next=fresh.get(key(item));if(next){merged.push(next);fresh.delete(key(item));}}for(const item of rows)if(fresh.has(key(item))){merged.push(item);fresh.delete(key(item));}return merged;}
+function inventoryMergeSortedRows(rows){const key=item=>item.itemId!=null?'id:'+item.itemId:'row:'+item.row;const fresh=new Map(rows.map(item=>[key(item),item])),merged=[],newDrafts=[],otherNew=[];for(const item of inventoryRows){const next=fresh.get(key(item));if(next){merged.push(next);fresh.delete(key(item));}}for(const item of rows)if(fresh.has(key(item))){(inventoryIsPendingPublish(item)?newDrafts:otherNew).push(item);fresh.delete(key(item));}newDrafts.sort(inventoryNewestDraftFirst);return [...newDrafts,...merged,...otherNew];}
 let inventoryPendingMoves=[],inventoryPendingMoveIds=[];
 let inventoryOrderSaving=false,inventoryOrderSaveRequest=null;
 let inventoryStatus='目錄';
@@ -6262,7 +6278,7 @@ function tmallStockBadgeHidden(url,note=''){
 function inventoryAvailabilityState(item){if(tmallStockBadgeHidden(inventoryProductUrl(item),inventoryValue(item,['備註','備註欄','說明'])))return '';const names=['官網貨況','官網狀態','官網庫存狀態','網站貨況','商品官網狀態','官網在庫','在庫狀態','狀態','貨況'];const name=names.find(name=>inventoryHeaderIndex([name])>=0);const value=String(name?inventoryValue(item,[name]):'').toLowerCase();if(/❌|缺貨|無庫存|無貨|売り切れ|在庫なし|sold.?out|^false$|^no$|^0$/.test(value))return 'no';if(/⭕|有庫存|有貨|在庫あり|販売中|in.?stock|^true$|^yes$|^1$/.test(value))return 'yes';if(/⚠️|無法判斷/.test(value))return 'unknown';return '';}
 function inventoryIsRelisted(item){if(tmallStockBadgeHidden(inventoryProductUrl(item),inventoryValue(item,['備註','備註欄','說明'])))return false;return inventoryCellState(item,['庫存','總庫存','數量'])==='x'&&inventoryAvailabilityState(item)==='yes'&&!inventoryNoteHasUrl(item);}
 function inventoryNeedsOtherChannelCheck(item){if(tmallStockBadgeHidden(inventoryProductUrl(item),inventoryValue(item,['備註','備註欄','說明'])))return false;const stock=inventoryCellState(item,['庫存','總庫存','數量']);return stock===0&&!inventoryHasPhysicalStock(item)&&inventoryQty(item,['非現','非現貨','非現庫存'])<=0&&(inventoryAvailabilityState(item)==='unknown'||inventoryAvailabilityState(item)==='no'&&inventoryNoteHasUrl(item));}
-function inventoryIsPinned(item){return inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item);}
+function inventoryIsPinned(item){return !inventoryIsPendingPublish(item)&&(inventoryIsRelisted(item)||inventoryNeedsOtherChannelCheck(item));}
 function inventoryIsShortage(item){const manual=String(inventoryValue(item,['目錄狀態'])||'');if(manual==='下架')return true;if(manual==='上架')return false;return inventoryCellState(item,['庫存','總庫存','數量'])==='x'||/缺貨/.test(String(inventoryValue(item,['庫存狀態','商品狀態','狀態','貨況'])||''));}
 function inventoryMatchesStatus(item){
 const manual=String(inventoryValue(item,['目錄狀態'])||'');if(manual==='下架'&&inventoryStatus==='目錄')return false;if(manual==='上架'&&inventoryStatus==='目錄')return true;
@@ -6429,7 +6445,7 @@ if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves
 if(inventoryLoadPromise){if(!mergeOrder)return inventoryLoadPromise;await inventoryLoadPromise;}
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{const epoch=backendSyncPageEpochs.get('inventory')||0;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==(backendSyncPageEpochs.get('inventory')||0)||backendSyncPageBusy('inventory')||(inventoryOrderDirty&&!mergeOrder)||backendDeferRead('inventory',inventoryLoaded))return;const freshRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventoryRows=mergeOrder&&inventoryOrderDirty?inventoryMergeSortedRows(freshRows):freshRows;inventorySetPendingPublish(data.pendingPublishIds);inventoryHeaders=data.headers||[];inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{const epoch=backendSyncPageEpochs.get('inventory')||0;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==(backendSyncPageEpochs.get('inventory')||0)||backendSyncPageBusy('inventory')||(inventoryOrderDirty&&!mergeOrder)||backendDeferRead('inventory',inventoryLoaded))return;const freshRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventorySetPendingPublish(data.pendingPublishIds);inventoryRows=mergeOrder&&inventoryOrderDirty?inventoryMergeSortedRows(freshRows):freshRows;inventoryHeaders=data.headers||[];inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">${esc(jiwuErrorText(e,'data'))}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -6567,14 +6583,17 @@ const code=String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||
 return !!name.trim()&&(inventoryCategory==='全部'||cat===inventoryCategory)&&(!search||String(item._searchText||name+' '+code).includes(search))&&inventoryMatchesStatus(item);
 });
 inventoryPublishScopeRows=rows;inventoryRefreshOrderSaveButton();
-const originalPositions=new Map(rows.filter(item=>!inventoryIsRelisted(item)).map((item,index)=>[item,index+1]));
-const pinPriority=item=>inventoryNeedsOtherChannelCheck(item)?2:inventoryIsRelisted(item)?1:0;
+const originalPositions=new Map(rows.filter(item=>!inventoryIsPendingPublish(item)&&!inventoryIsRelisted(item)).map((item,index)=>[item,index+1]));
+const leadingDraftRows=new Set();
+for(const item of rows){if(!inventoryIsPendingPublish(item))break;leadingDraftRows.add(item);}
+const pinPriority=item=>leadingDraftRows.has(item)?3:inventoryIsPendingPublish(item)?0:inventoryNeedsOtherChannelCheck(item)?2:inventoryIsRelisted(item)?1:0;
 rows.sort((a,b)=>pinPriority(b)-pinPriority(a));
 inventoryDisplayedRows=rows.filter(item=>!inventoryIsPinned(item));
+const numberedRows=inventoryDisplayedRows.filter(item=>!inventoryIsPendingPublish(item));
 if(!rows.length){grid.innerHTML='<div class="empty">沒有符合條件的商品</div>';return;}
 resizeInventoryCards();
 grid.innerHTML=rows.map(item=>{
-const position=inventoryDisplayedRows.indexOf(item);
+const position=numberedRows.indexOf(item);
 const name=inventoryValue(item,['名稱','商品名稱','品名','商品'])||'';
 const original=inventoryValue(item,['原價','定價','原售價','牌價']);
 const sale=inventoryValue(item,['售價','價格','銷售價']);
@@ -6600,7 +6619,7 @@ const otherChannelUrl=launchOtherChannelURL(note);
 const hasOtherChannel=!!otherChannelUrl;
 const linkMarkup=`<div class="inventoryLinks"><button type="button" class="inventoryChannelButton" onclick="openInventoryEditDialog(${Number(item.row)})">編輯</button>${hasOtherChannel?`<a class="inventoryChannelButton" href="${esc(otherChannelUrl)}" target="_blank" rel="noopener">其他通路</a>`:productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}</div>`;
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
-return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}" data-inventory-draft="${isDraft?'true':'false'}">${isDraft?'<span class="inventoryDraftBadge" title="調整排序後按儲存並上架">草稿</span>':''}${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':esc(item.inventoryAvailabilityDetail||'點擊更新商品網址狀態')}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="number" min="1" max="${inventoryDisplayedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap">${imageMarkup}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
+return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}" data-inventory-draft="${isDraft?'true':'false'}">${isDraft?'<span class="inventoryDraftBadge" title="調整排序後按儲存並上架">草稿</span>':''}${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':esc(item.inventoryAvailabilityDetail||'點擊更新商品網址狀態')}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${isDraft?`<input class="inventoryOrderInput" type="number" min="1" max="${numberedRows.length?numberedRows.length+1:inventoryDisplayedRows.length}" step="1" value="" aria-label="${esc(name)} 排序" title="草稿尚未編號；可輸入排序後儲存並上架" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`:needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="number" min="1" max="${numberedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap">${imageMarkup}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
 inventoryLoadPriceHistory();
 }
@@ -6626,13 +6645,20 @@ inventoryResizeTimer=setTimeout(resizeInventoryCards,80);
 });
 let inventoryDisplayedRows=[];
 function setInventoryOrderPosition(row,input){
-const current=inventoryDisplayedRows.findIndex(item=>Number(item.row)===Number(row));
-const raw=input.value.trim(),position=Number(raw);
-if(current<0)return;
-if(inventoryOrderSaving){input.value=current+1;return;}
-if(!/^\d+$/.test(raw)||!Number.isSafeInteger(position)||position<1||position>inventoryDisplayedRows.length){input.value=current+1;return;}
+const item=inventoryDisplayedRows.find(item=>Number(item.row)===Number(row));if(!item)return;
+const draft=inventoryIsPendingPublish(item),numbered=inventoryDisplayedRows.filter(item=>!inventoryIsPendingPublish(item)),current=numbered.indexOf(item);
+const raw=input.value.trim(),position=Number(raw),restore=()=>{input.value=draft?'':String(current+1);};
+if(inventoryOrderSaving){restore();return;}
+const choices=draft?(numbered.length?numbered:inventoryDisplayedRows.filter(inventoryIsPendingPublish)):numbered;
+const maximum=draft&&numbered.length?numbered.length+1:choices.length;
+if(!/^\d+$/.test(raw)||!Number.isSafeInteger(position)||position<1||position>maximum){restore();return;}
+if(draft){
+ const append=numbered.length&&position===numbered.length+1,target=choices[append?choices.length-1:position-1];
+ if(target&&target!==item){const from=inventoryDisplayedRows.indexOf(item),to=inventoryDisplayedRows.indexOf(target);reorderInventoryRows(Number(row),Number(target.row),numbered.length?(append?'after':'before'):(to<from?'before':'after'));}
+ restore();return;
+}
 if(position===current+1)return;
-const target=inventoryDisplayedRows[position-1];
+const target=numbered[position-1];
 reorderInventoryRows(Number(row),Number(target.row),position-1<current?'before':'after');
 }
 function reorderInventoryRows(source,target,side='after'){if(inventoryOrderSaving)return;if([source,target].some(row=>inventoryIsPinned(inventoryRows.find(item=>Number(item.row)===Number(row))||{})))return;const from=inventoryRows.findIndex(item=>Number(item.row)===Number(source));if(from<0||source===target)return;const [moved]=inventoryRows.splice(from,1);const targetIndex=inventoryRows.findIndex(item=>Number(item.row)===Number(target));if(targetIndex<0){inventoryRows.splice(from,0,moved);return;}const insertIndex=targetIndex+(side==='after'?1:0);inventoryRows.splice(insertIndex,0,moved);if(insertIndex===from)return;inventoryPendingMoves.push([Number(source),Number(target),side==='before'?'b':'a']);inventoryPendingMoveIds.push([String(moved.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side==='before'?'b':'a']);inventoryOrderDirty=true;saveInventorySessionCache();const button=document.getElementById('inventorySaveOrderButton');if(button)button.classList.add('isVisible');renderInventoryContent();}
@@ -6654,7 +6680,7 @@ async function saveInventoryOrder(){
   const positions=new Map(result.orderIds.map((id,index)=>[String(id),index]));
   inventoryRows.sort((a,b)=>(positions.get(String(a.itemId))??Infinity)-(positions.get(String(b.itemId))??Infinity));
   if(Array.isArray(result.pendingPublishIds))inventorySetPendingPublish(result.pendingPublishIds);
-  inventoryOrderDirty=false;inventoryPendingMoves=[];inventoryPendingMoveIds=[];inventoryOrderSaveRequest=null;inventoryLoadedAt=Date.now();
+  inventoryRetainUnpublishedDraftOrder();inventoryOrderSaveRequest=null;inventoryLoadedAt=Date.now();
   prepareInventoryRows();saveInventorySessionCache();renderInventoryContent();
   const known=new Set(inventoryRows.map(item=>String(item.itemId??'')));
   if(publishSnapshot.length||inventoryPendingPublishIds.some(id=>!known.has(id)))await loadInventory(true,true);
