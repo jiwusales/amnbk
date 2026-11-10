@@ -2845,47 +2845,198 @@ function launchNumber(value){const n=Number(String(value??'').replace(/[^0-9.-]/
 function launchIsRMB(item){return /r/i.test(String(item?.original||'').normalize('NFKC'));}
 let launchHistoryState={groupId:'',signature:'',time:0,prices:{}},launchHistoryTimer;
 // launch-price-product-type:start
-// Price evidence can share a product type across themed names and old kind labels.
-// This does not change the stored kind, or identify two records as the same item.
+// Price evidence shares the named product object across themes and old kind labels.
+// These keys never change stored kinds or identify two records as the same item.
 function launchHistoryProductType(item) {
   const normalize = value => String(value ?? '').normalize('NFKC').toLowerCase().trim();
   const originalName = normalize(item?.name);
   if (!originalName) return '';
-  // Included accessories are not the named object. Keep unparenthesized Japanese
-  // "クリアカード付きポーチ" intact so its later pouch noun still rejects it.
   const name = originalName
-    .replace(/\([^)]*(?:附|贈|赠|付き|付属|おまけ)[^)]*\)/g, '')
-    .replace(/(?:附贈|附赠|附送|附有|附帶|附带|附|贈|赠).*$/, '');
-  const card = /クリア(?:フォト)?カード|透明(?:照片|相片|寫真|写真)?卡片?|透卡/g;
-  const matches = [...name.matchAll(card)];
+    .replace(/\([^)]*(?:附|含|贈|赠|付き|付属|おまけ)[^)]*\)/g, '')
+    .replace(/(?:附贈|附赠|附送|附有|附帶|附带|附|贈|赠).*$/, '')
+    .replace(/\s+(?:チャーム|キーホルダー|クリアカード|コースター|ポーチ)付き.*$/, '');
+  // Prefer the last named object; the longer compound wins at the same position.
+  // Thus a doll-shaped sticker is a sticker, and a plush keychain stays plush.
+  const rules = [
+    ['clear-card', /クリア(?:フォト)?カード|透明(?:照片|相片|寫真|写真)?卡片?|透卡/],
+    ['photo-card', /照片卡|相片卡|寫真卡|写真卡|フォトカード|ブロマイド|(?:^|\b)photo\s*card\b/],
+    ['paper-card', /紙卡|纸卡|卡片(?!盒(?!裝|装)|套(?!組|组)|袋(?!裝|装)|夾|夹|冊|册)|メッセージカード|イラストカード/],
+    ['postcard', /明信片|賀卡|贺卡|ポストカード|(?:^|\b)postcard\b/],
+    ['plush-pendant', /吊娃|吊偶|(?:絨毛|绒毛|毛絨|毛绒|玩偶|娃娃|ぬいぐるみ)(?:造型)?(?:吊飾|吊饰|鑰匙圈|钥匙圈|鑰匙扣|钥匙扣|キーホルダー|マスコット)|(?:ぬいぐるみ)?マスコット/],
+    ['plush', /趴娃|坐姿娃|坐坐娃|抱娃|絨毛玩偶|绒毛玩偶|毛絨玩偶|毛绒玩偶|絨毛娃娃|毛絨娃娃|玩偶|娃娃|ぬいぐるみ|娃(?=\s|$)/],
+    ['plush-badge', /娃徽章|(?:絨毛|绒毛|毛絨|毛绒|ぬいぐるみ)(?:徽章|胸章|バッジ)/],
+    ['enamel-pin', /(?:琺瑯|珐琅|搪瓷|七宝|エナメル)(?:徽章|胸章|ピン|バッジ)|(?:^|\b)enamel\s*pin\b/],
+    ['acrylic-badge', /(?:壓克力|压克力|亞克力|亚克力|アクリル)(?:徽章|胸章|バッジ)/],
+    ['badge', /徽章|胸章|吧唧|缶バッジ|缶バッチ|ピンバッジ|バッジ|(?:^|\b)badge\b/],
+    ['badge-holder', /(?:徽章|胸章|缶バッジ|缶バッチ|バッジ)(?:收納|收纳)?(?:套(?!組|组)|袋(?!裝|装)|盒(?!裝|装)|夾|夹|ホルダー|ケース)|(?:^|\b)badge\s*(?:holder|case|cover)\b/],
+    ['badge-album', /(?:徽章|缶バッジ)(?:收納|收纳)?(?:冊|册|本|アルバム)/],
+    ['acrylic-stand', /立牌|アクリルスタンド|アクスタ|(?:^|\b)acrylic\s*stand\b/],
+    ['card-stand', /卡片架|透卡架|カードスタンド/],
+    ['keychain', /鑰匙圈|钥匙圈|鑰匙扣|钥匙扣|キーホルダー|キーリング|(?:^|\b)(?:keyring|keychain)\b/],
+    ['charm', /吊飾|吊饰|掛飾|挂饰|チャーム|(?:^|\b)charm\b/],
+    ['figure', /公仔|模型人偶|フィギュア|ソフビ|(?:^|\b)figurine\b/],
+    ['sticker', /貼紙|贴纸|壁貼|窗貼|透貼|鏡面貼|圖鑑貼|造型貼|裝飾貼|ステッカー|シール|(?:^|\b)sticker\b/],
+    ['sticker-sheet', /貼紙(?:片|紙|纸)|貼紙(?:整|單|单)?(?:張|张)|(?:整|單|单)張貼紙|シールシート|シートシール|ステッカーシート|(?:^|\b)sticker\s*sheet\b/],
+    ['sticker-pack', /貼紙包|贴纸包|ステッカーパック|シールパック|(?:^|\b)sticker\s*pack\b/],
+    ['washi-tape', /紙膠帶|纸胶带|和紙膠帶|裝飾膠帶|マスキングテープ|マステ|(?:^|\b)washi\s*tape\b/],
+    ['magnet', /磁鐵|磁铁|冰箱貼|冰箱贴|マグネット|(?:^|\b)magnet\b/],
+    ['amulet', /御守|お守り/],
+    ['sticky-note', /便利貼|便利贴|付箋|ふせん|(?:^|\b)sticky\s*notes?\b/],
+    ['memo', /便條紙|便条纸|便條|便条|便箋|便笺|メモ帳|メモパッド|(?:^|\b)memo\s*(?:pad)?\b/],
+    ['notebook', /筆記本|笔记本|記事本|记事本|線圈本|手帳|手账|日記本|ノート|(?:^|\b)notebook\b/],
+    ['folder', /資料夾|资料夹|文件夾|文件夹|クリアファイル|(?:^|\b)clear\s*file\b/],
+    ['document-pouch', /文件袋|資料袋|资料袋|ドキュメントケース/],
+    ['bookmark', /書籤|书签|しおり|ブックマーカー|ブックマーク|(?:^|\b)bookmark\b/],
+    ['card-case', /證件套|证件套|證件夾|識別證套|卡套(?!組|组)|卡袋(?!裝|装)|卡盒(?!裝|装)|卡夾|卡夹|票卡夾|パスケース|カードケース|カードホルダー|(?:透卡|透明卡片?|クリアカード)(?:收納|收纳)?(?:盒(?!裝|装)|套(?!組|组)|袋(?!裝|装)|夾|夹|ホルダー|ケース)|(?:^|\b)card\s*(?:case|holder|sleeve)\b/],
+    ['card-album', /卡冊|卡册|卡片冊|卡片册|集卡冊|集卡册|收納冊|收纳册|カードアルバム|カードバインダー|(?:^|\b)card\s*(?:album|binder)\b/],
+    ['photo-album', /相冊|相册|相本|照片冊|フォトアルバム|(?:^|\b)photo\s*album\b/],
+    ['pen', /原子筆|原子笔|中性筆|多色筆|雙色筆|娃娃筆|ボールペン|(?:^|\b)ballpoint\s*pen\b/],
+    ['mechanical-pencil', /自動鉛筆|自动铅笔|シャープペン/],
+    ['pencil', /鉛筆|铅笔|(?:^|\b)pencil\b/],
+    ['marker', /螢光筆|萤光笔|彩色筆|油性筆|簽字筆|蛍光ペン|マーカーペン/],
+    ['eraser', /橡皮擦|消しゴム|(?:^|\b)eraser\b/],
+    ['pencil-case', /鉛筆盒|铅笔盒|鉛筆袋|鉛筆包|筆袋|笔袋|筆盒|ペンケース|(?:^|\b)pencil\s*case\b/],
+    ['pen-holder', /筆筒|笔筒|筆架|ペンスタンド|(?:^|\b)pen\s*holder\b/],
+    ['ruler', /尺組|尺组|直尺|定規|(?:^|\b)ruler\b/],
+    ['scissors', /剪刀|はさみ|ハサミ/],
+    ['stamp', /印章|印鑑|印鉴|スタンプ|(?:^|\b)stamp\b/],
+    ['stamp-pad', /印台|印泥|スタンプ台/],
+    ['letter-paper', /信紙|信纸|信箋|信笺|レターセット|便せん/],
+    ['envelope', /信封|封筒|(?:^|\b)envelope\b/],
+    ['calendar', /桌曆|桌历|月曆|日曆|日历|行事曆|カレンダー|(?:^|\b)calendar\b/],
+    ['coin-pouch', /零錢包|零钱包|コインケース|小銭入れ|(?:^|\b)coin\s*(?:pouch|purse|case)\b/],
+    ['wallet', /長夾|長財布|短夾|皮夾|皮夹|財布|(?:^|\b)wallet\b/],
+    ['pouch', /收納小包|收纳小包|收納包|收纳包|收納袋|收纳袋|化妝包|化妆包|盥洗包|旅行小包|小包|ポーチ|(?:^|\b)pouch\b/],
+    ['tote', /娃包|痛包|托特包|托特袋|提袋|手提袋|手提包|購物袋|购物袋|環保袋|环保袋|トートバッグ|エコバッグ|(?:^|\b)tote(?:\s*bag)?\b/],
+    ['drawstring-bag', /束口袋|抽繩袋|抽绳袋|巾着|(?:^|\b)drawstring\s*bag\b/],
+    ['backpack', /背包|後背包|双肩包|リュック|バックパック|(?:^|\b)backpack\b/],
+    ['shoulder-bag', /肩背包|斜背包|斜挎包|單肩包|单肩包|單肩袋|ショルダーバッグ|サコッシュ|(?:^|\b)(?:shoulder|crossbody)\s*bag\b/],
+    ['cooler-bag', /保冷袋|保溫袋|保温袋|便當袋|便当袋|午餐袋|保冷バッグ/],
+    ['phone-pouch', /手機包|手机包|スマホポーチ|(?:^|\b)phone\s*pouch\b/],
+    ['cup-sleeve', /杯套(?!組|组)|カップスリーブ/],
+    ['handkerchief', /手帕|ハンカチ|(?:^|\b)handkerchief\b/],
+    ['hand-towel', /方巾|擦手巾|ハンドタオル|ミニタオル/],
+    ['face-towel', /洗臉巾|洗脸巾|洗面巾|フェイスタオル/],
+    ['bath-towel', /浴巾|バスタオル/],
+    ['towel', /毛巾|紗布巾|纱布巾|タオル|(?:^|\b)towel\b/],
+    ['towel-holder', /毛巾(?:掛|挂|架|夾|夹)|タオルホルダー|タオルハンガー/],
+    ['mug', /馬克杯|马克杯|陶瓷杯|マグカップ|(?:^|\b)mug\b/],
+    ['glass', /玻璃杯|ガラス(?:コップ|カップ|グラス)|(?:^|\b)drinking\s*glass\b/],
+    ['tumbler', /保溫杯|保温杯|保冷杯|隨行杯|随行杯|吸管杯|タンブラー|(?:^|\b)tumbler\b/],
+    ['bottle', /水壺|水壶|水瓶|保溫瓶|保温瓶|保冷瓶|ボトル|(?:^|\b)(?:water\s*)bottle\b/],
+    ['coaster', /杯墊|杯垫|コースター|(?:^|\b)coaster\b/],
+    ['placemat', /餐墊|餐垫|隔熱墊|隔热垫|ランチョンマット/],
+    ['plate', /餐盤|餐盘|陶瓷盤|美耐皿盤|圓盤|方盤|紙盤|プレート|(?:^|\b)plate\b/],
+    ['bowl', /碗|ボウル|お茶碗|(?:^|\b)bowl\b/],
+    ['chopsticks', /筷子|お箸|箸|(?:^|\b)chopsticks\b/],
+    ['chopstick-rest', /筷架|箸置き/],
+    ['spoon', /湯匙|汤匙|スプーン|(?:^|\b)spoon\b/],
+    ['fork', /叉子|フォーク|(?:^|\b)fork\b/],
+    ['lunch-box', /便當盒|便当盒|飯盒|饭盒|餐盒|ランチボックス|お弁当箱/],
+    ['food-container', /密封罐|保鮮盒|保鲜盒|調味罐|调味罐|食品保存容器/],
+    ['apron', /圍裙|围裙|エプロン/],
+    ['pillow', /抱枕|靠枕|枕頭|枕头|クッション|(?:^|\b)pillow\b/],
+    ['pillow-case', /枕套(?!組|组)|クッションカバー|(?:^|\b)pillow\s*case\b/],
+    ['blanket', /收納毯|收纳毯|毛毯|蓋毯|盖毯|ブランケット|(?:^|\b)blanket\b/],
+    ['floor-mat', /地墊|地垫|踏墊|踏垫|門墊|门垫|ルームマット|フロアマット/],
+    ['desk-mat', /桌墊|桌垫|デスクマット/],
+    ['curtain', /門簾|门帘|窗簾|窗帘|のれん|カーテン/],
+    ['tapestry', /掛布|挂布|掛畫|挂画|壁掛|タペストリー/],
+    ['storage-box', /收納盒|收纳盒|收納箱|收纳箱|収納ボックス|収納ケース/],
+    ['storage-basket', /收納籃|收纳篮|収納バスケット/],
+    ['tissue-case', /衛生紙套|衛生紙盒|面紙套|面纸套|面紙盒|面纸盒|ティッシュケース|ティッシュカバー/],
+    ['trash-bin', /垃圾桶|收納桶|收纳桶|ダストボックス/],
+    ['mirror', /鏡子|镜子|手拿鏡|手持鏡|隨身鏡|折疊鏡|化妝鏡|迷你鏡|ミラー|(?:^|\b)mirror\b/],
+    ['comb', /髮梳|发梳|髮刷|發刷|梳子|ヘアブラシ|ヘアコーム/],
+    ['photo-frame', /相框|フォトフレーム/],
+    ['night-light', /夜燈|夜灯|小夜燈|小夜灯|ナイトライト/],
+    ['desk-lamp', /檯燈|台灯|デスクライト/],
+    ['clock', /鬧鐘|闹钟|掛鐘|挂钟|座鐘|時鐘|时钟|クロック|(?:^|\b)clock\b/],
+    ['hair-clip', /髮夾|发夹|ヘアピン|ヘアクリップ/],
+    ['hair-band', /髮箍|发箍|髮帶|发带|頭箍|头箍|ヘアバンド|カチューシャ/],
+    ['hair-tie', /髮圈|发圈|髮束|髮繩|发绳|ヘアゴム|シュシュ/],
+    ['earrings', /耳環|耳环|耳夾|耳夹|耳扣|イヤリング|ピアス/],
+    ['necklace', /項鍊|项链|項鏈|ネックレス/],
+    ['ring', /戒指|リング/],
+    ['bracelet', /手鍊|手链|手鏈|手環|手环|ブレスレット/],
+    ['brooch', /胸針|胸针|ブローチ/],
+    ['doll-clothes', /娃衣|ぬい服|ぬいぐるみ(?:の)?服|玩偶服/],
+    ['t-shirt', /短袖|短t(?:恤|shirt)?|t-?shirt|tシャツ|t恤|(?<![a-z])t(?=$|[\s()])/],
+    ['long-sleeve-shirt', /(?:長袖|长袖)\s*(?:t(?:恤|shirt|シャツ)?)?|(?:長|长)t(?:恤|shirt)?|ロングt(?:シャツ|shirt)?|ロンt(?:シャツ|shirt)?/],
+    ['hoodie', /衛衣|卫衣|帽t|連帽衫|连帽衫|大學t|スウェット|パーカー/],
+    ['sweater', /毛衣|針織衫|针织衫|セーター/],
+    ['shirt', /襯衫|衬衫|シャツ/],
+    ['vest', /背心|ベスト/],
+    ['jacket', /外套|ジャケット|ブルゾン/],
+    ['dress', /洋裝|洋装|連身裙|连身裙|ワンピース/],
+    ['shorts', /短褲|短裤|ショートパンツ/],
+    ['trousers', /長褲|长裤|パンツ/],
+    ['pajamas', /睡衣|居家服|パジャマ/],
+    ['scarf', /圍巾|围巾|絲巾|丝巾|マフラー|スカーフ/],
+    ['cap', /帽子|棒球帽|鴨舌帽|鸭舌帽|キャップ/],
+    ['bucket-hat', /漁夫帽|渔夫帽|バケットハット/],
+    ['knit-hat', /針織帽|针织帽|毛帽|ニット帽/],
+    ['beret', /貝雷帽|贝雷帽|貝蕾帽|ベレー帽/],
+    ['socks', /襪子|袜子|短襪|短袜|長襪|长袜|ソックス|(?:^|\b)socks\b/],
+    ['gloves', /手套|グローブ/],
+    ['phone-case', /手機殼|手机壳|スマホケース|スマートフォンケース/],
+    ['phone-grip', /手機支架|スマホスタンド|手機指環|手機氣囊|手機扣環|手機背夾|スマホグリップ|スマホリング/],
+    ['phone-strap', /手機掛|手机挂|スマホショルダー|スマホストラップ/],
+    ['mouse-pad', /滑鼠墊|鼠标垫|マウスパッド/],
+    ['keyboard', /鍵盤|键盘|キーボード/],
+    ['keycap', /鍵帽|键帽|キーキャップ/],
+    ['earphones', /耳機|耳机|イヤホン/],
+    ['cable', /數據線|数据线|傳輸線|传输线|充電線|充电线|ケーブル/],
+    ['cable-holder', /理線器|集線器|ケーブルホルダー/],
+    ['jigsaw', /拼圖|拼图|ジグソー|パズル/],
+    ['playing-cards', /撲克牌|扑克牌|トランプ/],
+    ['board-game', /桌遊|桌游|ボードゲーム|(?:^|[^a-z])uno(?=$|[^a-z])/],
+    ['balloon', /氣球|气球|バルーン/],
+    ['luggage-tag', /行李吊牌|行李牌|ラゲッジタグ/],
+    ['luggage-belt', /行李帶|行李带|行李束帶|ラゲッジベルト/],
+    ['suitcase', /行李箱|スーツケース/],
+    ['umbrella', /雨傘|雨伞|折傘|折伞|折疊傘|晴雨傘|陽傘|阳伞|折りたたみ傘|アンブレラ/],
+    ['folding-fan', /摺扇|折扇|扇子|扇子/],
+    ['hand-fan', /團扇|团扇|うちわ/],
+    ['eye-mask', /眼罩|アイマスク/],
+    ['face-mask', /口罩|マスク/],
+    ['hand-cream', /護手霜|护手霜|ハンドクリーム/],
+    ['lip-balm', /護唇膏|护唇膏|リップクリーム/]
+  ];
+  const matches = [];
+  for (const [type, pattern] of rules) for (const match of name.matchAll(new RegExp(pattern.source, 'g'))) {
+    // Avoid suffix matches inside a longer English word (e.g. standard).
+    matches.push({type, start:match.index, end:match.index + match[0].length, length:match[0].length});
+  }
+  matches.sort((a, b) => b.end - a.end || b.length - a.length);
   if (!matches.length) return '';
-  const suffix = name.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length);
-  // A card holder, album, bag, sticker or acrylic object is a different product,
-  // even when its theme contains the word "透卡".
-  if (/^\s*(?:盒(?!裝|装)|套(?!組|组)|冊|册|夾|夹|袋(?!裝|装))/.test(suffix) || /卡套|卡袋|卡盒|卡夾|卡夹|卡冊|卡册|收納|收纳|集卡|相冊|相册|相本|貼紙|贴纸|透貼|透贴|立牌|鑰匙圈|钥匙圈|鑰匙扣|钥匙扣|吊飾|吊饰|掛飾|挂饰|徽章|胸章|明信片|書籤|书签|資料夾|资料夹|托特|提袋|手提包|肩背包|背包|零錢包|零钱包|皮夾|皮夹|holder|sleeve|album|binder|pouch|sticker|keychain|stand|ホルダー|ケース|ファイル|バインダー|アルバム|ポーチ|バッグ|ステッカー|シール|スタンド|キーホルダー|チャーム|バッジ/.test(suffix)) return '';
-
-  const base = '@product:clear-card';
-  const descriptors = [normalize(item?.format), name, normalize(item?.size)];
+  const object = matches[0];
+  // Unknown attachment nouns after a recognized product must not fall back to it.
+  const suffix = name.slice(object.end);
+  if (/^\s*(?:盒(?!裝|装)|套(?!組|组)|冊|册|夾|夹|袋(?!裝|装)|カバー|用(?:品|衣))/.test(suffix)) return '';
+  // Different objects sold together are not a single instance of the last object.
+  if (matches.some(other => other.type !== object.type && other.end <= object.start && /^(?:\s*[+&＆、]|\s*(?:與|与|及|和|と)\s*)/.test(name.slice(other.end, object.start)))) return '';
+  const base = '@product:' + object.type;
+  const packageName = name.slice(0, object.start) + name.slice(object.end);
+  const descriptors = [normalize(item?.format), packageName, normalize(item?.size)];
   const boxMarker = /抱盒|整盒|盒裝|盒装|ボックス|(?:^|[^a-z])box(?=$|[^a-z])/;
   const boxed = descriptors.some(value => boxMarker.test(value));
   const count = match => match && Number(match[1]) > 0 && Number(match[1]) <= 999 ? String(Number(match[1])) : '';
   if (boxed) {
     for (const value of descriptors) {
-      // A variant total such as 全9款 is not a promise that a box contains nine.
       const numbered = value.match(/(?:抱盒|整盒|盒裝|盒装|ボックス|box)\s*[/：:（(×x*\- ]*\s*(\d{1,3})(?!\d)(?!\s*(?:[x×*]\s*\d|mm|cm|公分|毫米|公厘))/)
-        || value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个|packs?)(?!\d)/);
+        || value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个|件|packs?)(?!\d)/);
       const amount = count(numbered);
       if (amount) return base + ':box:' + amount;
     }
     return base + ':box';
   }
   for (const value of descriptors) {
-    const amount = count(value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个)\s*(?:組|组|套組|套组|セット|set(?:\b|$))/));
-    if (amount) return base + ':set:' + amount;
+    const amount = count(value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个|件|pcs?)\s*(?:組|组|套組|套组|套|セット|set(?:\b|$))/)
+      || value.match(/(\d{1,3})\s*(?:枚|張|张|入)(?!\d)/));
+    if (amount && Number(amount) > 1) return base + ':set:' + amount;
   }
-  // Unknown-size sets must not borrow a single card's price evidence.
-  if (descriptors.some(value => /套組|套组|(?:透卡|卡片?|カード)\s*組|セット|(?:^|[^a-z])set(?=$|[^a-z])/.test(value))) return base + ':set';
-  // Single draws and named character variants remain single-card evidence.
+  if (/^\s*組/.test(suffix) || descriptors.some(value => /套組|套组|(?:卡片?|透卡|カード|貼紙|徽章|明信片)\s*組|セット|(?:^|[^a-z])set(?=$|[^a-z])/.test(value))) return base + ':set';
   return base;
 }
 // launch-price-product-type:end
