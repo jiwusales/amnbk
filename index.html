@@ -4405,7 +4405,10 @@ function launchURLImportNeowingURL(value,detailOnly=false){
 function launchURLImportSourceURL(value){const neowing=launchURLImportNeowingURL(value);if(neowing)return neowing;const u=new URL(value);u.hash='';return u.href;}
 function launchURLImportSupportsDetails(value){return !!launchURLImportDetailURL(value);}
 function launchURLImportMetadataText(item){const size=launchProductSpec(item).size;return [item.code?'貨號 '+item.code:'',item.format?'格式 '+item.format:'',size?'尺寸 '+size:''].filter(Boolean).join('｜');}
-function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='');}
+function launchURLImportUsesDetailImages(item){try{const u=new URL(launchURLImportDetailURL(item?.url));return u.origin==='https://www.metal-box.jp'&&/^\/product_detail\/(?:[a-z0-9_-]+\/){1,5}\d+\/?$/.test(u.pathname);}catch{return false;}}
+function launchURLImportThumbnail(url){try{return new URL(url).pathname.includes('/upload/thumb_image/');}catch{return false;}}
+function launchURLImportNeedsLargeImages(item){const images=launchURLImportImageURLs(item);return launchURLImportUsesDetailImages(item)&&(!images.length||images.some(launchURLImportThumbnail));}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
 function launchReuseURLImportCachedItems(data,session){
  const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
  for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
@@ -4427,8 +4430,11 @@ async function launchEnrichURLImportDetails(data,session,onProgress=()=>{}){
     const response=await api('launchImportProductDetails',{url,item:targets.length===1?{code:targets[0].code||'',format:targets[0].format||''}:{}}),detail=response?.item;
     if(session&&!launchURLImportActive(session))return;
     if(response?.ok===false||!detail||launchURLImportDetailURL(detail.url)!==url)throw Error('商品詳細網址不符');
+    const detailImages=launchURLImportUsesDetailImages(detail)?launchURLImportImageURLs(detail).filter(url=>!launchURLImportThumbnail(url)):[];
+    if(targets.some(launchURLImportNeedsLargeImages)&&!detailImages.length)throw Error('商品詳細頁未提供大圖');
     for(const warning of detail.warnings||[])warnings.add(label(targets[0])+'：'+warning);
     for(const item of targets){
+     if(launchURLImportUsesDetailImages(item)&&detailImages.length){item.images=[...detailImages];item.image=detailImages[0];}
      for(const key of ['size','code','format','original']){const value=detail[key];if(missing(item[key])&&(typeof value==='string'||typeof value==='number')&&!missing(value))item[key]=String(value).trim();}
      if(missing(item.size))warnings.add(label(item)+'：官網未提供尺寸');
     }
