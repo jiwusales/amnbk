@@ -3448,7 +3448,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
      const name=String(info.name||(!tmall&&info.japaneseName)||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
      if(!tmall&&info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
-     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
+     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),roleIsAtomic:!row.role,amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
     }
     continue;
    }
@@ -3513,7 +3513,8 @@ function launchExpandMultiProducts(rows,start=0){
   if(!name)error('請填寫商品名稱');
   if(amount&&!/^(?:[Rr]\s*)?\d[\d,]*(?:\.\d+)?(?:\s*[Rr])?$/.test(amount))error('原價請輸入數字，人民幣可填 R99');
   if(url&&!launchSafeURL(url))error('網址請填有效的 http/https 網址');
-  const roles=role?role.split(/\s+/u):[''];
+  // Scraped roles are complete names; only manual shorthand expands on spaces.
+  const roles=role?(row.roleIsAtomic?[role]:role.split(/\s+/u)):[''];
   for(const value of roles)products.push({id:launchId(),name,role:value,url,images:row.images?[...row.images]:[],code:row.code||'',japaneseName:row.japaneseName||'',kind:row.kind||'',original:amount,price:'',...launchNormalizeProductSpec(String(row.size||'').trim(),row.format||'',row),note:'',stockQuantity:'',panel:launchPanelIndex,visible:start+products.length<31,showCost:true,scale:1});
  }
  if(!products.length)throw Error('請至少新增一項商品');
