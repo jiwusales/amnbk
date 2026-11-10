@@ -16,7 +16,7 @@ window.jiwuErrorText=function(error,kind){
  // Keep recovery instructions visible; callers still retain the original error.
  const itemConflict="「items」已被其他作業修改，請重新載入確認；本次修改仍保留",itemConflictDisplay="「商品資料」已被其他作業修改，請重新載入確認；本次修改仍保留";
  if(raw===itemConflict||raw===itemConflictDisplay)return itemConflictDisplay;
- const actionable=["此網站尚未支援自動抓取，請手動填寫","試算表資料已變動，請重新載入後再編輯","同一欄位已被其他人修改，請重新開啟確認後再儲存。","此團的上架狀態已變動，請重新載入確認"];
+ const actionable=["商品清單或排序已被更新，本次修改仍保留，請重新載入確認","「商品清單或排序」已被其他作業修改，請重新載入確認；本次修改仍保留","商品已被移除，本次修改仍保留，請重新載入確認","此網站尚未支援自動抓取，請手動填寫","試算表資料已變動，請重新載入後再編輯","同一欄位已被其他人修改，請重新開啟確認後再儲存。","此團的上架狀態已變動，請重新載入確認"];
  if(actionable.includes(raw)||/^「(?:name|canvasTitle|adName|images|mainColor|shipDate|closeDate|openDate|openTime|domesticShipping|secondShipping|noFreeShipping|needsSecondPayment|noGuarantee|footer|storefrontNote|tags|shortUrl|websiteUrl|cardColumns|ads|panels|items)」已被其他作業修改，請重新載入確認；本次修改仍保留$/.test(raw))return raw;
  if(/密碼錯誤|密碼不正確|登入已失效|請先登入|報表已鎖定|剪貼簿權限|不支援|請允許|請輸入|請選擇|請填|請貼上|請先|庫存不足|無法訂購|數量不足|權限不足|沒有權限|購物車內容正在變更|價格或貨況已變更|資料已被更新|版本.*衝突/.test(raw))return raw;
  if(kind==='data'||/(?:資料|商品|團名|清單|畫布|名稱|圖片|設定|種類).*(?:載入失敗|讀取失敗|無法載入|暫時無法讀取)|(?:載入|讀取).*(?:失敗|逾時)|背景同步失敗/.test(raw))return data;
@@ -3202,7 +3202,7 @@ function launchRebaseQueuedSave(target,baseline,actual){
 }
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
-const launchSavePendingByGroup=new Map(),launchSavedBases=new Map();
+const launchSavePendingByGroup=new Map(),launchSavedBases=new Map(),launchQueuedSaveContexts=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus','availabilityMonitor','availabilitySummary','productMasterId','productMasterBase'].includes(key)?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){if(error)text=jiwuErrorText(text,'system');
@@ -3229,6 +3229,8 @@ async function launchSaveClick(options={}){
  const editorSnapshot=structuredClone(snapshot),signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
  launchSubmittedSignatures.set(id,savedSignature);
+ const predecessor=launchSavePendingByGroup.get(id)?launchQueuedSaveContexts.get(id):null,saveContext={snapshot:structuredClone(snapshot),savedRevision:null,predecessor};
+ launchQueuedSaveContexts.set(id,saveContext);
  if(!launchSavePendingByGroup.get(id)){launchSavedRevisions.set(id,snapshot.revision);launchSavedBases.set(id,submittedBase?.revision===snapshot.revision?submittedBase:null);}
  launchSavePendingByGroup.set(id,(launchSavePendingByGroup.get(id)||0)+1);
  const before=launchUndoStack.at(-1)?.group,parts=[];
@@ -3243,8 +3245,13 @@ async function launchSaveClick(options={}){
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
   const confirmedBase=launchSavedBases.get(id);
-  snapshot=launchRebaseQueuedSave(snapshot,submittedBase,confirmedBase);
-  launchMergeProductMasterValues(snapshot,submittedBase,confirmedBase);
+  // A queued edit builds on our preceding submission, not the editor's older server snapshot.
+  // Only adopt that base after its write is acknowledged; failed writes keep the original base.
+  let acknowledged=predecessor;
+  while(acknowledged&&(!acknowledged.savedRevision||acknowledged.savedRevision!==confirmedBase?.revision))acknowledged=acknowledged.predecessor;
+  const queueBase=acknowledged?acknowledged.snapshot:submittedBase;
+  snapshot=launchRebaseQueuedSave(snapshot,queueBase,confirmedBase);
+  launchMergeProductMasterValues(snapshot,queueBase,confirmedBase);
   snapshot.revision=launchSavedRevisions.get(id);
   if(options.previousStatus&&!snapshot.revision){
    const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}},progressId);
@@ -3259,6 +3266,7 @@ async function launchSaveClick(options={}){
    d=await launchPost('launchMove',{id,status:snapshot.status,fromStatus:options.previousStatus},progressId);
   }else d=await launchPost('launchSave',{group:snapshot,baseGroup:launchSavedBases.get(id)},progressId);
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('資料庫尚未確認'+(options.actionLabel||'狀態變更')+'完成');
+  saveContext.savedRevision=d.group.revision;
   launchSavedRevisions.set(id,d.group.revision);launchSavedBases.set(id,structuredClone(d.group));launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   let editorMergeError=null;
@@ -3269,7 +3277,7 @@ async function launchSaveClick(options={}){
    if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(options.render!==false&&document.body.dataset.page==='launch'){const scroll=options.preserveScroll?launchOrderScrollState():null;launchRenderEditor();if(scroll)launchRestoreProductScroll(scroll);}}
   }
   saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(editorMergeError?'已儲存；'+editorMergeError.message:options.successMessage||'已完成：'+completed,!!editorMergeError);
- }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>{launchPendingSaves--;const remaining=(launchSavePendingByGroup.get(id)||1)-1;if(remaining)launchSavePendingByGroup.set(id,remaining);else launchSavePendingByGroup.delete(id);});
+ }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>{launchPendingSaves--;const remaining=(launchSavePendingByGroup.get(id)||1)-1;if(remaining)launchSavePendingByGroup.set(id,remaining);else{launchSavePendingByGroup.delete(id);launchQueuedSaveContexts.delete(id);}});
  return launchSaveTail;
 }
 const launchMoveProgressJobs=new Map();
