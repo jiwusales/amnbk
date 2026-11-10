@@ -3065,13 +3065,14 @@ async function launchSaveClick(options={}){
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('資料庫尚未確認'+(options.actionLabel||'狀態變更')+'完成');
   launchSavedRevisions.set(id,d.group.revision);launchSavedBases.set(id,structuredClone(d.group));launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
+  let editorMergeError=null;
   if(launchCurrent?.id===id){
    const clean=signature(launchCurrent)===savedSignature||signature(launchCurrent)===signature(snapshot);
-   if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{launchCurrent=launchRebaseQueuedSave(launchCurrent,editorSnapshot,d.group);launchCurrent.revision=d.group.revision;}
+   if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{try{launchCurrent=launchRebaseQueuedSave(launchCurrent,editorSnapshot,d.group);launchCurrent.revision=d.group.revision;}catch(error){editorMergeError=error;launchDirty=true;}}
    sessionStorage.setItem(LAUNCH_OPEN_KEY,id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);
    if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(options.render!==false&&document.body.dataset.page==='launch'){const scroll=options.preserveScroll?launchOrderScrollState():null;launchRenderEditor();if(scroll)launchRestoreProductScroll(scroll);}}
   }
-  saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(options.successMessage||'已完成：'+completed);
+  saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(editorMergeError?'已儲存；'+editorMergeError.message:options.successMessage||'已完成：'+completed,!!editorMergeError);
  }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>{launchPendingSaves--;const remaining=(launchSavePendingByGroup.get(id)||1)-1;if(remaining)launchSavePendingByGroup.set(id,remaining);else launchSavePendingByGroup.delete(id);});
  return launchSaveTail;
 }
