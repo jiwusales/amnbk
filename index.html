@@ -4992,9 +4992,54 @@ function launchEnsureExportCanvas(){
   const canvasPage=app.firstElementChild,host=document.createElement('div');
   host.id='launchOffscreenExport';host.style.cssText='position:absolute;left:-20000px;top:0;width:'+Math.max(1080,innerWidth)+'px;pointer-events:none';
   host.append(canvasPage);app.replaceChildren(list);document.getElementById('launchOffscreenExport')?.remove();document.body.append(host);
-  // Export can finish before the next animation frame, especially wi
-... 3836 bytes omitted ...
-onst [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],banner=el.closest('.launchBanner'),isBanner=!!banner,r=rect(banner||el);if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
+  // Export can finish before the next animation frame, especially with cached images.
+  launchPrepareCanvas(launchCurrent,host.querySelector('#launchPaper'));
+  document.scrollingElement.scrollTop=scroll;
+ }finally{launchExportRendering=false;}
+}
+function launchGetPNG(){
+ launchEnsureExportCanvas();
+ const paper=document.getElementById('launchPaper');
+ if(!paper||!launchCurrent)return Promise.reject(new Error('找不到畫布'));
+ const key=launchPNGKey(paper);
+ if(launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===key)return launchPNGPrepared.promise;
+ const cached=launchPNGBlobCache.get(key);
+ if(cached){launchPNGPrepared={paper,key,blob:cached,promise:Promise.resolve(cached)};return launchPNGPrepared.promise;}
+ const prepared={paper,key,promise:null};
+ prepared.promise=launchBuildPNG().then(blob=>{
+  if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
+  prepared.blob=blob;launchPNGBlobCache.set(key,blob);if(launchPNGBlobCache.size>6)launchPNGBlobCache.delete(launchPNGBlobCache.keys().next().value);return blob;
+ }).catch(error=>{if(launchPNGPrepared===prepared)launchPNGPrepared=null;throw error;});
+ launchPNGPrepared=prepared;
+ return prepared.promise;
+}
+function launchQueuePNG(){
+ clearTimeout(launchPNGTimer);
+ launchPNGTimer=setTimeout(()=>{
+  if(!document.getElementById('launchPaper')||!launchCurrent)return;
+  launchGetPNG().catch(()=>{});
+ },250);
+}
+async function launchBuildPNG(){
+ const paper=document.getElementById('launchPaper'),group=launchCurrent,panelIndex=launchPanelIndex;
+ if(!paper||!group)throw new Error('找不到畫布');
+ const key=launchPNGKey(paper);
+ await document.fonts.ready;
+ launchPrepareCanvas(group,paper);
+ // 同時載入所有可見圖片，共用快取及進行中的請求。
+ const imageElements=Array.from(paper.querySelectorAll('img')).filter(el=>{const card=el.closest('.launchProduct');return !card||(card.style.display!=='none'&&card.style.visibility!=='hidden');});
+ const images=await Promise.all(imageElements.map(el=>launchLoadImage(el.src)));
+ if(document.getElementById('launchPaper')!==paper||launchPNGKey(paper)!==key){const error=new Error('畫布已更新');error.name='LaunchExportChanged';throw error;}
+ launchFitCards();
+ const base=paper.getBoundingClientRect(),scale=1080/base.width;
+ const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');ctx.fillStyle=getComputedStyle(paper).backgroundColor;ctx.fillRect(0,0,1080,1350);
+ const rect=el=>{const r=el.getBoundingClientRect();return {x:(r.left-base.left)*scale,y:(r.top-base.top)*scale,w:r.width*scale,h:r.height*scale};};
+ const cssNumber=(el,name)=>parseFloat(getComputedStyle(el)[name])||0;
+ const roundedRect=(r,radius)=>{const limit=Math.min(r.w,r.h)/2,rad=Math.min(Math.max(0,radius),limit);ctx.beginPath();ctx.moveTo(r.x+rad,r.y);ctx.arcTo(r.x+r.w,r.y,r.x+r.w,r.y+r.h,rad);ctx.arcTo(r.x+r.w,r.y+r.h,r.x,r.y+r.h,rad);ctx.arcTo(r.x,r.y+r.h,r.x,r.y,rad);ctx.arcTo(r.x,r.y,r.x+r.w,r.y,rad);ctx.closePath();};
+ const drawBox=(el,{fill=true,stroke=true}={})=>{const r=rect(el),style=getComputedStyle(el),line=cssNumber(el,'borderTopWidth')*scale,radius=cssNumber(el,'borderTopLeftRadius')*scale;roundedRect(r,radius);if(fill){ctx.fillStyle=style.backgroundColor==='rgba(0, 0, 0, 0)'?'#fff':style.backgroundColor;ctx.fill();}if(stroke&&line){ctx.lineWidth=line;ctx.strokeStyle=style.borderTopColor;ctx.stroke();}return r;};
+ const header=paper.querySelector('.launchHeading'),main=header?getComputedStyle(header).backgroundColor:launchColor(group.mainColor);if(header){const r=rect(header);ctx.fillStyle=main;ctx.fillRect(r.x,r.y,r.w,r.h);}
+ for(const el of paper.querySelectorAll('.launchProduct')){if(el.style.display==='none'||el.style.visibility==='hidden')continue;drawBox(el);}
+ for(const [imageIndex,el] of imageElements.entries()){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const im=images[imageIndex],banner=el.closest('.launchBanner'),isBanner=!!banner,r=rect(banner||el);if(isBanner){const p=launchBannerSettings(group.panels?.[panelIndex]),fit=Math.max(r.w/im.width,r.h/im.height)*p.zoom,dw=im.width*fit,dh=im.height*fit,dx=r.x-(dw-r.w)*p.x/100,dy=r.y-(dh-r.h)*p.y/100;ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(im,dx,dy,dw,dh);ctx.restore();}else{const fit=Math.min(r.w/im.width,r.h/im.height);ctx.drawImage(im,r.x+(r.w-im.width*fit)/2,r.y+(r.h-im.height*fit)/2,im.width*fit,im.height*fit);}}
  for(const el of paper.querySelectorAll('.launchProductPictures .launchPlaceholder')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el);ctx.fillStyle='#edf0e8';ctx.fillRect(r.x,r.y,r.w,r.h);}
  for(const el of paper.querySelectorAll('.launchColorSwatch')){const card=el.closest('.launchProduct');if(card&&(card.style.display==='none'||card.style.visibility==='hidden'))continue;const r=rect(el),radius=Math.min(r.w,r.h)/2;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,radius,0,Math.PI*2);ctx.fillStyle=getComputedStyle(el).backgroundColor;ctx.fill();ctx.lineWidth=Math.max(1,scale);ctx.strokeStyle='#c7c7c7';ctx.stroke();}
 
