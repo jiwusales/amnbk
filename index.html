@@ -2844,12 +2844,57 @@ function launchRemoveActiveBanner(){const panel=launchCurrent?.panels?.[launchPa
 function launchNumber(value){const n=Number(String(value??'').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:null;}
 function launchIsRMB(item){return /r/i.test(String(item?.original||'').normalize('NFKC'));}
 let launchHistoryState={groupId:'',signature:'',time:0,prices:{}},launchHistoryTimer;
+// launch-price-product-type:start
+// Price evidence can share a product type across themed names and old kind labels.
+// This does not change the stored kind, or identify two records as the same item.
+function launchHistoryProductType(item) {
+  const normalize = value => String(value ?? '').normalize('NFKC').toLowerCase().trim();
+  const originalName = normalize(item?.name);
+  if (!originalName) return '';
+  // Included accessories are not the named object. Keep unparenthesized Japanese
+  // "クリアカード付きポーチ" intact so its later pouch noun still rejects it.
+  const name = originalName
+    .replace(/\([^)]*(?:附|贈|赠|付き|付属|おまけ)[^)]*\)/g, '')
+    .replace(/(?:附贈|附赠|附送|附有|附帶|附带|附|贈|赠).*$/, '');
+  const card = /クリア(?:フォト)?カード|透明(?:照片|相片|寫真|写真)?卡片?|透卡/g;
+  const matches = [...name.matchAll(card)];
+  if (!matches.length) return '';
+  const suffix = name.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length);
+  // A card holder, album, bag, sticker or acrylic object is a different product,
+  // even when its theme contains the word "透卡".
+  if (/^\s*(?:盒(?!裝|装)|套(?!組|组)|冊|册|夾|夹|袋(?!裝|装))/.test(suffix) || /卡套|卡袋|卡盒|卡夾|卡夹|卡冊|卡册|收納|收纳|集卡|相冊|相册|相本|貼紙|贴纸|透貼|透贴|立牌|鑰匙圈|钥匙圈|鑰匙扣|钥匙扣|吊飾|吊饰|掛飾|挂饰|徽章|胸章|明信片|書籤|书签|資料夾|资料夹|托特|提袋|手提包|肩背包|背包|零錢包|零钱包|皮夾|皮夹|holder|sleeve|album|binder|pouch|sticker|keychain|stand|ホルダー|ケース|ファイル|バインダー|アルバム|ポーチ|バッグ|ステッカー|シール|スタンド|キーホルダー|チャーム|バッジ/.test(suffix)) return '';
+
+  const base = '@product:clear-card';
+  const descriptors = [normalize(item?.format), name, normalize(item?.size)];
+  const boxMarker = /抱盒|整盒|盒裝|盒装|ボックス|(?:^|[^a-z])box(?=$|[^a-z])/;
+  const boxed = descriptors.some(value => boxMarker.test(value));
+  const count = match => match && Number(match[1]) > 0 && Number(match[1]) <= 999 ? String(Number(match[1])) : '';
+  if (boxed) {
+    for (const value of descriptors) {
+      // A variant total such as 全9款 is not a promise that a box contains nine.
+      const numbered = value.match(/(?:抱盒|整盒|盒裝|盒装|ボックス|box)\s*[/：:（(×x*\- ]*\s*(\d{1,3})(?!\d)(?!\s*(?:[x×*]\s*\d|mm|cm|公分|毫米|公厘))/)
+        || value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个|packs?)(?!\d)/);
+      const amount = count(numbered);
+      if (amount) return base + ':box:' + amount;
+    }
+    return base + ':box';
+  }
+  for (const value of descriptors) {
+    const amount = count(value.match(/(\d{1,3})\s*(?:枚|張|张|入|個|个)\s*(?:組|组|套組|套组|セット|set(?:\b|$))/));
+    if (amount) return base + ':set:' + amount;
+  }
+  // Unknown-size sets must not borrow a single card's price evidence.
+  if (descriptors.some(value => /套組|套组|(?:透卡|卡片?|カード)\s*組|セット|(?:^|[^a-z])set(?=$|[^a-z])/.test(value))) return base + ':set';
+  // Single draws and named character variants remain single-card evidence.
+  return base;
+}
+// launch-price-product-type:end
 function launchHistoryKey(item){
- const kind=String(item?.kind||launchInferProductKind(item||{},launchProductKindCatalog)||'').normalize('NFKC').replace(/\s+/g,'').toLocaleLowerCase();
+ const kind=String(launchHistoryProductType(item)||item?.kind||launchInferProductKind(item||{},launchProductKindCatalog)||'').normalize('NFKC').replace(/\s+/g,'').toLocaleLowerCase();
  const text=String(item?.original??'').normalize('NFKC').replace(/[,\s¥￥$＄]/g,''),m=text.match(/^([rR])?(\d+(?:\.\d+)?)([rR])?$/);
  return kind&&m&&Number(m[2])>0?[(m[1]||m[3])?'CNY':'JPY',Number(m[2]),kind].join('|'):'';
 }
-function launchHistoryFormItem(){const form=document.querySelector('#launchDialog [data-launch-product-form]');return form?.elements.kind?{kind:form.elements.kind.value,original:form.elements.original.value}:null;}
+function launchHistoryFormItem(){const form=document.querySelector('#launchDialog [data-launch-product-form]');return form?.elements.kind?{name:form.elements.name?.value||'',format:form.elements.format?.value||'',size:form.elements.size?.value||'',kind:form.elements.kind.value,original:form.elements.original.value}:null;}
 function launchCatalogSuggestedPrice(item){
  if(!item||String(item.price??'').trim()!=='')return null;
  const references=launchHistoryState.groupId===launchCurrent?.id?launchHistoryState.prices[launchHistoryKey(item)]||[]:[];
@@ -2895,7 +2940,7 @@ function launchLoadPriceHistory(){
  clearTimeout(launchHistoryTimer);launchHistoryTimer=setTimeout(async()=>{
   const group=launchCurrent;if(!group)return;
   const formItem=launchHistoryFormItem(),items=[...group.items,...(formItem?[formItem]:[])],unique=new Map();
-  for(const item of items){const key=launchHistoryKey(item);if(key)unique.set(key,{kind:item.kind||launchInferProductKind(item,launchProductKindCatalog),original:item.original});}
+  for(const item of items){const key=launchHistoryKey(item);if(key)unique.set(key,{kind:launchHistoryProductType(item)||item.kind||launchInferProductKind(item,launchProductKindCatalog),original:item.original});}
   const request=[...unique.values()].slice(0,200),signature=JSON.stringify([group.id,request,backendSyncEpoch]);
   if(launchHistoryState.groupId!==group.id)launchHistoryState={groupId:group.id,signature:'',time:0,prices:{}};
   if(launchHistoryState.signature===signature&&Date.now()-launchHistoryState.time<60000){launchPaintPriceHistory();return;}
