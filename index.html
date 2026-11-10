@@ -2980,8 +2980,33 @@ function launchMergeProductMasterValues(target,baseline,actual){
  }
  return target;
 }
+function launchRebaseQueuedSave(target,baseline,actual){
+ if(!baseline||!actual||target.id!==baseline.id||target.id!==actual.id)return target;
+ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ const merge=(local,before,remote)=>{
+  if(same(local,before))return structuredClone(remote);
+  if(!local||typeof local!=='object'||Array.isArray(local))return structuredClone(local);
+  const result={...remote};
+  for(const key of new Set([...Object.keys(before||{}),...Object.keys(local)])){
+   if(!Object.hasOwn(local,key)){if(Object.hasOwn(before||{},key))delete result[key];continue;}
+   result[key]=merge(local[key],before?.[key],remote?.[key]);
+  }
+  return result;
+ };
+ const next=merge(target,baseline,actual);
+ if(!same(target.items,baseline.items)&&Array.isArray(target.items)){
+  const old=new Map((baseline.items||[]).map(item=>[item.id,item])),saved=new Map((actual.items||[]).map(item=>[item.id,item])),local=new Map(target.items.map(item=>[item.id,item]));
+  const ids=items=>(items||[]).map(item=>item.id),localStructure=!same(ids(target.items),ids(baseline.items)),remoteStructure=!same(ids(actual.items),ids(baseline.items));
+  if(localStructure&&remoteStructure&&!same(ids(target.items),ids(actual.items)))throw Error('商品清單或排序已被更新，本次修改仍保留，請重新載入確認');
+  for(const item of target.items)if(old.has(item.id)&&!saved.has(item.id)&&!same(item,old.get(item.id)))throw Error('商品已被移除，本次修改仍保留，請重新載入確認');
+  const order=localStructure?target.items:actual.items;
+  next.items=order.map(item=>old.has(item.id)&&saved.has(item.id)&&local.has(item.id)?merge(local.get(item.id),old.get(item.id),saved.get(item.id)):structuredClone(item));
+ }
+ return next;
+}
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
+const launchSavePendingByGroup=new Map(),launchSavedBases=new Map();
 function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus','availabilityMonitor','availabilitySummary','productMasterId','productMasterBase'].includes(key)?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){if(error)text=jiwuErrorText(text,'system');
@@ -3004,11 +3029,12 @@ async function launchSaveClick(options={}){
  if(!source?.name.trim()){launchCompletionToast('請輸入團名',true);return;}
  launchNormalizeGroupURLs(source);
  launchPreserveEmptyPanels(source);
- const snapshot=structuredClone(source),id=snapshot.id;const submittedBase=structuredClone(readBackendSnapshot('launchGroup_'+id)||null);
- const signature=launchSaveSignature;
+ let snapshot=structuredClone(source);const id=snapshot.id,submittedBase=structuredClone(readBackendSnapshot('launchGroup_'+id)||null);
+ const editorSnapshot=structuredClone(snapshot),signature=launchSaveSignature;
  const savedSignature=signature(snapshot);
  launchSubmittedSignatures.set(id,savedSignature);
- if(!launchPendingSaves||!launchSavedRevisions.has(id))launchSavedRevisions.set(id,snapshot.revision);
+ if(!launchSavePendingByGroup.get(id)){launchSavedRevisions.set(id,snapshot.revision);launchSavedBases.set(id,submittedBase?.revision===snapshot.revision?submittedBase:null);}
+ launchSavePendingByGroup.set(id,(launchSavePendingByGroup.get(id)||0)+1);
  const before=launchUndoStack.at(-1)?.group,parts=[];
  if(before){
   for(const [key,label] of [['items','商品資料'],['panels','首圖／卡片排版'],['ads','廣告'],['name','團名'],['adName','廣告名'],['canvasTitle','畫布標題'],['footer','底部文字'],['storefrontNote','前端備註'],['tags','標籤'],['shortUrl','短網址'],['shipDate','出荷日期'],['openDate','開團日期'],['openTime','開賣時間'],['closeDate','收單日期'],['domesticShipping','境內運'],['secondShipping','二補運費']])if(JSON.stringify(before[key])!==JSON.stringify(snapshot[key]))parts.push(label);
@@ -3020,31 +3046,33 @@ async function launchSaveClick(options={}){
  launchPendingSaves++;
  launchSaveTail=launchSaveTail.then(async()=>{
   saveProgress('傳送中');if(options.onStart)options.onStart();
-  launchMergeProductMasterValues(snapshot,submittedBase,readBackendSnapshot('launchGroup_'+id));
+  const confirmedBase=launchSavedBases.get(id);
+  snapshot=launchRebaseQueuedSave(snapshot,submittedBase,confirmedBase);
+  launchMergeProductMasterValues(snapshot,submittedBase,confirmedBase);
   snapshot.revision=launchSavedRevisions.get(id);
   if(options.previousStatus&&!snapshot.revision){
    const initial=await launchPost('launchSave',{group:{...snapshot,status:'尚未上架'}},progressId);
-   snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);
+   snapshot.revision=initial.group.revision;launchSavedRevisions.set(id,snapshot.revision);launchSavedBases.set(id,structuredClone(initial.group));
   }
   let d;
   if(options.previousStatus){
    if(options.needsSave){
-    const saved=await launchPost('launchSave',{group:{...snapshot,status:options.previousStatus},baseGroup:readBackendSnapshot('launchGroup_'+id)},progressId);
-    launchSavedRevisions.set(id,saved.group.revision);saveBackendSnapshot('launchGroup_'+id,saved.group);
+    const saved=await launchPost('launchSave',{group:{...snapshot,status:options.previousStatus},baseGroup:launchSavedBases.get(id)},progressId);
+    launchSavedRevisions.set(id,saved.group.revision);launchSavedBases.set(id,structuredClone(saved.group));saveBackendSnapshot('launchGroup_'+id,saved.group);
    }
    d=await launchPost('launchMove',{id,status:snapshot.status,fromStatus:options.previousStatus},progressId);
-  }else d=await launchPost('launchSave',{group:snapshot,baseGroup:readBackendSnapshot('launchGroup_'+id)},progressId);
+  }else d=await launchPost('launchSave',{group:snapshot,baseGroup:launchSavedBases.get(id)},progressId);
   if(options.previousStatus&&d.group?.status!==snapshot.status)throw new Error('資料庫尚未確認'+(options.actionLabel||'狀態變更')+'完成');
-  launchSavedRevisions.set(id,d.group.revision);launchFailedSaves.delete(id);
+  launchSavedRevisions.set(id,d.group.revision);launchSavedBases.set(id,structuredClone(d.group));launchFailedSaves.delete(id);
   saveBackendSnapshot('launchGroup_'+id,d.group);launchClearListCache();
   if(launchCurrent?.id===id){
    const clean=signature(launchCurrent)===savedSignature||signature(launchCurrent)===signature(snapshot);
-   if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{launchMergeProductMasterValues(launchCurrent,snapshot,d.group);launchCurrent.revision=d.group.revision;}
+   if(clean){launchCurrent=structuredClone(d.group);if(typeof launchPreserveEmptyPanels==='function')launchPreserveEmptyPanels(launchCurrent);}else{launchCurrent=launchRebaseQueuedSave(launchCurrent,editorSnapshot,d.group);launchCurrent.revision=d.group.revision;}
    sessionStorage.setItem(LAUNCH_OPEN_KEY,id);sessionStorage.setItem(LAUNCH_STATUS_KEY,launchCurrent.status);
    if(clean){launchDirty=false;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE');if(options.render!==false&&document.body.dataset.page==='launch'){const scroll=options.preserveScroll?launchOrderScrollState():null;launchRenderEditor();if(scroll)launchRestoreProductScroll(scroll);}}
   }
   saveProgress('完成');if(options.onSuccess)options.onSuccess(d.group);launchCompletionToast(options.successMessage||'已完成：'+completed);
- }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>launchPendingSaves--);
+ }).catch(error=>{saveProgress('失敗',error.message);if(options.onFailure)options.onFailure(error);launchFailedSaves.set(id,snapshot);launchSubmittedSignatures.delete(id);if(launchCurrent?.id===id){launchDirty=true;if(options.previousStatus&&launchCurrent.status===snapshot.status){launchCurrent.status=options.previousStatus;if(document.body.dataset.page==='launch')launchRenderEditor();}}launchCompletionToast(jiwuErrorText(error,'system')+'，修改仍保留，請重新儲存',true);}).finally(()=>{launchPendingSaves--;const remaining=(launchSavePendingByGroup.get(id)||1)-1;if(remaining)launchSavePendingByGroup.set(id,remaining);else launchSavePendingByGroup.delete(id);});
  return launchSaveTail;
 }
 const launchMoveProgressJobs=new Map();
