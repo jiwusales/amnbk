@@ -3687,16 +3687,25 @@ function productInfoIsMetalboxURL(value){try{const u=new URL(String(value||''));
 function productInfoImageURLs(item){return [...new Set([...(Array.isArray(item?.images)?item.images:[]),...String(item?.image||(!Array.isArray(item?.images)&&item?.images)||'').split(/[、\s]+/)].map(launchSafeURL).filter(Boolean))];}
 function productInfoMetalboxImages(item){return productInfoImageURLs(item).filter(url=>!new URL(url).pathname.includes('/upload/thumb_image/'));}
 function productInfoMetalboxNeedsImages(item){const images=productInfoImageURLs(item);return productInfoIsMetalboxURL(item?.url)&&(!images.length||images.some(url=>new URL(url).pathname.includes('/upload/thumb_image/')));}
+function productInfoIsNaganoAnnouncementURL(value){
+ try{const url=new URL(value);return ['nagano-info.jp','www.nagano-info.jp'].includes(url.hostname)&&/^\/tenpo_nm\/[a-z0-9_-]+(?:\/index\.html)?\/?$/i.test(url.pathname);}catch{return false;}
+}
+function productInfoReadUnsupported(error){return error?.message==='此網站尚未支援自動抓取，請手動填寫';}
 function productInfoAutomaticFields(item,keys){return productInfoIsTmallURL(item?.url)?keys.filter(key=>!['japaneseName','format'].includes(key)):keys;}
 function productInfoSyncJapanesePlaceholder(form,url){const input=form?.querySelector('[name=japaneseName],#inventoryEditJapaneseName,#inventoryAddJapaneseName');if(!input)return;if(input.dataset.productInfoPlaceholder===undefined)input.dataset.productInfoPlaceholder=input.getAttribute('placeholder')||'';input.placeholder=productInfoIsTmallURL(url)?'選填，可手動填寫':input.dataset.productInfoPlaceholder;}
 function launchAutoProductInfo(form){
  const input=form?.elements?.namedItem('url');if(!input)return;
- let ticket=0,timer,formatTouched=false,readKey='',readPromise;
+ let ticket=0,timer,formatTouched=false,readKey='',readPromise,unsupportedURL='';
  const read=()=>{
   const item=Object.fromEntries(['url','original','code','format','size','japaneseName','role'].map(key=>[key,String(form.elements.namedItem(key)?.value||'').trim()])),key=JSON.stringify(item);
+  if(productInfoIsNaganoAnnouncementURL(item.url)||item.url===unsupportedURL)return null;
   if(key!==readKey||!readPromise){
    readKey=key;const request=api('launchProductInfo',{item});readPromise=request;
-   const clear=()=>{if(readPromise===request){readPromise=null;readKey='';}};
+   const clear=error=>{
+    if(readPromise!==request)return;
+    if(productInfoReadUnsupported(error))unsupportedURL=item.url;
+    readPromise=null;readKey='';
+   };
    request.then(data=>{if(productInfoIsMetalboxURL(item.url)&&!productInfoMetalboxImages(data?.item).length)clear();},clear);
   }
   return readPromise;
@@ -3709,10 +3718,12 @@ function launchAutoProductInfo(form){
   if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
   if(!productInfoMetalboxNeedsImages({url,images:form.elements.namedItem('images')?.value||''})&&String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
+  const request=read();
+  if(!request){form.querySelector('[data-auto-product-info]')?.remove();return;}
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
   message.textContent=tmall?'正在抓取貨號與尺寸…':'正在抓取日文名、貨號與尺寸…';
   const requestedValues={code:code?.value||'',size:size?.value||'',images:form.elements.namedItem('images')?.value||''};
-  const pending=read().then(data=>{
+  const pending=request.then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
    const imagesControl=form.elements.namedItem('images'),imagesBox=form.querySelector('.launchProductImages');
@@ -3721,7 +3732,11 @@ function launchAutoProductInfo(form){
    if(!tmall&&data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
    message.textContent=[!tmall&&!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
    message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':tmall?'已帶入貨號與尺寸':'已帶入日文名、貨號與尺寸';
-  }).catch(error=>{if(current===ticket&&form.isConnected)message.textContent='抓取未完成：'+error.message;});
+  }).catch(error=>{
+   if(current!==ticket||!form.isConnected)return;
+   if(productInfoReadUnsupported(error))message.remove();
+   else message.textContent='抓取未完成：'+error.message;
+  });
   form.jiwuProductInfoPending=pending;await pending;if(form.jiwuProductInfoPending===pending)form.jiwuProductInfoPending=null;
  }
  input.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
@@ -3889,6 +3904,12 @@ async function launchCompleteProductInfo(groupId,submitted,pending){
   }
   launchMoveProgress(progressId,submitted.name,'完成','','商品資料');
  }catch(error){
+  if(productInfoReadUnsupported(error)){
+   launchMoveProgressJobs.delete(progressId);
+   if([...launchMoveProgressJobs.values()].every(job=>job.end!==null)){clearInterval(launchMoveProgressTimer);launchMoveProgressTimer=null;}
+   launchPaintMoveProgress();
+   return;
+  }
   launchMoveProgress(progressId,submitted.name,'失敗',error.message,'商品資料');
   launchCompletionToast('網址已保留，商品資料抓取未完成：'+error.message,true);
  }
@@ -4437,7 +4458,7 @@ function launchURLImportActive(session){return launchURLImportSession===session&
 function launchURLImportItemKey(item){const detailURL=launchURLImportDetailURL(item.url);return JSON.stringify(detailURL?[detailURL,item.japaneseName||item.name,item.role||'',item.variantKey||'']:[String(item.url||'').replace(/[?#].*$/,''),item.japaneseName||item.name,item.code||'',item.format||'',item.role||'',item.variantKey||'']);}
 function launchURLImportDetailURL(value){
  const neowing=launchURLImportNeowingURL(value,true);if(neowing)return neowing;
- try{const u=new URL(launchNormalizeURL(value));if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port)return '';if(['nagano-info.jp','www.nagano-info.jp'].includes(u.hostname)&&/^\/tenpo_nm\/[a-z0-9_-]+(?:\/index\.html)?\/?$/i.test(u.pathname))return '';u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid)$/.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
+ try{const u=new URL(launchNormalizeURL(value));if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port)return '';if(productInfoIsNaganoAnnouncementURL(u.href))return '';u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid)$/.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
 }
 function launchURLImportNeowingURL(value,detailOnly=false){
  try{const u=new URL(launchNormalizeURL(value));if(u.protocol!=='https:'||!['www.neowing.co.jp','neowing.co.jp'].includes(u.hostname)||u.username||u.password||u.port)return '';const path=u.pathname.replace(/\/$/,'');if(!/^\/product\/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(path)&&(detailOnly||!/^\/(?:series\/\d+|searchuni)$/.test(path)))return '';u.hostname='www.neowing.co.jp';u.pathname=path;u.hash='';for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|dclid|msclkid|yclid|ttclid|twclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i.test(key))u.searchParams.delete(key);u.searchParams.sort();return u.href;}catch{return '';}
