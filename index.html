@@ -10747,9 +10747,18 @@ function launchCatalogEntries(group){
  }
  return entries;
 }
-function launchCatalogPriceRow(item,index,label='',active=false){
+function launchCatalogBoxLabel(single,box){
+ const explicit=launchVariantFormat(box).normalize('NFKC').trim().match(/^(?:抱盒|BOX)\s*([1-9]\d*)\s*入?$/i)?.[1];
+ if(explicit)return explicit+'入';
+ const [singleCurrency,singlePrice]=launchDraftOriginalPriceKey(single).split('|');
+ const [boxCurrency,boxPrice]=launchDraftOriginalPriceKey(box).split('|');
+ if(singleCurrency!==boxCurrency||!(Number(singlePrice)>0))return '抱盒';
+ const ratio=Number(boxPrice)/Number(singlePrice),count=Math.round(ratio);
+ return count>0&&Number.isSafeInteger(count)&&Math.abs(ratio-count)<=2*Number.EPSILON*count?count+'入':'抱盒';
+}
+function launchCatalogPriceRow(item,index,label='',active=false,variantLabel=label){
  const name=launchDisplayName(item);
- const variant=label?`<button class="launchCatalogVariant" type="button" aria-pressed="${active}" aria-label="${label}庫存" onclick="launchCatalogSwitchVariant(this,${index})">${label}</button>`:'';
+ const variant=label?`<button class="launchCatalogVariant" type="button" aria-pressed="${active}" aria-label="${label}庫存${variantLabel===label?'':'（'+variantLabel+'）'}" onclick="launchCatalogSwitchVariant(this,${index})">${variantLabel}</button>`:'';
  return `<div class="inventoryPrices">${variant}<span class="inventoryOriginal">${esc(launchOriginalPriceLabel(item))}</span><span class="inventoryPriceDivider" aria-hidden="true">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${index}" aria-label="修改 ${esc(name)}${label?' '+label:''} 售價" placeholder="售價" value="${esc(String(item.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${index},this)" onkeydown="launchDirectPriceKey(event,${index},this)"></span></div>`;
 }
 function launchCatalogControls(item,index,editIndex,hidden=false){
@@ -10778,7 +10787,7 @@ function launchCatalogRows(){
    ${launchAvailabilityButton(p,index)}${launchProductOrderInput(p,index,position)}
    <div class="inventoryImageWrap">${link}${picture}${url?'</a>':'</span>'}</div>
    <div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${index})">${launchCardNameHtml(launchDisplayName(p))}</button>
-    ${launchCatalogPriceRow(p,index,peer?'單抽':'',true)}${peer?launchCatalogPriceRow(peer,peerIndex,'抱盒'):''}
+    ${launchCatalogPriceRow(p,index,peer?'單抽':'',true)}${peer?launchCatalogPriceRow(peer,peerIndex,'抱盒',false,launchCatalogBoxLabel(p,peer)):''}
     ${launchCatalogControls(p,index,index)}${peer?launchCatalogControls(peer,peerIndex,index,true):''}
    </div>
   </article>`;
