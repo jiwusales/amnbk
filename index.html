@@ -3886,7 +3886,7 @@ function launchDrawEditorPair(group,item){
  const matching=group.items.filter(other=>other!==item&&other.name===item.name&&String(other.role||'')===String(item.role||'')&&launchDrawType(other));
  const variants=matching.filter(other=>{
   const otherPanels=membership(other);
-  return itemPanels.some(panel=>otherPanels.includes(panel))||(!itemPanels.length&&!otherPanels.length&&Number(item.panel||0)===Number(other.panel||0));
+  return itemPanels.some(panel=>otherPanels.includes(panel))||((!itemPanels.length||!otherPanels.length)&&Number(item.panel||0)===Number(other.panel||0));
  });
  const peers=variants.filter(other=>launchDrawType(other)!==type);
  if(peers.length>1||variants.some(other=>launchDrawType(other)===type))return null;
