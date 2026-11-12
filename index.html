@@ -3432,6 +3432,14 @@ function launchBulkReadCanRetry(error){
  if(/HTTP\s*429|限制讀取|登入|權限|不支援|網址不符|不存在/i.test(message))return false;
  return ['AbortError','TimeoutError','NetworkError'].includes(error?.name)||[502,503,504].includes(error?.status)||/failed to fetch|network(?:error| request failed)|load failed|Mac (?:connection|API) unavailable|relay is busy|durable intake is busy|relay.*(?:timeout|offline)|connector.*offline|host offline|主機離線|連線(?:暫時失敗|中斷|逾時)|網站讀取逾時|網站讀取失敗，請稍後再試/i.test(message);
 }
+function launchBulkRateLimitRetryAt(error){
+ if(Number.isSafeInteger(error?.bulkRetryAt))return error.bulkRetryAt;
+ const match=String(error?.message||'').match(/HTTP 429[）)]，請等候 (\d+) 秒再試/);
+ if(!match)return 0;
+ const seconds=Number(match[1]);
+ const deadline=Date.now()+seconds*1000;
+ return seconds>0&&Number.isSafeInteger(deadline)?deadline:0;
+}
 function launchBulkConnectionBlocked(){return navigator.onLine===false||window.jiwuHostConnectionRecovering?.();}
 async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=new Map(),isActive=()=>true){
  const rows=launchParseMultiProducts(value);
@@ -3467,7 +3475,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
     const detailFailures=(data.warnings||[]).filter(warning=>/：商品詳細資料暫時無法讀取(?:，尺寸待補)?$/.test(String(warning)));
     if(detailFailures.length){
      const kept=details.completed.size,total=details.total||detailFailures.length;
-     throw Object.assign(Error(`已保留 ${kept} / ${total} 筆商品詳細資料，還有 ${total-kept} 筆待讀。${details.failureMessage?' '+details.failureMessage:''}`),{bulkRetry:details.retryable});
+     throw Object.assign(Error(`已保留 ${kept} / ${total} 筆商品詳細資料，還有 ${total-kept} 筆待讀。${details.failureMessage?' '+details.failureMessage:''}`),{bulkRetry:details.retryable,bulkRetryAt:details.retryable?details.retryAt:0});
     }
     if(!entry.imagesReady){
      await launchValidateURLImportImages(data,null,(done,total)=>onProgress(done,total,'圖片'));
@@ -3484,7 +3492,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
     }
     continue;
    }
-  }catch(error){throw Object.assign(Error('第 '+row.line+' 行：'+error.message),{bulkRetry:error.bulkRetry??launchBulkReadCanRetry(error)});}
+  }catch(error){throw Object.assign(Error('第 '+row.line+' 行：'+error.message),{bulkRetry:error.bulkRetry??launchBulkReadCanRetry(error),bulkRetryAt:launchBulkRateLimitRetryAt(error)});}
  }
  const products=launchExpandMultiProducts(expanded,start);
  Object.defineProperty(products,'importWarnings',{value:[...warnings]});return products;
@@ -3937,7 +3945,7 @@ async function launchCompleteProductInfo(groupId,submitted,pending){
   launchCompletionToast('網址已保留，商品資料抓取未完成：'+error.message,true);
  }
 }
-function launchWaitForBulkConnection(dialog,active,delay){
+function launchWaitForBulkConnection(dialog,active,delay,retryAt=0,onWait=()=>{}){
  return new Promise(resolve=>{
   let timer,done=false;
   const blocked=launchBulkConnectionBlocked;
@@ -3949,12 +3957,20 @@ function launchWaitForBulkConnection(dialog,active,delay){
    resolve(result&&active());
   };
   const cancel=()=>finish(false);
-  const wake=()=>{if(!active())cancel();else if(!blocked())finish(true);};
-  const tick=()=>{if(!active())cancel();else if(blocked())timer=setTimeout(tick,1000);else finish(true);};
+  const timeLeft=()=>Math.max(0,retryAt-Date.now());
+  const wake=()=>{if(!active())cancel();else if(timeLeft()===0&&!blocked())finish(true);};
+  const tick=()=>{
+   if(!active()){cancel();return;}
+   const left=timeLeft();
+   if(left>0){onWait(Math.ceil(left/1000));timer=setTimeout(tick,Math.min(1000,left));}
+   else if(blocked()){onWait(0);timer=setTimeout(tick,1000);}
+   else finish(true);
+  };
   window.addEventListener('online',wake);
   window.addEventListener('jiwu-host-connected',wake);
   dialog?.addEventListener('close',cancel,{once:true});
-  timer=setTimeout(tick,blocked()?1000:delay);
+  if(retryAt)tick();
+  else timer=setTimeout(tick,blocked()?1000:delay);
  });
 }
 async function launchProductSubmit(e,index,mode){
@@ -3974,7 +3990,7 @@ async function launchProductSubmit(e,index,mode){
   if(submit)submit.disabled=true;
   if(input)input.readOnly=true;
   showStatus('');
-  let retryCount=0,lastProgress=-1;
+  let retryCount=0,lastProgress=-1,rateLimitProgress=-1;
   try{
    while(active()){
     try{
@@ -3984,10 +4000,23 @@ async function launchProductSubmit(e,index,mode){
      if(!active())return;
      const progress=[...resume.values()].reduce((sum,entry)=>sum+1+entry.details.completed.size+Number(entry.imagesReady),0);
      if(progress>lastProgress){lastProgress=progress;retryCount=0;}
-     if(!error.bulkRetry||retryCount>=5)throw error;
-     showStatus(error.message+' 連線恢復後會自動續讀。');
-     if(submit)submit.textContent='等待連線恢復…';
-     if(!await launchWaitForBulkConnection(dialog,active,1500*2**retryCount++))return;
+     const retryAt=launchBulkRateLimitRetryAt(error);
+     if(retryAt){
+      if(rateLimitProgress===progress){
+       showStatus('官網再次回傳 HTTP 429，這次仍未讀到商品。已保留目前的讀取進度。');
+       return;
+      }
+      rateLimitProgress=progress;
+      showStatus(error.message+' 等待結束後會自動續讀。');
+      if(!await launchWaitForBulkConnection(dialog,active,0,retryAt,seconds=>{
+       if(submit)submit.textContent=seconds?'官網等待 '+seconds+' 秒…':'等待連線恢復…';
+      }))return;
+     }else{
+      if(!error.bulkRetry||retryCount>=5)throw error;
+      showStatus(error.message+' 連線恢復後會自動續讀。');
+      if(submit)submit.textContent='等待連線恢復…';
+      if(!await launchWaitForBulkConnection(dialog,active,1500*2**retryCount++))return;
+     }
      showStatus('');
     }
    }
@@ -4560,7 +4589,7 @@ async function launchEnrichURLImportDetails(data,session,onProgress=()=>{},check
  const queue=[...groups];
  if(checkpoint){
   checkpoint.total=checkpoint.completed.size+queue.length+withoutURL;
-  checkpoint.retryable=withoutURL===0;checkpoint.failureMessage='';
+  checkpoint.retryable=withoutURL===0;checkpoint.failureMessage='';checkpoint.retryAt=0;
   if(queue.length&&checkpoint.completed.size)onProgress(checkpoint.completed.size,checkpoint.total);
  }
  const validation=(async()=>{
@@ -4585,7 +4614,12 @@ async function launchEnrichURLImportDetails(data,session,onProgress=()=>{},check
     if(!active())return;
     targets.forEach(unavailable);
     if(checkpoint){
-     if(!launchBulkReadCanRetry(error)){
+     const retryAt=launchBulkRateLimitRetryAt(error);
+     if(retryAt){
+      checkpoint.retryAt=Math.max(checkpoint.retryAt,retryAt);
+      checkpoint.failureMessage||=String(error.message||'').slice(0,220);
+      paused=true;
+     }else if(!launchBulkReadCanRetry(error)){
       checkpoint.retryable=false;
       checkpoint.failureMessage||=String(error.message||'').slice(0,220);
      }else if(launchBulkConnectionBlocked())paused=true;
@@ -4647,7 +4681,7 @@ function launchURLImportImageFailed(index,image,expectedURL){
 }
 async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true,retryConnection=true){
  if(!isActive())throw Error('已取消讀取');
- let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',{url,expandRoles:true});break;}catch(error){if(attempt===2||!isActive()||/官網暫時限制讀取（HTTP 429）/.test(error.message)||!retryConnection&&launchBulkReadCanRetry(error))throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
+ let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',{url,expandRoles:true});break;}catch(error){if(attempt===2||!isActive()||/HTTP 429/.test(error.message)||!retryConnection&&launchBulkReadCanRetry(error))throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
  if(!isActive())throw Error('已取消讀取');
  onProgress(1,(data.items||[]).length);return data;
 }
