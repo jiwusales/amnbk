@@ -4435,6 +4435,79 @@ function launchOpenWebsite(){
  window.open(url,'_blank','noopener,noreferrer');
 }
 
+function launchChiikawaCollectionURL(value){
+ try{
+  const url=new URL(String(value||'').trim());
+  if(url.origin!=='https://chiikawamarket.jp'||url.username||url.password||!/^\/collections\/[\w-]+\/?$/.test(url.pathname))return '';
+  url.pathname=url.pathname.replace(/\/$/,'');url.hash='';
+  if(url.searchParams.get('page')==='1')url.searchParams.delete('page');
+  for(const key of [...url.searchParams.keys()])if(/^utm_|^(?:fbclid|gclid)$/i.test(key))url.searchParams.delete(key);
+  url.searchParams.sort();return url.href;
+ }catch{return '';}
+}
+function launchParseSavedChiikawaCollection(html,expected=[]){
+ const attributes=tag=>Object.fromEntries([...tag.matchAll(/([^\s=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map(m=>[m[1].toLowerCase(),(m[2]??m[3]).replaceAll('&amp;','&')]));
+ const savedURL=html.match(/<!--\s*saved from url=\(\d+\)(https:\/\/[^\s<>]+)\s*-->/i)?.[1];
+ const canonical=[...html.matchAll(/<link\b[^>]*>/gi)].map(m=>attributes(m[0])).find(a=>a.rel?.toLowerCase()==='canonical')?.href;
+ const url=launchChiikawaCollectionURL(savedURL||canonical);
+ if(!url)throw Error('這個檔案不是吉伊卡哇官網的商品集合頁，請在官網按「另存網頁」後重試');
+ if(expected.length&&!expected.some(value=>launchChiikawaCollectionURL(value)===url))throw Error('儲存的頁面與已填的集合網址或頁碼不一致');
+ const collectionPath=new URL(url).pathname;
+ const publicURL=(value,match)=>{
+  try{const candidate=new URL(value,url);if(candidate.origin==='https://chiikawamarket.jp'&&!candidate.username&&!candidate.password&&match(candidate.pathname)){candidate.hash='';return candidate.href;}}catch{}
+  return '';
+ };
+ const products=new Map();
+ function walk(value,depth=0){
+  if(!value||typeof value!=='object'||depth>20)return;
+  if(Array.isArray(value)){for(const row of value)walk(row,depth+1);return;}
+  if([value['@type']].flat().some(type=>/^(?:https?:\/\/schema\.org\/)?Product$/.test(String(type)))){
+   const productURL=typeof value.url==='string'?publicURL(value.url,path=>/^\/products\/[\w%-]+\/?$/.test(path)||path.startsWith(collectionPath+'/products/')&&/^\/products\/[\w%-]+\/?$/.test(path.slice(collectionPath.length))):'';
+   if(!productURL)return;
+   const name=typeof value.name==='string'?value.name.trim():'';
+   const firstImage=[value.image].flat()[0],imageValue=typeof firstImage==='string'?firstImage:firstImage?.url||firstImage?.contentUrl;
+   const image=imageValue?publicURL(imageValue,path=>path.startsWith('/cdn/shop/files/')):'';
+   const offers=[value.offers].flat().filter(Boolean);
+   const offer=offers.find(o=>o.priceCurrency==='JPY'&&/^\d+(?:\.0+)?$/.test(String(o.price??o.lowPrice??'')));
+   if(!name||name.length>300||!image||!offer)throw Error('頁面中的商品缺少名稱、日圓價格或第一張商品圖，請重新儲存完整頁面');
+   const code=[value.gtin13,value.gtin12,value.gtin,value.sku].map(String).find(s=>/^\d{8,14}$/.test(s));
+   const product={name,url:productURL,image,price:String(offer.price??offer.lowPrice),currency:'JPY',...(code?{code}:{})};
+   const identity=new URL(productURL).pathname.split('/').filter(Boolean).at(-1);
+   if(!products.has(identity))products.set(identity,product);
+   if(products.size>200)throw Error('每次最多讀取 200 個商品');
+   return;
+  }
+  for(const child of Object.values(value))walk(child,depth+1);
+ }
+ for(const script of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)){
+  if(attributes(script[1]).type?.toLowerCase()!=='application/ld+json')continue;
+  let value;try{value=JSON.parse(script[2]);}catch{continue;}walk(value);
+ }
+ if(!products.size)throw Error('這份網頁沒有可讀取的商品，請確認官網的商品已載入後再另存');
+ const title=(html.match(/<title\b[^>]*>([^<]*)<\/title\s*>/i)?.[1]||'吉伊卡哇商品').trim().slice(0,200);
+ return {url,title,products:[...products.values()]};
+}
+function launchSavedChiikawaFields(session){
+ const open=session.failures?.some(failure=>failure.startsWith('https://chiikawamarket.jp/collections/'))?' open':'';
+ return `<details${open} style="margin:12px 0"><summary style="cursor:pointer">用已儲存的吉伊卡哇官網頁面讀取</summary><p class="launchHelp" style="margin:8px 0">在官網集合頁按 ⌘S（Windows：Ctrl+S），選「網頁，僅 HTML」，再選取儲存的檔案。</p><input type="file" aria-label="已儲存的吉伊卡哇官網頁面" accept=".html,.htm,text/html" onchange="launchReadSavedChiikawaPage(this)"></details>`;
+}
+async function launchReadSavedChiikawaPage(input){
+ const session=launchURLImportSession,form=input.form,file=input.files?.[0];
+ if(!session||session.loading||!file||!form||!launchURLImportActive(session))return;
+ const message=form.querySelector('[data-url-import-message]'),textarea=form.elements.namedItem('urls');
+ try{
+  if(file.size>8*1024*1024)throw Error('檔案太大，請用「網頁，僅 HTML」重新儲存');
+  input.disabled=true;message.textContent='正在讀取已儲存的網頁…';
+  const html=await file.text();
+  if(!launchURLImportActive(session)||!input.isConnected||session.loading)return;
+  const urls=textarea.value.trim().split(/\s+/).filter(Boolean);
+  const saved=launchParseSavedChiikawaCollection(html,urls);
+  if(!urls.length)textarea.value=saved.url;
+  await launchReadImportURLs({preventDefault(){},currentTarget:form},saved);
+ }catch(error){if(input.isConnected)message.textContent=error.message;}
+ finally{if(input.isConnected){input.disabled=false;input.value='';}}
+}
+
 let launchURLImportSession=null;
 function launchOpenNewAnnouncement(){
  const session={newGroup:true,seed:{},originGroup:launchCurrent,destination:null,items:[],selected:new Set(),sources:[],warnings:[],failures:[],group:{},urls:'',hasRead:false};
@@ -4448,7 +4521,7 @@ function launchImportURLs(newGroup=false,seed=null){
  if(!newGroup&&prior?.newGroup){launchOpenNewAnnouncement();return;}
  const destination=newGroup?null:launchImportDestination;if(!newGroup&&(!destination||launchCurrent!==destination.group))return;
  const session={destination,newGroup,seed:seed||{},originGroup:launchCurrent,items:[],selected:new Set(),sources:[],warnings:[]};
- launchDialog(`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchReadImportURLs(event)"><h2>${newGroup?'貼公告開新團':'貼網址匯入'}</h2><label>公告、商品或列表網址<textarea name="urls" aria-label="匯入商品網址" rows="4" required placeholder="貼上任一公開商品或公告網址，可每行貼一個"></textarea></label><p class="launchHelp">Animate 請貼單一商品網址；其他商品列表只讀取指定頁。讀取後可勾選商品並填寫開團資訊。</p><p data-url-import-message role="status"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit">讀取商品</button></div></form>`);
+ launchDialog(`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchReadImportURLs(event)"><h2>${newGroup?'貼公告開新團':'貼網址匯入'}</h2><label>公告、商品或列表網址<textarea name="urls" aria-label="匯入商品網址" rows="4" required placeholder="貼上任一公開商品或公告網址，可每行貼一個"></textarea></label><p class="launchHelp">Animate 請貼單一商品網址；其他商品列表只讀取指定頁。讀取後可勾選商品並填寫開團資訊。</p>${launchSavedChiikawaFields(session)}<p data-url-import-message role="status"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit">讀取商品</button></div></form>`);
  launchURLImportSession=session;session.dialog=document.getElementById('launchDialog');
  session.dialog.addEventListener('close',()=>{if(launchURLImportSession===session)launchURLImportSession=null;},{once:true});
 }
@@ -4554,14 +4627,15 @@ function launchURLImportImageFailed(index,image,expectedURL){
  if(next){image.onerror=()=>launchURLImportImageFailed(index,image,next);image.dataset.urlImportImage=next;image.src=launchURLImportDisplayImageURL(next);}
  else{const box=image.closest('.launchURLThumb');if(box)box.textContent='待補圖';else image.remove();}
 }
-async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true){
+async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true,saved=null){
  if(!isActive())throw Error('已取消讀取');
- let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',{url,expandRoles:true});break;}catch(error){if(attempt===2||!isActive())throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
+ let data;if(saved)data=await api('launchAnnouncementPreview',{url:saved.url,expandRoles:true,chiikawaCollection:saved});
+ else for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',{url,expandRoles:true});break;}catch(error){if(attempt===2||!isActive()||/官網暫時限制讀取（HTTP 429）/.test(error.message))throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
  if(!isActive())throw Error('已取消讀取');
  onProgress(1,(data.items||[]).length);return data;
 }
 
-async function launchReadImportURLs(event){
+async function launchReadImportURLs(event,saved=null){
  event.preventDefault();const session=launchURLImportSession;if(!session||session.loading)return;
  const form=event.currentTarget,message=form.querySelector('[data-url-import-message]');
  const rawURLs=[...new Set(String(new FormData(form).get('urls')||'').split(/\s+/).filter(Boolean))];
@@ -4570,13 +4644,15 @@ async function launchReadImportURLs(event){
  if(urls.length>20){message.textContent='每次最多讀取 20 個網址，每團最多 200 項商品';return;}
  session.readResults??=new Map();
  const previousKeys=new Set(session.items.map(launchURLImportItemKey)),selectedKeys=new Set(session.items.filter((_,index)=>session.selected.has(index)).map(launchURLImportItemKey));
- const retainedURLs=urls.filter(url=>session.readResults.has(url)),pending=urls.filter(url=>!session.readResults.has(url)),retained=retainedURLs.length;
+ const useSaved=url=>saved&&launchChiikawaCollectionURL(url)===saved.url;
+ const retainedURLs=urls.filter(url=>session.readResults.has(url)&&!useSaved(url)),pending=urls.filter(url=>!session.readResults.has(url)||useSaved(url)),retained=retainedURLs.length;
  session.urls=String(new FormData(form).get('urls')||'');session.loading=true;(form.querySelector('[data-url-read]')||form.querySelector('[type="submit"]')).disabled=true;
  const failures=[];let detailRetried=0;
  for(const url of retainedURLs){
   if(!launchURLImportActive(session))return;
   if(!launchURLImportSupportsDetails(url))continue;
-  const data=session.readResults.get(url);launchReuseURLImportCachedItems(data,session);
+  const data=session.readResults.get(url);if(data.source?.kind==='chiikawa-collection-snapshot')continue;
+  launchReuseURLImportCachedItems(data,session);
   if((data.items||[]).some(launchURLImportNeedsDetails))detailRetried++;
   await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
  }
@@ -4585,9 +4661,9 @@ async function launchReadImportURLs(event){
   message.textContent=`正在讀取 ${index+1} / ${pending.length}（只讀取當前頁）…${retained?'（保留 '+retained+' 個已讀網址）':''}`;
   const url=pending[index];
   try{
-   const data=await launchReadAllAnnouncement(url,(pages,count)=>{if(launchURLImportActive(session))message.textContent='已讀取 '+pages+' 頁，共 '+count+' 項商品…';},()=>launchURLImportActive(session));
+   const data=await launchReadAllAnnouncement(url,(pages,count)=>{if(launchURLImportActive(session))message.textContent='已讀取 '+pages+' 頁，共 '+count+' 項商品…';},()=>launchURLImportActive(session),useSaved(url)?saved:null);
    if(!launchURLImportActive(session))return;
-   if(launchURLImportSupportsDetails(url))await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
+   if(data.source?.kind!=='chiikawa-collection-snapshot'&&launchURLImportSupportsDetails(url))await launchEnrichURLImportDetails(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在讀取商品詳細資料 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
    await launchValidateURLImportImages(data,session,(done,total)=>{if(launchURLImportActive(session))message.textContent='正在檢查圖片 '+done+' / '+total+'…';});
    if(!launchURLImportActive(session))return;
@@ -4644,7 +4720,7 @@ function launchRenderNewAnnouncementForm(session){
  const source=session.sources[0]?.source;
  const reference=source?`<div class="launchURLSource"><strong>${esc(source.title||'')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small></div>`:'';
  const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>原價 ${esc(item.currency||'原幣')} ${esc(item.original||'待填')} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
- session.dialog.innerHTML=`<form class="launchURLImportForm launchNewAnnouncementForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>建立新團</h2><label>商品／公告網址（選填）<textarea name="urls" aria-label="匯入商品網址" rows="2" placeholder="貼上任一公開商品或公告網址，自動帶入商品與圖片">${esc(session.urls||'')}</textarea></label><div class="launchTools" style="margin:10px 0"><button class="btn light" type="button" data-url-read onclick="launchReadImportURLs({preventDefault(){},currentTarget:this.form})">讀取網址商品</button></div><p data-url-import-message role="status"></p>${reference}${launchURLImportGroupFields(session)}${session.items.length?`<h3>辨識到的商品</h3><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${products}</div>`:''}${session.warnings.length?`<p class="launchHelp">${esc(session.warnings.join('；'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit" data-url-import-confirm>建立開團頁</button></div></form>`;
+ session.dialog.innerHTML=`<form class="launchURLImportForm launchNewAnnouncementForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>建立新團</h2><label>商品／公告網址（選填）<textarea name="urls" aria-label="匯入商品網址" rows="2" placeholder="貼上任一公開商品或公告網址，自動帶入商品與圖片">${esc(session.urls||'')}</textarea></label><div class="launchTools" style="margin:10px 0"><button class="btn light" type="button" data-url-read onclick="launchReadImportURLs({preventDefault(){},currentTarget:this.form})">讀取網址商品</button></div>${launchSavedChiikawaFields(session)}<p data-url-import-message role="status"></p>${reference}${launchURLImportGroupFields(session)}${session.items.length?`<h3>辨識到的商品</h3><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${products}</div>`:''}${session.warnings.length?`<p class="launchHelp">${esc(session.warnings.join('；'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit" data-url-import-confirm>建立開團頁</button></div></form>`;
  if(session.items.length)launchUpdateURLImportSelection();else void launchAutoImportShipping(session);
 }
 function launchToggleURLImport(index,checked){const session=launchURLImportSession;if(!session)return;if(checked)session.selected.add(index);else session.selected.delete(index);launchUpdateURLImportSelection();}
