@@ -1960,13 +1960,32 @@ function launchPostChannelState(id=launchCurrent?.id){
   return state;
  }catch(_){return {};}
 }
+function launchWritePostChannelState(id,state){
+ const key='jiwu_supabase_test_post_channels_'+id,value=JSON.stringify(state);
+ try{localStorage.setItem(key,value);return;}catch(error){if(error.name!=='QuotaExceededError')throw error;}
+ // A new mark takes priority over local copies of data that can be fetched again.
+ const groupPrefix='jiwu_supabase_test_snapshot_launchGroup_';
+ const cachedLists=launchStates.map(status=>LAUNCH_CACHE_PREFIX+status).filter(cacheKey=>sessionStorage.getItem(cacheKey)!==null);
+ const cachedDetails=Object.keys(localStorage).filter(cacheKey=>cacheKey.startsWith(groupPrefix)&&cacheKey!==groupPrefix+launchCurrent?.id);
+ const cacheKeys=[LAUNCH_URL_CACHE_KEY,...cachedLists,...cachedDetails,'jiwu_supabase_test_snapshot_storeSales','jiwu_supabase_test_snapshot_ship'];
+ for(const cacheKey of cacheKeys){
+  if(localStorage.getItem(cacheKey)===null)continue;
+  localStorage.removeItem(cacheKey);
+  try{localStorage.setItem(key,value);return;}catch(error){if(error.name!=='QuotaExceededError')throw error;}
+ }
+ throw new Error('無法保存平台標記');
+}
 function launchToggleGroupChannel(event,index,channel,button){
  event.preventDefault();event.stopPropagation();
  const group=launchURLGroups[index];if(!group)return;
  const state=launchPostChannelState(group.id),selected=button.getAttribute('aria-pressed')!=='true';
+ const errorMessage=document.getElementById('launchChannelMarkError');
  state[channel]=selected;
- try{localStorage.setItem('jiwu_supabase_test_post_channels_'+group.id,JSON.stringify(state));button.setAttribute('aria-pressed',String(selected));}
- catch(_){launchCompletionToast('無法保存平台標記，請確認瀏覽器儲存空間',true);}
+ try{
+  launchWritePostChannelState(group.id,state);
+  button.setAttribute('aria-pressed',String(selected));
+  if(errorMessage)errorMessage.hidden=true;
+ }catch(_){if(errorMessage)errorMessage.hidden=false;}
 }
 function launchLineGroupText(g){const title=(String(g.name||'').trim()||launchCanvasTitle(g,0)).replace(/(?:收單\s*)?⛔\uFE0F?/g,'收單⛔️');return `${title}：${launchPostURL(g)}`;}
 async function launchCopyPostText(button,id){
@@ -2122,7 +2141,7 @@ function launchGroupURLs(){
   const copy={...g,...meta};copy.shortUrl=meta?.shortUrl||g.shortUrl||cache?.urls?.[g.id]||'';
   copy.postReady=!!meta;launchNormalizeGroupURLs(copy);return copy;
  });
- launchDialog(`<div class="launchAllHeading"><h2>輸出</h2><button type="button" class="btn light launchURLClose" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">×</button></div><div id="launchURLList" class="launchGroupExports"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
+ launchDialog(`<div class="launchAllHeading"><h2>輸出</h2><button type="button" class="btn light launchURLClose" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">×</button></div><p id="launchChannelMarkError" class="launchHelp" role="alert" hidden>無法儲存平台標記，請確認瀏覽器允許網站儲存資料後再試。</p><div id="launchURLList" class="launchGroupExports"></div><textarea id="launchURLCopy" aria-label="複製內容" readonly style="position:fixed;top:0;left:-9999px"></textarea><p id="launchURLMessage" role="status"></p>`);
  launchRenderGroupURLs();
  const dialog=document.getElementById('launchDialog'),groups=launchURLGroups;
  void launchLoadURLs(true).then(data=>{
