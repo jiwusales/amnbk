@@ -161,6 +161,7 @@ background:transparent;
 box-shadow:inset 0 3px 0 var(--main)
 }
 .nav button.isRefreshing{opacity:.55}
+#btn-buy[hidden]{display:none}
 .page{
 width:100%;
 max-width:1700px;
@@ -1619,11 +1620,13 @@ body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 </main>
 <div id="protectedShell" class="protectedShell">
 <div class="top">
+<div class="topHostControls">
 <span id="hostConnectionStatus" role="img" aria-label="主機未連線" title="主機未連線">☻</span>
+<a id="topLanSwitch" class="topLanSwitch" href="http://192.168.1.106:7791/" aria-label="切換到區網版後台" title="切換到區網版後台" hidden>🅷</a>
+</div>
 <button id="onlineBackButton" class="btn light" type="button" onclick="backOnlineCustomer()" aria-label="返回上一頁" hidden>⬅︎</button>
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
 <span class="topTitle">
-<a id="topLanSwitch" class="btn light topLanSwitch" href="http://192.168.1.106:7791/" aria-label="切換到區網版後台" title="切換到區網版後台" hidden>🅷</a>
 <span class="topTitleText"><span class="topTitleFull">JIWU吉物躺著賺後台</span><span class="topTitleCompact" aria-hidden="true">躺賺</span></span>
 </span>
 <span id="inventoryAvailabilityTime" class="inventoryAvailabilityTime" role="status">貨況更新：-</span>
@@ -1646,6 +1649,7 @@ body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 <div class="nav">
 <button id="btn-profit" onclick="openProfitPage()" aria-label="私人獲利報表"><img class="profitNavLogo" src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt=""></button>
 <button id="btn-purchase" onclick="tab('purchase',this)">訂購</button>
+<button id="btn-buy" onclick="tab('buy',this)" hidden>敗家</button>
 <button id="btn-launch" onclick="tab('launch',this)">開團</button>
 <button id="btn-inventory" onclick="tab('inventory',this)">庫存</button>
 <button id="btn-store" class="active" onclick="tab('store',this)">店面</button>
@@ -5464,6 +5468,8 @@ async function launchExport(mode){
 <script src="customer-order-binding.js?v=20261031-friendly-errors"></script>
 <script>
 const API_URL='https://jiwu-mac-relay.jiwusales.workers.dev/functions/v1/jiwu-admin-test';
+const lanBackend=new URL(API_URL,location.href).origin===location.origin;
+document.getElementById('btn-buy').hidden=!lanBackend;
 const AUTH_TOKEN_KEY='jiwu_supabase_test_admin_auth_token';
 const AUTH_PERSISTENT_TOKEN_KEY='jiwu_supabase_test_admin_auth_token_trusted';
 let authToken=localStorage.getItem(AUTH_PERSISTENT_TOKEN_KEY)||sessionStorage.getItem(AUTH_TOKEN_KEY)||'';
@@ -6588,7 +6594,8 @@ sessionStorage.setItem(
 name
 );
 if(name==='buy'){
-document.getElementById('app').innerHTML='<iframe title="敗家" src="https://jiwusales.github.io/wkbuyit/index.html" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>';
+const helperURL=lanBackend?'/wkbuyit/':'https://jiwusales.github.io/wkbuyit/index.html';
+document.getElementById('app').innerHTML=`<iframe title="敗家" src="${helperURL}" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>`;
 }
 if(name==='store'){
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
@@ -10689,33 +10696,41 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 <style id="launch-inventory-import-style">.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
 
 <style id="host-connection-style">
-#hostConnectionStatus{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:Arial,sans-serif;font-size:26px;line-height:1;color:#d1d4d2;user-select:none;pointer-events:none}
+.topHostControls{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:4px}
+#hostConnectionStatus,.topLanSwitch{font:26px/1 Arial,sans-serif}
+#hostConnectionStatus{color:#d1d4d2;user-select:none;pointer-events:none}
 #hostConnectionStatus.connected{color:#88a38d}
-.topTitle{display:inline-flex;align-items:center;gap:8px;min-width:0}
-.topTitleText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.topLanSwitch{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;padding:0;border-radius:8px;font-size:18px;line-height:1;text-decoration:none}
+.topLanSwitch{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:32px;border-radius:6px;color:#666;font-size:18px;text-decoration:none}
 .topLanSwitch[hidden]{display:none}
 .topLanSwitch:focus-visible{outline:2px solid var(--main);outline-offset:2px}
-@media(max-width:850px){
- .top:has(#topLanSwitch:not([hidden])){gap:6px;padding-right:12px}
- .top:has(#topLanSwitch:not([hidden])) .topTitle{gap:6px;max-width:none}
- .top:has(#topLanSwitch:not([hidden])) .topActions{position:static;transform:none;margin-left:auto;flex:none}
- body[data-page="store"] .top:has(#topLanSwitch:not([hidden])){padding-right:48px}
- body[data-page="inventory"] .top:has(#topLanSwitch:not([hidden])) .topActions{margin-left:0}
- .topLanSwitch{width:32px;height:32px}
-}
+.topTitle{display:inline-flex;align-items:center;min-width:0}
+.topTitleText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topTitleCompact{display:none}
-@media(max-width:400px){
- .top:has(#topLanSwitch:not([hidden])):has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:78px}
- .top:has(#topLanSwitch:not([hidden])) .topActions{gap:4px}
- body[data-page="online"] .top:has(#topLanSwitch:not([hidden])) .topActions .btn:not(.topStarButton){padding-inline:5px}
- .topTitle:has(#topLanSwitch:not([hidden])) .topTitleFull{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
- .topTitle:has(#topLanSwitch:not([hidden])) .topTitleCompact{display:inline}
-}
 .top:has(#hostConnectionStatus){padding-left:48px;box-sizing:border-box}
 .top:has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:90px}
 #onlineBackButton,#launchHeaderBack{left:46px}
 body[data-page="store"] .top{padding-left:48px}
+.top:has(#topLanSwitch:not([hidden])){padding-left:78px}
+.top:has(#topLanSwitch:not([hidden])) :is(#onlineBackButton,#launchHeaderBack){left:76px}
+.top:has(#topLanSwitch:not([hidden])):has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:118px}
+@media(min-width:851px){
+ .top:has(#topLanSwitch:not([hidden])){padding-right:78px}
+ .top:has(#topLanSwitch:not([hidden])):has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-right:118px}
+}
+@media(max-width:850px){
+ .top:has(#topLanSwitch:not([hidden])){gap:6px;padding-right:12px}
+ .top:has(#topLanSwitch:not([hidden])):has(#onlineBackButton:not([hidden]),#launchHeaderBack:not([hidden])){padding-left:108px}
+ .top:has(#topLanSwitch:not([hidden])) .topTitle{max-width:none}
+ .top:has(#topLanSwitch:not([hidden])) .topActions{position:static;transform:none;margin-left:auto;flex:none}
+ body[data-page="store"] .top:has(#topLanSwitch:not([hidden])){padding-right:48px}
+ body[data-page="inventory"] .top:has(#topLanSwitch:not([hidden])) .topActions{margin-left:0}
+}
+@media(max-width:400px){
+ .top:has(#topLanSwitch:not([hidden])) .topActions{gap:4px}
+ body[data-page="online"] .top:has(#topLanSwitch:not([hidden])) .topActions .btn:not(.topStarButton){padding-inline:5px}
+ .top:has(#topLanSwitch:not([hidden])) .topTitleFull{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .top:has(#topLanSwitch:not([hidden])) .topTitleCompact{display:inline}
+}
 
 /* Existing online orders: editable group before the item name. */
 @media(max-width:600px){.dialogItem.orderEditItem{grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}.orderEditItem>.orderEditGroup{grid-column:1/6;grid-row:1}.orderEditItem>.orderEditName{grid-column:6/12;grid-row:1}.dialogItem.orderEditItem>button:first-child{grid-column:12;grid-row:1;order:0}.orderEditItem>.orderEditPrice{grid-column:1/5;grid-row:2}.orderEditItem>.orderEditDeposit{grid-column:5/9;grid-row:2}.orderEditItem>.orderEditShipping{grid-column:9/13;grid-row:2}}
