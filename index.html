@@ -2086,7 +2086,7 @@ function launchCardSize(value){
 function launchProductColors(item){const name=launchDisplayName(item);return [...new Set(launchCurrent.items.filter(x=>launchDisplayName(x)===name).flatMap(x=>launchHexColors(x.size)))];}
 function launchThumb(g){const banner=g.images?.[0],items=g.items||[],visible=items.slice(0,28),more=(g.itemCount??items.length)>visible.length;return `<div class="launchThumb" aria-hidden="true"><div class="launchThumbPage" style="--launch-main:${launchColor(g.mainColor)}"><div class="launchThumbHead"><img src="${launchIcon}" alt="" loading="lazy" decoding="async">${esc(g.name)}</div>${banner?`<img class="launchThumbBanner" src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<div class="launchThumbBanner"></div>'}<div class="launchThumbItems">${visible.map(p=>`<div class="launchThumbCard">${p.images?.[0]?`<img src="${launchImage(p.images[0])}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<span class="launchThumbBlank"></span>'}<b>${esc(launchDisplayName(p))}</b><strong>${esc(p.price)}</strong><small class="launchThumbFormat">${esc(launchProductSpec(p).format)}</small><small>${esc(launchCardSize(launchProductSpec(p).size))}</small></div>`).join('')}${more?'<div class="launchThumbMore">更多商品</div>':''}</div><div class="launchThumbFooter">${esc(launchFooterText(g))}</div></div></div>`;}
 const launchThumbObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(!(node instanceof Element))return;const nested=node.querySelectorAll?[...node.querySelectorAll('img.launchThumbBanner')]:[],banners=[...(node.matches&&node.matches('img.launchThumbBanner')?[node]:[]),...nested];banners.forEach(img=>{img.loading='eager';img.fetchPriority='high';});})));launchThumbObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
-function launchMark(){launchQueuePNG();launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
+function launchMark(){launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty,panel:launchPanelIndex});if(launchUndoStack.length>30)launchUndoStack.shift();}
 function launchUndo(){if(launchBusy)return;const previous=launchUndoStack.pop();if(!previous){launchNotice('沒有可復原的操作');return;}launchCurrent=previous.group;launchDirty=previous.dirty;if(Number.isInteger(previous.panel))launchPanelIndex=previous.panel;launchMessage='已復原上一步';launchRenderEditor();}
 function launchNotice(text){text=jiwuErrorText(text);launchMessage=text;const n=document.getElementById('launchNotice');if(n)n.textContent=text;}
@@ -2218,7 +2218,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
    const blobs=[await imagePromise],count=allPanels?Math.max(1,exporting.panels?.length||0):1;
    for(let i=1;i<count;i++){
     if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
-    clearTimeout(launchPNGTimer);document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
+    document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
     launchPanelIndex=i;blobs.push(await launchGetPNG());
    }
    if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
@@ -2229,7 +2229,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
  finally{
   // 剪貼簿可能提前拒絕；等製圖結束再恢復畫面，避免背景工作覆蓋狀態。
   if(imagePromise)await imagePromise.catch(()=>{});
-  clearTimeout(launchPNGTimer);document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
+  document.getElementById('launchOffscreenExport')?.remove();launchPNGPrepared=null;
   if(exporting&&launchCurrent===exporting){launchCurrent=previous.group;launchPanelIndex=previous.panel;launchCanvasEditing=previous.canvas;launchDirty=previous.dirty;}
   launchBusy=false;launchExportBusy=false;launchSyncTopActions();
   if(button.isConnected){button.disabled=false;button.textContent=copied?'✅':label;if(copied)setTimeout(()=>{if(button.isConnected)button.textContent=label;},1200);}
@@ -2710,7 +2710,7 @@ function launchToggleNewFreeShipping(button){
 }
 function launchCreateNew(e){e.preventDefault();const form=new FormData(e.target),name=String(form.get('name')||'').trim(),shipDate=String(form.get('shipDate')||'').trim(),closeDate=String(form.get('closeDate')||'').trim(),openDate=launchNormalizeOpenDate(form.get('openDate')),openTime=launchNormalizeOpenTime(form.get('openTime')),domesticShipping=String(form.get('domesticShipping')||'').trim(),noFreeShipping=form.get('noFreeShipping')==='on';if(openDate===null){alert('請輸入有效開團日期，例如 1023');return;}if(openTime===null){alert('請輸入有效時間，例如 10 或 1030（24小時制）');return;}if(!name)return;launchLoad++;launchPanelIndex=0;launchCurrent={id:launchId(),status:'尚未上架',name,images:[],panels:[{image:'',mainColor:'#617AA6'}],mainColor:'#617AA6',shipDate,closeDate,openDate,openTime,domesticShipping,noFreeShipping,secondShipping:'',footer:'',storefrontNote:'',cardColumns:8,items:[],revision:''};launchDirty=true;document.getElementById('launchDialog').close();launchMessage='正在建立尚未上架的新團…';launchRenderEditor();launchRun(launchPersist);}
 function launchApplyZoom(){const editor=document.querySelector('.launchEditor');if(editor)editor.style.zoom=String(launchZoom);}
-function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});}
+function launchAdjustZoom(delta){launchZoom=Math.max(.7,Math.min(1.5,Math.round((launchZoom+delta)*10)/10));sessionStorage.setItem(LAUNCH_ZOOM_KEY,String(launchZoom));launchApplyZoom();requestAnimationFrame(launchFitCards);}
 function launchSyncDrawImages(items,preferred=[]){
  let changed=false;
  const groups=new Map();
@@ -2765,7 +2765,7 @@ function launchRenderEditor(){
  const desktopControls=`<div class="launchZoomControls" aria-label="畫布工具">${isDraft?'<button type="button" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>':''}<button type="button" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button type="button" aria-label="放大畫布" onclick="launchAdjustZoom(.1)">＋</button><button type="button" aria-label="縮小畫布" onclick="launchAdjustZoom(-.1)">－</button></div>`;
  document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''} ${g.status==='最新開團'?'launchLatestCanvas':''}">${isLatest?'':`<div class="launchTools launchPrimaryTools"><span class="launchRightTools">${desktopPrimary}</span></div>`}${isLatest?`<div class="launchTools launchLatestCanvasActions">${latestCanvasActions}</div>${panelTabs}`:`<div class="launchTools launchEditorTools launchDesktopEditorTools"><span class="launchEditorToolsLeft">${editActions}</span><span class="launchEditorToolsRight">${desktopSecondary}</span></div>${mobileTools}`}<div class="launchEditor"><div class="launchPaper" id="launchPaper" style="--launch-main:${launchColor(activePanel.mainColor||g.mainColor)}"><div class="launchHeading"><img src="${launchIcon}" alt="JIWU"><div id="launchTitleWrap" class="launchTitle"><button class="launchTitle" onclick="launchEditTitle()">${esc(launchCanvasDisplayTitle(g))}</button></div></div><div class="launchBanners">${banner?`<div class="launchBanner"><button class="launchBannerEdit" aria-label="修改首圖" onclick="launchBannerURLs()"><img src="${launchImage(banner)}" alt="開團 Banner" style="${launchBannerStyle(activePanel)}"></button><button class="launchBannerPosition" aria-label="調整首圖位置與大小" onclick="launchBannerPosition(event)">調整</button><button aria-label="移除 Banner" onclick="launchRemoveActiveBanner()">×</button></div>`:`<button class="launchBannerEmpty" onclick="launchBannerURLs()">貼上 Banner 網址</button>`}</div><div class="launchCards">${panelItems.map(({p,i})=>`<article class="launchProduct ${Number(p.scale||1)>=1.5?'launchResized':''}" data-launch-index="${i}" data-launch-product-id="${esc(p.id)}" tabindex="0" role="button" aria-label="編輯 ${esc(launchDisplayName(p))}" onclick="launchProductDialog(${i})" onkeydown="if(event.key==='Enter'&&event.target===this)launchProductDialog(${i})">${launchProductImageURL(p)?`<a class="launchProductPictures" data-launch-product-link="${i}" href="${esc(launchProductImageURL(p))}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(launchDisplayName(p))} 商品網址" onclick="event.stopPropagation()">`:'<div class="launchProductPictures">'}${p.images.length?p.images.slice(0,1).map(u=>`<img src="${launchImage(u)}" alt="${esc(launchDisplayName(p))}" decoding="async">`).join(''):'<span class="launchPlaceholder">商品圖片</span>'}${launchProductImageURL(p)?'</a>':'</div>'}<h3>${esc(launchDisplayName(p))}</h3><p class="launchCode">${esc(p.code)}</p><p><b>${esc(String(p.price||'').replace(/^\$/,''))}</b></p><p class="launchFormat">${esc(launchProductSpec(p).format)}</p><p class="launchSize">${esc(launchCardSize(launchProductSpec(p).size))}</p></article>`).join('')}</div><button class="launchFooter" onclick="launchEditFooter()">官方LINE @jiwusales｜${esc(g.footer||'')}</button></div></div>${desktopControls}<p id="launchOverflowNote" class="launchHelp"></p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div>${launchAvailabilityFooter()}</section>`;
  const paper=document.getElementById('launchPaper');
- requestAnimationFrame(()=>{if(launchPrepareCanvas(g,paper))launchQueuePNG();});
+ requestAnimationFrame(()=>launchPrepareCanvas(g,paper));
 }
 function launchPrepareCanvas(group,paper){
  if(!group||group!==launchCurrent||!paper||paper!==document.getElementById('launchPaper'))return false;
@@ -3981,7 +3981,6 @@ function launchRefreshProductImages(groupId,itemId,requestedURL){
  if(painted){
   if(typeof launchPNGPrepared!=='undefined')launchPNGPrepared=null;
   if(typeof launchPNGBlobCache!=='undefined')launchPNGBlobCache.clear();
-  if(typeof launchQueuePNG==='function')launchQueuePNG();
  }
 }
 async function launchCompleteProductInfo(groupId,submitted,pending){
@@ -5251,9 +5250,9 @@ function launchFitCards(){
  const footer=paper.querySelector('.launchFooter');launchFitSingleLine(footer);
  const note=document.getElementById('launchOverflowNote');if(note)note.textContent=hidden?`${hidden} 項商品未顯示於畫布，右下角已換成更多商品提示；可從「全部商品」編輯。`:'';
 }
-let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchResizeTimer);launchResizeTimer=setTimeout(()=>{launchFitCards();launchQueuePNG();},100);});
-document.fonts.ready.then(()=>{launchFitCards();launchQueuePNG();});
-document.addEventListener('load',e=>{if(e.target instanceof HTMLImageElement&&e.target.closest('#launchPaper'))requestAnimationFrame(()=>{launchFitCards();launchQueuePNG();});},true);
+let launchResizeTimer;window.addEventListener('resize',()=>{clearTimeout(launchResizeTimer);launchResizeTimer=setTimeout(launchFitCards,100);});
+document.fonts.ready.then(launchFitCards);
+document.addEventListener('load',e=>{if(e.target instanceof HTMLImageElement&&e.target.closest('#launchPaper'))requestAnimationFrame(launchFitCards);},true);
 window.addEventListener('beforeunload',e=>{if(launchDirty||launchBusy||launchPendingSaves){e.preventDefault();e.returnValue='';}});
 const launchExportLocalImages=new Map([
  ['https://baseec-img-mng.akamaized.net/images/item/origin/c28662c5c707903f15298b8848beac86.jpg','assets/export-images/c28662c5c707903f15298b8848beac86.jpg']
@@ -5284,7 +5283,7 @@ function launchFetchExportImage(url){
  return pending;
 }
 const launchExportImageCache=new Map();
-window.addEventListener('jiwu-images-updated',()=>{launchExportImageCache.clear();launchImageProxyRequests.clear();launchPNGBlobCache.clear();launchPNGPrepared=null;launchQueuePNG();});
+window.addEventListener('jiwu-images-updated',()=>{launchExportImageCache.clear();launchImageProxyRequests.clear();launchPNGBlobCache.clear();launchPNGPrepared=null;});
 function launchLoadImage(url){
  url=window.jiwuImageURL?window.jiwuImageURL(url):url;
  if(launchExportImageCache.has(url))return launchExportImageCache.get(url);
@@ -5300,7 +5299,7 @@ function launchLoadImage(url){
  return pending;
 }
 const launchPNGBlobCache=new Map();
-let launchPNGPrepared=null,launchPNGTimer;
+let launchPNGPrepared=null;
 function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
  const title=launchCanvasDisplayTitle(group,index),dates=launchTitleDateDefaults(title);
  const datedPrefix=/^(?:⛔[\uFE0E\uFE0F]?\s*)?(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)/.test(title.normalize('NFKC').trim());
@@ -5346,13 +5345,6 @@ function launchGetPNG(){
  }).catch(error=>{if(launchPNGPrepared===prepared)launchPNGPrepared=null;throw error;});
  launchPNGPrepared=prepared;
  return prepared.promise;
-}
-function launchQueuePNG(){
- clearTimeout(launchPNGTimer);
- launchPNGTimer=setTimeout(()=>{
-  if(!document.getElementById('launchPaper')||!launchCurrent)return;
-  launchGetPNG().catch(()=>{});
- },250);
 }
 async function launchBuildPNG(){
  const paper=document.getElementById('launchPaper'),group=launchCurrent,panelIndex=launchPanelIndex;
@@ -10245,10 +10237,13 @@ async function backendSyncRefreshCurrent(page){
 
 // These are PUBLIC browser settings. A service_role/secret key is rejected by the client.
 const backendPushDefaults=Object.freeze({"runtimeSupabaseURL":"https://jiwu-mac-relay.jiwusales.workers.dev","runtimeSupabaseAnonKey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyNzExMjc2LCJleHAiOjE4MjQyNDcyNzZ9.M3rL4u8tO_PQN-qW4kP8mkmIxI6Vdd4FgkhsuNPoxqk"});
-let backendPushClient=null,backendPushTimer=null,backendPushSignalVersion=0,backendSyncNeedsRevision=false,backendPushReady=false;
+// The public relay shares its quota with LINE. Coalesce bursts of stock changes into one refresh.
+const backendPushRefreshInterval=location.hostname==='jiwusales.github.io'?30000:0;
+let backendPushClient=null,backendPushTimer=null,backendPushNextRevisionAt=0,backendPushSignalVersion=0,backendSyncNeedsRevision=false,backendPushReady=false;
 function backendPushSchedule(){
  if(backendPushTimer!==null)return;
- backendPushTimer=setTimeout(()=>{backendPushTimer=null;void backendSyncPoll();},100);
+ const delay=Math.max(100,backendPushNextRevisionAt-performance.now());
+ backendPushTimer=setTimeout(()=>{backendPushTimer=null;void backendSyncPoll();},delay);
 }
 function backendPushResumePending(){
  storeCartPushResume();
@@ -10269,10 +10264,12 @@ function backendPushWake(reconnect=false){
 async function backendSyncPoll(){
  if(backendSyncRunning||!authToken||!appStarted||document.hidden||!navigator.onLine)return;
  if(!backendSyncNeedsRevision&&!backendSyncDirty.has(document.body.dataset.page))return;
+ if(backendSyncNeedsRevision&&performance.now()<backendPushNextRevisionAt){backendPushSchedule();return;}
  const signalAtStart=backendPushSignalVersion;
  backendSyncRunning=true;
  try{
   if(backendSyncNeedsRevision){
+  backendPushNextRevisionAt=performance.now()+backendPushRefreshInterval;
   const state=await api('backendSync');
   if(state.pageRevisions&&Object.hasOwn(state.pageRevisions,'store'))storeCartPushSignal(state.pageRevisions.store);
   if(signalAtStart===backendPushSignalVersion)backendSyncNeedsRevision=false;
