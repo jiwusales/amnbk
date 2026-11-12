@@ -3878,15 +3878,18 @@ function launchDrawEditorPair(group,item){
  const type=launchDrawType(item)||(item?.kind==='抽抽'&&!launchProductSpec(item).format?'single':'');
  if(!type)return null;
  const panels=group.panels||[];
- const membership=product=>panels.flatMap((panel,index)=>{
-  const belongs=Array.isArray(panel.productIds)?panel.productIds.includes(product.id):Number(product.panel||0)===index;
-  return belongs?[index]:[];
- });
+ const membership=product=>{
+  const assigned=panels.flatMap((panel,index)=>{
+   const belongs=Array.isArray(panel.productIds)?panel.productIds.includes(product.id):Number(product.panel||0)===index;
+   return belongs?[index]:[];
+  });
+  return assigned.length?assigned:[Number(product.panel||0)];
+ };
  const itemPanels=membership(item);
  const matching=group.items.filter(other=>other!==item&&other.name===item.name&&String(other.role||'')===String(item.role||'')&&launchDrawType(other));
  const variants=matching.filter(other=>{
   const otherPanels=membership(other);
-  return itemPanels.some(panel=>otherPanels.includes(panel))||((!itemPanels.length||!otherPanels.length)&&Number(item.panel||0)===Number(other.panel||0));
+  return itemPanels.some(panel=>otherPanels.includes(panel));
  });
  const peers=variants.filter(other=>launchDrawType(other)!==type);
  if(peers.length>1||variants.some(other=>launchDrawType(other)===type))return null;
