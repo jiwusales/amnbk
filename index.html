@@ -3062,8 +3062,18 @@ function launchPaintCatalogSuggestedPrices(){
  document.querySelectorAll('[data-launch-direct-price]').forEach(input=>{
   const item=launchCurrent.items[Number(input.dataset.launchDirectPrice)];
   const suggested=String(input.value||'').trim()===''?launchCatalogSuggestedPrice(item):null;
-  if(suggested!==null){const original=launchNumber(item?.original),base=!launchIsRMB(item)&&original!==null&&original>0?Math.ceil(original*.21):null;input.placeholder='('+(base!==null?String(base)+'／':'')+String(suggested)+')';input.dataset.launchSuggestedPrice=String(suggested);}
-  else{input.placeholder='售價';delete input.dataset.launchSuggestedPrice;}
+  const paired=input.closest('.launchCatalogDrawCard');
+  if(suggested!==null){
+   const original=launchNumber(item?.original),base=!launchIsRMB(item)&&original!==null&&original>0?Math.ceil(original*.21):null;
+   const hint='('+(base!==null?String(base)+'／':'')+String(suggested)+')';
+   input.placeholder=paired?'('+String(suggested)+')':hint;
+   if(paired)input.title=hint;
+   input.dataset.launchSuggestedPrice=String(suggested);
+  }else{
+   input.placeholder='售價';
+   if(paired)input.removeAttribute('title');
+   delete input.dataset.launchSuggestedPrice;
+  }
  });
 }
 function launchPaintPriceHistory(){
@@ -3905,15 +3915,19 @@ function launchProductDialog(index=-1,mode='single'){
  }
  const p=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
  const draw=mode==='single'&&index>=0?launchDrawEditorPair(launchCurrent,p):null;
- launchDialog(`<form data-launch-product-form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div><div class="launchProductPlacement">${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${index<0?`<fieldset class="launchCanvasChoice"><legend>新增順序</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="insertPosition" value="front">加在前面</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="insertPosition" value="back" checked>加在後面</label></fieldset>`:''}</div>${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、原價、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可貼上整頁商品／公告網址（含分頁網址），一次帶入該頁商品，或只填商品網址、「名稱、網址」、名稱或「名稱、尺寸」；有網址時會先帶入官網提供的資料。</p><p class="launchMultiHelp" data-launch-multi-status role="status" aria-live="polite" style="margin:12px 0;white-space:pre-wrap" hidden></p>`:`<div class="launchProductFields"><label class="launchProductCompactField"><span>種　　類</span><select name="kind" aria-label="種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this)">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label class="launchProductCompactField"><span>角　　色</span><input name="role" placeholder="角色" oninput="launchSuggestFormKind(this.form)" aria-label="角色" value="${esc(p.role||'')}"></label><label class="launchProductCompactField launchProductNameField"><span>名　　稱</span><input name="name" placeholder="名稱" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required><button class="launchProductNameClear" type="button" aria-label="清空名稱" title="清空名稱" onpointerdown="event.preventDefault()" onclick="const input=this.previousElementSibling;input.value='';input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));">×</button></label>${draw?`<input type="hidden" name="format" value="${esc(launchProductSpec(p).format||(draw.type==='single'?'單抽':'抱盒'))}">${launchDrawEditorFields(p,draw)}`:`<label class="launchProductCompactField launchProductMoney"><span>原　　價</span><input name="original" placeholder="原價" aria-label="原價" value="${esc(p.original??'')}"></label><label class="launchProductCompactField launchProductMoney"><span>售　　價</span><input name="price" placeholder="售價" aria-label="售價" value="${esc(p.price??'')}"></label><label class="launchProductCompactField launchProductCode"><span>貨　　號</span><input name="code" placeholder="貨號" type="text" oninput="launchSuggestFormKind(this.form)" aria-label="貨號" value="${esc(p.code??'')}"></label><label class="launchProductCompactField launchProductFormat"><span>格　　式</span><input name="format" placeholder="格式" oninput="launchSuggestFormKind(this.form)" aria-label="格式" value="${esc(launchProductSpec(p).format)}"></label>`}<label class="launchProductCompactField launchProductSize"><span>尺　　寸</span><input name="size" placeholder="尺寸" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(launchProductSpec(p).size)}"></label>${launchProductImagesMarkup(p.images||[])}<label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductJapanese"><span>日 文 名</span><input name="japaneseName" aria-label="日文名" value="${esc(p.japaneseName||'')}" placeholder="由官網抓取，可手動填寫"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index})">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" title="只影響目前畫布，前端仍保留商品與尺寸選項" style="${!launchCanvasContains(p)?'background:#d9544d;color:#fff':''}" aria-pressed="${!launchCanvasContains(p)}" onclick="launchToggleProductHidden(${index},this)">畫布隱藏</button>`:''}`:''}<button type="button" class="btn light launchProductCancel" onclick="launchFinishProductEditor()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
+ const drawPeer=draw?.peer;
+ const hidden=index>=0&&!launchCanvasContains(p)&&!(drawPeer&&launchCanvasContains(drawPeer));
+ launchDialog(`<form data-launch-product-form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div><div class="launchProductPlacement">${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${index<0?`<fieldset class="launchCanvasChoice"><legend>新增順序</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="insertPosition" value="front">加在前面</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="insertPosition" value="back" checked>加在後面</label></fieldset>`:''}</div>${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp">每行一筆，用「、」分隔。角色、原價、尺寸、網址選填；例如「吊娃、吉伊、1980、100x70x50、https://…」，也可貼上整頁商品／公告網址（含分頁網址），一次帶入該頁商品，或只填商品網址、「名稱、網址」、名稱或「名稱、尺寸」；有網址時會先帶入官網提供的資料。</p><p class="launchMultiHelp" data-launch-multi-status role="status" aria-live="polite" style="margin:12px 0;white-space:pre-wrap" hidden></p>`:`<div class="launchProductFields"><label class="launchProductCompactField"><span>種　　類</span><select name="kind" aria-label="種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this)">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label class="launchProductCompactField"><span>角　　色</span><input name="role" placeholder="角色" oninput="launchSuggestFormKind(this.form)" aria-label="角色" value="${esc(p.role||'')}"></label><label class="launchProductCompactField launchProductNameField"><span>名　　稱</span><input name="name" placeholder="名稱" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required><button class="launchProductNameClear" type="button" aria-label="清空名稱" title="清空名稱" onpointerdown="event.preventDefault()" onclick="const input=this.previousElementSibling;input.value='';input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));">×</button></label>${draw?`<input type="hidden" name="format" value="${esc(launchProductSpec(p).format||(draw.type==='single'?'單抽':'抱盒'))}">${launchDrawEditorFields(p,draw)}`:`<label class="launchProductCompactField launchProductMoney"><span>原　　價</span><input name="original" placeholder="原價" aria-label="原價" value="${esc(p.original??'')}"></label><label class="launchProductCompactField launchProductMoney"><span>售　　價</span><input name="price" placeholder="售價" aria-label="售價" value="${esc(p.price??'')}"></label><label class="launchProductCompactField launchProductCode"><span>貨　　號</span><input name="code" placeholder="貨號" type="text" oninput="launchSuggestFormKind(this.form)" aria-label="貨號" value="${esc(p.code??'')}"></label><label class="launchProductCompactField launchProductFormat"><span>格　　式</span><input name="format" placeholder="格式" oninput="launchSuggestFormKind(this.form)" aria-label="格式" value="${esc(launchProductSpec(p).format)}"></label>`}<label class="launchProductCompactField launchProductSize"><span>尺　　寸</span><input name="size" placeholder="尺寸" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(launchProductSpec(p).size)}"></label>${launchProductImagesMarkup(p.images||[])}<label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductJapanese"><span>日 文 名</span><input name="japaneseName" aria-label="日文名" value="${esc(p.japaneseName||'')}" placeholder="由官網抓取，可手動填寫"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index})">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" title="只影響目前畫布，前端仍保留商品與尺寸選項" style="${hidden?'background:#d9544d;color:#fff':''}" aria-pressed="${hidden}" onclick="launchToggleProductHidden(${index},this)">畫布隱藏</button>`:''}`:''}<button type="button" class="btn light launchProductCancel" onclick="launchFinishProductEditor()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
  if(mode==='single'){const root=document.getElementById('launchDialog');const form=root.querySelector('form');if(draw)form.jiwuDrawEdit={group:launchCurrent,itemId:p.id,peerId:draw.peer?.id||'',type:draw.type};launchSuggestFormKind(form);void launchLoadProductKinds(root);launchAutoProductInfo(root.querySelector('form'));launchLoadPriceHistory();root.querySelector('form').addEventListener('input',event=>{if(event.target.name==='price')launchPaintPriceHistory();else if(['kind','original'].includes(event.target.name))launchLoadPriceHistory();});}
 }
 
 function launchLines(value){return value.replace(/\r/g,'').trim().split('\n').map(x=>x.trim());}
 function launchToggleProductHidden(index,button){
  const group=launchCurrent,item=group?.items[index];if(!item||group.status!=='尚未上架'||button.disabled)return;
- launchSetProductVisible(index,!launchCanvasContains(item));
- const hidden=!launchCanvasContains(item);
+ const peer=launchDrawEditorPair(group,item)?.peer;
+ const selected=launchCanvasContains(item)||!!peer&&launchCanvasContains(peer);
+ launchSetProductVisible(index,!selected,group.items.indexOf(peer));
+ const hidden=selected;
  button.style.background=hidden?'#d9544d':'';button.style.color=hidden?'#fff':'';button.setAttribute('aria-pressed',String(hidden));
 }
 async function launchGrabAddedProducts(ids){
@@ -4199,10 +4213,23 @@ function launchOrderScrollState(){
 }
 function launchSaveProductCard(){return launchSaveClick({actionLabel:'商品修改',successMessage:'商品修改已儲存',preserveScroll:true,render:false});}
 function launchSaveProductOrder(){return launchSaveClick({actionLabel:'商品排序',successMessage:'商品排序已儲存',preserveScroll:true,render:false});}
-function launchAllMove(from,to,keepControls=false){
- if(launchBusy||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||from>=launchCurrent.items.length||to<0||to>=launchCurrent.items.length)return;
+function launchAllMove(from,to,keepControls=false,catalog=null){
+ const count=catalog?.length??launchCurrent?.items.length??0;
+ if(launchBusy||!Number.isInteger(from)||!Number.isInteger(to)||from===to||from<0||to<0||from>=count||to>=count)return;
  const listMode=launchListMode(),scroll=launchOrderScrollState();
- launchPushUndo();launchCurrent.items.splice(to,0,launchCurrent.items.splice(from,1)[0]);launchMark();
+ launchPushUndo();
+ const items=launchCurrent.items;
+ if(catalog){
+  const moved=catalog[from],target=catalog[to];
+  const block=[items[moved.index],items[moved.peerIndex]].filter(Boolean);
+  const anchor=items[target.index],targetPeer=items[target.peerIndex];
+  for(const item of block)items.splice(items.indexOf(item),1);
+  const anchorPosition=items.indexOf(anchor),peerPosition=items.indexOf(targetPeer);
+  const targetPosition=peerPosition<0?anchorPosition:Math.min(anchorPosition,peerPosition);
+  const after=items[targetPosition+1]===anchor||targetPeer&&items[targetPosition+1]===targetPeer?2:1;
+  items.splice(from<to?targetPosition+after:targetPosition,0,...block);
+ }else items.splice(to,0,items.splice(from,1)[0]);
+ launchMark();
  if(keepControls){
   // Keep SAVE and other controls mounted when blurring the order input by clicking them.
   if(!listMode)launchRenderEditor();
@@ -4213,15 +4240,19 @@ function launchAllMove(from,to,keepControls=false){
   return launchSaveProductOrder();
  }
  launchRenderEditor();launchAllProducts();
- const dialog=listMode?document.querySelector('.launchProductListPage'):document.getElementById('launchDialog');launchRestoreProductScroll(scroll);dialog.querySelector(`[data-launch-sort-index="${to}"] .launchAllSortHandle`)?.focus({preventScroll:true});
+ const dialog=listMode?document.querySelector('.launchProductListPage'):document.getElementById('launchDialog');launchRestoreProductScroll(scroll);
+ const selector=catalog?`[data-launch-catalog-position="${to}"] .launchCatalogSelect`:`[data-launch-sort-index="${to}"] .launchAllSortHandle`;
+ dialog.querySelector(selector)?.focus({preventScroll:true});
  return launchSaveProductOrder();
 }
-function launchProductOrderInput(p,index){return `<input class="launchOrderInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="${esc(launchDisplayName(p))} 排序" title="輸入第幾位，按 Enter 或離開欄位後自動儲存" value="${index+1}" onchange="launchSetProductOrder(${index},this)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}else if(event.key==='Escape'){event.preventDefault();this.value='${index+1}';this.blur();}">`;}
-function launchSetProductOrder(index,input){
- const value=String(input.value||'').normalize('NFKC').trim(),count=launchCurrent?.items.length||0,position=Number(value);
- if(launchBusy){input.value=String(index+1);return;}
- if(!/^\d+$/.test(value)||!Number.isSafeInteger(position)||position<1||position>count){input.value=String(index+1);launchCompletionToast(`排序請輸入 1～${count} 的整數`,true);return;}
- input.value=String(position);launchAllMove(index,position-1,true);
+function launchProductOrderInput(p,index,position=null){const order=(position??index)+1;return `<input class="launchOrderInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="${esc(launchDisplayName(p))} 排序" title="輸入第幾位，按 Enter 或離開欄位後自動儲存" value="${order}" onchange="launchSetProductOrder(${index},this${position===null?'':','+position})" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}else if(event.key==='Escape'){event.preventDefault();this.value='${order}';this.blur();}">`;}
+function launchSetProductOrder(index,input,catalogPosition=null){
+ const catalog=catalogPosition===null?null:launchCatalogEntries(launchCurrent);
+ const from=catalogPosition??index,count=catalog?.length??(launchCurrent?.items.length||0);
+ const value=String(input.value||'').normalize('NFKC').trim(),position=Number(value);
+ if(launchBusy){input.value=String(from+1);return;}
+ if(!/^\d+$/.test(value)||!Number.isSafeInteger(position)||position<1||position>count){input.value=String(from+1);launchCompletionToast(`排序請輸入 1～${count} 的整數`,true);return;}
+ input.value=String(position);launchAllMove(from,position-1,true,catalog);
 }
 function launchAllSortKey(e,index){if(!['ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();e.stopPropagation();launchAllMove(index,index+(e.key==='ArrowUp'?-1:1));}
 function launchAllDrag(e,index){
@@ -5077,7 +5108,7 @@ async function launchSetProductQuantity(index,input){
   const current=launchCurrent?.id===group.id?launchCurrent.items.find(p=>p.id===item.id):null;
   if(current){current.stockQuantity=result.quantity;current.stockOut=result.out;}
   input.value=result.quantity??'';
-  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=(control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
+  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=(control.closest('.launchCatalogVariantControls')||control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
  }catch(error){input.value=previous;alert(jiwuErrorText(error,'system'));}
  finally{input.disabled=false;}
 }
@@ -5104,7 +5135,7 @@ function launchToggleProductStock(index,button){
  const acknowledges=(next&&previousMonitor?.change==='out')||(!next&&previousMonitor?.change==='restocked');
  if(acknowledges){item.availabilityMonitor={...previousMonitor,acknowledged:true};launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}
  item.stockOut=next;button.disabled=true;button.classList.toggle('isShortage',next);button.textContent='缺貨';
- const input=(button.closest('.launchCatalogCard')||button.parentElement).querySelector('[data-launch-stock]');if(input)input.value=previousQuantity;
+ const input=(button.closest('.launchCatalogVariantControls')||button.closest('.launchCatalogCard')||button.parentElement).querySelector('[data-launch-stock]');if(input)input.value=previousQuantity;
  launchPost('launchSetInventoryAvailability',{out:next,groupId:group.id,groupStatus:group.status,itemId:item.id}).then(result=>{if(result.availabilityMonitor)item.availabilityMonitor=result.availabilityMonitor;if(result.availabilitySummary){group.availabilitySummary=result.availabilitySummary;const listed=launchGroups.find(entry=>entry.id===group.id);if(listed)listed.availabilitySummary=result.availabilitySummary;launchSaveListCache(group.status,launchGroups);}launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));}).catch(error=>{item.availabilityMonitor=previousMonitor;launchRefreshAvailabilityControls(launchAvailabilityKey(group,item));item.stockOut=previous;item.stockQuantity=previousQuantity;button.classList.toggle('isShortage',previous);button.textContent='缺貨';if(input)input.value=previousQuantity;alert(error.message);}).finally(()=>{button.disabled=false;});
 }
 function launchAllSave(){
@@ -5125,7 +5156,18 @@ function launchCanvasRowClick(event,index){if(event.target.closest('button,input
 function launchCanvasSelectionMode(){return launchCurrent?.status==='尚未上架'||(launchCurrent?.status==='最新開團'&&launchCanvasEditing);}
 function launchUpdateSelectAll(){const all=document.getElementById('launchSelectAll');if(!all||!launchCurrent)return;const selected=launchCurrent.items.filter(item=>launchCanvasSelectionMode()?launchCanvasContains(item):item.visible!==false).length;all.checked=selected===launchCurrent.items.length&&selected>0;all.indeterminate=selected>0&&selected<launchCurrent.items.length;}
 function launchToggleAllProducts(visible){if(!launchCurrent)return;if(launchCanvasSelectionMode()){launchPushUndo();launchCurrent.panels[launchPanelIndex].productIds=visible?launchCurrent.items.map(item=>item.id):[];launchRenderEditor();}else launchCurrent.items.forEach(item=>item.visible=visible);document.querySelectorAll('[data-launch-product-select]').forEach(input=>input.checked=visible);launchMark();launchSaveProductCard();launchUpdateSelectAll();}
-function launchSetProductVisible(index,visible){const item=launchCurrent.items[index];if(!item)return;if(launchCanvasSelectionMode()){launchPushUndo();const ids=launchCanvasSelection();launchCurrent.panels[launchPanelIndex].productIds=visible?[...new Set([...ids,item.id])]:ids.filter(id=>id!==item.id);launchRenderEditor();const input=document.querySelector('[data-launch-product-select="'+index+'"]');if(input)input.checked=visible;}else item.visible=visible;launchMark();launchSaveProductCard();launchUpdateSelectAll();}
+function launchSetProductVisible(index,visible,peerIndex=-1){
+ const item=launchCurrent.items[index];if(!item)return;
+ const peer=launchCurrent.items[peerIndex],items=peer?[item,peer]:[item];
+ if(launchCanvasSelectionMode()){
+  launchPushUndo();
+  const ids=launchCanvasSelection(),changed=new Set(items.map(product=>product.id));
+  launchCurrent.panels[launchPanelIndex].productIds=visible?[...new Set([...ids,...changed])]:ids.filter(id=>!changed.has(id));
+  launchRenderEditor();
+  const input=document.querySelector('[data-launch-product-select="'+index+'"]');if(input)input.checked=visible;
+ }else items.forEach(product=>{product.visible=visible;});
+ launchMark();launchSaveProductCard();launchUpdateSelectAll();
+}
 function launchNameLines(text,width,measure){
 const source=String(text||'').trim(),words=source.split(/\s+/),lines=[];
 let line='';
@@ -10688,25 +10730,78 @@ body[data-page="store"] .top{padding-left:48px}
 
 <script id="launch-product-card-runtime-20261101">
 // Product manager cards reuse the inventory card geometry and controls.
+function launchCatalogEntries(group){
+ const indices=new Map(group.items.map((item,index)=>[item,index]));
+ const seen=new Set(),entries=[];
+ for(const [index,item] of group.items.entries()){
+  if(seen.has(item))continue;
+  const draw=launchDrawEditorPair(group,item),peer=draw?.peer;
+  if(peer&&launchDrawEditorPair(group,peer)?.peer===item){
+   seen.add(peer);
+   const otherIndex=indices.get(peer);
+   entries.push(draw.type==='single'?{index,peerIndex:otherIndex}:{index:otherIndex,peerIndex:index});
+  }else entries.push({index,peerIndex:-1});
+ }
+ return entries;
+}
+function launchCatalogPriceRow(item,index,label='',active=false){
+ const name=launchDisplayName(item);
+ const variant=label?`<button class="launchCatalogVariant" type="button" aria-pressed="${active}" aria-label="${label}庫存" onclick="launchCatalogSwitchVariant(this,${index})">${label}</button>`:'';
+ return `<div class="inventoryPrices">${variant}<span class="inventoryOriginal">${esc(launchOriginalPriceLabel(item))}</span><span class="inventoryPriceDivider" aria-hidden="true">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${index}" aria-label="修改 ${esc(name)}${label?' '+label:''} 售價" placeholder="售價" value="${esc(String(item.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${index},this)" onkeydown="launchDirectPriceKey(event,${index},this)"></span></div>`;
+}
+function launchCatalogControls(item,index,editIndex,hidden=false){
+ return `<div class="launchCatalogVariantControls" data-launch-catalog-variant="${index}"${hidden?' hidden':''}>${launchCatalogQuantities(item,index)}<div class="inventoryLinks">${launchKindSelect(item,index)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${editIndex})">編輯</button><button class="inventoryChannelButton launchStockToggle ${item.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${index},this)">缺貨</button>${launchPauseButton(item,index)}</div></div>`;
+}
+function launchCatalogSwitchVariant(button,index){
+ const card=button.closest('.launchCatalogCard');
+ card.querySelectorAll('.launchCatalogVariant').forEach(control=>control.setAttribute('aria-pressed',control===button));
+ card.querySelectorAll('[data-launch-catalog-variant]').forEach(controls=>{controls.hidden=Number(controls.dataset.launchCatalogVariant)!==index;});
+}
 function launchCatalogRows(){
- const referenceGroup=launchCurrent;queueMicrotask(()=>{void launchLoadCatalogReferences(referenceGroup);if(launchCurrent===referenceGroup)launchPaintCatalogSuggestedPrices();});
- return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${launchCurrent.items.map((p,i)=>{const selected=launchCanvasSelectionMode()?launchCanvasContains(p):p.visible!==false;const image=launchSafeURL(p.images?.[0]),url=launchProductImageURL(p);return `<article class="launchAllItem inventoryCard launchCatalogCard${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${i}" data-launch-product-id="${esc(p.id)}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${i})" ontouchstart="launchCatalogTouch(event,${i})"><input hidden data-launch-product-select="${i}" type="checkbox" ${selected?'checked':''}><button class="launchCatalogSelect" type="button" aria-label="選取 ${esc(launchDisplayName(p))}" aria-pressed="${selected}" onclick="launchCatalogSelect(${i})" onkeydown="launchAllSortKey(event,${i})"></button>${launchAvailabilityButton(p,i)}${launchProductOrderInput(p,i)}<div class="inventoryImageWrap">${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" data-launch-product-link="${i}" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">`:'<span class="launchCatalogImage">'}${image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${esc(launchDisplayName(p))}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>'}${url?'</a>':'</span>'}</div><div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${i})">${launchCardNameHtml(launchDisplayName(p))}</button><div class="inventoryPrices"><span class="inventoryOriginal">${esc(launchOriginalPriceLabel(p))}</span><span class="inventoryPriceDivider">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${i}" aria-label="修改 ${esc(launchDisplayName(p))} 售價" placeholder="售價" value="${esc(String(p.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${i},this)" onkeydown="launchDirectPriceKey(event,${i},this)"></span></div>${launchCatalogQuantities(p,i)}<div class="inventoryLinks">${launchKindSelect(p,i)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${i})">編輯</button><button class="inventoryChannelButton launchStockToggle ${p.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${i},this)">缺貨</button>${launchPauseButton(p,i)}</div></div></article>`;}).join('')}</div>`;
+ const group=launchCurrent;queueMicrotask(()=>{void launchLoadCatalogReferences(group);if(launchCurrent===group)launchPaintCatalogSuggestedPrices();});
+ const isSelected=item=>launchCanvasSelectionMode()?launchCanvasContains(item):item.visible!==false;
+ const cards=launchCatalogEntries(group).map(({index,peerIndex},position)=>{
+  const p=group.items[index],peer=group.items[peerIndex];
+  const selected=isSelected(p)||!!peer&&isSelected(peer);
+  const image=launchSafeURL(p.images?.[0]||peer?.images?.[0]);
+  const primaryURL=launchProductImageURL(p),url=primaryURL||(peer?launchProductImageURL(peer):'');
+  const linkIndex=primaryURL?index:peerIndex;
+  const name=esc(launchDisplayName(p));
+  const link=url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" data-launch-product-link="${linkIndex}" aria-label="開啟 ${name} 商品頁面">`:'<span class="launchCatalogImage">';
+  const picture=image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${name}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>';
+  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':''}${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
+   <input hidden data-launch-product-select="${index}" type="checkbox" ${selected?'checked':''}>
+   <button class="launchCatalogSelect" type="button" aria-label="選取 ${name}" aria-pressed="${selected}" onclick="launchCatalogSelect(${index},${peerIndex})" onkeydown="launchCatalogSortKey(event,${position})"></button>
+   ${launchAvailabilityButton(p,index)}${launchProductOrderInput(p,index,position)}
+   <div class="inventoryImageWrap">${link}${picture}${url?'</a>':'</span>'}</div>
+   <div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${index})">${launchCardNameHtml(launchDisplayName(p))}</button>
+    ${launchCatalogPriceRow(p,index,peer?'單抽':'',true)}${peer?launchCatalogPriceRow(peer,peerIndex,'抱盒'):''}
+    ${launchCatalogControls(p,index,index)}${peer?launchCatalogControls(peer,peerIndex,index,true):''}
+   </div>
+  </article>`;
+ });
+ return `<div class="launchAllGrid inventoryGrid launchCatalogGrid">${cards.join('')}</div>`;
 }
 function launchDraftRows(){return launchCatalogRows();}
 function launchListRows(){return launchCatalogRows();}
-function launchCatalogSelect(index){
+function launchCatalogSortKey(event,position){
+ if(!['ArrowUp','ArrowDown'].includes(event.key))return;
+ event.preventDefault();event.stopPropagation();
+ launchAllMove(position,position+(event.key==='ArrowUp'?-1:1),false,launchCatalogEntries(launchCurrent));
+}
+function launchCatalogSelect(index,peerIndex=-1){
  if(performance.now()<(window.launchCatalogSuppressClick||0))return;
  const input=document.querySelector(`[data-launch-product-select="${index}"]`);if(!input)return;
- launchSetProductVisible(index,!input.checked);input.checked=launchCanvasSelectionMode()?launchCanvasContains(launchCurrent.items[index]):launchCurrent.items[index].visible!==false;
+ const visible=!input.checked;launchSetProductVisible(index,visible,peerIndex);input.checked=visible;
  launchCatalogSyncSelection();
 }
 function launchCatalogSyncSelection(){document.querySelectorAll('.launchCatalogCard').forEach(card=>{const input=card.querySelector('[data-launch-product-select]');card.querySelector('.launchCatalogSelect')?.setAttribute('aria-pressed',!!input?.checked);});}
 function launchCatalogDragSession(card,index,x,y){
  const host=card.closest('dialog')||card.closest('.launchProductListPage');let target=index,frame,done=false;
- const locate=()=>{let best=Infinity;host.querySelectorAll('[data-launch-sort-index]').forEach(row=>{const r=row.getBoundingClientRect(),d=Math.hypot(x-(r.left+r.right)/2,y-(r.top+r.bottom)/2);if(d<best){best=d;target=Number(row.dataset.launchSortIndex);}});host.querySelectorAll('[data-launch-sort-index]').forEach(row=>row.classList.toggle('launchSortTarget',Number(row.dataset.launchSortIndex)===target));};
+ const locate=()=>{let best=Infinity;host.querySelectorAll('[data-launch-catalog-position]').forEach(row=>{const r=row.getBoundingClientRect(),d=Math.hypot(x-(r.left+r.right)/2,y-(r.top+r.bottom)/2);if(d<best){best=d;target=Number(row.dataset.launchCatalogPosition);}});host.querySelectorAll('[data-launch-catalog-position]').forEach(row=>row.classList.toggle('launchSortTarget',Number(row.dataset.launchCatalogPosition)===target));};
  const tick=()=>{const page=host.classList.contains('launchProductListPage'),r=page?{top:0,bottom:innerHeight}:host.getBoundingClientRect(),scroll=page?document.scrollingElement:host;if(y<r.top+50)scroll.scrollTop-=10;else if(y>r.bottom-50)scroll.scrollTop+=10;locate();frame=requestAnimationFrame(tick);};
  card.classList.add('launchDragging');frame=requestAnimationFrame(tick);
- return {move(nx,ny){x=nx;y=ny;locate();},finish(cancel){if(done)return;done=true;cancelAnimationFrame(frame);card.classList.remove('launchDragging');host.querySelectorAll('.launchSortTarget').forEach(e=>e.classList.remove('launchSortTarget'));window.launchCatalogSuppressClick=performance.now()+400;if(!cancel&&target!==index)launchAllMove(index,target);}};
+ return {move(nx,ny){x=nx;y=ny;locate();},finish(cancel){if(done)return;done=true;cancelAnimationFrame(frame);card.classList.remove('launchDragging');host.querySelectorAll('.launchSortTarget').forEach(e=>e.classList.remove('launchSortTarget'));window.launchCatalogSuppressClick=performance.now()+400;if(!cancel&&target!==index)launchAllMove(index,target,false,launchCatalogEntries(launchCurrent));}};
 }
 function launchCatalogPointer(e,index){
  if(e.pointerType==='touch'||e.button!==0||launchBusy||e.target.closest('a,input,select,textarea,button:not(.launchCatalogSelect)'))return;
@@ -10805,7 +10900,7 @@ async function launchSetProductPreorderQuantity(index,input){
  try{
   const result=await launchPost('launchSetInventoryAvailability',{groupId:group.id,groupStatus:group.status,itemId:item.id,preorderQuantity:raw});
   const value=result.preorderQuantity??'';item.preorderQuantity=value;
-  if(result.out===false){item.stockOut=false;if(launchCurrent?.id===group.id)document.querySelectorAll('.launchCatalogCard').forEach(card=>{const control=card.querySelector('[data-launch-preorder]');if(control&&launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)card.querySelector('.launchStockToggle')?.classList.remove('isShortage');});}
+  if(result.out===false){item.stockOut=false;if(launchCurrent?.id===group.id)document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)control.closest('.launchCatalogVariantControls')?.querySelector('.launchStockToggle')?.classList.remove('isShortage');});}
   if(launchCurrent?.id===group.id){const current=launchCurrent.items.find(p=>p.id===item.id);if(current)current.preorderQuantity=value;
    document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)control.value=value;});
   }
@@ -10916,7 +11011,29 @@ function launchDirectPriceKey(event,index,input){
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryPriceDivider{display:none}
 @media(max-width:360px){:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown)>.inventoryOriginal{font-size:7px}}
 </style>
-<style>:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown){flex-wrap:wrap;justify-content:center;height:auto!important;min-height:19px;row-gap:0}:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown){flex-basis:100%;justify-content:center}</style><style>.onlineGroupRestockButton{appearance:none;border:0;background:transparent;padding:0;color:inherit;font:inherit;font-weight:inherit;text-align:left;cursor:pointer}.onlineGroupRestockButton:disabled{opacity:.6;cursor:wait}</style><style id="launch-draw-variant-editor">
+<style>:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryPrices:has(input[data-launch-suggested-price]:placeholder-shown){flex-wrap:wrap;justify-content:center;height:auto!important;min-height:19px;row-gap:0}:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventorySale:has(input[data-launch-suggested-price]:placeholder-shown){flex-basis:100%;justify-content:center}</style><style id="launch-draw-card-style">
+.launchCatalogVariantControls:not([hidden]){display:contents}
+.launchCatalogVariantControls[hidden]{display:none}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);align-items:center;justify-items:center;width:100%;max-width:104px;min-height:19px;height:auto;gap:2px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogVariant{margin:0;padding:1px 2px;border:1px solid transparent;border-radius:4px;background:transparent;color:#666;font:inherit;line-height:12px;white-space:nowrap;cursor:pointer}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogVariant[aria-pressed="true"]{color:#6f5846;border-color:#d4c2b1;background:#f5eee7}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPriceDivider{display:none}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventorySale{width:100%;min-width:0}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices input.launchDirectPrice,
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices input.launchDirectPrice[data-launch-suggested-price]:placeholder-shown{width:100%!important;max-width:100%!important;border-radius:4px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices input.launchDirectPrice:focus{border-color:#d4c2b1}
+@media(max-width:400px){
+ :is(#launchDialog,.launchProductListPage) .launchAllItem.launchCatalogDrawCard{padding-inline:2px}
+ :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices{font-size:8px;gap:1px}
+ :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogVariant{padding-inline:0}
+ :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogPricePrefix{display:none}
+ :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices input.launchDirectPrice{font-size:9px!important;padding-inline:0}
+}
+@media(max-width:360px){
+ :is(#launchDialog,.launchProductListPage) .launchCatalogGrid:has(.launchCatalogDrawCard){grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+</style>
+<style>.onlineGroupRestockButton{appearance:none;border:0;background:transparent;padding:0;color:inherit;font:inherit;font-weight:inherit;text-align:left;cursor:pointer}.onlineGroupRestockButton:disabled{opacity:.6;cursor:wait}</style><style id="launch-draw-variant-editor">
 .launchDialog .launchProductFields>.launchDrawEditFields{grid-column:1/-1;display:grid;gap:12px;min-width:0}
 .launchDialog .launchDrawEditVariant{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:8px 12px;min-width:0;margin:0;padding:9px 12px 12px;border:1px solid var(--border);border-radius:10px}
 .launchDialog .launchDrawEditVariant legend{padding:0 5px;font-weight:600}
