@@ -3457,7 +3457,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{}){
      const name=String(info.name||(!tmall&&info.japaneseName)||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
      if(!tmall&&info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
-     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),roleIsAtomic:!row.role,amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url))});
+     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),roleIsAtomic:!row.role,amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url)).slice(0,1)});
     }
     continue;
    }
@@ -4680,7 +4680,11 @@ async function launchConfirmURLImport(event){
  if(groupInfo.websiteUrl&&!launchSafeURL(groupInfo.websiteUrl)){error.textContent='請輸入有效的 http/https 網站網址';return;}
  if(groupInfo.shortUrl&&!launchSafeURL(groupInfo.shortUrl)){error.textContent='請輸入有效的 http/https 短網址';return;}
  groupInfo.noFreeShipping=values.has('noFreeShipping');groupInfo.needsSecondPayment=values.has('needsSecondPayment');
- const selected=session.items.filter((_,index)=>session.selected.has(index));
+ // Keep the preview gallery for failed-image fallback; import only its first usable photo.
+ const selected=session.items.filter((_,index)=>session.selected.has(index)).map(item=>{
+  const images=item.images.slice(0,1);
+  return {...item,images,...(Object.hasOwn(item,'image')?{image:images[0]||''}:{})};
+ });
  if(session.newGroup){
   if(selected.length>200){error.textContent='每團最多 200 項商品，請減少選取數量';return;}
   const items=selected.map(source=>({...structuredClone(source),...launchNormalizeProductSpec(source.size,source.format,source),note:[source.note,source.currency&&source.currency!=='JPY'?'來源幣別：'+source.currency:''].filter(Boolean).join('\n'),id:launchId(),panel:0,visible:true,stockQuantity:'',preorderQuantity:'',stockOut:false,paused:false,scale:1}));
