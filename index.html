@@ -1622,7 +1622,7 @@ body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 <div class="top">
 <div class="topHostControls">
 <span id="hostConnectionStatus" role="img" aria-label="主機未連線" title="主機未連線">☻</span>
-<a id="topLanSwitch" class="topLanSwitch" href="http://192.168.1.106:7791/" aria-label="切換到區網版後台" title="切換到區網版後台" hidden>🅷</a>
+<a id="topLanSwitch" class="topLanSwitch" href="http://192.168.1.106:7791/" aria-label="切換到區網版後台" title="切換到區網版後台" hidden><span aria-hidden="true">🅷</span></a>
 </div>
 <button id="onlineBackButton" class="btn light" type="button" onclick="backOnlineCustomer()" aria-label="返回上一頁" hidden>⬅︎</button>
 <button id="launchHeaderBack" class="btn light" type="button" onclick="launchBack()" aria-label="返回上一頁" hidden>⬅︎</button>
@@ -10702,6 +10702,8 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 #hostConnectionStatus.connected{color:#88a38d}
 .topLanSwitch{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:32px;border-radius:6px;color:#666;font-size:18px;text-decoration:none}
 .topLanSwitch[hidden]{display:none}
+/* The fallback glyph sits higher than the status glyph inside equal-height controls. */
+.topLanSwitch>span{transform:translateY(3.25px)}
 .topLanSwitch:focus-visible{outline:2px solid var(--main);outline-offset:2px}
 .topTitle{display:inline-flex;align-items:center;min-width:0}
 .topTitleText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -10737,7 +10739,14 @@ body[data-page="store"] .top{padding-left:48px}
 </style>
 <script id="host-connection-script">
 (()=>{
- document.getElementById('topLanSwitch').hidden=location.hostname!=='jiwusales.github.io';
+ const lanSwitch=document.getElementById('topLanSwitch');
+ if(lanBackend){
+  const label='切換到網頁版後台';
+  lanSwitch.href='https://jiwusales.github.io/amnbk/';
+  lanSwitch.title=label;
+  lanSwitch.setAttribute('aria-label',label);
+ }
+ lanSwitch.hidden=!lanBackend&&location.hostname!=='jiwusales.github.io';
  const icon=document.getElementById('hostConnectionStatus');
  const nativeFetch=window.fetch.bind(window);
  let recovering=false,timer=null,controller=null,delay=10000,epoch=0;
