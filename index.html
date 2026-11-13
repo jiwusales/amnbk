@@ -2626,7 +2626,11 @@ function renderOnlineSummaryBuyers(panel,focusItemId=''){
  const {summary,headers}=panel.closest('#appDialog').onlineBuyerSummary;
  const item=summary.items.find(item=>item.buyerKey===panel.dataset.itemKey);
  const list=panel.querySelector('.onlineSummaryBuyerList'),scroll=panel.scrollTop;
- list.innerHTML=item?.buyerRows.size?[...item.buyerRows].map(([name,rows])=>{
+ const buyers=[...(item?.buyerRows||[])].map(([name,rows])=>{
+  const timedRows=rows.map(row=>({row,time:timeValue(onlineRowOrderTime(row,headers))||Infinity})).sort((a,b)=>a.time-b.time);
+  return {name,rows:timedRows.map(entry=>entry.row),time:timedRows[0].time};
+ }).sort((a,b)=>a.time-b.time);
+ list.innerHTML=buyers.length?buyers.map(({name,rows})=>{
   const active=rows.find(row=>row.itemId&&String(row.itemId)===panel.dataset.activeItemId);
   const count=summary.purchasedCounts.get(name)||0,buyer=typeof name==='string'?name:'未填姓名';
   return `<li><div class="onlineSummaryBuyerRow">${rows.map(row=>onlineCargoBadgeMarkup(row,row===active,headers,{buyer,showDate:rows.length>1})).join('')}<span class="onlineSummaryBuyerName">${esc(buyer)} <span class="onlineSummaryBuyerCount">(${count})</span></span></div>${active?`<div class="cargoChoiceRow">${cargoChoiceMarkup(active,headers,true)}</div>`:''}</li>`;
@@ -2685,7 +2689,7 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
  const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
  try{
   const [data,catalog]=await Promise.all([api('online',{compact:'0',fresh:'1'}),launchSummaryCatalogGroup(group,fromOnline)]);if(!dialog.isConnected)return;
-  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:data.rowIds?.[index],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:data.rowIds?.[index],orderTime:data.orderTimes?.[index],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
   const state={group,rows,headers,summary:launchBuildOrderSummary(group,rows,headers,fromOnline)};
   const content=dialog.querySelector('.groupCardItems');
   state.paint=()=>{
@@ -8534,9 +8538,9 @@ return cargoCategory(cargo)==='已訂購'||isOrderPurchased(row);
 function orderNewestTime(order){
 return Math.max(0,...order.items.map(row=>timeValue(onlineRowOrderTime(row))));
 }
-function onlineRowOrderTime(row){
+function onlineRowOrderTime(row,headers=onlineHeaders){
 const original=row.orderTime;
-return original!==undefined&&original!==null&&String(original).trim()!==''?original:getOnlineData(row,['時間','購買時間']);
+return original!==undefined&&original!==null&&String(original).trim()!==''?original:getOnlineData(row,['時間','購買時間'],headers);
 }
 function onlineOrderDay(value){
 const serial=onlineSerialDate(value);
