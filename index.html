@@ -1606,7 +1606,23 @@ body[data-page="inventory"] .topActions{margin-left:12px}
 body[data-page="ship"] #shipMarketUpload{display:none}
 body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 }
-</style><style id="group-item-statistics-style">.onlineGroupItemCount{border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.onlineGroupItemCount:focus-visible{outline:2px solid var(--main);outline-offset:3px;border-radius:2px}</style>
+</style><style id="group-item-statistics-style">.onlineGroupItemCount{border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.onlineGroupItemCount:focus-visible{outline:2px solid var(--main);outline-offset:3px;border-radius:2px}
+.onlineSummaryBuyerTrigger{display:block;width:100%;padding:0;border:0;border-radius:4px;background:none;cursor:pointer}
+.onlineSummaryBuyerTrigger img{display:block}
+.onlineSummaryBuyerTrigger img[hidden],.onlineSummaryBuyerTrigger .purchaseNoImage[hidden]{display:none}
+.onlineSummaryBuyerTrigger:focus-visible,.onlineSummaryBuyers .cargoTag:focus-visible{outline:2px solid var(--main);outline-offset:2px}
+.launchOrderSummaryGrid .onlineSummaryBuyerTrigger .purchaseQuantity{pointer-events:none}
+.onlineSummaryBuyers{box-sizing:border-box;width:min(460px,calc(100% - 28px));max-height:80dvh;padding:16px;border:1px solid var(--border);color:inherit}
+.onlineSummaryBuyers::backdrop{background:rgba(0,0,0,.26)}
+.onlineSummaryBuyers h3{overflow-wrap:anywhere}
+.onlineSummaryBuyerList{list-style:none;margin:0;padding:0}
+.onlineSummaryBuyerList li{padding:5px 0;border-bottom:1px solid var(--border)}
+.onlineSummaryBuyerRow{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:38px}
+.onlineSummaryBuyerName{flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
+.onlineSummaryBuyerCount{white-space:nowrap;color:#62645a}
+.onlineSummaryBuyers .cargoTag{min-width:36px;min-height:36px;flex:0 0 auto}
+.onlineSummaryBuyers .cargoChoiceRow{padding-left:0;margin-top:4px}
+</style>
 </head>
 <body>
 <main id="loginScreen" class="loginScreen">
@@ -2355,21 +2371,41 @@ function launchOrderSummaryGroupKey(value){
 }
 function launchSummarySku(value){return String(value??'').normalize('NFKC').trim().toLowerCase();}
 function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
-function launchBuildOrderSummary(group,rows,headers){
- const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},customers=new Set(),items=new Map();
+function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
+ const value=(row,names)=>getOnlineData(row,names,headers),customers=new Set(),items=new Map();
+ const groupKey=launchOrderSummaryGroupKey(group.name);
  for(const row of rows){
-  if(!launchOrderSummaryGroupKey(group.name)||launchOrderSummaryGroupKey(value(row,['團名','開團名稱']))!==launchOrderSummaryGroupKey(group.name))continue;
+  if(!groupKey||launchOrderSummaryGroupKey(value(row,['團名','開團名稱','團組','團']))!==groupKey)continue;
   if(launchSummaryCancelled(value(row,['狀態','訂購狀態']))||cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
-  const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
+  const customer=String(value(row,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim();if(customer)customers.add(customer);
   const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
-  if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[],buyers:new Set()});
-  const item=items.get(key);item.quantity++;if(customer)item.buyers.add(customer);
+  if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
+  const item=items.get(key);item.quantity++;
+  if(customer)item.buyers.add(customer);
+  if(includeBuyers){
+   const buyerKey=customer||row;
+   if(!item.buyerRows.has(buyerKey))item.buyerRows.set(buyerKey,[]);
+   item.buyerRows.get(buyerKey).push(row);
+  }
   const code=String(value(row,['貨號','商品貨號','商品編號','SKU'])||'').trim(),id=String(value(row,['開團商品ID','商品ID','launchItemId'])||'').trim();
   if(code&&!item.codes.includes(code))item.codes.push(code);if(id&&!item.itemIds.includes(id))item.itemIds.push(id);
   if(!item.image)item.image=launchSummaryImageURLs(value(row,['圖片','商品圖片','圖片網址','圖片連結','商品圖','照片']))[0]||'';
  }
- return {people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()].map(({buyers,...item})=>({...item,people:buyers.size}))};
+ const result={people:customers.size,total:[...items.values()].reduce((n,item)=>n+item.quantity,0),items:[...items.values()].map(({buyers,...item})=>({...item,people:buyers.size}))};
+ if(includeBuyers){
+  const purchasedCounts=new Map();
+  for(const item of result.items)for(const [name,buyerRows] of item.buyerRows){
+   if(buyerRows.some(row=>{
+    const status=getOrderStatus(row,headers),cargo=cargoCategory(value(row,['貨況']));
+    return isOpenedRow(row,headers)||status!=='未訂購'&&(isOrderPurchased(row,headers)||cargo==='已訂購'||cargo==='現貨');
+   })){
+    purchasedCounts.set(name,(purchasedCounts.get(name)||0)+1);
+   }
+  }
+  result.purchasedCounts=purchasedCounts;
+ }
+ return result;
 }
 async function countLabelKey(group,name){
  const data=new TextEncoder().encode(JSON.stringify([group.trim(),name.trim()]));
@@ -2494,12 +2530,12 @@ function launchSortSummaryItems(items,products){
   return a.item.name.localeCompare(b.item.name,'zh-Hant',{numeric:true})||a.item.price-b.item.price;
  }).map(entry=>entry.item);
 }
-function launchOrderSummaryCards(items,products=[],groupName=''){
+function launchOrderSummaryCards(items,products=[],groupName='',fromOnline=false){
  items=launchSortSummaryItems(items,products);
  return '<p class="launchSummarySortHint">依開團商品順序排列；未對應品項列於最後。</p><div class="purchaseProductGrid launchOrderSummaryGrid" data-group="'+esc(groupName)+'">'+items.map(item=>{
   const sources=launchResolveOrderSummaryImages(item,products),image=sources[0]||'';
   const sourceURL=url=>window.jiwuImageURL?window.jiwuImageURL(url):url;
-  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
+  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${fromOnline?`<button type="button" class="onlineSummaryBuyerTrigger" aria-haspopup="dialog" data-buyer-key="${esc(item.buyerKey)}" aria-label="查看 ${esc(item.name)} 的購買名單" onclick="openOnlineSummaryBuyers(this)">`:''}${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong>${fromOnline?'</button>':''}<button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
  }).join('')+'</div>';
 }
 function launchPurchaseSku(product){return launchSummarySku(product.code)||(String(product.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';}
@@ -2551,9 +2587,10 @@ async function launchLoadPurchaseReconciliation(dialog,group,summary){
  const status=dialog.querySelector('.launchOrderSummaryPurchaseStatus'),products=group.items||[];
  if(!status||!summary.items.length||launchPurchaseReconciliationNotOpen(group))return;
  if(!products.length){status.textContent='找不到開團品項，無法核對已購數';return;}
+ const grid=dialog.querySelector('.launchOrderSummaryGrid');
  status.textContent='正在核對已購數…';
  try{
-  const data=await api('purchaseOrders');if(!dialog.isConnected)return;
+  const data=await api('purchaseOrders');if(!grid?.isConnected)return;
   const result=launchPurchaseReconciliation(group,summary,products,data.orders||[]);
   const byKey=new Map(result.entries.flatMap(row=>row.itemKeys.map(key=>[key,row])));
   status.textContent=`已購 ${result.ordered} 件${byKey.size<summary.items.length?'（有品項未配對）':''}`;
@@ -2566,7 +2603,62 @@ async function launchLoadPurchaseReconciliation(dialog,group,summary){
    balance.className=difference>0?'isExtra':difference<0?'isShort':'';
    label.append(amount,balance);card.appendChild(label);
   });
- }catch(error){if(dialog.isConnected){status.textContent='已購數讀取失敗，請重新開啟統計';status.title=error.message;}}
+ }catch(error){if(grid?.isConnected){status.textContent='已購數讀取失敗，請重新開啟統計';status.title=error.message;}}
+}
+
+function openOnlineSummaryBuyers(button){
+ const dialog=button.closest('#appDialog'),panel=dialog.querySelector('.onlineSummaryBuyers'),state=dialog.onlineBuyerSummary;
+ const key=button.dataset.buyerKey;
+ const item=state.summary.items.find(item=>item.buyerKey===key);
+ if(!item)return;
+ panel.dataset.itemKey=key;
+ panel.dataset.activeItemId='';
+ panel.querySelector('h3').textContent=launchCountLabel(state.group.name,item.name)+'・購買名單';
+ panel.scrollTop=0;
+ renderOnlineSummaryBuyers(panel);
+ panel.showModal();
+ panel.addEventListener('close',()=>{
+  const opener=[...dialog.querySelectorAll('.onlineSummaryBuyerTrigger')].find(control=>control.dataset.buyerKey===key);
+  (opener||dialog.querySelector('.launchOrderSummary>.dialogActions button'))?.focus({preventScroll:true});
+ },{once:true});
+}
+function renderOnlineSummaryBuyers(panel,focusItemId=''){
+ const {summary,headers}=panel.closest('#appDialog').onlineBuyerSummary;
+ const item=summary.items.find(item=>item.buyerKey===panel.dataset.itemKey);
+ const list=panel.querySelector('.onlineSummaryBuyerList'),scroll=panel.scrollTop;
+ list.innerHTML=item?.buyerRows.size?[...item.buyerRows].map(([name,rows])=>{
+  const active=rows.find(row=>row.itemId&&String(row.itemId)===panel.dataset.activeItemId);
+  const count=summary.purchasedCounts.get(name)||0,buyer=typeof name==='string'?name:'未填姓名';
+  return `<li><div class="onlineSummaryBuyerRow">${rows.map(row=>onlineCargoBadgeMarkup(row,row===active,headers,{buyer,showDate:rows.length>1})).join('')}<span class="onlineSummaryBuyerName">${esc(buyer)} <span class="onlineSummaryBuyerCount">(${count} 項)</span></span></div>${active?`<div class="cargoChoiceRow">${cargoChoiceMarkup(active,headers,true)}</div>`:''}</li>`;
+ }).join(''):'<li>目前沒有購買紀錄</li>';
+ panel.scrollTop=scroll;
+ if(focusItemId){
+  const control=[...list.querySelectorAll('.onlineSummaryBuyerRow .cargoTag')].find(button=>button.dataset.itemId===focusItemId);
+  (control&&!control.disabled?control:panel.querySelector('.dialogActions button')).focus({preventScroll:true});
+ }
+}
+function toggleOnlineSummaryBuyerTag(button){
+ const panel=button.closest('.onlineSummaryBuyers'),id=button.dataset.itemId;
+ panel.dataset.activeItemId=panel.dataset.activeItemId===id?'':id;
+ renderOnlineSummaryBuyers(panel,id);
+}
+async function chooseOnlineSummaryBuyerTag(button,choice){
+ const panel=button.closest('.onlineSummaryBuyers'),dialog=panel.closest('#appDialog'),state=dialog.onlineBuyerSummary;
+ const item=state.summary.items.find(item=>item.buyerKey===panel.dataset.itemKey);
+ const id=button.dataset.itemId;
+ const row=item&&[...item.buyerRows.values()].flat().find(row=>String(row.itemId)===id);
+ if(!row)return;
+ const saved=await saveOnlineCargoTag(row,choice,state.headers,()=>{
+  panel.dataset.activeItemId='';
+  renderOnlineSummaryBuyers(panel,id);
+ });
+ if(!dialog.isConnected)return;
+ if(saved){
+  const previousTotal=state.summary.total;
+  state.summary=launchBuildOrderSummary(state.group,state.rows,state.headers,true);
+  if(previousTotal!==state.summary.total)state.paint();
+ }
+ if(panel.open)renderOnlineSummaryBuyers(panel,panel.dataset.itemKey===item.buyerKey&&!panel.dataset.activeItemId?id:'');
 }
 
 async function onlineShowGroupSummary(name){
@@ -2589,17 +2681,25 @@ async function launchSummaryCatalogGroup(group,fromOnline=false){
 }
 async function launchShowOrderSummary(group,{fromOnline=false}={}){
  if(!group)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p><p class="launchOrderSummaryMeta launchOrderSummaryPurchaseStatus" role="status"></p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p><p class="launchOrderSummaryMeta launchOrderSummaryPurchaseStatus" role="status"></p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div>${fromOnline?'<dialog class="dialogCard onlineSummaryBuyers" aria-labelledby="onlineSummaryBuyerTitle"><h3 id="onlineSummaryBuyerTitle"></h3><ul class="onlineSummaryBuyerList"></ul><form method="dialog" class="dialogActions"><button type="submit" class="btn" autofocus>返回件數統計</button></form></dialog>':''}</div>`);
  const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
  try{
   const [data,catalog]=await Promise.all([api('online',{compact:'0',fresh:'1'}),launchSummaryCatalogGroup(group,fromOnline)]);if(!dialog.isConnected)return;
-  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map(r=>({row:r[0],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
-  const summary=launchBuildOrderSummary(group,rows,headers);
-  meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
+  const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:data.rowIds?.[index],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
+  const state={group,rows,headers,summary:launchBuildOrderSummary(group,rows,headers,fromOnline)};
   const content=dialog.querySelector('.groupCardItems');
-  content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name):'<p class="empty">尚無購買紀錄</p>';
-  if(summary.items.length&&!(catalog.items||[]).length)content.querySelector('.launchSummarySortHint').textContent='找不到原開團商品資料，暫依品名排列。';
-  void launchLoadPurchaseReconciliation(dialog,catalog,summary);
+  state.paint=()=>{
+   const {summary}=state;
+   meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
+   const scroll=content.scrollTop;
+   content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name,fromOnline):'<p class="empty">尚無購買紀錄</p>';
+   if(summary.items.length&&!(catalog.items||[]).length)content.querySelector('.launchSummarySortHint').textContent='找不到原開團商品資料，暫依品名排列。';
+   content.scrollTop=scroll;
+   void launchLoadPurchaseReconciliation(dialog,catalog,summary);
+  };
+  if(fromOnline)dialog.onlineBuyerSummary=state;
+  state.paint();
+  const summary=state.summary;
   try{
    const result=await countLabelRead(group.name,summary.items.map(item=>item.name),api);if(!dialog.isConnected)return;
    dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';launchCountLabels.set(group.name,result.labels||{});
@@ -2607,6 +2707,7 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
   }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
+
 function launchAvailabilityChangeClass(item,size=''){
  const url=String(item.url||'').trim();
  if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!url)return '';
@@ -5778,9 +5879,9 @@ if(i>=0)return headers[i];
 }
 return null
 }
-function getOnlineData(row,names){
+function getOnlineData(row,names,headers=onlineHeaders){
 const h=findHeader(
-onlineHeaders,
+headers,
 names
 );
 return h?row.data[h]:''
@@ -8219,7 +8320,7 @@ const paymentHeader=header(['付款方式','支付方式','付款','收款方式
 const timeHeader=header(['購買時間','時間']);
 const update=(row,item)=>{if(job.source!==undefined){const sourceHeader=header(['來源','通路','平台']);if(sourceHeader)row.data[sourceHeader]=job.source;}if(job.mergeOrders)row.data['合併訂單ID']='pending-'+job.progressId;if(job.orderTime!==undefined){row.orderTime=job.orderTime;if(timeHeader)row.data[timeHeader]=job.orderTime;}if(job.payment!==undefined){if(paymentHeader)row.data[paymentHeader]=job.payment;if(last5Header)row.data[last5Header]=['寶中信','中信','國泰'].includes(job.payment)?job.payment+job.last5:['LB','花LB'].includes(job.payment)?job.payment+' '+job.last5:job.payment;}const changed=key=>!Array.isArray(item.changedFields)||item.changedFields.includes(key);if(gh&&item.group!==undefined&&changed('group'))row.data[gh]=item.group;if(nh&&changed('name'))row.data[nh]=item.name;if(ph&&changed('price'))row.data[ph]=item.price;if(sh&&changed('shipping'))row.data[sh]=item.shipping;if(dh&&item.deposit!==undefined&&changed('deposit'))row.data[dh]=item.deposit;if(bh&&job.noteChanged!==false)row.data[bh]=fullNote;return row;};
 const lastKey=source.filter(row=>keys.has(row.editKey)).at(-1)?.editKey;
-const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),editKey:item.key},item));
+const additions=job.items.filter(item=>!keys.has(item.key)).map(item=>update({...structuredClone(template),row:-(++onlineEditKey),itemId:null,editKey:item.key},item));
 const out=[];source.forEach(row=>{if(keys.has(row.editKey)){const item=kept.get(row.editKey);if(item)out.push(update(structuredClone(row),item));if(row.editKey===lastKey)out.push(...additions);}else out.push(row);});return out;
 }
 function renderPendingOnlineEdits(){
@@ -8306,7 +8407,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision,epoch=backendSyncPageEpochs.get('online')||0;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
+  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(d.orderTimes||[])[i],orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -8420,9 +8521,9 @@ if(categories.includes('受注'))return '受注';
 if(categories.includes('預訂'))return '預訂';
 return '現貨';
 }
-function isOrderPurchased(row){
-const value=getOnlineData(row,['已訂購','購買','訂購']);
-return isTruthy(value)||getOrderStatus(row)==='已訂購';
+function isOrderPurchased(row,headers=onlineHeaders){
+const value=getOnlineData(row,['已訂購','購買','訂購'],headers);
+return isTruthy(value)||getOrderStatus(row,headers)==='已訂購';
 }
 function faceToFaceOrderIsOrdered(order){
 return order.items.every(row=>{
@@ -8489,23 +8590,23 @@ if(cargo==='已訂購')return '已訂購';
 if(cargo==='預訂')return '預訂';
 return cargo
 }
-function getOrderStatus(row){
-return String(getOnlineData(row,['狀態','訂購狀態','已訂購','購買'])||'').trim()
+function getOrderStatus(row,headers=onlineHeaders){
+return String(getOnlineData(row,['狀態','訂購狀態','已訂購','購買'],headers)||'').trim()
 }
-function isOpenedRow(row){
-const status=getOrderStatus(row);
-const opened=getOnlineData(row,['已開單','開單']);
+function isOpenedRow(row,headers=onlineHeaders){
+const status=getOrderStatus(row,headers);
+const opened=getOnlineData(row,['已開單','開單'],headers);
 return status==='已開單'||isTruthy(opened)
 }
 function orderHasUnopenedPurchase(items){
 return items.some(row=>isOrderPurchased(row)&&!isOpenedRow(row));
 }
-function cargoDisplay(row){
-const raw=String(getOnlineData(row,['貨況'])||'').normalize('NFKC').trim();
-const status=getOrderStatus(row);
-const statusRaw=getOnlineData(row,['狀態','訂購狀態','已訂購','購買','訂購']);
+function cargoDisplay(row,headers=onlineHeaders){
+const raw=String(getOnlineData(row,['貨況'],headers)||'').normalize('NFKC').trim();
+const status=getOrderStatus(row,headers);
+const statusRaw=getOnlineData(row,['狀態','訂購狀態','已訂購','購買','訂購'],headers);
 const category=cargoCategory(raw);
-if(isOpenedRow(row))return {text:'完',color:'#555',opened:true};
+if(isOpenedRow(row,headers))return {text:'完',color:'#555',opened:true};
 const month=raw.match(/^(0?[1-9]|1[0-2])\s*月$/);
 if(month)return {text:month[1].padStart(2,'0'),color:'#85C2D0'};
 if(status==='未訂購'||statusRaw===false)return {text:'未',color:'#E78790'};
@@ -8519,8 +8620,8 @@ if(category==='補貨登記')return {text:raw.match(/^補登(\d+)$/)?'補'+raw.m
 if(category==='現貨')return {text:'現',color:'#DABBD8'};
 return {text:raw,color:'#8ca7b2'}
 }
-let activeCargoPickerRow=0;
-const pendingBadgeRows=new Set();
+let activeCargoPickerItemId="";
+const pendingBadgeItems=new Set();
 // 標籤更新會重建列表；保留頁面、外層容器及每張訂單卡的捲動位置。
 function refreshCargoViewKeepingScroll(){
 const root=document.getElementById('onlineResult');
@@ -8543,23 +8644,84 @@ if(saved&&items)onlineRestoreScroll(items,saved.top,saved.left);
 outer.forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
 if(page&&pagePosition){page.scrollTop=pagePosition.top;page.scrollLeft=pagePosition.left;}
 }
-function editCargoTag(rowNumber){const id=Number(rowNumber);if(pendingBadgeRows.has(id))return;activeCargoPickerRow=activeCargoPickerRow===id?0:id;refreshCargoViewKeepingScroll();}
-async function chooseCargoTag(rowNumber,choice){
-const id=Number(rowNumber),row=onlineRows.find(item=>Number(item.row)===id);if(!row||pendingBadgeRows.has(id))return;if(pendingGroupRestocks.has(String(getGroupName(row)||'').trim())){alert('此團正在處理補貨登記，請完成後再修改標籤');return;}
-let type,value;if(choice==='pending'){type='ordered';value='未訂購';}else if(choice==='ordered'){type='ordered';value='已訂購';}else if(choice==='stock'){type='cargo';value='現貨';}else if(choice==='restock'){type='cargo';value='補登';}else if(choice==='month'){const current=String(getOnlineData(row,['貨況'])||'').match(/^(0?[1-9]|1[0-2])月$/);const input=prompt('受注月份（1～12）',current?String(Number(current[1])):'');if(input===null)return;const month=input.normalize('NFKC').trim().replace(/月$/,'').trim();if(!/^(0?[1-9]|1[0-2])$/.test(month)){alert('請輸入 1～12 的月份');return;}type='cargo';value=Number(month)+'月';}else if(choice==='opened'){type='opened';value='已開單';}else return;
-const previous={...row.data};
-if(type==='cargo'){const h=findHeader(onlineHeaders,['貨況']);if(h)row.data[h]=value;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='';const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph&&typeof row.data[ph]==='boolean')row.data[ph]=false;const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
-else if(type==='opened'){const h=findHeader(onlineHeaders,['已開單','開單']);if(h)row.data[h]=true;const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]='已開單';}
-else{const sh=findHeader(onlineHeaders,['狀態','訂購狀態']);if(sh)row.data[sh]=value;const ph=findHeader(onlineHeaders,['購買','已訂購','訂購']);if(ph)row.data[ph]=choice==='ordered';const cargoh=findHeader(onlineHeaders,['貨況']);if(cargoh&&cargoCategory(row.data[cargoh])==='補貨登記')row.data[cargoh]='';const oh=findHeader(onlineHeaders,['已開單','開單']);if(oh)row.data[oh]=false;}
-activeCargoPickerRow=0;pendingBadgeRows.add(id);refreshCargoViewKeepingScroll();
-try{await api('setOnlineItemBadge',{row:id,type,value});saveOnlineSessionCache();}
-catch(e){row.data=previous;saveOnlineSessionCache();refreshCargoViewKeepingScroll();alert(jiwuErrorText(e,'system'));}
-finally{pendingBadgeRows.delete(id);}
+function editCargoTag(button){
+ const id=button.dataset.itemId;
+ if(!id||pendingBadgeItems.has(id))return;
+ activeCargoPickerItemId=activeCargoPickerItemId===id?'':id;
+ refreshCargoViewKeepingScroll();
+}
+async function chooseCargoTag(button,choice){
+ const row=onlineRows.find(item=>String(item.itemId??'')===button.dataset.itemId&&Number(item.row)>=2);
+ if(row)await saveOnlineCargoTag(row,choice);
+}
+function applyOnlineCargoBadge(row,headers,type,value){
+ const status=findHeader(headers,['狀態','訂購狀態']);
+ const purchased=findHeader(headers,['購買','已訂購','訂購']);
+ const opened=findHeader(headers,['已開單','開單']);
+ const cargo=findHeader(headers,['貨況']);
+ const data=row.data;
+ if(status)data[status]=type==='cargo'?'':value;
+ if(opened)data[opened]=type==='opened';
+ if(type==='opened')return;
+ if(purchased)data[purchased]=type==='ordered'&&value==='已訂購';
+ if(!cargo)return;
+ if(type==='cargo')data[cargo]=value;
+ else{
+  if(cargoCategory(data[cargo])==='補貨登記')data[cargo]='';
+  if(value==='已訂購'&&!String(data[cargo]??'').trim())data[cargo]='預訂';
+ }
+}
+async function saveOnlineCargoTag(row,choice,headers=onlineHeaders,onSaving){
+ const id=String(row.itemId??''),rowNumber=Number(row.row);
+ if(pendingBadgeItems.has(id))return false;
+ if(!/^[1-9][0-9]*$/.test(id)||!Number.isSafeInteger(rowNumber)||rowNumber<2){
+  alert('商品資料尚未更新，請重新整理後再修改標籤');
+  return false;
+ }
+ if(pendingGroupRestocks.has(String(getOnlineData(row,['團名','團組','團','開團名稱'],headers)||'').trim())){alert('此團正在處理補貨登記，請完成後再修改標籤');return false;}
+ let type,value;
+ if(choice==='pending'||choice==='ordered'){type='ordered';value=choice==='ordered'?'已訂購':'未訂購';}
+ else if(choice==='stock'||choice==='restock'){type='cargo';value=choice==='stock'?'現貨':'補登';}
+ else if(choice==='month'){
+  const current=String(getOnlineData(row,['貨況'],headers)||'').match(/^(0?[1-9]|1[0-2])s*月$/);
+  const input=prompt('受注月份（1～12）',current?String(Number(current[1])):'');
+  if(input===null)return false;
+  const month=input.normalize('NFKC').trim().replace(/月$/,'').trim();
+  if(!/^(0?[1-9]|1[0-2])$/.test(month)){alert('請輸入 1～12 的月份');return false;}
+  type='cargo';value=Number(month)+'月';
+ }else if(choice==='opened'){type='opened';value='已開單';}
+ else return false;
+ const submittedAuth=authToken;
+ activeCargoPickerItemId='';
+ pendingBadgeItems.add(id);
+ onlineMutationRevision++;
+ try{
+  onSaving?.();
+  refreshCargoViewKeepingScroll();
+  const result=await api('setOnlineItemBadge',{row:rowNumber,type,value,_rowRefs:[{row:rowNumber,id}]});
+  if(authToken!==submittedAuth)return false;
+  if(result?.ok!==true||result.type!==type||result.value!==value)throw Error('伺服器未確認商品標籤已儲存，請重新整理後再試');
+  applyOnlineCargoBadge(row,headers,type,value);
+  const editing=onlineOrderEditPending&&Array.isArray(onlineEditBase);
+  for(const rows of [onlineRows,...(editing?[onlineEditBase]:[])]){
+   const item=rows.find(item=>String(item.itemId??'')===id);
+   if(item&&item!==row)applyOnlineCargoBadge(item,onlineHeaders,type,value);
+  }
+  saveOnlineSessionCache(onlineLoadedAt||1,editing?onlineEditBase:onlineRows);
+  return true;
+ }catch(error){
+  if(authToken===submittedAuth)alert(jiwuErrorText(error,'system'));
+  return false;
+ }finally{
+  pendingBadgeItems.delete(id);
+  onlineMutationRevision++;
+  if(authToken===submittedAuth&&document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
+ }
 }
 const pendingGroupRestocks=new Set();
 async function onlineRestockPendingGroup(group){
  const target=String(group||'').trim();if(!target||pendingGroupRestocks.has(target))return;
- if(pendingBadgeRows.size||onlineOrderEditPending){alert('商品標籤或訂單正在儲存，請完成後再試');return;}
+ if(pendingBadgeItems.size||onlineOrderEditPending){alert('商品標籤或訂單正在儲存，請完成後再試');return;}
  pendingGroupRestocks.add(target);
  const revision=onlineMutationRevision;
  const controls=()=>document.querySelectorAll('[data-online-restock-group]');
@@ -8568,18 +8730,37 @@ async function onlineRestockPendingGroup(group){
   const preview=await api('setOnlineItemBadge',{groupRestock:'preview',group:target});
   if(!preview.count){alert('「'+target+'」沒有未訂購的品項');return;}
   if(!confirm('確定將「'+target+'」全部 '+preview.count+' 件未訂購品項轉成「補貨登記」？\n已訂購及其他貨況的品項會保留。'))return;
-  if(pendingBadgeRows.size||onlineOrderEditPending||revision!==onlineMutationRevision){alert('訂單正在更新，請完成後重新點擊團名');return;}
+  if(pendingBadgeItems.size||onlineOrderEditPending||revision!==onlineMutationRevision){alert('訂單正在更新，請完成後重新點擊團名');return;}
   onlineMutationRevision++;
   const result=await api('setOnlineItemBadge',{groupRestock:'apply',group:target});
   if(result.online){if(onlineOrderEditPending){onlineEditBase=applyOnlineDelta(onlineEditBase,result.online).rows;renderPendingOnlineEdits();}else{const updated=applyOnlineDelta(onlineRows,result.online);onlineRows=updated.rows;onlineHeaders=updated.headers;}onlineLoadedAt=Date.now();saveOnlineSessionCache();}
-  activeCargoPickerRow=0;refreshCargoViewKeepingScroll();
+  activeCargoPickerItemId="";refreshCargoViewKeepingScroll();
   alert('「'+target+'」已將 '+result.updated+' 件未訂購品項轉成補貨登記');
  }catch(error){alert(jiwuErrorText(error,'system'));}
  finally{onlineMutationRevision++;pendingGroupRestocks.delete(target);controls().forEach(b=>{if(b.dataset.onlineRestockGroup===target)b.disabled=false;});}
 }
-function cargoChoiceMarkup(row){
-const current=cargoDisplay(row).text;const options=[['pending','未','#E78790','cargoChoicePending'],['ordered','訂','#FBB550','cargoChoiceOrdered'],['stock','現','#DABBD8','cargoChoiceStock'],['restock','補','#7E88A0','cargoChoiceRestock'],['month','注','#85C2D0','cargoChoiceMonth'],['opened','完','#555','cargoChoiceOpened']];
-return options.filter(([,label])=>label!==current).map(([key,label,color,cls])=>`<button type="button" class="tag cargoTag ${cls}" title="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" aria-label="${key==='pending'?'未訂購':key==='ordered'?'已訂購':key==='stock'?'現貨':key==='restock'?'補登':key==='month'?'受注月份':'已開單'}" onclick="chooseCargoTag(${Number(row.row)},'${key}')" style="background:${color}">${label}</button>`).join('');
+function onlineCargoBadgeMarkup(row,expanded,headers=onlineHeaders,options={}){
+ const {buyer,showDate}=options;
+ const cargo=cargoDisplay(row,headers),id=String(row.itemId??'');
+ const title=buyer?'修改 '+buyer+' 的商品狀態'+(showDate?'（'+getOnlineData(row,['購買時間','時間'],headers)+'）':''):'修改商品狀態';
+ const saving=pendingBadgeItems.has(id),canEdit=/^[1-9][0-9]*$/.test(id)&&Number.isSafeInteger(Number(row.row))&&Number(row.row)>=2;
+ const handler=buyer?'toggleOnlineSummaryBuyerTag(this)':`editCargoTag(this)`;
+ return `<button type="button" class="tag cargoTag" aria-label="${esc(title+(cargo.text?'，目前 '+cargo.text:''))}" aria-expanded="${expanded}" ${saving?'disabled aria-busy="true"':!canEdit?'disabled':''} data-item-id="${esc(id)}" title="${esc(!canEdit?'商品資料尚未更新':title)}" onclick="${handler}" style="background:${esc(cargo.color)};${cargo.opened?'color:#fff!important;background:#555!important':''}">${esc(cargo.text||(buyer?'—':''))}</button>`;
+}
+function cargoChoiceMarkup(row,headers=onlineHeaders,fromSummary=false){
+ const current=cargoDisplay(row,headers).text;
+ const options=[
+  ['pending','未','未訂購','#E78790','cargoChoicePending'],
+  ['ordered','訂','已訂購','#FBB550','cargoChoiceOrdered'],
+  ['stock','現','現貨','#DABBD8','cargoChoiceStock'],
+  ['restock','補','補登','#7E88A0','cargoChoiceRestock'],
+  ['month','注','受注月份','#85C2D0','cargoChoiceMonth'],
+  ['opened','完','已開單','#555','cargoChoiceOpened']
+ ];
+ return options.filter(([,label])=>label!==current).map(([key,label,title,color,cls])=>{
+  const handler=fromSummary?`chooseOnlineSummaryBuyerTag(this,'${key}')`:`chooseCargoTag(this,'${key}')`;
+  return `<button type="button" class="tag cargoTag ${cls}" title="${title}" aria-label="${title}" data-item-id="${esc(row.itemId)}" onclick="${handler}" style="background:${color}">${label}</button>`;
+ }).join('');
 }
 function openOnlineOrderNameDialog(rows){
 if(onlineOrderEditPending||onlineEditWorkerRunning)return alert('訂單正在儲存，完成後即可改名');
@@ -9228,7 +9409,7 @@ const payment=storedPayment==='面交'?'LB':(storedPayment||'LB');
 const acceptsLast5=['寶中信','中信','LB','花LB','國泰'].includes(payment);
 const orderRows=order.items.map(row=>row.row).join(',');
 const paymentCommitted=last5!=='';
-const openedWithoutPayment=order.items.every(isOpenedRow)&&!paymentCommitted&&deposit==='';
+const openedWithoutPayment=order.items.every(row=>isOpenedRow(row))&&!paymentCommitted&&deposit==='';
 const faceToFace=order.items.some(isFaceToFace);
 const starred=order.items.some(isStarredOrderRow);
 const reconciled=order.items.every(row=>isTruthy(getOnlineData(row,['對帳','已對帳'])));
@@ -9256,11 +9437,11 @@ ${customerIdentity(order.customer,order.items)}
 ${order.items.map(row=>`
 <div class="groupCardItem ${isOpenedRow(row)?'opened':''}">
 <input class="check shipCheck" type="checkbox" value="${esc(row.row)}" ${isOpenedRow(row)?'disabled':''}>
-<button type="button" class="tag cargoTag" aria-label="修改商品狀態" aria-expanded="${activeCargoPickerRow===Number(row.row)}" title="點擊修改狀態" onclick="editCargoTag(${Number(row.row)})" style="background:${esc(cargoDisplay(row).color)};${cargoDisplay(row).opened?'color:#fff!important;background:#555!important':''}">${esc(cargoDisplay(row).text)}</button>
+${onlineCargoBadgeMarkup(row,!!row.itemId&&activeCargoPickerItemId===String(row.itemId))}
 <span class="groupCardItemName">${showItemDates&&formatOnlineTime(getOnlineData(row,['時間','購買時間']))?`<span class="orderItemDate">${esc(formatOnlineTime(getOnlineData(row,['時間','購買時間'])))}｜</span>`:''}${String(getGroupName(row)||'').trim()?`<button class="groupLink" onclick='openGroup(${JSON.stringify(String(getGroupName(row)))})'>${esc(getGroupName(row))}</button>｜`:''}${esc(getOnlineData(row,['名稱','商品名稱']))}</span>
 <span class="groupCardItemPrice">$${money(getOnlineData(row,['售價','價格'])||0)}${itemDeposits&&numberValue(getOnlineData(row,['訂金']))!==0?` <span class="groupCardItemDeposit">(${money(numberValue(getOnlineData(row,['訂金'])))})</span>`:''}</span>
 </div>
-${activeCargoPickerRow===Number(row.row)?`<div class="cargoChoiceRow">${cargoChoiceMarkup(row)}</div>`:''}
+${!!row.itemId&&activeCargoPickerItemId===String(row.itemId)?`<div class="cargoChoiceRow">${cargoChoiceMarkup(row)}</div>`:''}
 `).join('')}${noteText?`<div class="groupCardNote">備註：${esc(noteText)}</div>`:''}
 </div>
 <div class="groupCardMeta" data-rows="${esc(orderRows)}" data-payment="${esc(payment)}" data-last5="${esc(last5)}">
@@ -10109,7 +10290,7 @@ function backendSyncCanApply(page){
  if(active?.id==='inventorySearch'&&active.value!==inventorySearch)return false;
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
- if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeRows.size||pendingReconcileRows.size||activeCargoPickerRow||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
+ if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
  if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderDirty||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
