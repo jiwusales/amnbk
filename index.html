@@ -2562,7 +2562,7 @@ async function launchLoadPurchaseReconciliation(dialog,group,summary){
    if(!row){label.textContent='已購數未配對';card.appendChild(label);return;}
    const shared=row.itemKeys.length>1,difference=row.ordered-row.needed,amount=document.createElement('strong'),balance=document.createElement('span');
    amount.textContent=`${shared?'同貨號合計 ':''}已購 ${row.ordered}`;
-   balance.textContent=difference>0?`多購 ${difference}`:difference<0?`尚缺 ${-difference}`:'已買齊';
+   balance.textContent=`(${difference>=0?'+':''}${difference})`;
    balance.className=difference>0?'isExtra':difference<0?'isShort':'';
    label.append(amount,balance);card.appendChild(label);
   });
