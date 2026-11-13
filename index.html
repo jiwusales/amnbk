@@ -2629,7 +2629,7 @@ function renderOnlineSummaryBuyers(panel,focusItemId=''){
  list.innerHTML=item?.buyerRows.size?[...item.buyerRows].map(([name,rows])=>{
   const active=rows.find(row=>row.itemId&&String(row.itemId)===panel.dataset.activeItemId);
   const count=summary.purchasedCounts.get(name)||0,buyer=typeof name==='string'?name:'未填姓名';
-  return `<li><div class="onlineSummaryBuyerRow">${rows.map(row=>onlineCargoBadgeMarkup(row,row===active,headers,{buyer,showDate:rows.length>1})).join('')}<span class="onlineSummaryBuyerName">${esc(buyer)} <span class="onlineSummaryBuyerCount">(${count} 項)</span></span></div>${active?`<div class="cargoChoiceRow">${cargoChoiceMarkup(active,headers,true)}</div>`:''}</li>`;
+  return `<li><div class="onlineSummaryBuyerRow">${rows.map(row=>onlineCargoBadgeMarkup(row,row===active,headers,{buyer,showDate:rows.length>1})).join('')}<span class="onlineSummaryBuyerName">${esc(buyer)} <span class="onlineSummaryBuyerCount">(${count})</span></span></div>${active?`<div class="cargoChoiceRow">${cargoChoiceMarkup(active,headers,true)}</div>`:''}</li>`;
  }).join(''):'<li>目前沒有購買紀錄</li>';
  panel.scrollTop=scroll;
  if(focusItemId){
