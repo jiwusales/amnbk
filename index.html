@@ -3262,7 +3262,7 @@ function launchRebaseQueuedSave(target,baseline,actual){
 let launchSaveTail=Promise.resolve(),launchPendingSaves=0,launchToastTimer;
 const launchSubmittedSignatures=new Map(),launchSavedRevisions=new Map(),launchFailedSaves=new Map();
 const launchSavePendingByGroup=new Map(),launchSavedBases=new Map(),launchQueuedSaveContexts=new Map();
-function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','availabilityStatus','availabilityMonitor','availabilitySummary','productMasterId','productMasterBase'].includes(key)?undefined:value);}
+function launchSaveSignature(group){return JSON.stringify({...group,revision:undefined},(key,value)=>['paused','sizeStockOut','availabilityStatus','availabilityMonitor','availabilitySummary','productMasterId','productMasterBase'].includes(key)?undefined:value);}
 function launchHasUnsentChanges(){return launchDirty&&(!launchCurrent||launchSubmittedSignatures.get(launchCurrent.id)!==launchSaveSignature(launchCurrent));}
 function launchCompletionToast(text,error=false){if(error)text=jiwuErrorText(text,'system');
  let toast=document.getElementById('launchCompletionToast');
@@ -5168,7 +5168,7 @@ async function launchSetProductQuantity(index,input){
   const current=launchCurrent?.id===group.id?launchCurrent.items.find(p=>p.id===item.id):null;
   if(current){current.stockQuantity=result.quantity;current.stockOut=result.out;}
   input.value=result.quantity??'';
-  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const toggle=(control.closest('.launchCatalogVariantControls')||control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
+  if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const card=control.closest('.launchCatalogSizeCard');if(card){launchCatalogPaintSizeStock(card,group,current);return;}const toggle=(control.closest('.launchCatalogVariantControls')||control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
  }catch(error){input.value=previous;alert(jiwuErrorText(error,'system'));}
  finally{input.disabled=false;}
 }
@@ -10864,8 +10864,66 @@ function launchCatalogPriceRow(item,index,label='',active=false,variantLabel=lab
  const variant=label?`<button class="launchCatalogVariant" type="button" aria-pressed="${active}" aria-label="${label}庫存${variantLabel===label?'':'（'+variantLabel+'）'}" onclick="launchCatalogSwitchVariant(this,${index})">${variantLabel}</button>`:'';
  return `<div class="inventoryPrices">${variant}<span class="inventoryOriginal">${esc(launchOriginalPriceLabel(item))}</span><span class="inventoryPriceDivider" aria-hidden="true">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${index}" aria-label="修改 ${esc(name)}${label?' '+label:''} 售價" placeholder="售價" value="${esc(String(item.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${index},this)" onkeydown="launchDirectPriceKey(event,${index},this)"></span></div>`;
 }
-function launchCatalogControls(item,index,editIndex,hidden=false){
- return `<div class="launchCatalogVariantControls" data-launch-catalog-variant="${index}"${hidden?' hidden':''}>${launchCatalogQuantities(item,index)}<div class="inventoryLinks">${launchKindSelect(item,index)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${editIndex})">編輯</button><button class="inventoryChannelButton launchStockToggle ${item.stockOut?'isShortage':''}" type="button" onclick="launchToggleProductStock(${index},this)">缺貨</button>${launchPauseButton(item,index)}</div></div>`;
+function launchCatalogClothingSizes(item){
+ const spec=jiwuSplitProductSpec(item?.size,item?.format);
+ const sizes=[...new Set((spec.format||spec.size).normalize('NFKC').toUpperCase().split(/[\s/、,;]+/).filter(Boolean))];
+ return sizes.length>1&&sizes.every(size=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE)$/.test(size))?sizes:[];
+}
+const launchCatalogSizeWrites=new Set();
+function launchCatalogSizeOut(item,size){
+ const value=item.sizeStockOut?.[size];
+ return typeof value==='boolean'?value:!!item.stockOut;
+}
+function launchCatalogSizeWriteKey(group,item){return group.id+'|'+item.id;}
+function launchCatalogSizeTabs(item,index,sizes){
+ return `<div class="launchCatalogSizes" role="group" aria-label="尺寸">${sizes.map((size,i)=>`<button type="button" class="launchCatalogVariant" data-launch-clothing-size="${size}" data-size-out="${launchCatalogSizeOut(item,size)}" aria-label="${size} 尺寸" aria-pressed="${i===0}" onclick="launchCatalogSwitchSize(${index},this)">${size}</button>`).join('')}</div>`;
+}
+function launchCatalogPaintSizeStock(card,group,item){
+ const button=card.querySelector('[data-launch-size-stock]');
+ const size=card.querySelector('[data-launch-clothing-size][aria-pressed="true"]').dataset.launchClothingSize;
+ const out=launchCatalogSizeOut(item,size);
+ card.querySelectorAll('[data-launch-clothing-size]').forEach(tab=>{tab.dataset.sizeOut=String(launchCatalogSizeOut(item,tab.dataset.launchClothingSize));});
+ button.disabled=launchCatalogSizeWrites.has(launchCatalogSizeWriteKey(group,item));
+ button.classList.toggle('isShortage',out);
+ button.setAttribute('aria-label',size+' 缺貨');
+ button.setAttribute('aria-pressed',String(out));
+}
+function launchCatalogSwitchSize(index,button){
+ const group=launchCurrent,item=group?.items[index],card=button.closest('.launchCatalogCard');
+ if(!item||!card)return;
+ card.querySelectorAll('[data-launch-clothing-size]').forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+ launchCatalogPaintSizeStock(card,group,item);
+}
+async function launchToggleProductSizeStock(index,button){
+ const group=launchCurrent,item=group?.items[index],card=button.closest('.launchCatalogCard');
+ if(!group?.id||!item?.id||!card)return;
+ const size=card.querySelector('[data-launch-clothing-size][aria-pressed="true"]')?.dataset.launchClothingSize;
+ const key=launchCatalogSizeWriteKey(group,item);
+ if(!launchCatalogClothingSizes(item).includes(size)||launchCatalogSizeWrites.has(key))return;
+ const out=!launchCatalogSizeOut(item,size);
+ launchCatalogSizeWrites.add(key);
+ launchCatalogPaintSizeStock(card,group,item);
+ try{
+  const pending=launchSaveTail.then(()=>launchPost('launchSetInventoryAvailability',{groupId:group.id,groupStatus:group.status,itemId:item.id,size,out}));
+  launchSaveTail=pending.catch(()=>{});
+  const result=await pending;
+  if(result?.ok===false||typeof result?.sizeStockOut?.[size]!=='boolean')throw Error(result?.error||'尺寸貨況未儲存，請重新整理後再試');
+  item.sizeStockOut=result.sizeStockOut;
+  const current=launchCurrent?.id===group.id?launchCurrent.items.find(product=>product.id===item.id):null;
+  if(current)current.sizeStockOut=result.sizeStockOut;
+ }catch(error){alert(jiwuErrorText(error,'system'));}
+ finally{
+  launchCatalogSizeWrites.delete(key);
+  const current=launchCurrent?.id===group.id?launchCurrent.items.find(product=>product.id===item.id):null;
+  if(current)document.querySelectorAll('.launchCatalogSizeCard').forEach(control=>{
+   if(control.dataset.launchProductId===item.id)launchCatalogPaintSizeStock(control,group,current);
+  });
+ }
+}
+function launchCatalogControls(item,index,editIndex,hidden=false,size=''){
+ const out=size?launchCatalogSizeOut(item,size):item.stockOut;
+ const stockAction=size?`data-launch-size-stock aria-label="${size} 缺貨" aria-pressed="${out}"${launchCatalogSizeWrites.has(launchCatalogSizeWriteKey(launchCurrent,item))?' disabled':''} onclick="launchToggleProductSizeStock(${index},this)"`:`onclick="launchToggleProductStock(${index},this)"`;
+ return `<div class="launchCatalogVariantControls" data-launch-catalog-variant="${index}"${hidden?' hidden':''}>${launchCatalogQuantities(item,index)}<div class="inventoryLinks">${launchKindSelect(item,index)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${editIndex})">編輯</button><button class="inventoryChannelButton launchStockToggle ${out?'isShortage':''}" type="button" ${stockAction}>缺貨</button>${launchPauseButton(item,index)}</div></div>`;
 }
 function launchCatalogSwitchVariant(button,index){
  const card=button.closest('.launchCatalogCard');
@@ -10877,6 +10935,8 @@ function launchCatalogRows(){
  const isSelected=item=>launchCanvasSelectionMode()?launchCanvasContains(item):item.visible!==false;
  const cards=launchCatalogEntries(group).map(({index,peerIndex},position)=>{
   const p=group.items[index],peer=group.items[peerIndex];
+  const sizes=peer?[]:launchCatalogClothingSizes(p);
+  const hasSizes=sizes.length>1;
   const selected=isSelected(p)||!!peer&&isSelected(peer);
   const image=launchSafeURL(p.images?.[0]||peer?.images?.[0]);
   const primaryURL=launchProductImageURL(p),url=primaryURL||(peer?launchProductImageURL(peer):'');
@@ -10884,14 +10944,15 @@ function launchCatalogRows(){
   const name=esc(launchDisplayName(p));
   const link=url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" data-launch-product-link="${linkIndex}" aria-label="開啟 ${name} 商品頁面">`:'<span class="launchCatalogImage">';
   const picture=image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${name}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>';
-  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':''}${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
+  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':hasSizes?' launchCatalogSizeCard':''}${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
    <input hidden data-launch-product-select="${index}" type="checkbox" ${selected?'checked':''}>
    <button class="launchCatalogSelect" type="button" aria-label="選取 ${name}" aria-pressed="${selected}" onclick="launchCatalogSelect(${index},${peerIndex})" onkeydown="launchCatalogSortKey(event,${position})"></button>
    ${launchAvailabilityButton(p,index)}${launchProductOrderInput(p,index,position)}
    <div class="inventoryImageWrap">${link}${picture}${url?'</a>':'</span>'}</div>
    <div class="inventoryInfo"><button type="button" class="inventoryName launchCatalogName" onclick="launchProductDialog(${index})">${launchCardNameHtml(launchDisplayName(p))}</button>
     ${launchCatalogPriceRow(p,index,peer?'單抽':'',true)}${peer?launchCatalogPriceRow(peer,peerIndex,'抱盒',false,launchCatalogBoxLabel(p,peer)):''}
-    ${launchCatalogControls(p,index,index)}${peer?launchCatalogControls(peer,peerIndex,index,true):''}
+    ${hasSizes?launchCatalogSizeTabs(p,index,sizes):''}
+    ${launchCatalogControls(p,index,index,false,hasSizes?sizes[0]:'')}${peer?launchCatalogControls(peer,peerIndex,index,true):''}
    </div>
   </article>`;
  });
@@ -11014,7 +11075,7 @@ async function launchSetProductPreorderQuantity(index,input){
  try{
   const result=await launchPost('launchSetInventoryAvailability',{groupId:group.id,groupStatus:group.status,itemId:item.id,preorderQuantity:raw});
   const value=result.preorderQuantity??'';item.preorderQuantity=value;
-  if(result.out===false){item.stockOut=false;if(launchCurrent?.id===group.id)document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)control.closest('.launchCatalogVariantControls')?.querySelector('.launchStockToggle')?.classList.remove('isShortage');});}
+  if(result.out===false){item.stockOut=false;if(launchCurrent?.id===group.id)document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id!==item.id)return;const card=control.closest('.launchCatalogSizeCard');if(card)launchCatalogPaintSizeStock(card,group,item);else control.closest('.launchCatalogVariantControls')?.querySelector('.launchStockToggle')?.classList.remove('isShortage');});}
   if(launchCurrent?.id===group.id){const current=launchCurrent.items.find(p=>p.id===item.id);if(current)current.preorderQuantity=value;
    document.querySelectorAll('[data-launch-preorder]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchPreorder)]?.id===item.id)control.value=value;});
   }
@@ -11129,8 +11190,11 @@ function launchDirectPriceKey(event,index,input){
 .launchCatalogVariantControls:not([hidden]){display:contents}
 .launchCatalogVariantControls[hidden]{display:none}
 :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);align-items:center;justify-items:center;width:100%;max-width:104px;min-height:19px;height:auto;gap:2px}
-:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogVariant{margin:0;padding:1px 2px;border:1px solid transparent;border-radius:4px;background:transparent;color:#666;font:inherit;line-height:12px;white-space:nowrap;cursor:pointer}
-:is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .launchCatalogVariant[aria-pressed="true"]{color:#6f5846;border-color:#d4c2b1;background:#f5eee7}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogVariant{margin:0;padding:1px 2px;border:1px solid transparent;border-radius:4px;background:transparent;color:#666;font:inherit;line-height:12px;white-space:nowrap;cursor:pointer}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogVariant[aria-pressed="true"]{color:#6f5846;border-color:#d4c2b1;background:#f5eee7}
+.launchCatalogSizes{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;margin:2px 0;width:100%}
+:is(#launchDialog,.launchProductListPage) .launchCatalogSizes .launchCatalogVariant{min-width:23px;min-height:19px;padding:1px 3px;font-size:10px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogSizes .launchCatalogVariant[data-size-out="true"]{color:#a33e35;text-decoration:line-through}
 :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPriceDivider{display:none}
 :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventorySale{width:100%;min-width:0}
 :is(#launchDialog,.launchProductListPage) .launchCatalogDrawCard .inventoryPrices input.launchDirectPrice,
