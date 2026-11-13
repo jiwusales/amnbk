@@ -2607,10 +2607,24 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
   }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
-function launchAvailabilityChangeClass(item){
+function launchAvailabilityChangeClass(item,size=''){
+ const url=String(item.url||'').trim();
+ if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!url)return '';
+ if(size){
+  const {available}=launchAvailabilityState(launchCurrent,item);
+  const out=launchCatalogSizeOut(item,size);
+  if(available===false&&!out)return ' launchAvailabilityOut';
+  if(available===true&&out)return ' launchAvailabilityRestocked';
+  return '';
+ }
  const state=item.availabilityMonitor;
- if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!String(item.url||'').trim()||state?.url!==String(item.url).trim()||state?.failed||state?.acknowledged)return '';
- return state?.change==='out'?' launchAvailabilityOut':state?.change==='restocked'?' launchAvailabilityRestocked':'';
+ if(state?.url!==url||state.failed||state.acknowledged)return '';
+ return state.change==='out'?' launchAvailabilityOut':state.change==='restocked'?' launchAvailabilityRestocked':'';
+}
+function launchPaintAvailabilityBorder(row,item,size=''){
+ const name=launchAvailabilityChangeClass(item,size).trim();
+ row.classList.toggle('launchAvailabilityOut',name==='launchAvailabilityOut');
+ row.classList.toggle('launchAvailabilityRestocked',name==='launchAvailabilityRestocked');
 }
 async function launchPublishDraftCard(index,button){
  const group=launchGroups[index];if(!group||group.status!=='尚未上架'||launchBusy||launchCurrent)return;
@@ -5106,7 +5120,16 @@ function launchAvailabilityButton(item,index){
 const launchAvailabilityPending=new Map(),launchAvailabilityBatches=new Map();
 function launchRefreshAvailabilityControls(key){
  launchRefreshProductImageLinks();
- document.querySelectorAll('[data-launch-availability]').forEach(control=>{const index=Number(control.dataset.launchAvailability),item=launchCurrent?.items[index];if(item&&launchAvailabilityKey(launchCurrent,item)===key){const row=control.closest('.launchAllItem');if(row){row.classList.remove('launchAvailabilityOut','launchAvailabilityRestocked');const name=launchAvailabilityChangeClass(item).trim();if(name)row.classList.add(name);}control.outerHTML=launchAvailabilityButton(item,index);}});
+ const group=launchCurrent;
+ const index=group?.items.findIndex(item=>launchAvailabilityKey(group,item)===key)??-1;
+ if(index<0)return;
+ const item=group.items[index];
+ document.querySelectorAll(`.launchAllItem[data-launch-sort-index="${index}"]`).forEach(row=>{
+  const size=row.querySelector('[data-launch-clothing-size][aria-pressed="true"]')?.dataset.launchClothingSize;
+  launchPaintAvailabilityBorder(row,item,size);
+  const control=row.querySelector(`[data-launch-availability="${index}"]`);
+  if(control)control.outerHTML=launchAvailabilityButton(item,index);
+ });
 }
 function launchAvailabilityRetryItems(group){return (group?.items||[]).filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0)&&launchAvailabilityState(group,item).failed);}
 function launchAvailabilityProgress(job){return job?`${job.busy?'更新中':job.rateLimited?'官網暫時限制查詢，已暫停':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件待確認':''}`:'';}
@@ -5168,6 +5191,7 @@ async function launchSetProductQuantity(index,input){
   const current=launchCurrent?.id===group.id?launchCurrent.items.find(p=>p.id===item.id):null;
   if(current){current.stockQuantity=result.quantity;current.stockOut=result.out;}
   input.value=result.quantity??'';
+  if(current)launchRefreshAvailabilityControls(launchAvailabilityKey(group,current));
   if(current)document.querySelectorAll('[data-launch-stock]').forEach(control=>{if(launchCurrent.items[Number(control.dataset.launchStock)]?.id===item.id){control.value=result.quantity??'';const card=control.closest('.launchCatalogSizeCard');if(card){launchCatalogPaintSizeStock(card,group,current);return;}const toggle=(control.closest('.launchCatalogVariantControls')||control.closest('.launchCatalogCard')||control.parentElement).querySelector('.launchStockToggle');if(toggle){toggle.classList.toggle('isShortage',result.out);toggle.textContent='缺貨';}}});
  }catch(error){input.value=previous;alert(jiwuErrorText(error,'system'));}
  finally{input.disabled=false;}
@@ -10887,6 +10911,7 @@ function launchCatalogPaintSizeStock(card,group,item){
  button.classList.toggle('isShortage',out);
  button.setAttribute('aria-label',size+' 缺貨');
  button.setAttribute('aria-pressed',String(out));
+ launchPaintAvailabilityBorder(card,item,size);
 }
 function launchCatalogSwitchSize(index,button){
  const group=launchCurrent,item=group?.items[index],card=button.closest('.launchCatalogCard');
@@ -10944,7 +10969,7 @@ function launchCatalogRows(){
   const name=esc(launchDisplayName(p));
   const link=url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" data-launch-product-link="${linkIndex}" aria-label="開啟 ${name} 商品頁面">`:'<span class="launchCatalogImage">';
   const picture=image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${name}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>';
-  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':hasSizes?' launchCatalogSizeCard':''}${launchAvailabilityChangeClass(p)}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
+  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':hasSizes?' launchCatalogSizeCard':''}${launchAvailabilityChangeClass(p,sizes[0])}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
    <input hidden data-launch-product-select="${index}" type="checkbox" ${selected?'checked':''}>
    <button class="launchCatalogSelect" type="button" aria-label="選取 ${name}" aria-pressed="${selected}" onclick="launchCatalogSelect(${index},${peerIndex})" onkeydown="launchCatalogSortKey(event,${position})"></button>
    ${launchAvailabilityButton(p,index)}${launchProductOrderInput(p,index,position)}
