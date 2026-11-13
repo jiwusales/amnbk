@@ -1254,6 +1254,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .launchOrderCount{background:#7b79bc;border:0;padding:0;pointer-events:auto;cursor:pointer}.launchOrderSummaryTitle{margin:0;font-size:18px;overflow-wrap:anywhere}.launchOrderSummaryMeta{margin:8px 0 14px;color:#828579}.launchOrderSummaryRow{display:grid;grid-template-columns:minmax(0,1fr) 70px 60px;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid #eee}.launchOrderSummaryRow>span:first-child{overflow-wrap:anywhere}.launchOrderSummaryRow>span:not(:first-child){text-align:right}.launchOrderSummaryHeader{font-size:12px;color:#828579;border-top:1px solid #ddd}.launchOrderSummary .groupCardItems{padding:0 14px}.launchOrderSummary .groupCardCustomer{display:block}
 .launchCountLabel{display:block;width:100%;border:0;background:none;padding:3px 0;color:inherit;font:inherit;cursor:pointer}.launchCountLabel:focus-visible{outline:2px solid var(--main)}.launchSummarySortHint{font-size:11px;color:#888;margin:10px 0 0}.launchSummaryDragHandle{position:absolute;right:2px;top:2px;z-index:2;width:22px;height:24px;border:0;background:rgba(255,255,255,.85);border-radius:4px;color:#888;font:20px/1 system-ui;padding:0;cursor:grab;touch-action:none;user-select:none}.launchSummaryDragHandle:disabled{opacity:.3;cursor:wait}.isSummaryDragging{opacity:.55;outline:2px solid var(--main)}.launchOrderSummaryGrid[data-saving="true"] .launchSummaryDragHandle{opacity:.4;cursor:wait}
 .launchOrderSummaryGrid.purchaseProductGrid{grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin:14px 0}.launchOrderSummaryGrid .purchaseProductCard{border:1px solid #eee}.launchOrderSummaryGrid .purchaseQuantity{background:rgba(255,255,255,.9);border-radius:4px;padding:2px 4px;top:7px;left:7px}.launchOrderSummaryGrid .purchaseProductName{font-size:12px}.launchOrderSummaryPrice{font-size:12px;color:#828579;margin-top:4px}@media(max-width:600px){.launchOrderSummaryGrid.purchaseProductGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.launchOrderSummaryGrid .purchaseProductName{font-size:11px}}
+.launchOrderSummaryPurchaseStatus{color:#535b51}.launchOrderSummaryPurchaseStatus:empty{display:none}.launchPurchaseCount{display:grid;gap:2px;margin:4px 0 2px;font-size:12px;line-height:1.35;overflow-wrap:anywhere;color:#535b51}.launchPurchaseCount strong{font-size:inherit}.launchPurchaseCount .isShort{color:#a24b3b}.launchPurchaseCount .isExtra{color:#367747}
 .launchAvailabilityBadge.isUnknown{background:#dfa637;order:-1}
 .launchAllItem.launchAvailabilityOut{border-color:#ca889d!important;box-shadow:inset 0 0 0 1px #ca889d}
 .launchAllItem.launchAvailabilityRestocked{border-color:#8da994!important;box-shadow:inset 0 0 0 1px #8da994}
@@ -2352,11 +2353,13 @@ function launchOrderSummaryGroupKey(value){
  const text=String(value||'').normalize('NFKC').trim(),marker=text.lastIndexOf('⛔');
  return (marker<0?text:text.slice(marker+1)).replace(/\uFE0F/g,'').replace(/\s+/g,'');
 }
+function launchSummarySku(value){return String(value??'').normalize('NFKC').trim().toLowerCase();}
+function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
 function launchBuildOrderSummary(group,rows,headers){
  const value=(row,names)=>{const h=findHeader(headers,names);return h?row.data[h]:'';},customers=new Set(),items=new Map();
  for(const row of rows){
   if(!launchOrderSummaryGroupKey(group.name)||launchOrderSummaryGroupKey(value(row,['團名','開團名稱']))!==launchOrderSummaryGroupKey(group.name))continue;
-  if(cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
+  if(launchSummaryCancelled(value(row,['狀態','訂購狀態']))||cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','姓名'])||'').trim();if(customer)customers.add(customer);
   const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
@@ -2417,12 +2420,7 @@ function launchSummaryProductNames(product){
  return [...new Set(variants.flatMap(size=>[[name,role,size],[name,size,role]]).map(parts=>parts.filter(Boolean).join(' ')).concat(launchDisplayName(product),name))];
 }
 function launchResolveOrderSummaryImages(item,products){
- const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
- const ids=item.itemIds||[],codes=item.codes||[];
- let matches=products.filter(product=>ids.includes(String(product.id||'')));
- if(!matches.length&&codes.length)matches=products.filter(product=>codes.includes(String(product.code||'').trim()));
- if(!matches.length)matches=products.filter(product=>launchSummaryProductNames(product).some(name=>normalize(name)===normalize(item.name)));
- const priced=matches.filter(product=>numberValue(product.price)===item.price);if(priced.length)matches=priced;
+ const matches=launchSummaryMatchingProducts(item,products);
  const rows=matches.map(product=>launchSummaryImageURLs(product.images?.length?product.images:product.image)).filter(images=>images.length);
  const primary=[...new Set(rows.map(images=>images[0]))];
  const catalog=primary.length===1?rows.flat():[];
@@ -2480,9 +2478,9 @@ function launchSummaryCardDragKey(event){
 
 function launchSummaryMatchingProducts(item,products){
  const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
- const ids=item.itemIds||[],codes=item.codes||[];
+ const ids=item.itemIds||[],codes=(item.codes||[]).map(launchSummarySku).filter(Boolean);
  let matches=products.filter(product=>ids.includes(String(product.id||'')));
- if(!matches.length&&codes.length)matches=products.filter(product=>codes.includes(String(product.code||'').trim()));
+ if(!matches.length&&codes.length)matches=products.filter(product=>codes.includes(launchSummarySku(product.code)));
  if(!matches.length)matches=products.filter(product=>launchSummaryProductNames(product).some(name=>normalize(name)===normalize(item.name)));
  const named=matches.filter(product=>launchSummaryProductNames(product).some(name=>normalize(name)===normalize(item.name)));if(named.length)matches=named;
  const priced=matches.filter(product=>numberValue(product.price)===item.price);if(priced.length)matches=priced;
@@ -2504,14 +2502,28 @@ function launchOrderSummaryCards(items,products=[],groupName=''){
   return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
  }).join('')+'</div>';
 }
+function launchPurchaseSku(product){return launchSummarySku(product.code)||(String(product.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';}
+function launchPurchaseIdentity(product){
+ const code=launchPurchaseSku(product);
+ return code?'code:'+code:product.id?'id:'+product.id:'name:'+String(launchDisplayName(product)||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+}
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
- const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=p=>String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
- const identity=p=>code(p)?'code:'+code(p):p.id?'id:'+p.id:'name:'+norm(launchDisplayName(p));
- const linked=orders.filter(o=>o.status!=='砍單'&&(o.groupId?String(o.groupId)===String(group.id):launchOrderSummaryGroupKey(o.groupName)===launchOrderSummaryGroupKey(group.name)||!o.groupName&&o.items.some(x=>launchOrderSummaryGroupKey(x.group)===launchOrderSummaryGroupKey(group.name))));
- const aliases=new Map();for(const p of products){const names=[p.japaneseName,p.originalName];for(const o of linked)for(const item of o.items)if(code(p)&&code(item)===code(p))names.push(item.originalName,item.japaneseName);aliases.set(identity(p),new Set(names.filter(Boolean).map(norm)));}
+ const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=launchPurchaseSku,identity=launchPurchaseIdentity;
+ const groupKey=launchOrderSummaryGroupKey(group.name),linked=[];
+ for(const order of orders){
+  if(launchSummaryCancelled(order.status))continue;
+  const linkedName=launchOrderSummaryGroupKey(order.groupName),items=(order.items||[]).filter(item=>{
+   if(launchSummaryCancelled(item.status)||!Number.isSafeInteger(Number(item.quantity))||Number(item.quantity)<=0)return false;
+   if(order.groupId)return String(order.groupId)===String(group.id);
+   if(linkedName)return linkedName===groupKey;
+   return !!groupKey&&launchOrderSummaryGroupKey(item.group)===groupKey;
+  });
+  if(items.length)linked.push(items);
+ }
+ const aliases=new Map();for(const p of products){const names=[p.japaneseName,p.originalName];for(const items of linked)for(const item of items)if(code(p)&&code(item)===code(p))names.push(item.originalName,item.japaneseName);aliases.set(identity(p),new Set(names.filter(Boolean).map(norm)));}
  const resolve=item=>{
   let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
-  const codes=[...(item.codes||[]),code(item)].filter(Boolean);
+  const codes=[...(item.codes||[]).map(launchSummarySku),code(item)].filter(Boolean);
   if(!found.length)found=products.filter(p=>code(p)&&codes.includes(code(p)));
   if(codes.length&&!found.length)return null;
   if(!found.length){const japanese=[item.japaneseName,item.originalName].filter(Boolean).map(norm);found=products.filter(p=>japanese.some(n=>aliases.get(identity(p)).has(n)));}
@@ -2522,33 +2534,39 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
   const keys=[...new Set(found.map(identity))];return keys.length===1?keys[0]:null;
  };
  const rows=new Map();
- if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),names:[],needed:0,ordered:0});}
- for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item);if(!key)continue;if(!rows.has(key))rows.set(key,{key,name:item.name,names:[],needed:0,ordered:0});const row=rows.get(key);if(!row.names.includes(item.name))row.names.push(item.name);row.needed+=Number(item.quantity)||0;}
- for(const order of linked)for(const item of order.items){if(item.status==='砍單')continue;const quantity=Number(item.quantity)||0;if(quantity<=0)continue;const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=quantity;}
+ if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),itemKeys:[],needed:0,ordered:0});}
+ for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item);if(!key)continue;if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);}
+ for(const items of linked)for(const item of items){const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=Number(item.quantity);}
  const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
  return {entries,needed,ordered,extra,short,orderCount:linked.length};
 }
 function launchPurchaseReconciliationText(result){
  const lines=[`已登記 ${result.orderCount} 筆訂單｜跟團需求 ${result.needed} 件｜已訂購 ${result.ordered} 件`,'',...result.entries.map(x=>`${x.name}：需求 ${x.needed}、已訂 ${x.ordered}${x.ordered>x.needed?'、多 '+(x.ordered-x.needed):x.ordered<x.needed?'、少 '+(x.needed-x.ordered):'、相符'}`),'','多訂品項：',...(result.extra.length?result.extra.map(x=>`${x.name} × ${x.ordered-x.needed}`):['無']),...(result.short.length?['','尚缺品項：',...result.short.map(x=>`${x.name} × ${x.needed-x.ordered}`)]:[])];return lines.join('\n');
 }
-function launchPurchaseReconciliationLabel(row){const difference=row.ordered-row.needed;return `(${difference>=0?'+':''}${difference})`;}
 function launchPurchaseReconciliationNotOpen(group,now=Date.now()){
  const date=typeof launchNormalizeOpenDate==='function'?launchNormalizeOpenDate(group.openDate):String(group.openDate||'');
  if(!date)return false;const time=String(group.openTime||'00:00'),start=Date.parse(date+'T'+time+':00+08:00');return Number.isFinite(start)&&start>now;
 }
 async function launchLoadPurchaseReconciliation(dialog,group,summary){
- const content=dialog.querySelector('.groupCardItems');if(!content)return;
- const clear=()=>content.querySelectorAll('.launchPurchaseCount,.launchPurchaseExtraGrid').forEach(label=>label.remove());
- if(launchPurchaseReconciliationNotOpen(group)){clear();return;}
- const paint=(card,text)=>{let label=card.querySelector('.launchPurchaseCount');if(!label){label=document.createElement('div');label.className='launchPurchaseCount';label.style.cssText='color:#39834b;font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin-top:4px';card.appendChild(label);}label.textContent=text;label.hidden=!text;};
- clear();
- try{const [p,d]=await Promise.all([api('purchaseOrders'),group.id?api('launchGet',{id:group.id,status:group.status||launchStatus}):Promise.resolve({group})]);if(!dialog.isConnected)return;
- if(launchPurchaseReconciliationNotOpen(d.group||group)){clear();return;}
- const result=launchPurchaseReconciliation(group,summary,d.group?.items||group.items||[],p.orders||[]);
- if(!result.orderCount){clear();return;}
- content.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{const name=card.querySelector('.launchCountLabel')?.dataset.name,row=result.entries.find(x=>x.names.includes(name));card.hidden=!row;card.style.display=row?'':'none';if(row)paint(card,launchPurchaseReconciliationLabel(row));});
- content.querySelectorAll('.launchPurchaseExtraGrid').forEach(box=>box.remove());
- }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchPurchaseCount').forEach(label=>{label.textContent='核對讀取失敗';label.title=error.message;});}
+ const status=dialog.querySelector('.launchOrderSummaryPurchaseStatus'),products=group.items||[];
+ if(!status||!summary.items.length||launchPurchaseReconciliationNotOpen(group))return;
+ if(!products.length){status.textContent='找不到開團品項，無法核對已購數';return;}
+ status.textContent='正在核對已購數…';
+ try{
+  const data=await api('purchaseOrders');if(!dialog.isConnected)return;
+  const result=launchPurchaseReconciliation(group,summary,products,data.orders||[]);
+  const byKey=new Map(result.entries.flatMap(row=>row.itemKeys.map(key=>[key,row])));
+  status.textContent=`已購 ${result.ordered} 件${byKey.size<summary.items.length?'（有品項未配對）':''}`;
+  dialog.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{
+   const row=byKey.get(card.dataset.sortKey),label=document.createElement('div');label.className='launchPurchaseCount';
+   if(!row){label.textContent='已購數未配對';card.appendChild(label);return;}
+   const shared=row.itemKeys.length>1,difference=row.ordered-row.needed,amount=document.createElement('strong'),balance=document.createElement('span');
+   amount.textContent=`${shared?'同貨號合計 ':''}已購 ${row.ordered}`;
+   balance.textContent=difference>0?`多購 ${difference}`:difference<0?`尚缺 ${-difference}`:'已買齊';
+   balance.className=difference>0?'isExtra':difference<0?'isShort':'';
+   label.append(amount,balance);card.appendChild(label);
+  });
+ }catch(error){if(dialog.isConnected){status.textContent='已購數讀取失敗，請重新開啟統計';status.title=error.message;}}
 }
 
 async function onlineShowGroupSummary(name){
@@ -2571,7 +2589,7 @@ async function launchSummaryCatalogGroup(group,fromOnline=false){
 }
 async function launchShowOrderSummary(group,{fromOnline=false}={}){
  if(!group)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p><p class="launchOrderSummaryMeta launchOrderSummaryPurchaseStatus" role="status"></p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div></div>`);
  const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
  try{
   const [data,catalog]=await Promise.all([api('online',{compact:'0',fresh:'1'}),launchSummaryCatalogGroup(group,fromOnline)]);if(!dialog.isConnected)return;
@@ -2581,12 +2599,12 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
   const content=dialog.querySelector('.groupCardItems');
   content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name):'<p class="empty">尚無購買紀錄</p>';
   if(summary.items.length&&!(catalog.items||[]).length)content.querySelector('.launchSummarySortHint').textContent='找不到原開團商品資料，暫依品名排列。';
+  void launchLoadPurchaseReconciliation(dialog,catalog,summary);
   try{
    const result=await countLabelRead(group.name,summary.items.map(item=>item.name),api);if(!dialog.isConnected)return;
    dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';launchCountLabels.set(group.name,result.labels||{});
    content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
   }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
-  if(dialog.isConnected&&!fromOnline)void launchLoadPurchaseReconciliation(dialog,catalog,summary);
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
 function launchAvailabilityChangeClass(item){
@@ -5070,10 +5088,16 @@ function launchCopyClosedProducts(event){
 
 const launchAvailabilityChecks=new Map();
 function launchAvailabilityKey(group,item){return JSON.stringify([group.id,item.id,item.url||'']);}
+function launchAvailabilityState(group,item){
+ const cached=launchAvailabilityChecks.get(launchAvailabilityKey(group,item)),saved=String(item.availabilityStatus||'');
+ if(cached?.busy)return cached;
+ const monitor=item.availabilityMonitor,stored=monitor?.url===String(item.url||'').trim()?monitor:null;
+ if(cached&&(!stored||cached.checkedAt>=Number(stored.checkedAt||0)))return cached;
+ return {available:stored?.failed?null:/⭕/.test(saved)?true:/❌/.test(saved)?false:null,detail:stored?.detail||'',failed:!!stored?.failed};
+}
 function launchAvailabilityButton(item,index){
  if(tmallStockBadgeHidden(item.url,item.note))return '';
- const cached=launchAvailabilityChecks.get(launchAvailabilityKey(launchCurrent,item)),saved=String(item.availabilityStatus||'');
- const state=cached?.busy?cached:{available:/⭕/.test(saved)?true:/❌/.test(saved)?false:null};
+ const state=launchAvailabilityState(launchCurrent,item);
  const mark=state.available===true?'⭕️':state.available===false?'❌':'⚠️';
  const hasStock=Number(item.stockQuantity)>0;
  const title=hasStock?'已有現貨，不需檢查':state?.busy?'正在偵測官網貨況（保留上次結果）':state?`${state.available===true?'官網有貨':state.available===false?'官網缺貨':'待確認'}${state.detail?'：'+state.detail:''}；點擊重新偵測`:'尚未偵測官網貨況，點擊偵測';
@@ -5084,20 +5108,23 @@ function launchRefreshAvailabilityControls(key){
  launchRefreshProductImageLinks();
  document.querySelectorAll('[data-launch-availability]').forEach(control=>{const index=Number(control.dataset.launchAvailability),item=launchCurrent?.items[index];if(item&&launchAvailabilityKey(launchCurrent,item)===key){const row=control.closest('.launchAllItem');if(row){row.classList.remove('launchAvailabilityOut','launchAvailabilityRestocked');const name=launchAvailabilityChangeClass(item).trim();if(name)row.classList.add(name);}control.outerHTML=launchAvailabilityButton(item,index);}});
 }
+function launchAvailabilityRetryItems(group){return (group?.items||[]).filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0)&&launchAvailabilityState(group,item).failed);}
+function launchAvailabilityProgress(job){return job?`${job.busy?'更新中':job.rateLimited?'官網暫時限制查詢，已暫停':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件待確認':''}`:'';}
 function launchAvailabilityToolbar(includeGrab=false){
  const job=launchAvailabilityBatches.get(launchCurrent?.id);
- return `<div class="launchTools" style="margin:12px 0;align-items:center;flex-wrap:nowrap"><button class="btn light" type="button" data-launch-status-update ${job?.busy?'disabled':''} onclick="launchUpdateAllAvailability()">狀態更新</button>${includeGrab?'<button class="btn light" type="button" onclick="launchGrab()">抓抓</button>':''}<button class="btn light" type="button" onclick="launchOpenTransferProducts()">移到別團</button><span data-launch-status-progress role="status" aria-live="polite">${job?`${job.busy?'更新中':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件失敗':''}`:''}</span></div>`;
+ return `<div class="launchTools" style="margin:12px 0;align-items:center"><button class="btn light" type="button" data-launch-status-update ${job?.busy?'disabled':''} onclick="launchUpdateAllAvailability()">狀態更新</button><button class="btn light" type="button" data-launch-status-retry ${launchAvailabilityRetryItems(launchCurrent).length?'':'hidden'} ${job?.busy?'disabled':''} onclick="launchUpdateAllAvailability(true)">重試待確認</button>${includeGrab?'<button class="btn light" type="button" onclick="launchGrab()">抓抓</button>':''}<button class="btn light" type="button" onclick="launchOpenTransferProducts()">移到別團</button><span data-launch-status-progress role="status" aria-live="polite">${launchAvailabilityProgress(job)}</span></div>`;
 }
 function launchRefreshAvailabilityProgress(groupId){
  if(launchCurrent?.id!==groupId)return;
- const job=launchAvailabilityBatches.get(groupId),button=document.querySelector('[data-launch-status-update]'),label=document.querySelector('[data-launch-status-progress]');
+ const job=launchAvailabilityBatches.get(groupId),button=document.querySelector('[data-launch-status-update]'),retry=document.querySelector('[data-launch-status-retry]'),label=document.querySelector('[data-launch-status-progress]');
  if(button)button.disabled=!!job?.busy;
- if(label)label.textContent=job?`${job.busy?'更新中':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件失敗':''}`:'';
+ if(retry){retry.disabled=!!job?.busy;retry.hidden=!launchAvailabilityRetryItems(launchCurrent).length;}
+ if(label)label.textContent=launchAvailabilityProgress(job);
 }
 function launchFetchProductAvailability(group,item){
  if(Number(item.stockQuantity)>0)return Promise.resolve(true);
  const key=launchAvailabilityKey(group,item);if(launchAvailabilityPending.has(key))return launchAvailabilityPending.get(key);
- const saved=String(item.availabilityStatus||''),previous=launchAvailabilityChecks.get(key)||{available:/⭕/.test(saved)?true:/❌/.test(saved)?false:null};launchAvailabilityChecks.set(key,{...previous,busy:true});launchRefreshAvailabilityControls(key);
+ const previous=launchAvailabilityState(group,item);launchAvailabilityChecks.set(key,{...previous,busy:true});launchRefreshAvailabilityControls(key);
  const pending=(async()=>{
   try{
    const result=await launchPost('launchCheckAvailability',{id:group.id,itemId:item.id},{silent:true});
@@ -5105,11 +5132,11 @@ function launchFetchProductAvailability(group,item){
    if(result.skipped){launchAvailabilityChecks.set(key,{...previous,busy:false});return true;}
    if(result.availabilityMonitor){item.availabilityMonitor=result.availabilityMonitor;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityMonitor=result.availabilityMonitor;}
    if(result.status){item.availabilityStatus=result.status;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityStatus=result.status;}
-   const available=result.available===true?true:result.available===false?false:group.status==='最新開團'?null:result.lastAvailable??previous?.available??null;
-   launchAvailabilityChecks.set(key,{available,detail:result.detail||'',busy:false});
-   return true;
-  }catch(error){launchAvailabilityChecks.set(key,{...(group.status==='最新開團'?{available:null}:previous),detail:error.message||'偵測失敗',busy:false});return false;}
-  finally{launchAvailabilityPending.delete(key);launchRefreshAvailabilityControls(key);}
+   const known=typeof result.available==='boolean'&&!result.availabilityMonitor?.failed;
+   launchAvailabilityChecks.set(key,{available:known?result.available:null,failed:!known,detail:result.detail||result.availabilityMonitor?.detail||'',busy:false,checkedAt:Date.now()});
+   return known;
+  }catch(error){launchAvailabilityChecks.set(key,{available:null,failed:true,detail:error.message||'偵測失敗',busy:false,checkedAt:Date.now()});return false;}
+  finally{launchAvailabilityPending.delete(key);launchRefreshAvailabilityControls(key);launchRefreshAvailabilityProgress(group.id);}
  })();launchAvailabilityPending.set(key,pending);return pending;
 }
 async function launchCheckProductAvailability(index,button){
@@ -5117,12 +5144,17 @@ async function launchCheckProductAvailability(index,button){
  const ok=await launchFetchProductAvailability(group,item);
  if(!ok)alert('貨況更新失敗：'+(launchAvailabilityChecks.get(launchAvailabilityKey(group,item))?.detail||'偵測失敗'));
 }
-async function launchUpdateAllAvailability(){
+async function launchUpdateAllAvailability(retryOnly=false){
  const group=launchCurrent;if(!group?.id||launchAvailabilityBatches.get(group.id)?.busy)return;
- const items=group.items.filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0)).map(item=>({id:item.id,url:item.url||'',availabilityStatus:item.availabilityStatus||''}));
+ const items=retryOnly?launchAvailabilityRetryItems(group):group.items.filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0));
  const job={busy:true,total:items.length,completed:0,failed:0};launchAvailabilityBatches.set(group.id,job);launchRefreshAvailabilityProgress(group.id);
  let next=0;
- const worker=async()=>{while(next<items.length){const item=items[next++];if(!await launchFetchProductAvailability(group,item))job.failed++;job.completed++;launchRefreshAvailabilityProgress(group.id);}};
+ const worker=async()=>{while(next<items.length){
+  const item=items[next++],ok=await launchFetchProductAvailability(group,item);
+  if(!ok){job.failed++;job.rateLimited=/\b429\b/.test(launchAvailabilityState(group,item).detail);}
+  job.completed++;launchRefreshAvailabilityProgress(group.id);
+  if(job.rateLimited)break;
+ }};
  try{await worker();}
  finally{job.busy=false;launchRefreshAvailabilityProgress(group.id);}
 }
@@ -6033,7 +6065,11 @@ function purchaseSharedNameUpdates(orders,blocked=new Set()){
   const quantities=[];
   (order.items||[]).forEach((item,index)=>{
    if(!norm(item.originalName)||(norm(item.name)&&norm(item.name)!==norm(item.originalName)))return;
-   const matches=(mappings.get(key(order,item))||[]).filter(source=>!norm(source.code)||!norm(item.code)||norm(source.code)===norm(item.code));
+   const sku=launchSummarySku(item.code);
+   const matches=(mappings.get(key(order,item))||[]).filter(source=>{
+    const sourceSku=launchSummarySku(source.code);
+    return !sourceSku||!sku||sourceSku===sku;
+   });
    if(!matches.length||new Set(matches.map(source=>JSON.stringify([source.name,source.role||'']))).size!==1)return;
    const source=matches[0],candidate=Object.fromEntries(['name','role','group','source','url','image'].map(field=>[field,source[field]||'']));
    quantities.push({indexes:[index],quantity:Number(item.quantity)||0,name:source.name,candidate});
@@ -6051,7 +6087,7 @@ function purchaseSyncSharedNames(){
  }
 }
 function purchaseRecordedName(item,previous){
- const key=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').replace(/^0+(?=\d)/,'');
+ const key=value=>launchSummarySku(value).replace(/\s+/g,'').replace(/^0+(?=\d)/,'');
  const code=key(item.code);if(!code)return null;
  const matches=previous.filter(x=>key(x.code)===code&&String(x.name||'').trim());
  const names=[...new Set(matches.map(x=>JSON.stringify([String(x.name).trim(),String(x.role||'').trim()])))];
@@ -6066,9 +6102,10 @@ function purchasePreviousImage(item,previous,index){
  if(!name)return '';
  let matches=index?index.get(name)||[]:previous.filter(x=>String(x.name||x.originalName||'').normalize('NFKC').trim()===name&&/^https?:\/\//i.test(x.image||''));
  for(const key of ['code','url','group','role']){
-  const value=String(item[key]||'').trim();if(!value)continue;
-  matches=matches.filter(x=>!String(x[key]||'').trim()||String(x[key]).trim()===value);
-  const exact=matches.filter(x=>String(x[key]||'').trim()===value);if(exact.length)matches=exact;
+  const normalize=key==='code'?launchSummarySku:value=>String(value||'').trim();
+  const value=normalize(item[key]);if(!value)continue;
+  matches=matches.filter(x=>!normalize(x[key])||normalize(x[key])===value);
+  const exact=matches.filter(x=>normalize(x[key])===value);if(exact.length)matches=exact;
  }
  const images=[...new Set(matches.map(x=>x.image.trim()))];return images.length===1?images[0]:'';
 }
@@ -6081,10 +6118,10 @@ function purchaseDailyTotals(orders,mergeMonth=false){
   const day=days.get(order.date);day.numbers.add(order.number);
   if(order.status==='砍單')return;
   (order.items||[]).forEach((item,itemIndex)=>{
-   const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,'');
+   const code=String(item.code||'').normalize('NFKC').replace(/\s+/g,''),sku=launchSummarySku(code);
    // 無貨號時僅合併名稱、團名、角色、規格與圖片完全相同的商品。
    const unnamedCodeKey=!code&&String(item.name||'').trim()&&String(item.image||'').trim()?JSON.stringify(['named-image',String(item.group||'').trim(),String(item.name).normalize('NFKC').trim(),String(item.role||'').normalize('NFKC').trim(),String(item.format||'').trim(),String(item.size||'').trim(),String(item.image).trim()]):null;
-   const key=mergeMonth?(code?JSON.stringify([code,String(item.group||'').trim(),purchaseProductName(item),String(item.role||'').trim()]):unnamedCodeKey||Symbol()):purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):code||unnamedCodeKey||Symbol();
+   const key=mergeMonth?(sku?JSON.stringify([sku,String(item.group||'').trim(),purchaseProductName(item),String(item.role||'').trim()]):unnamedCodeKey||Symbol()):purchaseOrderRegion(order)==='cn'&&order.tracking?'tracking:'+order.tracking+'|'+purchaseProductName(item):sku||unnamedCodeKey||Symbol();
    if(!day.products.has(key))day.products.set(key,{code,names:new Set(),quantity:0,total:0,image:'',numbers:new Set(),refs:[]});
    const product=day.products.get(key);product.refs.push({number:order.number,index:itemIndex});product.names.add(purchaseProductName(item));if(!product.image){const image=item.image||purchasePreviousImage(item,previous,imageIndex);if(/^https?:\/\//i.test(image||''))product.image=image;}
    product.quantity+=Number(item.quantity)||0;product.total+=Number(item.total)||0;product.numbers.add(order.number);
@@ -6255,11 +6292,12 @@ async function purchaseEditDialog(i){
   quantityLabel.replaceChildren(quantity);row.replaceChildren(role,remove,input,select,quantityLabel);
  });
  try{
-  const codeKeys=item=>{const code=String(item.code||'').normalize('NFKC').trim();return [...new Set([code,...(purchaseOrderSite(o.orderURL)?.host==='nagano-market.jp'?[code.replace(/\D/g,'')]:[])].filter(Boolean))];};
-  const matched=await api('purchaseMatch',{codes:JSON.stringify([...new Set(o.items.flatMap(codeKeys))]),items:JSON.stringify(o.items.map(({code,originalName,name,url})=>({code,originalName,name,url})))});
+  const codeKeys=item=>{const code=launchSummarySku(item.code);return [...new Set([code,...(purchaseOrderSite(o.orderURL)?.host==='nagano-market.jp'?[code.replace(/\D/g,'')]:[])].filter(Boolean))];};
+  const matched=await api('purchaseMatch',{codes:JSON.stringify([...new Set(o.items.flatMap(codeKeys))]),items:JSON.stringify(o.items.map(({code,originalName,name,url})=>({code:launchSummarySku(code),originalName,name,url})))});
   if(document.getElementById('appDialog')!==dialog)return;
   dialog.querySelectorAll('.purchaseEditItem').forEach(row=>{
-   const indexes=JSON.parse(row.querySelector('.purchaseEditQuantity').dataset.indexes),item=o.items[indexes[0]],candidates=[...new Map((matched.itemMatches?.[indexes[0]]||codeKeys(item).flatMap(code=>matched.matches?.[code]||[])).map(c=>[JSON.stringify(c),c])).values()];
+   const indexes=JSON.parse(row.querySelector('.purchaseEditQuantity').dataset.indexes),item=o.items[indexes[0]],byCode=codeKeys(item).flatMap(code=>matched.matches?.[code]||[]);
+   const candidates=[...new Map((byCode.length?byCode:matched.itemMatches?.[indexes[0]]||[]).map(c=>[JSON.stringify(c),c])).values()];
    const select=row.querySelector('.purchaseEditChoice');
    const recorded=!item.name?purchaseRecordedName(item,purchaseOrders.flatMap(order=>order.items)):null;
    if(recorded){row.querySelector('.purchaseEditName').value=recorded.name;row.purchaseCandidate=recorded;}
@@ -6484,7 +6522,7 @@ async function purchaseLoadImages(){
  }
  if(ticket===purchaseImageTicket&&document.body.dataset.page==='purchase'){
   // 只更新統計圖片，不重建輸入欄、卡片或編輯視窗。
-  document.querySelectorAll('.purchaseProductCard[data-code]').forEach(card=>{if(!card.dataset.code)return;const item=items.find(x=>x.code===card.dataset.code&&x.image);if(!item)return;let img=card.querySelector('img');if(!img){img=document.createElement('img');img.loading='lazy';img.alt=purchaseProductName(item);card.prepend(img);}img.hidden=false;img.src=item.image;const placeholder=card.querySelector('.purchaseNoImage');if(placeholder)placeholder.hidden=true;img.onerror=()=>{img.hidden=true;if(placeholder)placeholder.hidden=false;};});
+  document.querySelectorAll('.purchaseProductCard[data-code]').forEach(card=>{const sku=launchSummarySku(card.dataset.code);if(!sku)return;const item=items.find(x=>x.image&&launchSummarySku(x.code)===sku);if(!item)return;let img=card.querySelector('img');if(!img){img=document.createElement('img');img.loading='lazy';img.alt=purchaseProductName(item);card.prepend(img);}img.hidden=false;img.src=item.image;const placeholder=card.querySelector('.purchaseNoImage');if(placeholder)placeholder.hidden=true;img.onerror=()=>{img.hidden=true;if(placeholder)placeholder.hidden=false;};});
  }
  }catch(_){/* 訂單已顯示；圖片失敗保留原圖，下次重新載入可重試。 */}
 }
@@ -10907,8 +10945,7 @@ function launchCatalogTouch(e,index){
 const launchCatalogReferenceCache=new Map();
 function launchCatalogReferenceKey(group){return JSON.stringify([group.id,group.status,group.name]);}
 function launchCatalogReferenceIdentity(p){
- const code=String(p.code||'').trim()||(String(p.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';
- return code?'code:'+code:p.id?'id:'+p.id:'name:'+String(launchDisplayName(p)||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+ return launchPurchaseIdentity(p);
 }
 function launchCatalogReferenceText(item){
  const entry=launchCurrent&&launchCatalogReferenceCache.get(launchCatalogReferenceKey(launchCurrent));
