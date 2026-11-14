@@ -7469,24 +7469,20 @@ const code=String(inventoryValue(item,['貨號','商品貨號','條碼','SN'])||
 return !!name.trim()&&(inventoryCategory==='全部'||cat===inventoryCategory)&&(!search||String(item._searchText||name+' '+code).includes(search))&&inventoryMatchesStatus(item);
 });
 inventoryPublishScopeRows=rows;inventoryRefreshOrderSaveButton();
-const originalPositions=new Map(rows.filter(item=>!inventoryIsPendingPublish(item)&&!inventoryIsRelisted(item)).map((item,index)=>[item,index+1]));
+const positionedDraftIds=new Set([...inventoryPositionedDraftIds,...inventoryPendingMoveIds.map(([source])=>source)]);
+const hasPosition=item=>!inventoryIsPendingPublish(item)||positionedDraftIds.has(String(item.itemId??''));
+const originalPositions=new Map(rows.filter(item=>hasPosition(item)&&!inventoryIsRelisted(item)).map((item,index)=>[item,index+1]));
 const leadingDraftRows=new Set();
 for(const item of rows){if(!inventoryIsPendingPublish(item))break;leadingDraftRows.add(item);}
 const pinPriority=item=>leadingDraftRows.has(item)?3:inventoryIsPendingPublish(item)?0:inventoryNeedsOtherChannelCheck(item)?2:inventoryIsRelisted(item)?1:0;
 rows.sort((a,b)=>pinPriority(b)-pinPriority(a));
 inventoryDisplayedRows=rows.filter(item=>!inventoryIsPinned(item));
-const numberedRows=inventoryDisplayedRows.filter(item=>!inventoryIsPendingPublish(item));
-const positionedDraftIds=new Set([...inventoryPositionedDraftIds,...inventoryPendingMoveIds.map(([source])=>source)]);
-const draftPositions=new Map();
-let publishedBefore=0;
-inventoryDisplayedRows.forEach((item,index)=>{
- if(!inventoryIsPendingPublish(item))publishedBefore++;
- else if(positionedDraftIds.has(String(item.itemId??'')))draftPositions.set(item,numberedRows.length?publishedBefore+1:index+1);
-});
+inventoryRankedRows=inventoryDisplayedRows.filter(hasPosition);
+const positions=new Map(inventoryRankedRows.map((item,index)=>[item,index+1]));
 if(!rows.length){grid.innerHTML='<div class="empty">沒有符合條件的商品</div>';return;}
 resizeInventoryCards();
 grid.innerHTML=rows.map(item=>{
-const position=numberedRows.indexOf(item);
+const position=positions.get(item);
 const name=inventoryValue(item,['名稱','商品名稱','品名','商品'])||'';
 const original=inventoryValue(item,['原價','定價','原售價','牌價']);
 const sale=inventoryValue(item,['售價','價格','銷售價']);
@@ -7512,7 +7508,7 @@ const otherChannelUrl=launchOtherChannelURL(note);
 const hasOtherChannel=!!otherChannelUrl;
 const linkMarkup=`<div class="inventoryLinks"><button type="button" class="inventoryChannelButton" onclick="openInventoryEditDialog(${Number(item.row)})">編輯</button>${hasOtherChannel?`<a class="inventoryChannelButton" href="${esc(otherChannelUrl)}" target="_blank" rel="noopener">其他通路</a>`:productUrl?`<a class="inventoryChannelButton" href="${esc(productUrl)}" target="_blank" rel="noopener">商品網址</a>`:''}</div>`;
 const noteMarkup=note&&!/^https?:\/\//i.test(note)?`<div class="inventoryNote" title="${esc(note)}">${esc(note)}</div>`:'';
-return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}" data-inventory-draft="${isDraft?'true':'false'}">${isDraft?'<span class="inventoryDraftBadge" title="調整排序後按儲存並上架">草稿</span>':''}${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':esc(item.inventoryAvailabilityDetail||'點擊更新商品網址狀態')}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${isDraft?`<input class="inventoryOrderInput" type="text" inputmode="numeric" autocomplete="off" min="1" max="${numberedRows.length?numberedRows.length+1:inventoryDisplayedRows.length}" step="1" value="${draftPositions.get(item)??''}" aria-label="${esc(name)} 排序" title="可輸入草稿排序，完成後按儲存並上架" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();this.blur();}">`:needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="text" inputmode="numeric" autocomplete="off" min="1" max="${numberedRows.length}" step="1" value="${position+1}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap">${imageMarkup}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
+return `<article class="inventoryCard ${borderClass} ${unavailable?'isUnavailable':''}" data-row="${Number(item.row)}" data-inventory-draft="${isDraft?'true':'false'}">${isDraft?'<span class="inventoryDraftBadge" title="調整排序後按儲存並上架">草稿</span>':''}${availabilityMark?`<button class="inventoryAvailability" ${inventoryStatusCheckingRows.has(Number(item.row))||inventoryHasPhysicalStock(item)?'disabled':''} title="${inventoryHasPhysicalStock(item)?'已有現貨，不需檢查':inventoryStatusCheckingRows.has(Number(item.row))?'更新中，保留上次貨況':esc(item.inventoryAvailabilityDetail||'點擊更新商品網址狀態')}" onclick="checkInventoryUrl(${Number(item.row)})">${availabilityMark}</button>`:''}${isDraft?`<input class="inventoryOrderInput" type="text" inputmode="numeric" autocomplete="off" min="1" max="${inventoryRankedRows.length+Number(position===undefined)}" step="1" value="${position??''}" aria-label="${esc(name)} 排序" title="可輸入草稿排序，完成後按儲存並上架" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();this.blur();}">`:needsOtherChannel?`<input class="inventoryOrderInput" value="${originalPositions.get(item)}" aria-label="${esc(name)} 原排序" title="待檢查其他通路，保留原排序" disabled>`:inventoryIsPinned(item)?'':`<input class="inventoryOrderInput" type="text" inputmode="numeric" autocomplete="off" min="1" max="${inventoryRankedRows.length}" step="1" value="${position}" aria-label="${esc(name)} 排序" title="輸入排序後按 SAVE 儲存" onchange="setInventoryOrderPosition(${Number(item.row)},this)" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();this.blur();}">`}<div class="inventoryImageWrap">${imageMarkup}</div><div class="inventoryInfo"><div class="inventoryName">${esc(name)}</div>${code?`<button type="button" class="inventoryCode inventoryCodeButton" data-code="${esc(code)}" title="點擊複製貨號" aria-label="複製貨號 ${esc(code)}" onclick="event.stopPropagation();copyInventoryCode(this.dataset.code)">${esc(code)}</button>`:'<div class="inventoryCode"></div>'}<div class="inventoryPrices">${pricesMarkup}</div><div class="inventoryStockLine"><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">庫存</button><button class="inventoryStockButton" onclick="beginInventoryStockEdit(${Number(item.row)},this)" title="點擊修改庫存">${esc(stock==null?'':stock)}</button></span><span aria-hidden="true">｜</span><span class="inventoryStockGroup"><button class="inventoryStockButton inventoryStockLabel" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量">店面</button><button class="inventoryStockButton" onclick="beginInventoryStoreEdit(${Number(item.row)},this)" title="點擊修改店面數量"><b>${esc(store)}</b></button></span></div>${linkMarkup}${noteMarkup}</div></article>`;
 }).join('');
 inventoryLoadPriceHistory();
 }
@@ -7536,32 +7532,22 @@ if(document.body.dataset.page!=='inventory')return;
 clearTimeout(inventoryResizeTimer);
 inventoryResizeTimer=setTimeout(resizeInventoryCards,80);
 });
-let inventoryDisplayedRows=[];
+let inventoryDisplayedRows=[],inventoryRankedRows=[];
 function setInventoryOrderPosition(row,input){
 const item=inventoryDisplayedRows.find(item=>Number(item.row)===Number(row));if(!item)return;
-const draft=inventoryIsPendingPublish(item),numbered=inventoryDisplayedRows.filter(item=>!inventoryIsPendingPublish(item)),current=numbered.indexOf(item);
+const current=inventoryRankedRows.indexOf(item),unranked=current<0;
 const raw=inventoryNormalizeField(input).trim(),position=Number(raw),restore=()=>{input.value=input.defaultValue;};
-if(inventoryOrderSaving){restore();return;}
-const choices=draft?(numbered.length?numbered:inventoryDisplayedRows.filter(inventoryIsPendingPublish)):numbered;
-const maximum=draft&&numbered.length?numbered.length+1:choices.length;
-if(!/^\d+$/.test(raw)||!Number.isSafeInteger(position)||position<1||position>maximum){restore();return;}
-if(draft){
- const append=numbered.length&&position===numbered.length+1,target=choices[append?choices.length-1:position-1];
- const id=String(item.itemId??'');
- if(id)inventoryPositionedDraftIds.add(id);
- if(target&&target!==item){
-  const from=inventoryDisplayedRows.indexOf(item),to=inventoryDisplayedRows.indexOf(target);
-  if(reorderInventoryRows(Number(row),Number(target.row),numbered.length?(append?'after':'before'):(to<from?'before':'after')))return;
- }
- inventorySaveSortDraft();
- input.defaultValue=String(position);input.value=input.defaultValue;
- return;
+const maximum=inventoryRankedRows.length+Number(unranked);
+if(inventoryOrderSaving||!/^\d+$/.test(raw)||!Number.isSafeInteger(position)||position<1||position>maximum||position===current+1){restore();return;}
+const append=unranked&&position===maximum;
+const target=append?inventoryRankedRows.at(-1):inventoryRankedRows[position-1];
+if(unranked&&item.itemId!=null)inventoryPositionedDraftIds.add(String(item.itemId));
+const side=append||(!unranked&&position-1>current)?'after':'before';
+if(target&&reorderInventoryRows(Number(row),Number(target.row),side,unranked))return;
+inventorySaveSortDraft();
+renderInventoryContent();
 }
-if(position===current+1)return;
-const target=numbered[position-1];
-reorderInventoryRows(Number(row),Number(target.row),position-1<current?'before':'after');
-}
-function reorderInventoryRows(source,target,side='after'){if(inventoryOrderSaving)return;if([source,target].some(row=>inventoryIsPinned(inventoryRows.find(item=>Number(item.row)===Number(row))||{})))return;const from=inventoryRows.findIndex(item=>Number(item.row)===Number(source));if(from<0||source===target)return;const [moved]=inventoryRows.splice(from,1);const targetIndex=inventoryRows.findIndex(item=>Number(item.row)===Number(target));if(targetIndex<0){inventoryRows.splice(from,0,moved);return;}const insertIndex=targetIndex+(side==='after'?1:0);inventoryRows.splice(insertIndex,0,moved);if(insertIndex===from)return;inventoryMoveRestoredSortDraft(String(moved.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side);inventoryPendingMoves.push([Number(source),Number(target),side==='before'?'b':'a']);inventoryPendingMoveIds.push([String(moved.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side==='before'?'b':'a']);inventoryOrderDirty=true;saveInventorySessionCache();const button=document.getElementById('inventorySaveOrderButton');if(button)button.classList.add('isVisible');renderInventoryContent();return true;}
+function reorderInventoryRows(source,target,side='after',keepAnchor=false){if(inventoryOrderSaving)return;if([source,target].some(row=>inventoryIsPinned(inventoryRows.find(item=>Number(item.row)===Number(row))||{})))return;const from=inventoryRows.findIndex(item=>Number(item.row)===Number(source));if(from<0||source===target)return;const [moved]=inventoryRows.splice(from,1);const targetIndex=inventoryRows.findIndex(item=>Number(item.row)===Number(target));if(targetIndex<0){inventoryRows.splice(from,0,moved);return;}const insertIndex=targetIndex+(side==='after'?1:0);inventoryRows.splice(insertIndex,0,moved);if(insertIndex===from&&!keepAnchor)return;inventoryMoveRestoredSortDraft(String(moved.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side);inventoryPendingMoves.push([Number(source),Number(target),side==='before'?'b':'a']);inventoryPendingMoveIds.push([String(moved.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side==='before'?'b':'a']);inventoryOrderDirty=true;saveInventorySessionCache();const button=document.getElementById('inventorySaveOrderButton');if(button)button.classList.add('isVisible');renderInventoryContent();return true;}
 async function saveInventoryOrder(){
  const publishSnapshot=inventoryKnownPendingPublishIds();
  if(inventoryOrderSaving||(!inventoryPendingMoves.length&&!publishSnapshot.length))return;
