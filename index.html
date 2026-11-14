@@ -3908,8 +3908,29 @@ function productInfoIsNaganoAnnouncementURL(value){
 function productInfoReadUnsupported(error){return error?.message==='此網站尚未支援自動抓取，請手動填寫';}
 function productInfoAutomaticFields(item,keys){return productInfoIsTmallURL(item?.url)?keys.filter(key=>!['japaneseName','format'].includes(key)):keys;}
 function productInfoSyncJapanesePlaceholder(form,url){const input=form?.querySelector('[name=japaneseName],#inventoryEditJapaneseName,#inventoryAddJapaneseName');if(!input)return;if(input.dataset.productInfoPlaceholder===undefined)input.dataset.productInfoPlaceholder=input.getAttribute('placeholder')||'';input.placeholder=productInfoIsTmallURL(url)?'選填，可手動填寫':input.dataset.productInfoPlaceholder;}
+function productInfoSanrioNeedsImage(item){
+ try{
+  const url=new URL(item.url);
+  return url.origin==='https://shop.sanrio.co.jp'&&!url.username&&!url.password&&/^\/item\/detail\/\d+_\d+_\d+_\d+(?:\/[\w-]+){0,2}\/?$/.test(url.pathname)&&!launchSplitProductImages(item.images).length;
+ }catch{return false;}
+}
+function launchProductImageEdited(box){
+ const form=box.closest('form');
+ if(!form)return;
+ form.jiwuManualImageURL=String(form.elements.namedItem('url')?.value||'').trim();
+}
 function launchAutoProductInfo(form){
  const input=form?.elements?.namedItem('url');if(!input)return;
+ const imagesBox=form.querySelector('.launchProductImages'),imagesControl=form.elements.namedItem('images');
+ let sanrioImage;
+ function syncSanrioImageURL(){
+  const url=String(input.value||'').trim();
+  if(!sanrioImage||sanrioImage.url===url)return;
+  if(imagesBox&&imagesControl?.value===sanrioImage.image&&form.jiwuManualImageURL!==sanrioImage.url){
+   launchProductImageRender(imagesBox,[]);
+  }
+  sanrioImage=null;
+ }
  let ticket=0,timer,formatTouched=false,readKey='',readPromise,unsupportedURL='';
  const read=()=>{
   const item=Object.fromEntries(['url','original','code','format','size','japaneseName','role'].map(key=>[key,String(form.elements.namedItem(key)?.value||'').trim()])),key=JSON.stringify(item);
@@ -3921,18 +3942,20 @@ function launchAutoProductInfo(form){
     if(productInfoReadUnsupported(error))unsupportedURL=item.url;
     readPromise=null;readKey='';
    };
-   request.then(data=>{if(productInfoIsMetalboxURL(item.url)&&!productInfoMetalboxImages(data?.item).length)clear();},clear);
+   request.then(data=>{if((productInfoIsMetalboxURL(item.url)&&!productInfoMetalboxImages(data?.item).length)||(productInfoSanrioNeedsImage({url:item.url})&&!launchSafeURL(data?.item?.image)))clear();},clear);
   }
   return readPromise;
  };
  form.jiwuReadProductInfo=()=>{clearTimeout(timer);++ticket;return read();};
  const formatControl=form.elements.namedItem('format');for(const event of ['input','change'])formatControl?.addEventListener?.(event,()=>{formatTouched=true;});
  async function fill(){
+  syncSanrioImageURL();
   const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
   productInfoSyncJapanesePlaceholder(form,url);
   if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
-  if(!productInfoMetalboxNeedsImages({url,images:form.elements.namedItem('images')?.value||''})&&String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
+  const needsSanrioImage=imagesBox&&form.jiwuManualImageURL!==url&&productInfoSanrioNeedsImage({url,images:imagesControl?.value});
+  if(!needsSanrioImage&&!productInfoMetalboxNeedsImages({url,images:form.elements.namedItem('images')?.value||''})&&String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
   const request=read();
   if(!request){form.querySelector('[data-auto-product-info]')?.remove();return;}
   let message=form.querySelector('[data-auto-product-info]');if(!message){message=document.createElement('p');message.dataset.autoProductInfo='';message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#666;margin:8px 0;grid-column:1/-1;';input.closest('label').after(message);}
@@ -3941,8 +3964,11 @@ function launchAutoProductInfo(form){
   const pending=request.then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
-   const imagesControl=form.elements.namedItem('images'),imagesBox=form.querySelector('.launchProductImages');
    if(imagesBox&&imagesControl?.value===requestedValues.images&&productInfoMetalboxNeedsImages({url,images:imagesControl.value})){const images=productInfoMetalboxImages(data.item);if(images.length)launchProductImageRender(imagesBox,images);}
+   if(needsSanrioImage&&form.jiwuManualImageURL!==url&&productInfoSanrioNeedsImage({url,images:imagesControl?.value})){
+    const image=launchSafeURL(data.item?.image);
+    if(image){launchProductImageRender(imagesBox,[image]);sanrioImage={url,image};}
+   }
    if(!tmall&&data.item?.needsFormat&&data.item?.detail){message.textContent=data.item.detail;return;}
    if(!tmall&&data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
    message.textContent=[!tmall&&!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
@@ -3954,7 +3980,7 @@ function launchAutoProductInfo(form){
   });
   form.jiwuProductInfoPending=pending;await pending;if(form.jiwuProductInfoPending===pending)form.jiwuProductInfoPending=null;
  }
- input.addEventListener('input',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
+ input.addEventListener('input',()=>{syncSanrioImageURL();++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  input.addEventListener('change',()=>{clearTimeout(timer);void fill();});
  formatControl?.addEventListener('input',()=>{if(productInfoIsTmallURL(input.value))return;++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
  form.elements.namedItem('role')?.addEventListener('change',()=>{++ticket;clearTimeout(timer);timer=setTimeout(()=>void fill(),350);});
@@ -4002,6 +4028,7 @@ function launchProductImageRender(box,images){
  box.querySelector('.launchProductImageRows').innerHTML=images.map((url,index)=>launchProductImageRow(url,index,images.length)).join('');launchProductImageSync(box);
 }
 function launchProductImageInput(input){
+ launchProductImageEdited(input.closest('.launchProductImages'));
  const box=input.closest('.launchProductImages'),row=input.closest('.launchProductImageRow'),img=row.querySelector('img'),placeholder=row.querySelector('.launchProductImagePreview span'),url=launchSafeURL(input.value.trim());
  img.hidden=!url;placeholder.hidden=!!url;if(url)img.src=window.jiwuImageURL?window.jiwuImageURL(url):url;else img.removeAttribute('src');launchProductImageSync(box);
 }
@@ -4011,7 +4038,7 @@ function launchProductImagePaste(button){
  const urls=value.trim().split(/[、\s]+/).filter(Boolean);if(urls.some(url=>!launchSafeURL(url))){alert('請使用有效的 http/https 圖片網址');return;}
  const box=button.closest('.launchProductImages');launchProductImageRender(box,[...launchProductImageValues(box).filter(Boolean),...urls]);
 }
-function launchProductImageRemove(button){const box=button.closest('.launchProductImages'),rows=[...box.querySelectorAll('.launchProductImageRow')],index=rows.indexOf(button.closest('.launchProductImageRow')),images=launchProductImageValues(box);images.splice(index,1);launchProductImageRender(box,images);box.querySelector('.launchProductImageTools button').focus();}
+function launchProductImageRemove(button){const box=button.closest('.launchProductImages'),rows=[...box.querySelectorAll('.launchProductImageRow')],index=rows.indexOf(button.closest('.launchProductImageRow')),images=launchProductImageValues(box);images.splice(index,1);launchProductImageEdited(box);launchProductImageRender(box,images);box.querySelector('.launchProductImageTools button').focus();}
 function launchProductImageDrag(event){
  if(event.button!==0||event.isPrimary===false)return;
  event.preventDefault();const handle=event.currentTarget,row=handle.closest('.launchProductImageRow'),box=row.closest('.launchProductImages'),list=row.parentElement,original=launchProductImageValues(box),pointer=event.pointerId;
@@ -4127,7 +4154,7 @@ function launchRefreshProductImages(groupId,itemId,requestedURL){
   if(typeof launchPNGBlobCache!=='undefined')launchPNGBlobCache.clear();
  }
 }
-async function launchCompleteProductInfo(groupId,submitted,pending){
+async function launchCompleteProductInfo(groupId,submitted,pending,fillSanrioImage=false){
  const progressId='product-info-'+launchId();
  launchMoveProgress(progressId,submitted.name,'讀取中','','商品資料');
  try{
@@ -4148,6 +4175,10 @@ async function launchCompleteProductInfo(groupId,submitted,pending){
    if(current===before&&(!current.trim()||(data.item.selectedFormat&&['code','size'].includes(field)))&&data.item[field]){item[field]=data.item[field];changed=true;}
   }
   if(productInfoMetalboxNeedsImages(item)&&JSON.stringify(item.images||[])===JSON.stringify(submitted.images||[])){const images=productInfoMetalboxImages(data.item);if(images.length){item.images=images;changed=true;imagesChanged=true;}}
+  if(fillSanrioImage&&productInfoSanrioNeedsImage(item)){
+   const image=launchSafeURL(data.item.image);
+   if(image){item.images=[image];changed=true;imagesChanged=true;}
+  }
   if(changed){
    Object.assign(item,launchNormalizeProductSpec(item.size,item.format,item));
    if(launchCurrent?.id===groupId)launchMark();
@@ -4298,12 +4329,13 @@ async function launchProductSubmit(e,index,mode){
  }else if(mode==='single'&&String(items[0]?.price??'')!==previousPrice)launchApplyProductPrice(items[0],items[0].price);
  launchSyncDrawImages(launchCurrent.items,items);launchMark();
  const product=mode==='single'?structuredClone(items[0]):null;
- const needsInfo=product?.url&&(productInfoMetalboxNeedsImages(product)||['code','size','japaneseName','original'].some(field=>!String(product[field]||'').trim())||(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(product.url)&&launchPokemonSizeFormat(product.format)));
+ const needsSanrioImage=product&&form.jiwuManualImageURL!==product.url&&productInfoSanrioNeedsImage(product);
+ const needsInfo=product?.url&&(needsSanrioImage||productInfoMetalboxNeedsImages(product)||['code','size','japaneseName','original'].some(field=>!String(product[field]||'').trim())||(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(product.url)&&launchPokemonSizeFormat(product.format)));
  const info=needsInfo&&form.jiwuReadProductInfo?form.jiwuReadProductInfo():null;
  launchFinishProductEditor(true);void launchAutoDomesticShipping();
  const importWarnings=mode==='multi'&&Array.isArray(items.importWarnings)?items.importWarnings:[];
  if(importWarnings.length){const message='商品已新增，以下資料待補：\n'+importWarnings.join('\n');launchNotice(message);launchSaveClick({actionLabel:'新增商品',successMessage:'商品已儲存；有 '+importWarnings.length+' 項資料待確認',preserveScroll:true,render:false,onSuccess:()=>{if(launchCurrent?.id===group.id)launchNotice(message);}});}else launchSaveProductCard();
- if(info)void launchCompleteProductInfo(group.id,product,info);
+ if(info)void launchCompleteProductInfo(group.id,product,info,needsSanrioImage);
 
 }
 function launchBannerURLs(){const current=launchCurrent.panels?.[launchPanelIndex]?.image??launchCurrent.images?.[launchPanelIndex]??'';launchDialog(`<form onsubmit="launchSetBannerURL(event)"><h2>首圖網址</h2><label>首圖網址<input name="url" type="url" value="${esc(current)}" required></label><div class="launchTools"><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button><button class="btn" type="submit">下一步：選主色</button></div></form>`);}
