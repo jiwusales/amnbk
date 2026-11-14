@@ -4437,10 +4437,40 @@ function launchListThumbnail(p){
  const index=launchCurrent.items.indexOf(p),url=launchProductImageURL(p);
  return url?`<a class="launchListProductLink" data-launch-product-link="${index}" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(launchDisplayName(p))} 商品頁面">${picture}</a>`:`<span class="launchListProductLink">${picture}</span>`;
 }
-function launchOtherChannelURL(note){
+function launchOtherChannelURLs(note){
  const candidates=String(note||'').match(/(?:https?:\/\/|www\.)[^\s<>"'，。；、（）【】]+/gi)||[];
- for(let candidate of candidates){candidate=candidate.replace(/[.,;!?，。；！？」』）)\]]+$/g,'');const url=launchSafeURL(/^www\./i.test(candidate)?'https://'+candidate:candidate);if(url)return url;}
- return '';
+ const urls=new Set();
+ for(let candidate of candidates){
+  candidate=candidate.replace(/[.,;!?，。；！？」』）)\]]+$/g,'');
+  const url=launchSafeURL(/^www\./i.test(candidate)?'https://'+candidate:candidate);
+  if(!url)continue;
+  const parsed=new URL(url);
+  if(!parsed.username&&!parsed.password)urls.add(url);
+ }
+ return [...urls];
+}
+function launchOtherChannelURL(note){return launchOtherChannelURLs(note)[0]||'';}
+function launchCatalogOtherChannel(item,index){
+ if(launchCurrent?.status!=='最新開團')return '';
+ const urls=launchOtherChannelURLs(item.note).filter(url=>url!==launchSafeURL(item.url));
+ if(!urls.length)return '';
+ const label=esc('其他通路 '+launchDisplayName(item));
+ if(urls.length===1)return `<a class="launchCatalogOtherChannel" href="${esc(urls[0])}" target="_blank" rel="noopener noreferrer" aria-label="${label}">其他通路</a>`;
+ return `<button class="launchCatalogOtherChannel" type="button" aria-label="${label}" aria-haspopup="dialog" onclick="launchChooseOtherChannel(${index})">其他通路</button>`;
+}
+function launchChooseOtherChannel(index){
+ const item=launchCurrent?.items[index];
+ if(!item)return;
+ const urls=launchOtherChannelURLs(item.note).filter(url=>url!==launchSafeURL(item.url));
+ if(!urls.length)return;
+ const dialog=document.createElement('dialog');
+ dialog.className='launchDialog launchChannelChooser';
+ dialog.setAttribute('aria-label','其他通路');
+ dialog.innerHTML=`<h2>其他通路</h2><ul>${urls.map(url=>`<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a></li>`).join('')}</ul><form method="dialog"><button class="btn light" type="submit">關閉</button></form>`;
+ dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+ dialog.querySelectorAll('a').forEach(link=>link.addEventListener('click',()=>dialog.close()));
+ document.body.append(dialog);
+ dialog.showModal();
 }
 function launchOriginalPriceLabel(item){const raw=String(item?.original??'').trim();if(!raw)return '—';if(launchIsRMB(item))return raw;if(/^[¥￥]/.test(raw))return raw.replace(/^[¥￥]\s*/,'¥');return /^[\d,]+(?:\.\d+)?$/.test(raw)?'¥'+raw:raw;}
 function launchListNamePrice(p,i){
@@ -5270,7 +5300,11 @@ function launchFetchProductAvailability(group,item){
 async function launchCheckProductAvailability(index,button){
  const group=launchCurrent,item=group?.items[index];if(!group?.id||!item)return;
  const ok=await launchFetchProductAvailability(group,item);
- if(!ok)alert('貨況更新失敗：'+(launchAvailabilityChecks.get(launchAvailabilityKey(group,item))?.detail||'偵測失敗'));
+ if(!ok){
+  const detail=launchAvailabilityChecks.get(launchAvailabilityKey(group,item))?.detail||'';
+  const message=/\b429\b/.test(detail)?'官網暫時限制查詢，請稍後重試':detail.includes('請開啟 Chrome')?'請開啟 Chrome「更新」設定檔與貨況外掛':'貨況待確認，請查看商品卡上的 ⚠️';
+  launchCompletionToast(message);
+ }
 }
 async function launchUpdateAllAvailability(retryOnly=false){
  const group=launchCurrent;if(!group?.id||launchAvailabilityBatches.get(group.id)?.busy)return;
@@ -11133,7 +11167,7 @@ async function launchToggleProductSizeStock(index,button){
 function launchCatalogControls(item,index,editIndex,hidden=false,size=''){
  const out=size?launchCatalogSizeOut(item,size):item.stockOut;
  const stockAction=size?`data-launch-size-stock aria-label="${size} 缺貨" aria-pressed="${out}"${launchCatalogSizeWrites.has(launchCatalogSizeWriteKey(launchCurrent,item))?' disabled':''} onclick="launchToggleProductSizeStock(${index},this)"`:`onclick="launchToggleProductStock(${index},this)"`;
- return `<div class="launchCatalogVariantControls" data-launch-catalog-variant="${index}"${hidden?' hidden':''}>${launchCatalogQuantities(item,index)}<div class="inventoryLinks">${launchKindSelect(item,index)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${editIndex})">編輯</button><button class="inventoryChannelButton launchStockToggle ${out?'isShortage':''}" type="button" ${stockAction}>缺貨</button>${launchPauseButton(item,index)}</div></div>`;
+ return `<div class="launchCatalogVariantControls" data-launch-catalog-variant="${index}"${hidden?' hidden':''}>${launchCatalogQuantities(item,index)}<div class="inventoryLinks">${launchKindSelect(item,index)}<button class="inventoryChannelButton" type="button" onclick="launchProductDialog(${editIndex})">編輯</button><button class="inventoryChannelButton launchStockToggle ${out?'isShortage':''}" type="button" ${stockAction}>缺貨</button>${launchPauseButton(item,index)}${launchCatalogOtherChannel(item,index)}</div></div>`;
 }
 function launchCatalogSwitchVariant(button,index){
  const card=button.closest('.launchCatalogCard');
@@ -11361,6 +11395,10 @@ function launchDirectPriceKey(event,index,input){
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.inventoryChannelButton:not(.launchStockToggle){grid-column:2;grid-row:1}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchStockToggle{grid-column:3;grid-row:1}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchPauseToggle{grid-column:2;grid-row:2;min-width:20px;width:20px!important;font-size:12px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchCatalogOtherChannel{grid-column:3;grid-row:2;justify-self:stretch;box-sizing:border-box;display:grid;place-items:center;min-width:0;height:14px;padding:0!important;border:1px solid #aaa;border-radius:999px;background:transparent;color:#555;text-decoration:none;white-space:nowrap;font-size:clamp(6px,2cqw,8px);line-height:12px}
+.launchChannelChooser ul{padding-inline-start:1.25em;overflow-wrap:anywhere}
+.launchChannelChooser li+li{margin-top:8px}
+
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities .launchPreorderReference{color:inherit;font-size:inherit;font-weight:700}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .launchCatalogQuantities .launchPreorderReference.isPositiveReference{color:#b5b5b5;font-size:.85em;font-weight:400}
 </style><style id="launch-catalog-price-fit-20261104">
