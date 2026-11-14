@@ -5763,7 +5763,38 @@ function inventoryRefreshOrderSaveButton(){const button=document.getElementById(
 function inventoryObserveQueuedWrites(){const jobs=backendWriteQueue.filter(job=>backendWriteLane(job.action)==='inventory'&&job.action!=='reorderInventory');return Promise.all(jobs.map(job=>new Promise(resolve=>{const complete=job.resolve,failed=job.reject;job.resolve=value=>{complete(value);resolve({status:'fulfilled'});};job.reject=error=>{failed(error);resolve({status:'rejected'});};})));}
 function inventoryRestoreOrderCache(cached){inventoryPendingMoves=cached.orderDirty&&Array.isArray(cached.pendingMoves)?cached.pendingMoves.filter(move=>Array.isArray(move)&&move.length===3):[];inventoryPendingMoveIds=Array.isArray(cached.pendingMoveIds)?cached.pendingMoveIds:inventoryPendingMoves.map(([source,target,side])=>[String(inventoryRows.find(item=>Number(item.row)===Number(source))?.itemId??''),String(inventoryRows.find(item=>Number(item.row)===Number(target))?.itemId??''),side]);inventoryOrderDirty=inventoryPendingMoves.length>0;inventoryOrderSaveRequest=cached.orderSaveRequest&&typeof cached.orderSaveRequest==='object'?cached.orderSaveRequest:null;if(typeof cached.category==='string')inventoryCategory=cached.category;if(['目錄','有庫存','無庫存','缺貨','全部'].includes(cached.status))inventoryStatus=cached.status;}
 function inventoryResolvedPendingMoves(){const rows=new Map(inventoryRows.map(item=>[String(item.itemId??''),Number(item.row)]));return inventoryPendingMoves.map((move,index)=>{const ids=inventoryPendingMoveIds[index];if(!ids?.[0]||!ids?.[1]||!rows.has(String(ids[0]))||!rows.has(String(ids[1])))throw new Error('排序中的商品資料已變更，請重新載入後再調整排序');return [rows.get(String(ids[0])),rows.get(String(ids[1])),move[2]];});}
-function inventoryMergeSortedRows(rows){if(inventoryRestoredSortOrder){const order=inventoryRestoredSortOrder;inventoryRestoredSortOrder=null;return inventoryRowsByDraftOrder(rows,order);}const key=item=>item.itemId!=null?'id:'+item.itemId:'row:'+item.row;const fresh=new Map(rows.map(item=>[key(item),item])),merged=[],newDrafts=[],otherNew=[];for(const item of inventoryRows){const next=fresh.get(key(item));if(next){merged.push(next);fresh.delete(key(item));}}for(const item of rows)if(fresh.has(key(item))){(inventoryIsPendingPublish(item)?newDrafts:otherNew).push(item);fresh.delete(key(item));}newDrafts.sort(inventoryNewestDraftFirst);return [...newDrafts,...merged,...otherNew];}
+function inventoryMergeSortedRows(rows,pendingPublishIds){
+const previousDrafts=new Set(inventoryPendingPublishIds);
+const previousOrder=inventoryRestoredSortOrder||inventoryRows.map(item=>String(item.itemId??''));
+inventorySetPendingPublish(pendingPublishIds);
+const freshById=new Map(rows.filter(item=>item.itemId!=null).map(item=>[String(item.itemId),item]));
+const moves=[],moveIds=[],next=[...rows];
+for(const [source,target,side] of inventoryPendingMoveIds){
+ const item=freshById.get(source);
+ if(!item||(previousDrafts.has(source)&&!inventoryIsPendingPublish(item)))continue;
+ let anchor=freshById.get(target),direction=side;
+ if(!anchor){
+  const index=previousOrder.indexOf(source);
+  if(index<0)continue;
+  for(let distance=1;distance<previousOrder.length;distance++){
+   const before=freshById.get(previousOrder[index-distance]),after=freshById.get(previousOrder[index+distance]);
+   if(before||after){anchor=before||after;direction=before?'a':'b';break;}
+  }
+ }
+ if(!anchor||anchor===item)continue;
+ next.splice(next.indexOf(item),1);
+ next.splice(next.indexOf(anchor)+Number(direction==='a'),0,item);
+ moves.push([Number(item.row),Number(anchor.row),direction]);
+ moveIds.push([source,String(anchor.itemId),direction]);
+}
+if(JSON.stringify(moveIds)!==JSON.stringify(inventoryPendingMoveIds))inventoryOrderSaveRequest=null;
+inventoryPendingMoveIds=moveIds;
+inventoryPendingMoves=moves;
+inventoryOrderDirty=moves.length>0;
+inventoryRestoredSortOrder=null;
+if(!inventoryOrderDirty)inventoryClearSortDraft();
+return next;
+}
 let inventoryPendingMoves=[],inventoryPendingMoveIds=[];
 let inventoryOrderSaving=false,inventoryOrderSaveRequest=null;
 let inventoryStatus='目錄';
@@ -7294,16 +7325,9 @@ for(const id of orderIds){const item=byId.get(id);if(item){ordered.push(item);by
 const added=rows.filter(item=>byId.has(String(item.itemId??''))),drafts=added.filter(inventoryIsPendingPublish).sort(inventoryNewestDraftFirst);
 return [...drafts,...ordered,...added.filter(item=>!inventoryIsPendingPublish(item))];
 }
-function inventoryRebaseSortDraftMoves(authoritative=false){
-const named=inventoryRows.filter(item=>item.itemId!=null&&String(inventoryValue(item,['名稱','商品名稱','品名','商品'])??'').trim()),rows=new Map(named.map(item=>[String(item.itemId),Number(item.row)]));
-if(authoritative&&inventoryPendingMoveIds.some(([source,target])=>!rows.has(source)||!rows.has(target))){
- const sources=new Set(inventoryPendingMoveIds.map(move=>move[0]).filter(id=>rows.has(id))),moves=[],append=(item,target,side)=>moves.push([String(item.itemId),String(target.itemId),side]);
- for(let index=0;index<named.length;){if(!sources.has(String(named[index].itemId))){index++;continue;}const start=index;while(index<named.length&&sources.has(String(named[index].itemId)))index++;const group=named.slice(start,index);let anchor=named[start-1]||null;
-  if(anchor){for(const item of group){append(item,anchor,'a');anchor=item;}}else if(index<named.length){append(group[0],named[index],'b');anchor=group[0];for(const item of group.slice(1)){append(item,anchor,'a');anchor=item;}}else{anchor=group[0];for(const item of group.slice(1)){append(item,anchor,'a');anchor=item;}}
- }
- inventoryPendingMoveIds=moves;inventoryOrderDirty=moves.length>0;inventoryOrderSaveRequest=null;if(!inventoryOrderDirty)inventoryClearSortDraft();
-}
-inventoryPendingMoves=inventoryPendingMoveIds.map(([source,target,side])=>[rows.get(String(source))||0,rows.get(String(target))||0,side]);
+function inventoryRebaseSortDraftMoves(){
+const rows=new Map(inventoryRows.filter(item=>item.itemId!=null).map(item=>[String(item.itemId),Number(item.row)]));
+inventoryPendingMoves=inventoryPendingMoveIds.map(([source,target,side])=>[rows.get(source)||0,rows.get(target)||0,side]);
 }
 function restoreInventorySessionCache(){
 if(inventoryLoaded)return;
@@ -7312,7 +7336,7 @@ if(cached){inventoryRows=cached.rows;inventoryHeaders=cached.headers;inventorySe
 const draft=inventoryReadSortDraft();
 if(draft?.dirty){
  inventoryRestoredSortOrder=draft.orderIds;inventoryPendingMoveIds=draft.moveIds;inventoryRebaseSortDraftMoves();inventoryOrderDirty=true;inventoryOrderSaveRequest=draft.orderSaveRequest&&typeof draft.orderSaveRequest==='object'?draft.orderSaveRequest:null;
- if(Array.isArray(draft.pendingPublishIds))inventorySetPendingPublish(draft.pendingPublishIds);
+ if(Array.isArray(draft.pendingPublishIds))inventorySetPendingPublish([...inventoryPendingPublishIds,...draft.pendingPublishIds]);
  if(typeof draft.category==='string')inventoryCategory=draft.category;if(['目錄','有庫存','無庫存','缺貨','全部'].includes(draft.status))inventoryStatus=draft.status;
  inventoryRows=inventoryRowsByDraftOrder(inventoryRows,draft.orderIds);
 }else if(draft?.dirty===false){inventoryPendingMoves=[];inventoryPendingMoveIds=[];inventoryOrderDirty=false;inventoryOrderSaveRequest=null;if(!cached||Number(draft.savedAt)>=Number(cached.savedAt))inventoryLoadedAt=0;}
@@ -7331,7 +7355,7 @@ if(inventoryProductSaves.size)await Promise.allSettled([...inventoryProductSaves
 if(inventoryLoadPromise){if(!mergeOrder)return inventoryLoadPromise;await inventoryLoadPromise;}
 if(inventoryLoaded&&!force&&Date.now()-inventoryLoadedAt<INVENTORY_BROWSER_CACHE_MS)return;
 const grid=document.getElementById('inventoryGrid');if(grid&&!inventoryLoaded)grid.innerHTML='<div class="loading">載入商品庫存中…</div>';
-inventoryLoadPromise=(async()=>{try{const epoch=backendSyncPageEpochs.get('inventory')||0;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==(backendSyncPageEpochs.get('inventory')||0)||backendSyncPageBusy('inventory')||(inventoryOrderDirty&&!mergeOrder)||backendDeferRead('inventory',inventoryLoaded))return;const freshRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);inventorySetPendingPublish(data.pendingPublishIds);inventoryRows=mergeOrder&&inventoryOrderDirty?inventoryMergeSortedRows(freshRows):freshRows;inventoryHeaders=data.headers||[];if(inventoryOrderDirty)inventoryRebaseSortDraftMoves(true);inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
+inventoryLoadPromise=(async()=>{try{const epoch=backendSyncPageEpochs.get('inventory')||0;let data=await api('inventory',{compact:'1',fresh:force?'1':'0'});if(inventoryProductSaves.size){await Promise.allSettled([...inventoryProductSaves.values()]);data=await api('inventory',{compact:'1',fresh:'1'});}if(epoch!==(backendSyncPageEpochs.get('inventory')||0)||backendSyncPageBusy('inventory')||(inventoryOrderDirty&&!mergeOrder)||backendDeferRead('inventory',inventoryLoaded))return;const freshRows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);if(inventoryOrderDirty)inventoryRows=inventoryMergeSortedRows(freshRows,data.pendingPublishIds);else{inventorySetPendingPublish(data.pendingPublishIds);inventoryRows=freshRows;}inventoryHeaders=data.headers||[];inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();if(backendInputFocused()){backendDeferPaint('inventory');const input=document.getElementById('inventorySearch');if(input===document.activeElement&&input.value.trim())scheduleInventorySearch(input.value);}else renderInventoryContent();}
 catch(e){if(grid&&!inventoryLoaded)grid.innerHTML=`<div class="empty">${esc(jiwuErrorText(e,'data'))}<br><button class="btn light" onclick="loadInventory(true)">重新載入</button></div>`;}
 finally{inventoryLoadPromise=null;}})();
 return inventoryLoadPromise;
@@ -7348,8 +7372,8 @@ searchInput.addEventListener('compositionend',()=>{inventoryComposing=false;sche
 searchInput.addEventListener('input',event=>{if(!event.isComposing&&!inventoryComposing)scheduleInventorySearch(searchInput.value);});
 const statusSelect=document.getElementById('inventoryStatus');if(statusSelect)statusSelect.value=inventoryStatus;
 fitSelectWidth(statusSelect);
-if(inventoryLoaded)renderInventoryContent();
-loadInventory(inventoryOrderDirty,inventoryOrderDirty);
+if(inventoryLoaded&&(!inventoryOrderDirty||!inventoryRestoredSortOrder||!navigator.onLine))renderInventoryContent();
+loadInventory(inventoryOrderDirty,inventoryOrderDirty).then(()=>{if(inventoryLoaded&&!document.getElementById('inventoryGrid')?.children.length)renderInventoryContent();});
 }
 let inventoryComposing=false;
 let inventorySearchGeneration=0;
@@ -10390,7 +10414,7 @@ function backendSyncCanApply(page){
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
  if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
- if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderDirty||inventoryStatusCheckingRows.size||inventoryComposing))return false;
+ if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderSaving||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
  if(page==='launch'&&(launchBusy||launchHasUnsentChanges()||launchPendingSaves||launchWorkDirty||document.querySelector('.launchDragging')))return false;
@@ -10426,11 +10450,13 @@ async function backendSyncRefreshCurrent(page){
   if(backendSyncPendingPaint.has(page)||JSON.stringify(headers)!==JSON.stringify(onlineHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(onlineRows))){onlineRows=rows;onlineHeaders=headers;refreshCargoViewKeepingScroll();}
   onlineLoadedAt=Date.now();saveOnlineSessionCache();
  }else if(page==='inventory'){
-  const pendingPublishChanged=inventorySetPendingPublish(data.pendingPublishIds);
+  const wasOrderDirty=inventoryOrderDirty,previousPending=inventoryPendingPublishIds;
   inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();
-  const rows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
+  let rows=data.format==='inventory-matrix-v1'?(data.rows||[]).map((row,index)=>({row:row[0],itemId:(data.rowIds||[])[index]||null,values:row[1]||[],display:row[2]||row[1]||[],formulas:row[3]||[],image:row[4]||''})):(data.rows||[]);
   const comparable=items=>items.map(({_searchText,...item})=>item);
-  if(pendingPublishChanged||backendSyncPendingPaint.has(page)||JSON.stringify(data.headers||[])!==JSON.stringify(inventoryHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(inventoryRows))){inventoryRows=rows;inventoryHeaders=data.headers||[];inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();renderInventoryContent();}
+  if(wasOrderDirty)rows=inventoryMergeSortedRows(rows,data.pendingPublishIds);else inventorySetPendingPublish(data.pendingPublishIds);
+  const pendingPublishChanged=JSON.stringify(previousPending)!==JSON.stringify(inventoryPendingPublishIds);
+  if(wasOrderDirty||pendingPublishChanged||backendSyncPendingPaint.has(page)||JSON.stringify(data.headers||[])!==JSON.stringify(inventoryHeaders)||JSON.stringify(comparable(rows))!==JSON.stringify(comparable(inventoryRows))){inventoryRows=rows;inventoryHeaders=data.headers||[];inventoryAvailabilityCheckedAt=availabilityTimestamp(data.availabilityCheckedAt);inventoryPaintAvailabilityTime();prepareInventoryRows();renderInventoryContent();}
   inventoryLoaded=true;inventoryLoadedAt=Date.now();saveInventorySessionCache();
  }else if(page==='ship'){
   if(JSON.stringify(data)!==JSON.stringify(shipDataCache)){shipDataCache=data;drawShip(data);}shipLoadedAt=Date.now();saveBackendSnapshot('ship',data);
