@@ -5223,7 +5223,8 @@ async function launchImportClosedProducts(target='launch'){
  try{
    const data=await api('launchList',{status:'已收單'}),groups=data.groups||[],dialog=document.getElementById('launchDialog');
    if(!dialog?.open||dialog!==importDialog)return;
-   launchImportGroups=groups;
+   // The backend appends newly closed groups to the end of the list.
+   launchImportGroups=groups.slice().reverse();
    launchImportCategories=['吉伊&白熊',...new Set(groups.map(group=>String(group.ip||'').trim()).filter(Boolean).filter(category=>category!=='吉伊&白熊')),'全部'];
    launchRenderImportGroups();
  }catch(error){const dialog=document.getElementById('launchDialog');if(dialog)dialog.innerHTML=`<p>${esc(jiwuErrorText(error,'data'))}</p><button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">關閉</button>`;}
@@ -5242,8 +5243,23 @@ function launchImportSearchKeydown(event,value){
 function launchRenderImportGroups(){
  const dialog=document.getElementById('launchDialog');if(!dialog)return;
  const category=launchImportCategory,keyword=launchImportSearch.toLocaleLowerCase(),groups=launchImportGroups.filter(group=>(category==='全部'||(category==='吉伊&白熊'?/吉伊卡哇|白熊/.test(String(group.ip||'')):String(group.ip||'').trim()===category))&&(!keyword||String(group.name||'').toLocaleLowerCase().includes(keyword)));
- dialog.innerHTML=`<h2>已結單商品</h2><div class="launchTabs" role="tablist">${launchImportCategories.map((name,index)=>`<button class="btn light" type="button" aria-selected="${name===category}" onclick="launchSetImportCategory(${index})">${esc(name)}</button>`).join('')}</div><label style="display:flex;align-items:center;gap:8px"><span style="white-space:nowrap">搜尋</span><input aria-label="搜尋團名" value="${esc(launchImportSearch)}" placeholder="輸入團名關鍵字" style="flex:1;min-width:0" oninput="launchSetImportSearch(this.value)" onkeydown="launchImportSearchKeydown(event,this.value)"></label><div class="launchTools" style="margin:12px 0 18px">${groups.map(group=>`<button class="btn light" type="button" onclick="launchChooseImportGroup('${esc(group.id)}')">${esc(group.name)}（${Number(group.itemCount)||0}）</button>`).join('')||'<p class="launchHelp">沒有符合的已結單團。</p>'}</div><div class="launchTools">${launchImportTarget==='launch'?'<button class="btn light" type="button" onclick="launchImportProducts()">選擇來源</button>':''}<button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button></div>`;
+ dialog.innerHTML=`<h2>已結單商品</h2><div class="launchTabs" role="tablist">${launchImportCategories.map((name,index)=>`<button class="btn light" type="button" aria-selected="${name===category}" onclick="launchSetImportCategory(${index})">${esc(name)}</button>`).join('')}</div><label style="display:flex;align-items:center;gap:8px"><span style="white-space:nowrap">搜尋</span><input aria-label="搜尋團名" value="${esc(launchImportSearch)}" placeholder="輸入團名關鍵字" style="flex:1;min-width:0" oninput="launchSetImportSearch(this.value)" onkeydown="launchImportSearchKeydown(event,this.value)"></label><div class="launchImportGroupGrid">${groups.map(group=>{
+  const label=esc(group.name)+'（'+(Number(group.itemCount)||0)+'）';
+  return `<button class="btn light" type="button" title="${label}" onclick="launchChooseImportGroup('${esc(group.id)}')"><span class="launchImportGroupLabel">${label}</span></button>`;
+ }).join('')||'<p class="launchHelp">沒有符合的已結單團。</p>'}</div><div class="launchTools">${launchImportTarget==='launch'?'<button class="btn light" type="button" onclick="launchImportProducts()">選擇來源</button>':''}<button class="btn light" type="button" onclick="document.getElementById('launchDialog').close()">取消</button></div>`;
+ launchFitImportGroupLabels();
 }
+function launchFitImportGroupLabels(){
+ document.querySelectorAll('#launchDialog[open] .launchImportGroupLabel').forEach(label=>{
+  label.classList.remove('isWrapped');
+  launchFitSingleLine(label);
+  if(parseFloat(label.style.fontSize)<11){
+   label.style.fontSize='11px';
+   label.classList.add('isWrapped');
+  }
+ });
+}
+window.addEventListener('resize',()=>requestAnimationFrame(launchFitImportGroupLabels));
 async function launchChooseImportGroup(id){
  const dialog=document.getElementById('launchDialog');if(!dialog)return;
  dialog.innerHTML='<h2>已結單商品</h2><p class="launchHelp">讀取商品卡資料中…</p>';
@@ -11011,7 +11027,34 @@ body[data-page="store"] #storeCloudStatus{right:10px;font-size:26px}
 .launchLatestCanvasActions{gap:8px;margin-bottom:12px}.launchLatestCanvas>.launchPanelTabs{flex-wrap:wrap;gap:8px;margin:0 0 16px}.launchLatestCanvasActions>.btn{white-space:nowrap}
 @media(max-width:850px){.launchLatestCanvasActions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.launchLatestCanvasActions>.btn{min-width:0;min-height:38px;padding:7px 4px;font-size:12px}.launchLatestCanvas>.launchPanelTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%}.launchLatestCanvas>.launchPanelTabs>.btn{min-width:0;padding:7px 4px;font-size:12px}}
 </style>
-<style id="launch-inventory-import-style">.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
+<style id="launch-inventory-import-style">
+.launchImportGroupGrid{
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;
+ margin:12px 0 18px;
+}
+.launchImportGroupGrid > .btn{
+ display:block;
+ width:100%;
+ min-width:0;
+ min-height:40px;
+ padding:8px;
+ box-sizing:border-box;
+ text-align:center;
+}
+.launchImportGroupLabel{
+ display:block;
+ overflow:hidden;
+ white-space:nowrap;
+ line-height:1.25;
+}
+.launchImportGroupLabel.isWrapped{
+ white-space:normal;
+ overflow-wrap:anywhere;
+}
+.launchImportGroupGrid > .launchHelp{grid-column:1/-1}
+.launchImportSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.launchImportSourceChoices>.btn{min-height:48px}.launchInventoryImportFilters{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.launchInventoryImportFilters>label{display:flex;align-items:center;gap:8px;min-width:0}.launchInventoryImportFilters>label:last-child{flex:1}.launchInventoryImportFilters input{min-width:0;width:auto;flex:1}.launchInventoryImportFilters>label{white-space:nowrap}.launchInventoryImportForm .launchSelectAll{font-size:13px;gap:6px}.launchInventoryImportItem{gap:10px!important}.launchInventoryImportItem>img{width:44px;height:44px;object-fit:contain;flex:none}.launchInventoryImportItem small{display:block;margin-top:5px;color:#888}.launchInventoryImportItem>span{min-width:0;overflow-wrap:anywhere}@media(max-width:500px){.launchInventoryImportFilters{align-items:stretch;flex-direction:column;gap:12px}}</style>
 
 <style id="host-connection-style">
 .topHostControls{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:4px}
