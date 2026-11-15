@@ -8604,7 +8604,7 @@ if(event.key==='Enter'&&!composing&&!event.isComposing&&event.keyCode!==229){eve
 async function searchOnline(refresh=false){
 isCustomerView=false;
 isGroupView=false;
-isFaceToFaceView=false;isStarredView=false;
+isStarredView=false;
 onlineSearchText=
 document
 .getElementById('customerSearch')
@@ -8622,7 +8622,7 @@ if(refresh)await loadOnline(true);
 function filterCargo(){
 isCustomerView=false;
 isGroupView=false;
-isFaceToFaceView=false;isStarredView=false;
+isStarredView=false;
 onlineCargo=document.getElementById('cargoFilter').value;
 const input=document.getElementById('customerSearch');
 if(input)onlineSearchText=input.value.trim();
@@ -8986,9 +8986,13 @@ return '全部'
 }
 function applyOnlineFilter(){
 syncOnlineBackButton();
-let rows=[...onlineRows];
-if(isStarredView){const included=new Set([...groupOnlineOrders(rows).values()].filter(order=>order.items.some(isStarredOrderRow)).flatMap(order=>order.items));showOrderCards(rows.filter(row=>included.has(row)),'✱ 標記訂單');return;}
-if(isFaceToFaceView){showOrderCards(rows.filter(row=>isFaceToFace(row)&&!isOpenedRow(row)),'要面交');return;}
+if(isStarredView){const included=new Set([...groupOnlineOrders(onlineRows).values()].filter(order=>order.items.some(isStarredOrderRow)).flatMap(order=>order.items));showOrderCards(onlineRows.filter(row=>included.has(row)),'✱ 標記訂單');return;}
+const openedFaceOrders=onlineCargo==='已開單';
+const eligibleRows=isFaceToFaceView
+?onlineRows.filter(row=>isFaceToFace(row)&&isOpenedRow(row)===openedFaceOrders)
+:onlineRows;
+let rows=eligibleRows;
+const orders=onlineCargo||onlineSearchText?groupOnlineOrders(eligibleRows):null;
 if(onlineSearchText){
 const key=onlineSearchText.toLowerCase();
 const monthQuery=key.normalize('NFKC').trim();
@@ -9045,7 +9049,7 @@ onlineSourceMatches(x,key)||
 if(onlineCargo){
 // 依商品目前顯示的分類判斷；混合訂單可同時出現在各個有商品的分類。
 const includedRows=new Set();
-groupOnlineOrders(onlineRows).forEach(({items})=>{
+orders.forEach(({items})=>{
 const include=items.some(row=>{
 const tag=cargoDisplay(row).text;
 if(onlineCargo==='現貨')return tag==='現';
@@ -9064,12 +9068,13 @@ rows=rows.filter(row=>includedRows.has(Number(row.row)));
 if(onlineSearchText){
 const matchedRows=new Set(rows);
 const completeRows=new Set();
-groupOnlineOrders(onlineRows).forEach(({items})=>{
+orders.forEach(({items})=>{
 if(items.some(row=>matchedRows.has(row)))items.forEach(row=>completeRows.add(row));
 });
-rows=onlineRows.filter(row=>completeRows.has(row));
+rows=eligibleRows.filter(row=>completeRows.has(row));
 }
-showOnlineRows(rows)
+if(isFaceToFaceView)showOrderCards(rows,onlineSummaryTitle());
+else showOnlineRows(rows);
 }
 function onlineSourceMatches(row,query){
  const data=row?.data||{},normalize=value=>String(value??'').normalize('NFKC').trim().toLowerCase();
@@ -9584,6 +9589,7 @@ if(!isFaceToFaceView)html+='</div></div>';
 if(isFaceToFaceView){
 ['現貨','預訂','受注','補貨登記'].forEach(section=>{
 const cards=faceSectionCards[section];
+if(onlineCargo&&!cards.length)return;
 const headClass=section==='現貨'?'faceStockHead':section==='預訂'?'facePreorderHead':section==='受注'?'faceCargoHead':'faceRestockHead';
 html+=`<div class="card faceOrderSection"><div class="cardHead faceOrderHead ${headClass}"><span>${section}區</span><span>${cards.length} 筆訂單</span></div><div class="groupCards orderCards">${cards.length?cards.join(''):'<div class="empty">目前沒有面交訂單</div>'}</div></div>`;
 });
