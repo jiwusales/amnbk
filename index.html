@@ -11509,13 +11509,14 @@ function launchDirectPriceKey(event,index,input){
   if(count<=8||! /\s/.test(text))return '<span style="white-space:nowrap">'+escape(text).replace(/\s/g,'&nbsp;')+'</span>';
   return '<span style="white-space:normal;word-break:normal;overflow-wrap:normal">'+text.split(/\s+/).map(part=>'<span style="white-space:nowrap">'+escape(part)+'</span>').join(' ')+'</span>';
 }</script><style id="launch-card-bottom-20261103">
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:14px;justify-content:center;align-items:center;gap:4px 3px!important;margin-top:3px;min-height:14px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks{container-type:inline-size;display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;grid-auto-rows:14px;justify-content:center;align-items:center;gap:4px 3px!important;margin-top:3px;min-height:14px}
 :is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>:is(button,select){position:static;box-sizing:border-box;width:100%!important;max-width:100%;min-width:0;height:14px!important;padding:0 1px!important;margin:0;font-size:8px;line-height:12px!important;align-self:center;justify-self:center}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchListKind{grid-column:1;grid-row:1}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.inventoryChannelButton:not(.launchStockToggle){grid-column:2;grid-row:1}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchStockToggle{grid-column:3;grid-row:1}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchPauseToggle{grid-column:2;grid-row:2;min-width:20px;width:20px!important;font-size:12px}
-:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchCatalogOtherChannel{grid-column:3;grid-row:2;justify-self:stretch;box-sizing:border-box;display:grid;place-items:center;min-width:0;height:14px;padding:0!important;border:1px solid #aaa;border-radius:999px;background:transparent;color:#555;text-decoration:none;white-space:nowrap;font-size:clamp(6px,2cqw,8px);line-height:12px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchListKind{grid-column:1/span 2;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.inventoryChannelButton:not(.launchStockToggle){grid-column:3/span 2;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchStockToggle{grid-column:5/span 2;grid-row:1}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchPauseToggle{grid-column:1/-1;grid-row:2;min-width:20px;width:20px!important;font-size:12px}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks:has(>.launchCatalogOtherChannel)>.launchPauseToggle{grid-column:1/span 3;width:100%!important}
+:is(#launchDialog,.launchProductListPage) .launchCatalogCard .inventoryLinks>.launchCatalogOtherChannel{grid-column:4/span 3;grid-row:2;justify-self:center;width:100%!important;max-width:100%;box-sizing:border-box;display:grid;place-items:center;min-width:0;height:14px;padding:0 2px!important;border:1px solid #aaa;border-radius:999px;background:transparent;color:#555;text-decoration:none;white-space:nowrap;font-size:clamp(5px,calc(12.5cqw - 2px),8px);line-height:12px}
 .launchChannelChooser ul{padding-inline-start:1.25em;overflow-wrap:anywhere}
 .launchChannelChooser li+li{margin-top:8px}
 
