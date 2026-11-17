@@ -7783,6 +7783,7 @@ if(button)button.setAttribute('aria-pressed',String(rainy));
 function readBackendSnapshot(key){try{return JSON.parse(sessionStorage.getItem('jiwu_supabase_test_snapshot_'+key)||localStorage.getItem('jiwu_supabase_test_snapshot_'+key)||'null');}catch(_){return null;}}
 function saveBackendSnapshot(key,data){try{const payload=JSON.stringify(data);sessionStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);localStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);}catch(_){}}
 async function renderStoreSales(force=false){
+const requestAuth=authToken;
 if(!storeSalesData){const cached=readBackendSnapshot('storeSales');if(cached)storeSalesData=cached;}
 syncStoreSalesDefaultDate();
 if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷售';
@@ -7805,9 +7806,13 @@ if(backendDeferRead('store',!!storeSalesData))return;storeSalesData=data;storeSa
 syncStoreSalesDefaultDate();
 if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
 }catch(e){
+if(authToken!==requestAuth||document.body.dataset.page!=='store')return;
+console.warn('銷售資料更新未完成',e);
 const result=document.getElementById('storeSalesResult');
-if(result&&!storeSalesData)result.innerHTML='<div class="empty">'+esc(jiwuErrorText(e))+'</div>';
-else if(result)alert(jiwuErrorText(e,'system'));
+const retry='<button class="btn light" type="button" onclick="renderStoreSales(true)">重試</button>';
+if(result&&!storeSalesData)result.innerHTML='<div class="empty">銷售資料尚未載入，請稍後重試。<br>'+retry+'</div>';
+else if(result&&force)alert(jiwuErrorText(e,'system'));
+else if(result){const warning=document.getElementById('storeSalesWarning');if(warning)warning.innerHTML='<p class="salesHint" role="status">銷售資料暫時未更新，先顯示上次內容。 '+retry+'</p>';}
 }
 }
 function showStoreSalesMonth(){const today=storeSalesToday();storeSalesDate=today.slice(5,7);drawStoreSales();}
