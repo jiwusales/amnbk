@@ -7937,7 +7937,7 @@ let days=[...(storeSalesData.days||[])].sort((a,b)=>a.date.localeCompare(b.date)
 const workDayAnchor='2026-09-25';
 const workDates=[...new Set((storeSalesData.days||[]).filter(day=>day.items?.length).map(day=>day.date).concat(workDayAnchor))].sort();
 const anchorIndex=workDates.indexOf(workDayAnchor);
-const workDayNumbers=new Map(workDates.map((date,index)=>[date,130+index-anchorIndex]));
+const workDayNumbers=new Map(workDates.map((date,index)=>[date,131+index-anchorIndex]));
 if(query){
 if(!/^(\d{2}|\d{4})$/.test(query)){if(summary)summary.hidden=true;result.innerHTML='<div class="empty">輸入兩碼月份或四碼日期，例如 09、0911</div>';return;}
 const month=Number(query.slice(0,2));
