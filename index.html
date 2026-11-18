@@ -2379,7 +2379,7 @@ function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
   if(launchSummaryCancelled(value(row,['狀態','訂購狀態']))||cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim();if(customer)customers.add(customer);
-  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
+  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,'')]);
   if(!items.has(key))items.set(key,{name,price,quantity:0,ordered:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
   const item=items.get(key);item.quantity++;if(cargoDisplay(row,headers).text==='訂')item.ordered++;
   if(customer)item.buyers.add(customer);
