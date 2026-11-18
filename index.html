@@ -2407,6 +2407,36 @@ function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  }
  return result;
 }
+function launchMergeSummaryByCountLabel(summary,groupName,headers){
+ const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,'');
+ const grouped=new Map();
+ for(const item of summary.items){
+  const key=normalize(launchCountLabel(groupName,item.name))||normalize(item.name);
+  let target=grouped.get(key);
+  if(!target){
+   const buyerRows=new Map([...(item.buyerRows||[])].map(([buyer,rows])=>[buyer,[...rows]]));
+   target={...item,buyerKey:key,buyerRows,codes:[...(item.codes||[])],itemIds:[...(item.itemIds||[])]};
+   grouped.set(key,target);continue;
+  }
+  target.quantity+=(Number(item.quantity)||0);target.ordered+=(Number(item.ordered)||0);
+  if(!target.image)target.image=item.image||'';
+  for(const code of item.codes||[])if(!target.codes.includes(code))target.codes.push(code);
+  for(const id of item.itemIds||[])if(!target.itemIds.includes(id))target.itemIds.push(id);
+  for(const [buyer,rows] of item.buyerRows||[]){
+   if(!target.buyerRows.has(buyer))target.buyerRows.set(buyer,[]);
+   target.buyerRows.get(buyer).push(...rows);
+  }
+ }
+ const items=[...grouped.values()].map(item=>({...item,people:item.buyerRows.size}));
+ const purchasedCounts=new Map();
+ for(const item of items)for(const [buyer,rows] of item.buyerRows){
+  if(rows.some(row=>{
+   const status=getOrderStatus(row,headers),cargo=cargoCategory(getOnlineData(row,['貨況'],headers));
+   return isOpenedRow(row,headers)||status!=='未訂購'&&(isOrderPurchased(row,headers)||cargo==='已訂購'||cargo==='現貨');
+  }))purchasedCounts.set(buyer,(purchasedCounts.get(buyer)||0)+1);
+ }
+ return {...summary,items,purchasedCounts};
+}
 async function countLabelKey(group,name){
  const data=new TextEncoder().encode(JSON.stringify([group.trim(),name.trim()]));
  const digest=await crypto.subtle.digest('SHA-256',data);
@@ -2660,7 +2690,7 @@ async function chooseOnlineSummaryBuyerTag(button,choice){
  if(!dialog.isConnected)return;
  if(saved){
   const previousTotal=state.summary.total;
-  state.summary=launchBuildOrderSummary(state.group,state.rows,state.headers,true);
+  state.summary=launchMergeSummaryByCountLabel(launchBuildOrderSummary(state.group,state.rows,state.headers,true),state.group.name,state.headers);
   if(previousTotal!==state.summary.total)state.paint();
  }
  if(panel.open)renderOnlineSummaryBuyers(panel,panel.dataset.itemKey===item.buyerKey&&!panel.dataset.activeItemId?id:'');
@@ -2702,14 +2732,14 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
    content.scrollTop=scroll;
    void launchLoadPurchaseReconciliation(dialog,catalog,summary);
   };
-  if(fromOnline)dialog.onlineBuyerSummary=state;
-  state.paint();
+  if(fromOnline)dialog.onlineBuyerSummary=state;else state.paint();
   const summary=state.summary;
   try{
    const result=await countLabelRead(group.name,summary.items.map(item=>item.name),api);if(!dialog.isConnected)return;
    dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';launchCountLabels.set(group.name,result.labels||{});
-   content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
-  }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
+   if(fromOnline){state.summary=launchMergeSummaryByCountLabel(state.summary,group.name,headers);state.paint();}
+   else content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
+  }catch(error){if(dialog.isConnected){if(fromOnline)state.paint();content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}}
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
 
