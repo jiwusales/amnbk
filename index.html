@@ -2380,8 +2380,8 @@ function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim();if(customer)customers.add(customer);
   const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
-  if(!items.has(key))items.set(key,{name,price,quantity:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
-  const item=items.get(key);item.quantity++;
+  if(!items.has(key))items.set(key,{name,price,quantity:0,ordered:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
+  const item=items.get(key);item.quantity++;if(cargoDisplay(row,headers).text==='訂')item.ordered++;
   if(customer)item.buyers.add(customer);
   if(includeBuyers){
    const buyerKey=customer||row;
@@ -2571,8 +2571,9 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
  };
  const rows=new Map();
  if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),itemKeys:[],needed:0,ordered:0});}
- for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item);if(!key)continue;if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);}
+ for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item)||'online-summary:'+launchSummaryItemKey(item);if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0,onlineOrdered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);row.onlineOrdered=(row.onlineOrdered||0)+Math.min(Number(item.quantity),Math.max(0,Number(item.ordered)||0));}
  for(const items of linked)for(const item of items){const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=Number(item.quantity);}
+ for(const row of rows.values())row.ordered=Math.max(row.ordered,row.onlineOrdered||0);
  const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
  return {entries,needed,ordered,extra,short,orderCount:linked.length};
 }
