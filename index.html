@@ -3985,7 +3985,7 @@ function launchAutoProductInfo(form){
  const formatControl=form.elements.namedItem('format');for(const event of ['input','change'])formatControl?.addEventListener?.(event,()=>{formatTouched=true;});
  async function fill(){
   syncSanrioImageURL();
-  const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
+  const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),abema=/^https:\/\/contents-abema\.com\/chiikawa-christmas-market\/goods\/md\d+\/?(?:[?#]|$)/i.test(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
   productInfoSyncJapanesePlaceholder(form,url);
   if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
@@ -3998,8 +3998,9 @@ function launchAutoProductInfo(form){
   const requestedValues={code:code?.value||'',size:size?.value||'',images:form.elements.namedItem('images')?.value||''};
   const pending=request.then(data=>{
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
-   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
+   for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(field==='japaneseName'&&abema&&/^[（(]\s*税込\s*[）)]$/.test(String(control.value||'').trim()))||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=data.item[field];
    if(imagesBox&&imagesControl?.value===requestedValues.images&&productInfoMetalboxNeedsImages({url,images:imagesControl.value})){const images=productInfoMetalboxImages(data.item);if(images.length)launchProductImageRender(imagesBox,images);}
+   if(abema&&imagesBox&&!form.jiwuManualImageURL&&!launchProductImageValues(imagesBox).some(image=>launchSafeURL(image))){const image=launchSafeURL(data.item?.image);if(image)launchProductImageRender(imagesBox,[image]);}
    if(needsSanrioImage&&form.jiwuManualImageURL!==url&&productInfoSanrioNeedsImage({url,images:imagesControl?.value})){
     const image=launchSafeURL(data.item?.image);
     if(image){launchProductImageRender(imagesBox,[image]);sanrioImage={url,image};}
