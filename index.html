@@ -1339,12 +1339,10 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 <style>
 .purchaseDateTabs[aria-label="日期"] .purchaseDayButton{background:transparent;color:#aaa;border:0;box-shadow:none}
 .purchaseDateTabs[aria-label="日期"] .purchaseDayButton.isSelected{color:#a88d72}
-.purchaseContentsKinds{display:grid;grid-template-columns:repeat(5,minmax(88px,1fr));gap:12px;overflow-x:auto;padding-bottom:4px;width:100%;box-sizing:border-box}
-.purchaseContentsFields .purchaseContentsKinds label{display:flex;min-width:0;gap:5px;white-space:nowrap}
-.purchaseContentsKinds label>span{flex-shrink:0}
-.purchaseContentsFields .purchaseContentsKinds input{flex:1 1 0;width:0;min-width:24px;box-sizing:border-box;padding:6px 4px}
-.purchaseContentsOtherRow{display:flex;align-items:center;gap:8px;white-space:nowrap}
-.purchaseContentsFields .purchaseContentsOther{flex:1;min-width:0;width:0}
+.purchaseContentsKinds{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;width:100%}
+.purchaseContentsFields .purchaseContentsKinds label{min-width:0;flex-direction:column;align-items:stretch;gap:4px}
+.purchaseContentsKinds label>span{text-align:center;font-size:12px}
+.purchaseContentsFields .purchaseContentsKinds input{flex:none;width:100%;min-width:0;box-sizing:border-box;padding:6px 4px;text-align:center}
 .purchaseCardSummary .purchaseContentsSummary{flex-shrink:1}
 </style>
 <style>.purchaseRegionFilters{display:flex;gap:8px;flex:0 0 auto;margin-left:auto;position:sticky;right:0;background:#f4f4f4;padding-left:8px}.purchaseRegionButton{background:#e8e8e8;color:#777;min-width:38px;border:0;outline:none;box-shadow:none}.purchaseRegionButton[aria-pressed="true"]{background:var(--region-color);color:#fff;outline:none;box-shadow:none}</style>
@@ -1356,10 +1354,7 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 </style>
 <style>.purchaseOrderAmount{color:#F68450}</style>
 <style>
-.purchaseContentsKinds{overflow:visible;gap:8px}
-.purchaseContentsFields .purchaseContentsKinds label{min-width:0;gap:4px}
-.purchaseContentsFields .purchaseContentsKinds input{min-width:0;width:0;flex:1 1 0}
-@media(max-width:600px){.purchaseContentsFields .purchaseContentsKinds label{flex-direction:column;align-items:stretch;gap:4px}.purchaseContentsKinds label>span{text-align:center;font-size:12px}.purchaseContentsFields .purchaseContentsKinds input{flex:none;width:100%;min-width:0}}
+@media(max-width:600px){.purchaseContentsKinds{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style>
 <style>.purchaseQuickCopy{flex-shrink:0;border:0;border-radius:3px;background:#e8e8e8;color:#666;font-family:inherit;font-size:11px;font-weight:700;line-height:13px;padding:2px 4px;cursor:pointer}</style>
 <style>
@@ -6584,7 +6579,7 @@ async function purchaseEditDialog(i){
  const orderFields=japan?`<div class="purchaseEditJapanRow">${sourceField}<label><span>訂單編號：</span><input value="${esc(orderNumber)}" readonly></label></div>
   <div class="purchaseEditJapanRow"><label><span>下單日期：</span>${orderDate}</label><label><span>打包日期：</span><input name="packingDate" type="text" inputmode="numeric" maxlength="4" placeholder="例如 1106" data-year="${packingYear}" data-original-packed-at="${esc(o.packedAt||'')}" value="${packingDigits}"></label></div>`
   :`<div class="purchaseEditSourceRow">${sourceField}<label class="purchaseEditDate"><span class="purchaseEditDateTitle">日期：</span>${orderDate}</label></div><span style="overflow-wrap:anywhere">${esc(orderNumber)}</span>`;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields">${orderFields}${purchaseChannelList(channels)}<div class="purchaseEditTrackingRow"><label><span>出貨單號：</span><input name="tracking" aria-label="出貨單號" value="${esc(o.tracking||'')}"></label><input class="purchaseEditWeight" name="weight" aria-label="重量 kg" placeholder="重量 kg" type="text" inputmode="decimal" data-purchase-number value="${esc(o.weight??'')}"></div><label${japan?' class="purchaseEditJapanGroup"':''}><span>${japan?'團　　名：':'團名：'}</span><input name="groupName" aria-label="團名" list="purchaseGroupSuggestions" autocomplete="off" placeholder="輸入日期或團名，例如 1016" value="${esc(o.groupName||'')}"></label>${purchaseGroupOptions(launchGroups)}${purchaseOrderRegion(o)==='cn'?'':`<label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label>`}${`<div class="purchaseEditAmountRow"><label><span>總金額：</span><input name="orderAmount" aria-label="訂單總金額" inputmode="decimal" data-purchase-number required value="${esc(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}"></label>${purchaseOrderCurrencyForm(purchaseOrderCurrency(o),purchaseOrderRegion(o)||'jp')}</div>`}</div>${purchaseNoteMarkup(o.note||'')}${purchaseOrderRegion(o)==='cn'?'':purchaseContentsMarkup(o.contents||'',false,purchaseOrderRegion(o))}<div class="purchaseRegisteredItems"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h4>已登記商品</h4>${purchaseOrderRegion(o)==='cn'&&['未出貨','已出貨','集運中'].includes(o.status||'未出貨')?`<button type="button" class="btn light" onclick="purchaseSplitDialog(${i})">拆分包裹</button>`:''}</div>${purchaseDisplayItems(o).map(item=>`<div class="purchaseEditItem" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><button type="button" aria-label="刪除商品" title="刪除商品" onclick="purchaseDeleteOrder(${i},this)" style="border:0;background:transparent;color:#888;font-size:20px;font-weight:bold;cursor:pointer;padding:6px;flex-shrink:0">×</button><input class="purchaseEditName" aria-label="商品名稱" value="${esc(item.name||item.originalName||'')}" style="flex:1;min-width:0;width:0" required>${purchaseRoleSuffix(item.name||item.originalName,item.role)?`<span>${esc(item.role)}</span>`:''}<label style="display:flex;gap:6px;align-items:center;flex-shrink:0">× <input class="purchaseEditQuantity" type="text" inputmode="numeric" data-purchase-number data-indexes="${esc(JSON.stringify(item.indexes))}" aria-label="${esc(purchaseProductName(item))}數量" value="${Number(item.quantity)||1}" style="width:65px" required></label></div>`).join('')}</div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn" style="background:#ee7d91;color:#fff" onclick="purchaseDeleteOrder(${i})">整筆刪除</button><button type="button" class="btn" style="margin-right:auto;background:#8B2635;color:#fff" onclick="purchaseCancelOrder(${i})" aria-pressed="${o.status==='砍單'}" title="${o.status==='砍單'?'再次點擊恢復未出貨':'砍單'}">砍單</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields">${orderFields}${purchaseChannelList(channels)}<div class="purchaseEditTrackingRow"><label><span>出貨單號：</span><input name="tracking" aria-label="出貨單號" value="${esc(o.tracking||'')}"></label><input class="purchaseEditWeight" name="weight" aria-label="重量 kg" placeholder="重量 kg" type="text" inputmode="decimal" data-purchase-number value="${esc(o.weight??'')}"></div><label${japan?' class="purchaseEditJapanGroup"':''}><span>${japan?'團　　名：':'團名：'}</span><input name="groupName" aria-label="團名" list="purchaseGroupSuggestions" autocomplete="off" placeholder="輸入日期或團名，例如 1016" value="${esc(o.groupName||'')}"></label>${purchaseGroupOptions(launchGroups)}${purchaseOrderRegion(o)==='cn'?'':`<label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label>`}${`<div class="purchaseEditAmountRow"><label><span>總金額：</span><input name="orderAmount" aria-label="訂單總金額" inputmode="decimal" data-purchase-number required value="${esc(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}"></label>${purchaseOrderCurrencyForm(purchaseOrderCurrency(o),purchaseOrderRegion(o)||'jp')}</div>`}</div>${purchaseNoteMarkup(o.note||'')}${purchaseOrderRegion(o)==='cn'?'':purchaseContentsMarkup(o.contents||'')}<div class="purchaseRegisteredItems"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h4>已登記商品</h4>${purchaseOrderRegion(o)==='cn'&&['未出貨','已出貨','集運中'].includes(o.status||'未出貨')?`<button type="button" class="btn light" onclick="purchaseSplitDialog(${i})">拆分包裹</button>`:''}</div>${purchaseDisplayItems(o).map(item=>`<div class="purchaseEditItem" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><button type="button" aria-label="刪除商品" title="刪除商品" onclick="purchaseDeleteOrder(${i},this)" style="border:0;background:transparent;color:#888;font-size:20px;font-weight:bold;cursor:pointer;padding:6px;flex-shrink:0">×</button><input class="purchaseEditName" aria-label="商品名稱" value="${esc(item.name||item.originalName||'')}" style="flex:1;min-width:0;width:0" required>${purchaseRoleSuffix(item.name||item.originalName,item.role)?`<span>${esc(item.role)}</span>`:''}<label style="display:flex;gap:6px;align-items:center;flex-shrink:0">× <input class="purchaseEditQuantity" type="text" inputmode="numeric" data-purchase-number data-indexes="${esc(JSON.stringify(item.indexes))}" aria-label="${esc(purchaseProductName(item))}數量" value="${Number(item.quantity)||1}" style="width:65px" required></label></div>`).join('')}</div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn" style="background:#ee7d91;color:#fff" onclick="purchaseDeleteOrder(${i})">整筆刪除</button><button type="button" class="btn" style="margin-right:auto;background:#8B2635;color:#fff" onclick="purchaseCancelOrder(${i})" aria-pressed="${o.status==='砍單'}" title="${o.status==='砍單'?'再次點擊恢復未出貨':'砍單'}">砍單</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  const dialog=document.getElementById('appDialog');dialog.querySelector('form').dataset.orderNumber=o.number;dialog.querySelector('form').dataset.originalItems=JSON.stringify(o.items.map(item=>[item.name||'',Number(item.quantity)||0]));dialog.querySelector('form').purchaseGroups=launchGroups.slice();void purchaseLoadChannels(dialog);void purchaseLoadGroupOptions(dialog);
  if(purchaseOrderRegion(o)==='cn')return;
  dialog.querySelectorAll('.purchaseEditItem').forEach(row=>{
@@ -6751,28 +6746,49 @@ function purchaseSubmitEdit(event,i){
  if(fields.packedAt!==undefined)purchaseExpandedPackingDates.add(packingDate);
  closeDialog();purchaseQueueEdit(order,fields);
 }
-const purchaseContentsKinds=['吊娃','娃','娃包','痛包','鑰匙圈'];
-const purchaseChinaContentsKinds=['吊娃','娃','包袋','包材','鑰匙圈','寵物'];
-function purchaseParseContents(value,kinds=purchaseContentsKinds){
- const counts={},other=[];
- String(value||'').split(/[、,，;；\n]+/).map(v=>v.trim()).filter(Boolean).forEach(part=>{
-  const m=part.match(/^(.*?)\s*[x×*]\s*(\d+)$/i)||part.match(/^(.*?\D)\s*(\d+)$/);
-  if(m&&kinds.includes(m[1].trim())){const type=m[1].trim();counts[type]=(counts[type]||0)+Number(m[2]);}
-  else other.push(m?m[1].trim()+m[2]:part);
- });return {counts,other:other.join('、')};
+const purchaseContentsKinds=['吊娃','娃','包袋','鑰匙圈','貼紙','資料夾','徽章','立牌','毛巾毯子','上衣','抱盒','單抽','其他'];
+const purchaseContentsAliases=[
+ ['吊娃',/絨毛吊飾|娃娃吊飾|玩偶吊飾|吊掛娃娃|吊娃/],
+ ['包袋',/娃包|痛包|托特包|手提包|手提袋|提袋|束口袋|收納包|收納袋|背包|肩背包|購物袋|化妝包|帆布包|斜背包/],
+ ['鑰匙圈',/鑰匙[圈環扣]/],
+ ['貼紙',/貼紙/],
+ ['資料夾',/資料[夾夹]|文件[夾夹]/],
+ ['徽章',/徽章|胸章|胸針|別針/],
+ ['立牌',/立牌|人形立板/],
+ ['毛巾毯子',/毛巾|浴巾|方巾|手帕|毯子|毛毯|小毯|披毯/],
+ ['上衣',/上衣|衣服|短袖|長袖|T恤|T-shirt|帽T|衛衣/i],
+ ['抱盒',/抱盒|整盒|全套盲[盒包]|盒裝盲[盒包]/],
+ ['單抽',/單抽|散抽|單包盲抽|小卡盲包/],
+ ['娃',/娃娃|玩偶|布偶|公仔娃/]
+];
+function purchaseParseContents(value){
+ const counts={},unmatched=[];
+ for(const part of String(value||'').split(/[、,，;；\n]+/).map(text=>text.trim()).filter(Boolean)){
+  const text=part.normalize('NFKC');
+  const match=text.match(/^(.*?)\s*[x×*+]\s*(\d+)$/i)||text.match(/^(.*?[^\d.])\s*(\d+)$/);
+  const name=(match?match[1]:text).replace(/\s+/g,'');
+  const kind=purchaseContentsKinds.includes(name)?name:purchaseContentsAliases.find(([,pattern])=>pattern.test(name))?.[0];
+  const total=(counts[kind]||0)+(match?Number(match[2]):1);
+  if(!kind||!Number.isSafeInteger(total)||!match&&/\d$/.test(text)){unmatched.push(part);continue;}
+  counts[kind]=total;
+ }
+ return {counts,unmatched:unmatched.join('、')};
 }
-function purchaseOtherContents(value){return String(value||'').split(/[、,，;；\n]+/).map(v=>v.trim()).filter(Boolean).map(part=>{const m=part.match(/^(.*?)\s*[x×*]\s*(\d+)$/i)||part.match(/^(.*?\D)\s*(\d+)$/);return m?`${m[1].trim()}x${Number(m[2])}`:part;}).join('、');}
 function purchaseContentsSync(box,draft=false){
  if(!box)return;
- const parts=[...box.querySelectorAll('[data-content-kind]')].filter(input=>Number(input.value)>0).map(input=>`${input.dataset.contentKind}x${Number(input.value)}`);
- const other=purchaseOtherContents(box.querySelector('.purchaseContentsOther').value);if(other)parts.push(other);
- box.querySelector('[name=contents]').value=parts.join('、');if(draft&&purchaseDraft)purchaseDraft.contents=parts.join('、');
+ const parts=[...box.querySelectorAll('[data-content-kind]')].flatMap(input=>{
+  const count=Number(input.value);
+  return Number.isSafeInteger(count)&&count>0?[`${input.dataset.contentKind}x${count}`]:[];
+ });
+ if(box.dataset.unmatchedContents)parts.push(box.dataset.unmatchedContents);
+ const contents=parts.join('、');
+ box.querySelector('[name=contents]').value=contents;
+ if(draft&&purchaseDraft)purchaseDraft.contents=contents;
 }
 function purchaseNoteMarkup(value='',draft=false){return `<label class="purchaseOrderNote" style="display:grid;gap:8px;margin:14px 0"><span>備註：</span><textarea name="note" aria-label="訂單備註" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" ${draft?'oninput="purchaseDraft.note=this.value"':''}>${esc(value)}</textarea></label>`;}
-function purchaseContentsMarkup(value='',draft=false,region=purchaseRegion){
- const kinds=region==='cn'?purchaseChinaContentsKinds:purchaseContentsKinds;
- const data=purchaseParseContents(value,kinds);
- return `<div class="purchaseContentsFields" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds" style="grid-template-columns:repeat(${kinds.length},minmax(0,1fr))">${kinds.map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number min="0" step="1" data-content-kind="${kind}" aria-label="${kind}數量" value="${data.counts[kind]||''}"></label>`).join('')}</div><label class="purchaseContentsOtherRow"><span>其他</span><input class="purchaseContentsOther" aria-label="其他內容物" placeholder="輸入項目＋數字，例如：衣服1" value="${esc(data.other)}"></label></div>`;
+function purchaseContentsMarkup(value='',draft=false){
+ const {counts,unmatched}=purchaseParseContents(value);
+ return `<div class="purchaseContentsFields" data-unmatched-contents="${esc(unmatched)}" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds">${purchaseContentsKinds.map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number data-content-kind="${kind}" aria-label="${kind}數量" value="${counts[kind]||''}"></label>`).join('')}</div></div>`;
 }
 
 function purchaseManualSuggest(input,event){
