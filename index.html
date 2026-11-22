@@ -6258,7 +6258,7 @@ let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',pur
 let purchaseSearch='',purchaseRegion='';
 function purchaseOrderRegion(order){if(['jp','cn','kr','other'].includes(order.region))return order.region==='jp'?'':order.region;const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅京]/.test(channel)?'cn':'';}
 function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':region;purchaseSelectedMonth='';purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
-function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase(),year=Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date()));return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?o.status==='已到貨'&&(!purchaseOrderComplete(o)||purchaseRegion===''):(purchaseRecordStatus?purchaseDisplayStatus(o)===purchaseRecordStatus:true);return purchaseDateParts(o.date)?.year===year&&area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
+function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase(),year=Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date()));return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?purchaseRegion===''?['已到貨','已完成'].includes(o.status):o.status==='已到貨'&&!purchaseOrderComplete(o):(purchaseRecordStatus?purchaseDisplayStatus(o)===purchaseRecordStatus:true);return (purchaseView==='packed'||purchaseView==='arrived'||purchaseDateParts(o.date)?.year===year)&&area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;const results=document.getElementById('purchaseManagement');if(results)results.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
 function purchaseBindSearch(){
@@ -6413,7 +6413,17 @@ function purchaseDailyTotals(orders,mergeMonth=false){
 }
 function purchaseMonthKey(date){const d=purchaseDateParts(date);return d?`${d.year}-${String(d.month).padStart(2,'0')}`:String(date);}
 function purchaseMonthDialog(month){purchaseSelectedMonth=month;purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
-function purchaseVisibleOrders(){return purchaseFilteredOrders().filter(o=>purchaseNoMonths()||(purchaseMonthKey(o.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||o.date===purchaseSelectedDate))).filter(o=>!(purchaseClickChecking()&&o.items.length&&o.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000)&&!purchaseCheckJobs.some(job=>job.orders.some(x=>x.number===o.number)))).slice().sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));}
+function purchaseVisibleOrders(){
+ const hideCheckedOrders=purchaseClickChecking()&&!purchaseJapanChecking();
+ return purchaseFilteredOrders()
+  .filter(order=>purchaseNoMonths()||(purchaseMonthKey(order.date)===purchaseSelectedMonth&&(!purchaseSelectedDate||order.date===purchaseSelectedDate)))
+  .filter(order=>{
+   if(!hideCheckedOrders||!order.items.length)return true;
+   const confirmed=order.items.every(item=>Number(item.checkedAt)>0&&Date.now()-Number(item.checkedAt)>=600000);
+   return !confirmed||purchaseCheckJobs.some(job=>job.orders.some(target=>target.number===order.number));
+  })
+  .sort((a,b)=>purchaseDateSortKey(a.date)-purchaseDateSortKey(b.date));
+}
 function purchaseVisibleProducts(){const orders=purchaseVisibleOrders().filter(o=>!(purchaseView==='arrived'&&purchaseRegion==='cn'&&o.packId)).filter(o=>!purchaseJapanChecking()||purchaseExpandedPackingDates.has(purchasePackingDate(o))).map(o=>({...o,date:'2000-01-01'}));return purchaseDailyTotals(orders,!purchaseNoMonths()&&!purchaseSelectedDate&&!purchaseSearch.trim())[0]?.items||[];}
 function purchaseMonthCompletionTargets(){return purchaseOrders.filter(order=>purchaseOrderRegion(order)===purchaseRegion&&purchaseMonthKey(order.date)===purchaseSelectedMonth&&!['已完成','砍單'].includes(order.status));}
 function purchaseCompleteMonth(){
