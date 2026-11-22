@@ -6120,48 +6120,52 @@ function purchaseTogglePackingDate(button){
  const date=button.dataset.packingDate;if(purchaseExpandedPackingDates.has(date))purchaseExpandedPackingDates.delete(date);else purchaseExpandedPackingDates.add(date);
  renderPurchase();purchaseLoadImages();
 }
-function purchaseJapanPackingDateDialog(){
- if(!purchaseJapanChecking())return;
- const orders=purchaseOrders.filter(order=>purchaseOrderRegion(order)===''&&['已到貨','已完成'].includes(order.status)&&!purchasePackingDate(order));
- if(!orders.length)return;
- closeDialog();
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" role="dialog" aria-modal="true" aria-labelledby="purchasePackingDateTitle">
-  <form onsubmit="purchaseSubmitJapanPackingDate(event)">
-   <h3 id="purchasePackingDateTitle">補填打包日期</h3>
-   <p>這會更新「未填打包日期」的全部 ${orders.length} 筆訂單。若已有同日批次，這些訂單會併入該批次。</p>
-   <label class="purchasePackingDateField">打包日期 <input type="date" name="packedDate" required></label>
-   <p role="alert" class="purchasePackingDateError"></p>
-   <div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button type="submit" class="btn">儲存</button></div>
-  </form>
- </div></div>`);
- const form=document.querySelector('#appDialog form');
- form.purchaseExpectedOrders=JSON.stringify(orders.map(order=>String(order.number)).sort());
- form.elements.packedDate.focus();
+const purchasePackingDateDrafts=new Map(),purchasePackingDateSaves=new Set();
+function purchaseOrderPackingDateField(order){
+ const number=String(order.number),packedAt=String(order.packedAt||''),stored=purchasePackingDate(order);
+ const draft=purchasePackingDateDrafts.get(number),date=draft?.date??stored,pending=purchasePackingDateSaves.has(number);
+ return `<form class="purchaseOrderPackingDate" data-number="${esc(number)}" data-packed-at="${esc(draft?.packedAt??packedAt)}" onsubmit="purchaseSaveOrderPackingDate(event)">
+  <label>打包日期 <input type="date" name="packedDate" value="${esc(date)}" data-stored-date="${esc(stored)}" oninput="purchaseDraftOrderPackingDate(this)" required ${pending?'disabled':''}></label>
+  <button type="submit" class="btn light" ${pending||!date||date===stored?'disabled':''}>${pending?'儲存中':'儲存'}</button>
+ </form>`;
 }
-async function purchaseSubmitJapanPackingDate(event){
+function purchaseDraftOrderPackingDate(input){
+ const form=input.form,number=form.dataset.number;
+ const changed=input.value!==input.dataset.storedDate;
+ if(changed)purchasePackingDateDrafts.set(number,{date:input.value,packedAt:form.dataset.packedAt});
+ else purchasePackingDateDrafts.delete(number);
+ form.querySelector('[type=submit]').disabled=!input.value||!changed;
+}
+async function purchaseSaveOrderPackingDate(event){
  event.preventDefault();
- const form=event.currentTarget,date=form.elements.packedDate.value;
- const error=form.querySelector('.purchasePackingDateError'),button=form.querySelector('[type=submit]'),cancel=form.querySelector('[type=button]');
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!purchaseDateParts(date)){error.textContent='請選擇有效的打包日期';return;}
- if(button.disabled)return;
- error.textContent='';button.disabled=true;cancel.disabled=true;
+ const form=event.currentTarget,number=form.dataset.number,input=form.elements.packedDate,date=input.value;
+ if(!purchaseJapanChecking()||date===input.dataset.storedDate||purchasePackingDateSaves.has(number))return;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!purchaseDateParts(date)){purchaseEditToast('請選擇有效的打包日期',true);return;}
+ purchasePackingDateSaves.add(number);
+ const button=form.querySelector('[type=submit]');
+ input.disabled=button.disabled=true;button.textContent='儲存中';
  try{
-  await api('purchaseBatch',{mode:'japanPackingDate',packedDate:date,expectedOrders:form.purchaseExpectedOrders});
-  if(form.isConnected)closeDialog();
-  if(purchaseJapanChecking()){
-   purchaseSearch='';
-   purchaseExpandedPackingDates.delete('');
-   purchaseExpandedPackingDates.add(date);
+  const result=await api('purchaseBatch',{mode:'japanOrderPackingDate',number,packedDate:date,expectedPackedAt:form.dataset.packedAt});
+  purchasePackingDateDrafts.delete(number);
+  purchasePackingDateSaves.delete(number);
+  const order=purchaseOrders.find(o=>String(o.number)===number);
+  if(order)order.packedAt=result.packedAt;
+  purchaseExpandedPackingDates.add(date);
+  if(document.body.dataset.page==='purchase'&&purchaseJapanChecking()){
+   const app=document.getElementById('app'),scroll=app.scrollTop;
+   renderPurchase();app.scrollTop=scroll;
+   purchaseLoadImages();
   }
-  await purchaseLoad();
-  if(purchaseJapanChecking()){
-   document.querySelector(`.purchaseBatchDate[data-packing-date="${date}"]`)?.focus();
-  }
-  purchaseEditToast(`已補填打包日期：${purchaseDateLabel(date)}`);
+  purchaseEditToast(`打包日期已儲存：${purchaseDateLabel(date)}`);
  }catch(e){
-  error.textContent=e.message;
+  purchaseEditToast(e.message,true);
  }finally{
-  button.disabled=false;cancel.disabled=false;
+  purchasePackingDateSaves.delete(number);
+  const current=form.isConnected?form:[...document.querySelectorAll('.purchaseOrderPackingDate')].find(candidate=>candidate.dataset.number===number);
+  if(current){
+   const field=current.elements.packedDate,save=current.querySelector('[type=submit]');
+   field.disabled=false;save.disabled=!field.value||field.value===field.dataset.storedDate;save.textContent='儲存';
+  }
  }
 }
 function purchaseJapanFreightSnapshot(orders){return JSON.stringify(orders.map(o=>[o.number,String(o.packShipping??''),o.packShippingCurrency||'TWD']).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
@@ -6202,10 +6206,7 @@ function purchasePackingGroups(){
   const label=date?esc(purchaseDateLabel(date))+' 打包':'未填打包日期';
   if(!purchaseJapanChecking())return `<section class="purchasePackingDateGroup"><h3>${label}</h3>${purchaseOrderCards(orders)}</section>`;
   const expanded=purchaseExpandedPackingDates.has(date);const members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status));const done=purchaseJapanBatchComplete(members.length?members:orders);
-  return `<section class="purchasePackingDateGroup purchaseBatchCard ${done?'isChecked':''}"><header class="purchaseBatchHeading">${date?`<button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>`:`<div class="purchaseBatchDateActions">
-   <button type="button" class="purchaseBatchDate purchaseBatchDateEdit" aria-haspopup="dialog" title="補填打包日期" onclick="purchaseJapanPackingDateDialog()">${label}</button>
-   <button type="button" class="purchaseBatchDate purchaseBatchDateToggle" data-packing-date="" aria-label="未填打包日期的訂單明細" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)"><span aria-hidden="true">${expanded?'▾':'◂'}</span></button>
-  </div>`}${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
+  return `<section class="purchasePackingDateGroup purchaseBatchCard ${done?'isChecked':''}"><header class="purchaseBatchHeading"><button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
  }).join('');
 }
 
@@ -6536,7 +6537,7 @@ function purchaseOrderCards(orders=purchaseVisibleOrders()){
  const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
  let minWidth=260;
  if(context){context.font='700 13px -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif';minWidth=Math.ceil(Math.max(260,...visible.map(o=>context.measureText(/^MANUAL-/.test(o.number)?o.channel||'':o.number).width+100)));}
- return `<div class="purchaseOrderCards" style="--purchase-order-min:max(${minWidth}px,calc((100% - 36px)/4))">${visible.map(o=>{const i=purchaseOrders.indexOf(o);const status=purchaseStatuses.find(s=>s[0]===purchaseDisplayStatus(o))||purchaseStatuses[0];const meta=[[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>(purchaseOrderRegion(o)!=='cn'||label!=='運費')&&(!purchaseJapanChecking()||!['出貨單號','重量'].includes(label))&&value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}${label==='重量'?' kg':''}`).join('　'),String(o.note||'').trim()?`備註：${esc(o.note)}`:''].filter(Boolean).join(' ｜ ');return `<article data-purchase-number="${esc(o.number)}" class="purchaseOrderCard ${o.status==='砍單'?'isCancelled':''} ${purchaseOrderComplete(o)||o.items.length&&o.items.every(x=>Number(x.checkedAt)>0)?'isChecked':''}" ${purchaseClickChecking()?`role="button" tabindex="0" aria-label="確認訂單 ${esc(o.channel||o.number)}" aria-pressed="${o.items.every(x=>Number(x.checkedAt)>0)}" onclick="purchaseCheckOrderCard(event,${i})" onkeydown="purchaseCheckOrderCard(event,${i})"`: ''}><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊選擇狀態" aria-label="${status[0]}，點擊選擇狀態" onclick="purchaseOpenStatus(event,${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button>${purchaseOrderRegion(o)==='cn'?`<button type="button" class="purchaseQuickCopy" aria-label="複製出貨單號" title="複製出貨單號" onclick="purchaseCopyCardValue(${i},'tracking')">單</button><button type="button" class="purchaseQuickCopy" aria-label="複製總金額" title="複製總金額" onclick="purchaseCopyCardValue(${i},'amount')">$</button>`:''}<strong>${o.channel?`${esc(o.channel)}${purchaseOrderRegion(o)==='cn'||/^MANUAL-/.test(o.number)?'':' · '}`:''}${purchaseOrderRegion(o)==='cn'||/^MANUAL-/.test(o.number)?'':esc(purchaseNumericOrderNumber(o.number))}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header><div class="purchaseCardSummary">${purchaseView==='arrived'?'':`<span class="purchaseOrderAmount">${purchaseCurrencyMark(purchaseOrderCurrency(o))}${money(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}</span>`}${purchaseOrderRegion(o)!=='cn'&&o.contents?`<span class="purchaseContentsSummary">${esc(o.contents)}</span>`:''}</div><div class="purchaseOrderContents">${purchaseDisplayItems(o).map(x=>`<div class="purchaseOrderContent ${x.indexes.every(index=>Number(o.items[index].checkedAt)>0)?'isChecked':''}" ${purchaseClickChecking()?`role="button" tabindex="0" aria-label="確認 ${esc(purchaseProductName(x))}" aria-pressed="${x.indexes.every(index=>Number(o.items[index].checkedAt)>0)}" onclick='event.stopPropagation();purchaseCheckOrderItems(${i},${JSON.stringify(x.indexes)})' onkeydown='if(event.target===this&&(event.key==="Enter"||event.key===" ")){event.preventDefault();event.stopPropagation();purchaseCheckOrderItems(${i},${JSON.stringify(x.indexes)});}'`: ''}><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong>${!x.name?`<button type="button" class="btn light" onclick="event.stopPropagation();purchaseEditDialog(${i})">選擇名稱</button>`:''}<span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
+ return `<div class="purchaseOrderCards" style="--purchase-order-min:max(${minWidth}px,calc((100% - 36px)/4))">${visible.map(o=>{const i=purchaseOrders.indexOf(o);const status=purchaseStatuses.find(s=>s[0]===purchaseDisplayStatus(o))||purchaseStatuses[0];const meta=[[['出貨單號',o.tracking],['重量',o.weight],['運費',o.shipping]].filter(([label,value])=>(purchaseOrderRegion(o)!=='cn'||label!=='運費')&&(!purchaseJapanChecking()||!['出貨單號','重量'].includes(label))&&value!==undefined&&value!==null&&String(value).trim()!=='').map(([label,value])=>`${label}：${esc(value)}${label==='重量'?' kg':''}`).join('　'),String(o.note||'').trim()?`備註：${esc(o.note)}`:''].filter(Boolean).join(' ｜ ');return `<article data-purchase-number="${esc(o.number)}" class="purchaseOrderCard ${o.status==='砍單'?'isCancelled':''} ${purchaseOrderComplete(o)||o.items.length&&o.items.every(x=>Number(x.checkedAt)>0)?'isChecked':''}" ${purchaseClickChecking()?`role="button" tabindex="0" aria-label="確認訂單 ${esc(o.channel||o.number)}" aria-pressed="${o.items.every(x=>Number(x.checkedAt)>0)}" onclick="purchaseCheckOrderCard(event,${i})" onkeydown="purchaseCheckOrderCard(event,${i})"`: ''}><header><button class="purchaseBadge" style="background:${status[2]}" title="${status[0]}，點擊選擇狀態" aria-label="${status[0]}，點擊選擇狀態" onclick="purchaseOpenStatus(event,${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>${status[1]}</button>${purchaseOrderRegion(o)==='cn'?`<button type="button" class="purchaseQuickCopy" aria-label="複製出貨單號" title="複製出貨單號" onclick="purchaseCopyCardValue(${i},'tracking')">單</button><button type="button" class="purchaseQuickCopy" aria-label="複製總金額" title="複製總金額" onclick="purchaseCopyCardValue(${i},'amount')">$</button>`:''}<strong>${o.channel?`${esc(o.channel)}${purchaseOrderRegion(o)==='cn'||/^MANUAL-/.test(o.number)?'':' · '}`:''}${purchaseOrderRegion(o)==='cn'||/^MANUAL-/.test(o.number)?'':esc(purchaseNumericOrderNumber(o.number))}</strong><button class="purchaseEditButton" aria-label="編輯訂單" onclick="purchaseEditDialog(${i})" ${purchaseStatusPending.has(o.number)?'disabled':''}>＋</button></header>${purchaseJapanChecking()?purchaseOrderPackingDateField(o):''}<div class="purchaseCardSummary">${purchaseView==='arrived'?'':`<span class="purchaseOrderAmount">${purchaseCurrencyMark(purchaseOrderCurrency(o))}${money(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}</span>`}${purchaseOrderRegion(o)!=='cn'&&o.contents?`<span class="purchaseContentsSummary">${esc(o.contents)}</span>`:''}</div><div class="purchaseOrderContents">${purchaseDisplayItems(o).map(x=>`<div class="purchaseOrderContent ${x.indexes.every(index=>Number(o.items[index].checkedAt)>0)?'isChecked':''}" ${purchaseClickChecking()?`role="button" tabindex="0" aria-label="確認 ${esc(purchaseProductName(x))}" aria-pressed="${x.indexes.every(index=>Number(o.items[index].checkedAt)>0)}" onclick='event.stopPropagation();purchaseCheckOrderItems(${i},${JSON.stringify(x.indexes)})' onkeydown='if(event.target===this&&(event.key==="Enter"||event.key===" ")){event.preventDefault();event.stopPropagation();purchaseCheckOrderItems(${i},${JSON.stringify(x.indexes)});}'`: ''}><div class="purchaseOrderContentHeading"><strong>${esc(purchaseProductName(x))}</strong>${!x.name?`<button type="button" class="btn light" onclick="event.stopPropagation();purchaseEditDialog(${i})">選擇名稱</button>`:''}<span>× ${x.quantity}</span></div></div>`).join('')}</div>${meta?`<footer class="purchaseOrderFooter">${meta}</footer>`:''}</article>`;}).join('')||'<p>尚無訂購紀錄</p>'}</div>`;
 }
 const purchaseStatusPending=new Set();
 let purchaseStatusMenu=null;
@@ -11020,12 +11021,10 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 }
 @media(max-width:600px){.purchaseBatchNewParcel{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(84px,.6fr) auto;align-items:end!important}.purchaseBatchNewParcel>label{flex-direction:column;align-items:stretch!important;gap:6px!important}.purchaseBatchNewParcel input{width:100%!important;box-sizing:border-box}.purchaseBatchNewParcel>.btn{align-self:end}}
 .purchaseBatchImportFields{display:grid;gap:12px}.purchaseBatchImportRow{display:flex;align-items:center;gap:10px;min-width:0}.purchaseBatchImportRow>label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0}.purchaseBatchImportRow span{white-space:nowrap;flex:none}.purchaseBatchImportRow input:not([type=hidden]){flex:1;min-width:0;width:0;box-sizing:border-box}.purchaseBatchImportRow>.btn{flex:none;padding:9px 10px}.purchaseBatchImportFields textarea{width:100%;box-sizing:border-box;resize:vertical}.purchaseBatchImportFields>label{margin:0}
-.purchaseBatchDateActions{display:flex;align-items:center;align-self:flex-start;gap:2px}
-.purchaseBatchDateEdit{text-decoration:underline;text-underline-offset:3px}
-.purchaseBatchDateToggle{min-width:28px;min-height:28px}
-.purchasePackingDateField{display:flex;align-items:center;gap:8px}
-.purchasePackingDateField input{flex:1;min-width:0}
-.purchasePackingDateError:empty{display:none}
+.purchaseOrderPackingDate{display:flex;align-items:end;flex-wrap:wrap;gap:6px;padding:4px 0}
+.purchaseOrderPackingDate label{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:0;color:inherit;font-size:12px}
+.purchaseOrderPackingDate input{box-sizing:border-box;min-width:0;max-width:100%;font:inherit}
+.purchaseOrderPackingDate .btn{padding:4px 7px;min-height:28px;font-size:12px}
 .purchaseBatchCard{border:1px solid var(--border);border-radius:14px;background:#fff;margin:12px 0;overflow:hidden}.purchaseBatchHeading{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:14px;background:#f7f7f7}.purchaseBatchDate{align-self:flex-start;border:0;background:transparent;color:inherit;padding:0;font:inherit;font-weight:700;cursor:pointer}.purchaseBatchSummary{display:flex;align-items:center;gap:16px;flex-wrap:nowrap;white-space:nowrap;max-width:100%;overflow-x:auto;font-size:clamp(11px,3.2vw,14px)}.purchaseBatchSummary>*{flex:none;white-space:nowrap}.purchaseBatchSummary>.purchaseBatchFreight{appearance:none;-webkit-appearance:none;border:0;border-radius:0;background:transparent!important;box-shadow:none!important;color:inherit;padding:0;font:inherit;cursor:pointer}.purchaseBatchItems[hidden],.purchaseBatchText[hidden]{display:none}.purchaseBatchText{grid-column:1/-1;min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.purchaseCardSummary:empty{display:none}.purchaseBatchItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;padding:14px}.purchaseBatchSource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;color:#888;font-size:12px}.purchaseBatchSource .btn{font-size:12px;padding:4px 8px}.purchaseBatchItem{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:0;border-bottom:1px solid #eee;background:white;color:var(--text);text-align:left}.purchaseBatchItem:disabled{opacity:1}.purchaseBatchItem.isChecked{background:#ededed;color:#999}.purchaseBatchCard.isChecked .purchaseBatchHeading{background:#ededed}
 .purchasePackingZone{border:1px solid var(--border);border-radius:12px;padding:12px;margin:14px 0;min-height:110px}
 .purchasePackingZone h4{margin:0 0 10px}
