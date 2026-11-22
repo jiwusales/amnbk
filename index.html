@@ -6120,6 +6120,50 @@ function purchaseTogglePackingDate(button){
  const date=button.dataset.packingDate;if(purchaseExpandedPackingDates.has(date))purchaseExpandedPackingDates.delete(date);else purchaseExpandedPackingDates.add(date);
  renderPurchase();purchaseLoadImages();
 }
+function purchaseJapanPackingDateDialog(){
+ if(!purchaseJapanChecking())return;
+ const orders=purchaseOrders.filter(order=>purchaseOrderRegion(order)===''&&['已到貨','已完成'].includes(order.status)&&!purchasePackingDate(order));
+ if(!orders.length)return;
+ closeDialog();
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard" role="dialog" aria-modal="true" aria-labelledby="purchasePackingDateTitle">
+  <form onsubmit="purchaseSubmitJapanPackingDate(event)">
+   <h3 id="purchasePackingDateTitle">補填打包日期</h3>
+   <p>這會更新「未填打包日期」的全部 ${orders.length} 筆訂單。若已有同日批次，這些訂單會併入該批次。</p>
+   <label class="purchasePackingDateField">打包日期 <input type="date" name="packedDate" required></label>
+   <p role="alert" class="purchasePackingDateError"></p>
+   <div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button type="submit" class="btn">儲存</button></div>
+  </form>
+ </div></div>`);
+ const form=document.querySelector('#appDialog form');
+ form.purchaseExpectedOrders=JSON.stringify(orders.map(order=>String(order.number)).sort());
+ form.elements.packedDate.focus();
+}
+async function purchaseSubmitJapanPackingDate(event){
+ event.preventDefault();
+ const form=event.currentTarget,date=form.elements.packedDate.value;
+ const error=form.querySelector('.purchasePackingDateError'),button=form.querySelector('[type=submit]'),cancel=form.querySelector('[type=button]');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!purchaseDateParts(date)){error.textContent='請選擇有效的打包日期';return;}
+ if(button.disabled)return;
+ error.textContent='';button.disabled=true;cancel.disabled=true;
+ try{
+  await api('purchaseBatch',{mode:'japanPackingDate',packedDate:date,expectedOrders:form.purchaseExpectedOrders});
+  if(form.isConnected)closeDialog();
+  if(purchaseJapanChecking()){
+   purchaseSearch='';
+   purchaseExpandedPackingDates.delete('');
+   purchaseExpandedPackingDates.add(date);
+  }
+  await purchaseLoad();
+  if(purchaseJapanChecking()){
+   document.querySelector(`.purchaseBatchDate[data-packing-date="${date}"]`)?.focus();
+  }
+  purchaseEditToast(`已補填打包日期：${purchaseDateLabel(date)}`);
+ }catch(e){
+  error.textContent=e.message;
+ }finally{
+  button.disabled=false;cancel.disabled=false;
+ }
+}
 function purchaseJapanFreightSnapshot(orders){return JSON.stringify(orders.map(o=>[o.number,String(o.packShipping??''),o.packShippingCurrency||'TWD']).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
 function purchaseJapanFreightDialog(date){
  const members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status));if(!members.length)return;
@@ -6158,7 +6202,10 @@ function purchasePackingGroups(){
   const label=date?esc(purchaseDateLabel(date))+' 打包':'未填打包日期';
   if(!purchaseJapanChecking())return `<section class="purchasePackingDateGroup"><h3>${label}</h3>${purchaseOrderCards(orders)}</section>`;
   const expanded=purchaseExpandedPackingDates.has(date);const members=purchaseOrders.filter(o=>purchaseOrderRegion(o)===''&&purchasePackingDate(o)===date&&['已到貨','已完成'].includes(o.status));const done=purchaseJapanBatchComplete(members.length?members:orders);
-  return `<section class="purchasePackingDateGroup purchaseBatchCard ${done?'isChecked':''}"><header class="purchaseBatchHeading"><button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
+  return `<section class="purchasePackingDateGroup purchaseBatchCard ${done?'isChecked':''}"><header class="purchaseBatchHeading">${date?`<button type="button" class="purchaseBatchDate" style="display:inline-flex;align-items:center;gap:7px" data-packing-date="${esc(date)}" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)">${label}<span aria-hidden="true">${expanded?'▾':'◂'}</span></button>`:`<div class="purchaseBatchDateActions">
+   <button type="button" class="purchaseBatchDate purchaseBatchDateEdit" aria-haspopup="dialog" title="補填打包日期" onclick="purchaseJapanPackingDateDialog()">${label}</button>
+   <button type="button" class="purchaseBatchDate purchaseBatchDateToggle" data-packing-date="" aria-label="未填打包日期的訂單明細" aria-expanded="${expanded}" onclick="purchaseTogglePackingDate(this)"><span aria-hidden="true">${expanded?'▾':'◂'}</span></button>
+  </div>`}${purchaseJapanPackingSummary(date,orders)}</header><div class="purchasePackingDateItems" ${expanded?'':'hidden'}>${expanded?purchaseOrderCards(orders):''}</div></section>`;
  }).join('');
 }
 
@@ -10973,6 +11020,12 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 }
 @media(max-width:600px){.purchaseBatchNewParcel{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(84px,.6fr) auto;align-items:end!important}.purchaseBatchNewParcel>label{flex-direction:column;align-items:stretch!important;gap:6px!important}.purchaseBatchNewParcel input{width:100%!important;box-sizing:border-box}.purchaseBatchNewParcel>.btn{align-self:end}}
 .purchaseBatchImportFields{display:grid;gap:12px}.purchaseBatchImportRow{display:flex;align-items:center;gap:10px;min-width:0}.purchaseBatchImportRow>label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0}.purchaseBatchImportRow span{white-space:nowrap;flex:none}.purchaseBatchImportRow input:not([type=hidden]){flex:1;min-width:0;width:0;box-sizing:border-box}.purchaseBatchImportRow>.btn{flex:none;padding:9px 10px}.purchaseBatchImportFields textarea{width:100%;box-sizing:border-box;resize:vertical}.purchaseBatchImportFields>label{margin:0}
+.purchaseBatchDateActions{display:flex;align-items:center;align-self:flex-start;gap:2px}
+.purchaseBatchDateEdit{text-decoration:underline;text-underline-offset:3px}
+.purchaseBatchDateToggle{min-width:28px;min-height:28px}
+.purchasePackingDateField{display:flex;align-items:center;gap:8px}
+.purchasePackingDateField input{flex:1;min-width:0}
+.purchasePackingDateError:empty{display:none}
 .purchaseBatchCard{border:1px solid var(--border);border-radius:14px;background:#fff;margin:12px 0;overflow:hidden}.purchaseBatchHeading{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:14px;background:#f7f7f7}.purchaseBatchDate{align-self:flex-start;border:0;background:transparent;color:inherit;padding:0;font:inherit;font-weight:700;cursor:pointer}.purchaseBatchSummary{display:flex;align-items:center;gap:16px;flex-wrap:nowrap;white-space:nowrap;max-width:100%;overflow-x:auto;font-size:clamp(11px,3.2vw,14px)}.purchaseBatchSummary>*{flex:none;white-space:nowrap}.purchaseBatchSummary>.purchaseBatchFreight{appearance:none;-webkit-appearance:none;border:0;border-radius:0;background:transparent!important;box-shadow:none!important;color:inherit;padding:0;font:inherit;cursor:pointer}.purchaseBatchItems[hidden],.purchaseBatchText[hidden]{display:none}.purchaseBatchText{grid-column:1/-1;min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.purchaseCardSummary:empty{display:none}.purchaseBatchItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;padding:14px}.purchaseBatchSource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;color:#888;font-size:12px}.purchaseBatchSource .btn{font-size:12px;padding:4px 8px}.purchaseBatchItem{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:0;border-bottom:1px solid #eee;background:white;color:var(--text);text-align:left}.purchaseBatchItem:disabled{opacity:1}.purchaseBatchItem.isChecked{background:#ededed;color:#999}.purchaseBatchCard.isChecked .purchaseBatchHeading{background:#ededed}
 .purchasePackingZone{border:1px solid var(--border);border-radius:12px;padding:12px;margin:14px 0;min-height:110px}
 .purchasePackingZone h4{margin:0 0 10px}
