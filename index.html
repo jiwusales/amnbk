@@ -8333,6 +8333,7 @@ function saveOnlineSessionCache(savedAt=Date.now(),rows=onlineRows){try{const pa
 function renderOnline(){
 resetOnlineCardLayout();
 warmCustomerLineChats();
+const restoredCache=!onlineLoadedAt;
 restoreOnlineSessionCache();
 const app=document.getElementById('app');
 app.innerHTML=`
@@ -8363,7 +8364,7 @@ f.value=onlineCargo;
 bindOnlineSearchInput(input);
 if(onlineLoadedAt){
 showOnlineCurrentView();
-loadOnline(false,true);
+loadOnline(restoredCache,true);
 }else{
 loadOnline();
 }
@@ -8640,7 +8641,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision,epoch=backendSyncPageEpochs.get('online')||0;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
+  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||onlineOrderEditPending||createShipPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(d.orderTimes||[])[i],orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -9919,33 +9920,48 @@ alert('請先勾選要出貨的商品');
 return
 }
 const selected=new Set(rows.map(Number));
-const expected=onlineRows.filter(row=>selected.has(Number(row.row))).map(row=>({row:Number(row.row),data:row.data}));
-if(expected.length!==selected.size)return alert('勾選資料已變動，請重新整理後再選擇');
-if(onlineRows.some(row=>selected.has(Number(row.row))&&isOpenedRow(row)))return alert('勾選商品已產生出貨單，請取消勾選已開單商品');
+const selectedRows=onlineRows.filter(row=>selected.has(Number(row.row)));
+if(selectedRows.length!==selected.size||selectedRows.some(row=>!row.itemId))return alert('勾選資料已變動，請重新整理後再選擇');
+if(selectedRows.some(row=>isOpenedRow(row)))return alert('勾選商品已產生出貨單，請取消勾選已開單商品');
+const expected=selectedRows.map(row=>({row:Number(row.row),data:row.data}));
+const _rowRefs=selectedRows.map(row=>({row:Number(row.row),id:row.itemId}));
+const selectedIds=new Set(_rowRefs.map(ref=>String(ref.id)));
 createShipPending=true;
 const buttons=[...document.querySelectorAll('button[onclick="createSelectedShip()"]')];
 buttons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true');});
 try{
-const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected)});
-alert(
-'已產生出貨單，共 '+
-(d.count||rows.length)+
-' 筆'
-);
-const completedRows=new Set((d.rows||rows).map(Number));
+const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected),_rowRefs});
+const savedRows=new Set(Array.isArray(d.rows)?d.rows.map(Number):[]);
+const statusRows=new Set(Array.isArray(d.statusRows)?d.statusRows.map(Number):[]);
+const confirmed=savedRows.size===selectedIds.size&&statusRows.size===savedRows.size&&[...savedRows].every(row=>statusRows.has(row));
+onlineMutationRevision++;
+backendSyncPageEpochs.set('online',(backendSyncPageEpochs.get('online')||0)+1);
+backendSyncDirty.add('online');
+backendSyncDirty.add('ship');
+if(confirmed){
+// 回應的列號可能已重排，畫面依原本勾選的商品 ID 更新。
 let openedHeader=findHeader(onlineHeaders,['已開單','開單']);
 if(!openedHeader){openedHeader='已開單';onlineHeaders.push(openedHeader);}
 const statusHeader=findHeader(onlineHeaders,['狀態','訂購狀態']);
-onlineMutationRevision++;
+const completedRows=new Set();
 onlineRows.forEach(row=>{
-if(!completedRows.has(Number(row.row)))return;
-if(openedHeader)row.data[openedHeader]=true;
+if(!selectedIds.has(String(row.itemId)))return;
+completedRows.add(Number(row.row));
+row.data[openedHeader]=true;
 if(statusHeader)row.data[statusHeader]='已開單';
 });
 onlineQueryAll('.shipCheck').forEach(input=>{if(completedRows.has(Number(input.value))){input.checked=false;input.disabled=true;}});
-saveOnlineSessionCache();onlineLoadedAt=0;
-sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');shipDataCache=null;shipLoadedAt=0;shipRevision++;
+}
+onlineLoadedAt=1;saveOnlineSessionCache(1);
+sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');localStorage.removeItem('jiwu_supabase_test_snapshot_ship');
+shipDataCache=null;shipLoadedAt=0;shipRevision++;
+if(!confirmed){
+alert('已收到出貨回應，訂單狀態尚未全部確認，將重新讀取訂單。');
+setTimeout(()=>void loadOnline(true,true),0);
+}else{
 if(document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
+alert('已產生出貨單，共 '+selectedIds.size+' 筆');
+}
 }catch(e){
 alert(e.message)
 }finally{
@@ -10529,7 +10545,7 @@ function backendSyncCanApply(page){
  if(active?.id==='inventorySearch'&&active.value!==inventorySearch)return false;
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
- if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
+ if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||createShipPending||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
  if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderSaving||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
