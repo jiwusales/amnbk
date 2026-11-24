@@ -5773,6 +5773,7 @@ let authToken=localStorage.getItem(AUTH_PERSISTENT_TOKEN_KEY)||sessionStorage.ge
 if(authToken)document.body.classList.add('isAuthenticated');
 let authWarmupPromise=null;
 let appStarted=false;
+let initialTabRequest='';
 let onlineRows=[];
 let onlineHeaders=[];
 let inventoryRows=[];
@@ -6977,6 +6978,7 @@ function storeSalesSearchKeydown(event,input){
 }
 
 function tab(name,el){
+if(!appStarted){if(authToken)initialTabRequest=name;return;}
 if(name==='profit'&&!profitToken){openProfitPage();return;}
 if(document.body.dataset.page==='launch'&&(launchBusy||(launchHasUnsentChanges()&&!confirm('尚未儲存，要放棄變更並離開嗎？'))))return;
 if(document.body.dataset.page==='launch'){launchDirty=false;launchLoad++;}
@@ -10876,7 +10878,8 @@ if(appStarted)return;
 appStarted=true;
 document.body.classList.add('isAuthenticated');
 detectSalesperson();
-const savedTab=initialTab||(sessionStorage.getItem(PURCHASE_SAFARI_KEY)?'purchase':sessionStorage.getItem('jiwu_supabase_test_current_tab')||'launch');
+const savedTab=initialTab||(sessionStorage.getItem(PURCHASE_SAFARI_KEY)?'purchase':initialTabRequest||sessionStorage.getItem('jiwu_supabase_test_current_tab')||'launch');
+initialTabRequest='';
 const targetBtn=document.getElementById('btn-'+savedTab)||document.getElementById('btn-store');
 tab(savedTab,targetBtn);
 backendSyncStart();void purchaseResumeSafariImport();
@@ -10886,6 +10889,7 @@ if(typeof profitLock==='function')profitLock(false);
 window.jiwuStoreOfflineMode=false;
 authToken='';
 appStarted=false;
+initialTabRequest='';
 sessionStorage.removeItem(AUTH_TOKEN_KEY);
 localStorage.removeItem(AUTH_PERSISTENT_TOKEN_KEY);
 document.body.classList.remove('isAuthenticated');
