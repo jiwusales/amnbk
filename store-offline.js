@@ -49,14 +49,60 @@ async function warm(){await storageReady;if(!authToken)return;const s=state();s.
 
 function paint(){if(document.body.dataset.page!=='store')return;let box=document.getElementById('storeCloudStatus');if(!box){const target=document.querySelector('.top');if(!target)return;box=document.createElement('button');box.type='button';box.id='storeCloudStatus';target.append(box)}const pending=state().receipts.filter(r=>r.state!=='done');box.textContent='↗';box.classList.toggle('ready',!!(state().discordTicket&&state().discordExpiresAt>Date.now()));const status='Discord 自動備援'+(pending.length?' · 保留 '+pending.length+' 筆':'');box.title=status;box.setAttribute('aria-label',status);box.onclick=()=>showReceipts();}
 function showReceipts(){const list=state().receipts.filter(r=>r.state!=='done');if(!list.length){alert('尚無待補登備援。斷線結帳會自動送到 Discord「離線暫存區」；若顯示尚未就緒，請在主機在線時重新整理。');return;}const panel=document.createElement('div');panel.style.cssText='position:fixed;inset:0;z-index:99999;background:#0006;display:grid;place-items:center;padding:18px';const box=document.createElement('div');box.style.cssText='background:white;border-radius:16px;padding:20px;display:grid;gap:12px;max-height:85dvh;overflow:auto;width:min(100%,440px)';const title=document.createElement('strong');title.textContent='保留的備援明細（完成狀態請看 Discord）';box.append(title);for(const r of list){const b=document.createElement('button');b.textContent=new Date(r.params.checkoutAt).toLocaleString('zh-TW')+'　$'+r.params.total+'　'+(r.state==='discord'?'Discord 已收件，待補登':r.state==='manual'?'已確認手動傳送':'尚未確認傳送');b.style.cssText='padding:12px;border:0;border-radius:10px;text-align:left';b.onclick=()=>window.JiwuManualBackup.open(window.JiwuManualBackup.clean('store',r.params));box.append(b);const done=document.createElement('button');done.textContent='已在 Discord 確認補登，移出待處理';done.style.cssText='padding:10px;border:0;border-radius:10px;color:#777';done.onclick=()=>{if(!confirm('請先確認 Discord 已顯示這個編號補登完成。確定移出待處理？'))return;const next=state(),found=next.receipts.find(x=>x.params.requestId===r.params.requestId);if(found)found.state='done';save(KEY,next);panel.remove();paint();};box.append(done);}const close=document.createElement('button');close.textContent='關閉';close.onclick=()=>panel.remove();close.style.padding='12px';box.append(close);panel.append(box);document.body.append(panel);}
+const offlineNotice='主機離線，目前僅能使用店面結帳與 Discord 備援';
+const sessionConnectionError=error=>[429,502,503,504].includes(error?.status)||connectionError(error)||/Relay is busy|Mac API unavailable|主機離線/i.test(error?.message||'');
 window.jiwuStoreOfflineMode=false;
-window.jiwuRestoreStoreOffline=async function(){await storageReady;const s=state();if(!authorizedLocal())return false;authToken=s.token;sessionStorage.setItem(AUTH_TOKEN_KEY,authToken);sessionStorage.setItem('jiwu_supabase_test_current_tab','store');window.jiwuStoreOfflineMode=true;startApp();paint();return true;};
-const originalTab=tab;tab=function(name,el){if(window.jiwuStoreOfflineMode&&name!=='store'){launchCompletionToast('主機離線，目前僅能使用店面結帳與 Discord 備援',true);return;}return originalTab(name,el);};
 const originalRequest=apiRequest;
+window.jiwuForgetStoreSession=function(token){
+ const saved=state();
+ if(!token||saved.token!==token)return;
+ saved.token='';saved.expiresAt=0;
+ if(saved.discordToken===token){delete saved.discordToken;delete saved.discordTicket;delete saved.discordExpiresAt;}
+ void persist(KEY,saved);
+};
+window.jiwuRestoreStoreSession=async function(){
+ await storageReady;
+ if(appStarted)return;
+ const cached=authToken?'':authorizedLocal()?state().token:'';
+ const token=authToken||cached;
+ if(!token)return;
+ authToken=token;
+ try{
+  if(navigator.onLine===false)throw Error('主機離線');
+  try{await originalRequest('authCheck');}catch(error){
+   if(authToken!==token||!sessionConnectionError(error))throw error;
+   await new Promise(resolve=>setTimeout(resolve,350));
+   if(authToken!==token||appStarted)return;
+   await originalRequest('authCheck');
+  }
+ }catch(error){
+  if(authToken!==token||appStarted)return;
+  if(sessionConnectionError(error)&&authorizedLocal()&&state().token===token){
+   if(cached)sessionStorage.setItem(AUTH_TOKEN_KEY,token);
+   window.jiwuStoreOfflineMode=true;
+   startApp('store');
+  }else showLogin();
+  return;
+ }
+ if(authToken!==token||appStarted)return;
+ if(cached)sessionStorage.setItem(AUTH_TOKEN_KEY,token);
+ startApp();
+ void warm();
+};
+const originalTab=tab;
+let reconnecting=null,pendingTab=null;
+tab=function(name,el){
+ if(!window.jiwuStoreOfflineMode||name==='store'){
+  pendingTab=null;
+  return originalTab(name,el);
+ }
+ if(navigator.onLine===false){launchCompletionToast(offlineNotice,true);return;}
+ pendingTab={name,el};
+ return reconnectStore();
+};
 apiRequest=async function(action,params={}){
  await storageReady;
- if(window.jiwuStoreOfflineMode&&!['authCheck','storeCheckout','storeCart','storeCartSet','storeCartClear','storeScan'].includes(action))throw Error('主機離線，目前僅能使用店面結帳與 Discord 備援');
- if(action==='authCheck'){try{const result=await originalRequest(action,params);window.jiwuStoreOfflineMode=false;await warm();return result;}catch(e){if(!connectionError(e))throw e;if(await window.jiwuRestoreStoreOffline())return {ok:true,offlineStore:true};throw e;}}
+ if(window.jiwuStoreOfflineMode&&!['authCheck','storeCheckout','storeCart','storeCartSet','storeCartClear','storeScan'].includes(action))throw Error(offlineNotice);
  if(action==='storeCheckout'){
   const initial=state(),signature=JSON.stringify([params.items,params.total,params.payment,params.note,params.salesperson,params.received,params.change]);
   let record=initial.receipts.find(r=>r.state==='unknown'&&r.signature===signature);
@@ -79,6 +125,7 @@ apiRequest=async function(action,params={}){
  try{if((unsettled||window.jiwuStoreOfflineMode)&&['storeCartSet','storeCartClear','storeScan'].includes(action))throw Error('Mac connection pending receipt');const result=await originalRequest(action,params);
   if(action==='storeCartSet'){delete carts[user];save(CART,carts)}
   if(action==='storeScan'){const product=(result.cart||[]).find(x=>x.code===(result.product?.code||params.barcode));if(product){const cache=read(PRODUCTS,{});cache[params.barcode]=product;save(PRODUCTS,cache)}}
+  if(action==='storeCart'&&window.jiwuStoreOfflineMode)void reconnectStore();
   return result;
  }catch(e){if(!connectionError(e)||!['storeCartSet','storeCartClear','storeScan'].includes(action))throw e;
   if(!authorizedLocal())throw Error('此裝置的登入已到期，購物車保留，請在本機連線後登入');let cart;
@@ -89,10 +136,26 @@ apiRequest=async function(action,params={}){
  }
 };
 const render=renderStore;renderStore=function(...args){const result=render(...args);paint();void warm();return result;};
-let reconnecting=false;
-async function reconnectStore(){if(reconnecting||!window.jiwuStoreOfflineMode||document.body.dataset.page!=='store')return;reconnecting=true;try{await originalRequest('authCheck');window.jiwuStoreOfflineMode=false;await warm();}catch{}finally{reconnecting=false;}}
+function reconnectStore(){
+ if(reconnecting)return reconnecting;
+ if(!window.jiwuStoreOfflineMode||!authToken||navigator.onLine===false)return;
+ const token=authToken;
+ reconnecting=originalRequest('authCheck').then(()=>{
+  if(authToken!==token||!window.jiwuStoreOfflineMode)return;
+  window.jiwuStoreOfflineMode=false;
+  const toast=document.getElementById('launchCompletionToast');
+  if(toast?.textContent===offlineNotice)toast.hidden=true;
+  if(pendingTab)originalTab(pendingTab.name,pendingTab.el);
+  if(document.getElementById('storeSalesResult'))void renderStoreSales();
+  backendSyncStart();
+  void warm();
+ },()=>{
+  if(authToken===token&&window.jiwuStoreOfflineMode&&pendingTab)launchCompletionToast(offlineNotice,true);
+ }).finally(()=>{reconnecting=null;pendingTab=null;});
+ return reconnecting;
+}
 window.addEventListener('online',reconnectStore);
+window.addEventListener('jiwu-host-connected',reconnectStore);
+window.addEventListener('focus',reconnectStore);
 setInterval(reconnectStore,30000);
-if(document.body.dataset.page==='store'){paint();void warm()}
-if(!authToken&&!appStarted)void window.jiwuRestoreStoreOffline();
 })();
