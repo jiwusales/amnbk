@@ -2103,15 +2103,27 @@ function jiwuSplitProductSpec(sizeValue, formatValue, inferFormat = true) {
   return {format:explicitFormat,size:physicalGroups.length?physicalGroups.join(' '):originalSize};
 }
 
-function launchProductSpec(item){const spec=jiwuSplitProductSpec(item?.size,item?.format),compact=jiwuCompactProductSize(spec.size,item||{}),groups=jiwuPhysicalSizeGroups(spec.size);return {format:spec.format,size:compact!==null?compact:groups.length>1?groups.map(jiwuClothingSize).join(' '):jiwuClothingSize(spec.size)};}
+function launchKeepBibisamaSockCentimeters(value,item){
+ const text=String(value??'').normalize('NFKC');
+ return /\d\s*(?:公分|厘米|cm)(?![a-z])/i.test(text)&&productInfoIsBibisamaSockURL(item?.url);
+}
+function launchProductSpec(item){const spec=jiwuSplitProductSpec(item?.size,item?.format);if(launchKeepBibisamaSockCentimeters(spec.size,item))return spec;const compact=jiwuCompactProductSize(spec.size,item||{}),groups=jiwuPhysicalSizeGroups(spec.size);return {format:spec.format,size:compact!==null?compact:groups.length>1?groups.map(jiwuClothingSize).join(' '):jiwuClothingSize(spec.size)};}
 function launchVariantFormat(item){return launchProductSpec(item).format||String(item?.size||'');}
-function launchCardSize(value){
- const text=jiwuClothingSize(launchFormatProductSize(value)),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
+function launchCardSize(value,item={}){
+ const text=jiwuClothingSize(launchKeepBibisamaSockCentimeters(value,item)?String(value).replace(/厘米/g,'公分'):launchFormatProductSize(value)),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
  // Only physical measurements belong to the size line.
  return parts.filter(part=>/\d/.test(part)&&(/(?:[HWDΦφø直徑長寬高厚深縦横丈幅巾肩袖]|\d\s*[×xX*]\s*\d|\d\s*(?:cm|mm|公分|毫米|公厘))/i.test(part)||/^(?:[AB](?:10|[0-9])|\d+(?:\.\d+)?)$/i.test(part))).join('/');
 }
+function launchClothingFormatOptions(item){
+ const spec=jiwuSplitProductSpec(item?.size,item?.format);
+ const sizes=[...new Set((spec.format||spec.size).normalize('NFKC').toUpperCase().split(/[\s/、,;]+/).filter(Boolean))];
+ return sizes.every(size=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE)$/.test(size))?sizes:[];
+}
+function launchDisplayedCardSize(item){
+ return launchClothingFormatOptions(item).length>1?'':launchCardSize(launchProductSpec(item).size,item);
+}
 function launchProductColors(item){const name=launchDisplayName(item);return [...new Set(launchCurrent.items.filter(x=>launchDisplayName(x)===name).flatMap(x=>launchHexColors(x.size)))];}
-function launchThumb(g){const banner=g.images?.[0],items=g.items||[],visible=items.slice(0,28),more=(g.itemCount??items.length)>visible.length;return `<div class="launchThumb" aria-hidden="true"><div class="launchThumbPage" style="--launch-main:${launchColor(g.mainColor)}"><div class="launchThumbHead"><img src="${launchIcon}" alt="" loading="lazy" decoding="async">${esc(g.name)}</div>${banner?`<img class="launchThumbBanner" src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<div class="launchThumbBanner"></div>'}<div class="launchThumbItems">${visible.map(p=>`<div class="launchThumbCard">${p.images?.[0]?`<img src="${launchImage(p.images[0])}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<span class="launchThumbBlank"></span>'}<b>${esc(launchDisplayName(p))}</b><strong>${esc(p.price)}</strong><small class="launchThumbFormat">${esc(launchProductSpec(p).format)}</small><small>${esc(launchCardSize(launchProductSpec(p).size))}</small></div>`).join('')}${more?'<div class="launchThumbMore">更多商品</div>':''}</div><div class="launchThumbFooter">${esc(launchFooterText(g))}</div></div></div>`;}
+function launchThumb(g){const banner=g.images?.[0],items=g.items||[],visible=items.slice(0,28),more=(g.itemCount??items.length)>visible.length;return `<div class="launchThumb" aria-hidden="true"><div class="launchThumbPage" style="--launch-main:${launchColor(g.mainColor)}"><div class="launchThumbHead"><img src="${launchIcon}" alt="" loading="lazy" decoding="async">${esc(g.name)}</div>${banner?`<img class="launchThumbBanner" src="${launchImage(banner)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<div class="launchThumbBanner"></div>'}<div class="launchThumbItems">${visible.map(p=>`<div class="launchThumbCard">${p.images?.[0]?`<img src="${launchImage(p.images[0])}" alt="" loading="lazy" decoding="async" fetchpriority="low">`:'<span class="launchThumbBlank"></span>'}<b>${esc(launchDisplayName(p))}</b><strong>${esc(p.price)}</strong><small class="launchThumbFormat">${esc(launchProductSpec(p).format)}</small><small>${esc(launchDisplayedCardSize(p))}</small></div>`).join('')}${more?'<div class="launchThumbMore">更多商品</div>':''}</div><div class="launchThumbFooter">${esc(launchFooterText(g))}</div></div></div>`;}
 const launchThumbObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(!(node instanceof Element))return;const nested=node.querySelectorAll?[...node.querySelectorAll('img.launchThumbBanner')]:[],banners=[...(node.matches&&node.matches('img.launchThumbBanner')?[node]:[]),...nested];banners.forEach(img=>{img.loading='eager';img.fetchPriority='high';});})));launchThumbObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
 function launchMark(){launchDirty=true;const b=document.getElementById('launchSave');if(b)b.textContent='SAVE *';document.querySelectorAll('[data-launch-save]').forEach(x=>x.textContent='SAVE *');}
 function launchPushUndo(){if(!launchCurrent)return;launchUndoStack.push({group:structuredClone(launchCurrent),dirty:launchDirty,panel:launchPanelIndex});if(launchUndoStack.length>30)launchUndoStack.shift();}
@@ -2947,7 +2959,7 @@ function launchRenderEditor(){
  const mobileTools=`${isDraft?`<div class="launchMobileDraftSections">${draftSections}</div>`:''}<div class="launchMobileEditorTools" style="--launch-mobile-tools:${isDraft?7:8}">${isDraft?'':'<button class="btn light" onclick="launchAllProducts()">商品</button>'}<button class="btn light" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" onclick="launchAds()">廣告</button><button class="btn light" type="button" onclick="launchAddPanel()">新增畫布</button><button class="btn light" onclick="launchGrab()">抓抓</button>${launchWebsiteButton()}<button class="btn light" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button class="btn light" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>${panelTabs}${isLatest?'<div class="launchMobileBottomTools"><button class="btn light" type="button" onclick="launchOpenProductList()">返回商品列表</button></div>':''}</div>`;
  const latestCanvasActions=`<button class="btn light" type="button" onclick="launchOpenProductList()">商品列表</button><button class="btn light" type="button" onclick="launchAllProducts()">商品資訊</button><button class="btn light" type="button" data-launch-card-columns onclick="launchCardColumns()">卡片</button><button class="btn light" type="button" onclick="launchAds()">廣告</button><button class="btn light" type="button" onclick="launchPanelOrder()">畫布排序</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button>${launchWebsiteButton()}<button class="btn light launchMobileOnly" type="button" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button class="btn light" type="button" aria-label="重新整理" onclick="launchRequestRefresh()">↻</button><button class="btn" id="launchSave" type="button" onclick="launchSaveClick()">SAVE${launchDirty?' *':''}</button>`;
  const desktopControls=`<div class="launchZoomControls" aria-label="畫布工具">${isDraft?'<button type="button" aria-label="移除全部原價" onclick="launchHideAllCosts()">⛁</button>':''}<button type="button" aria-label="復原上一步" onclick="launchUndo()">⬅︎</button><button type="button" aria-label="放大畫布" onclick="launchAdjustZoom(.1)">＋</button><button type="button" aria-label="縮小畫布" onclick="launchAdjustZoom(-.1)">－</button></div>`;
- document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''} ${g.status==='最新開團'?'launchLatestCanvas':''}">${isLatest?'':`<div class="launchTools launchPrimaryTools"><span class="launchRightTools">${desktopPrimary}</span></div>`}${isLatest?`<div class="launchTools launchLatestCanvasActions">${latestCanvasActions}</div>${panelTabs}`:`<div class="launchTools launchEditorTools launchDesktopEditorTools"><span class="launchEditorToolsLeft">${editActions}</span><span class="launchEditorToolsRight">${desktopSecondary}</span></div>${mobileTools}`}<div class="launchEditor"><div class="launchPaper" id="launchPaper" style="--launch-main:${launchColor(activePanel.mainColor||g.mainColor)}"><div class="launchHeading"><img src="${launchIcon}" alt="JIWU"><div id="launchTitleWrap" class="launchTitle"><button class="launchTitle" onclick="launchEditTitle()">${esc(launchCanvasDisplayTitle(g))}</button></div></div><div class="launchBanners">${banner?`<div class="launchBanner"><button class="launchBannerEdit" aria-label="修改首圖" onclick="launchBannerURLs()"><img src="${launchImage(banner)}" alt="開團 Banner" style="${launchBannerStyle(activePanel)}"></button><button class="launchBannerPosition" aria-label="調整首圖位置與大小" onclick="launchBannerPosition(event)">調整</button><button aria-label="移除 Banner" onclick="launchRemoveActiveBanner()">×</button></div>`:`<button class="launchBannerEmpty" onclick="launchBannerURLs()">貼上 Banner 網址</button>`}</div><div class="launchCards">${panelItems.map(({p,i})=>`<article class="launchProduct ${Number(p.scale||1)>=1.5?'launchResized':''}" data-launch-index="${i}" data-launch-product-id="${esc(p.id)}" tabindex="0" role="button" aria-label="編輯 ${esc(launchDisplayName(p))}" onclick="launchProductDialog(${i})" onkeydown="if(event.key==='Enter'&&event.target===this)launchProductDialog(${i})">${launchProductImageURL(p)?`<a class="launchProductPictures" data-launch-product-link="${i}" href="${esc(launchProductImageURL(p))}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(launchDisplayName(p))} 商品網址" onclick="event.stopPropagation()">`:'<div class="launchProductPictures">'}${p.images.length?p.images.slice(0,1).map(u=>`<img src="${launchImage(u)}" alt="${esc(launchDisplayName(p))}" decoding="async">`).join(''):'<span class="launchPlaceholder">商品圖片</span>'}${launchProductImageURL(p)?'</a>':'</div>'}<h3>${esc(launchDisplayName(p))}</h3><p class="launchCode">${esc(p.code)}</p><p><b>${esc(String(p.price||'').replace(/^\$/,''))}</b></p><p class="launchFormat">${esc(launchProductSpec(p).format)}</p><p class="launchSize">${esc(launchCardSize(launchProductSpec(p).size))}</p></article>`).join('')}</div><button class="launchFooter" onclick="launchEditFooter()">官方LINE @jiwusales｜${esc(g.footer||'')}</button></div></div>${desktopControls}<p id="launchOverflowNote" class="launchHelp"></p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div>${launchAvailabilityFooter()}</section>`;
+ document.getElementById('app').innerHTML=`<section class="launchPage ${launchBusy?'launchBusy':''} ${g.status==='最新開團'?'launchLatestCanvas':''}">${isLatest?'':`<div class="launchTools launchPrimaryTools"><span class="launchRightTools">${desktopPrimary}</span></div>`}${isLatest?`<div class="launchTools launchLatestCanvasActions">${latestCanvasActions}</div>${panelTabs}`:`<div class="launchTools launchEditorTools launchDesktopEditorTools"><span class="launchEditorToolsLeft">${editActions}</span><span class="launchEditorToolsRight">${desktopSecondary}</span></div>${mobileTools}`}<div class="launchEditor"><div class="launchPaper" id="launchPaper" style="--launch-main:${launchColor(activePanel.mainColor||g.mainColor)}"><div class="launchHeading"><img src="${launchIcon}" alt="JIWU"><div id="launchTitleWrap" class="launchTitle"><button class="launchTitle" onclick="launchEditTitle()">${esc(launchCanvasDisplayTitle(g))}</button></div></div><div class="launchBanners">${banner?`<div class="launchBanner"><button class="launchBannerEdit" aria-label="修改首圖" onclick="launchBannerURLs()"><img src="${launchImage(banner)}" alt="開團 Banner" style="${launchBannerStyle(activePanel)}"></button><button class="launchBannerPosition" aria-label="調整首圖位置與大小" onclick="launchBannerPosition(event)">調整</button><button aria-label="移除 Banner" onclick="launchRemoveActiveBanner()">×</button></div>`:`<button class="launchBannerEmpty" onclick="launchBannerURLs()">貼上 Banner 網址</button>`}</div><div class="launchCards">${panelItems.map(({p,i})=>`<article class="launchProduct ${Number(p.scale||1)>=1.5?'launchResized':''}" data-launch-index="${i}" data-launch-product-id="${esc(p.id)}" tabindex="0" role="button" aria-label="編輯 ${esc(launchDisplayName(p))}" onclick="launchProductDialog(${i})" onkeydown="if(event.key==='Enter'&&event.target===this)launchProductDialog(${i})">${launchProductImageURL(p)?`<a class="launchProductPictures" data-launch-product-link="${i}" href="${esc(launchProductImageURL(p))}" target="_blank" rel="noopener noreferrer" aria-label="開啟 ${esc(launchDisplayName(p))} 商品網址" onclick="event.stopPropagation()">`:'<div class="launchProductPictures">'}${p.images.length?p.images.slice(0,1).map(u=>`<img src="${launchImage(u)}" alt="${esc(launchDisplayName(p))}" decoding="async">`).join(''):'<span class="launchPlaceholder">商品圖片</span>'}${launchProductImageURL(p)?'</a>':'</div>'}<h3>${esc(launchDisplayName(p))}</h3><p class="launchCode">${esc(p.code)}</p><p><b>${esc(String(p.price||'').replace(/^\$/,''))}</b></p><p class="launchFormat">${esc(launchProductSpec(p).format)}</p><p class="launchSize">${esc(launchDisplayedCardSize(p))}</p></article>`).join('')}</div><button class="launchFooter" onclick="launchEditFooter()">官方LINE @jiwusales｜${esc(g.footer||'')}</button></div></div>${desktopControls}<p id="launchOverflowNote" class="launchHelp"></p><div id="launchNotice" class="launchNotice" role="status">${esc(launchMessage)}</div>${launchAvailabilityFooter()}</section>`;
  const paper=document.getElementById('launchPaper');
  requestAnimationFrame(()=>launchPrepareCanvas(g,paper));
 }
@@ -3053,17 +3065,16 @@ function launchNumber(value){const n=Number(String(value??'').replace(/[^0-9.-]/
 function launchIsRMB(item){return /r/i.test(String(item?.original||'').normalize('NFKC'));}
 function launchUSDOriginal(value){return String(value??'').normalize('NFKC').trim().match(/^USD\s*(\d[\d,]*(?:\.\d+)?)$/i)?.[1]||'';}
 
-const launchUsdReferenceFormatter=new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2});
 let launchUsdReferenceQuote=null,launchUsdReferenceUntil=0,launchUsdReferenceQueued=false,launchUsdReferencePending=null;
 function launchPaintUsdReferences(){
  const quote=launchUsdReferenceQuote;
  for(const label of document.querySelectorAll('[data-launch-usd-reference]')){
   const amount=Number(label.dataset.launchUsdReference.replace(/,/g,''));
   if(quote&&Number.isFinite(amount)){
-   label.textContent=' ≈ NT$'+launchUsdReferenceFormatter.format(amount*quote.rate);
+   label.textContent='｜$'+Math.ceil(Number((amount*quote.rate).toFixed(10)));
    label.title='央行銀行間收盤匯率 '+quote.date+' · 1 美元 = NT$'+quote.rate;
   }else{
-   label.textContent=launchUsdReferencePending?'':' 匯率暫無';
+   label.textContent='';
    label.removeAttribute('title');
   }
  }
@@ -3091,25 +3102,7 @@ function launchUsdReferenceMarkup(value){
  const amount=launchUSDOriginal(value);
  if(!amount)return '';
  launchQueueUsdReferences();
- return '<small data-launch-usd-reference="'+esc(amount)+'" style="white-space:nowrap"></small>';
-}
-function launchBindUsdReference(input){
- const label=input?.closest('label');
- if(!label)return ()=>{};
- const note=document.createElement('small');
- note.style.cssText='grid-column:2/-1;color:#666;margin-top:2px;white-space:normal';
- label.append(note);
- const sync=()=>{
-  const amount=launchUSDOriginal(launchOriginalForStorage(input.value));
-  note.hidden=!amount;
-  if(!amount){delete note.dataset.launchUsdReference;note.textContent='';return;}
-  note.dataset.launchUsdReference=amount;
-  launchQueueUsdReferences();
- };
- input.addEventListener('input',sync);
- input.addEventListener('change',sync);
- sync();
- return sync;
+ return '<span data-launch-usd-reference="'+esc(amount)+'"></span>';
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)launchRefreshUsdReferences();});
 setInterval(()=>{if(!document.hidden)launchRefreshUsdReferences();},5*60*1000);
@@ -3397,7 +3390,7 @@ function launchSaleValue(item){if(launchIsReference(item))return null;const pric
 function launchSaleText(item){if(launchIsReference(item))return '參考圖示';const name=launchDisplayName(item),values=launchCurrent.items.filter(x=>launchDisplayName(x)===name).map(launchSaleValue).filter(x=>x!=null);if(!values.length)return launchIsRMB(item)||launchUSDOriginal(item?.original)?'待輸入':'$';const low=Math.min(...values),high=Math.max(...values);return '$'+(low===high?low:`${low}~${high}`);}
 function launchApplyCardPresentation(){
  const cardsBox=document.querySelector('.launchCards');if(!cardsBox||!launchCurrent)return;const cols=launchActiveCardColumns();cardsBox.style.setProperty('--launch-cols',cols);cardsBox.style.setProperty('--launch-card-scale',8/cols);
- document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index];card.style.display=Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)?(launchCanvasContains(item)?'':'none'):(item?.visible===false?'none':'');const remove=card.querySelector('.launchDeleteProduct');if(remove)remove.textContent='✖';card.querySelector('.launchResize')?.remove();const price=card.querySelector('b');if(price){price.innerHTML=launchCanvasPriceHtml(item);price.classList.toggle('launchPriceEdit',!launchDrawPair(item));}const size=card.querySelector('.launchSize'),colors=launchProductColors(item);if(size)size.innerHTML=colors.length?`<span class="launchColorSwatches" aria-label="${esc(colors.join('、'))}">${colors.map(color=>`<i class="launchColorSwatch" style="background-color:${color}"></i>`).join('')}</span>`:esc(launchCardSize(launchProductSpec(item).size));const format=card.querySelector('.launchFormat');if(format)format.textContent=/單抽|单抽|抱盒|BOX/i.test(launchVariantFormat(item))?'':launchProductSpec(item).format;});
+ document.querySelectorAll('.launchProduct').forEach(card=>{const index=Number(card.dataset.launchIndex),item=launchCurrent.items[index];card.style.display=Array.isArray(launchCurrent.panels?.[launchPanelIndex]?.productIds)?(launchCanvasContains(item)?'':'none'):(item?.visible===false?'none':'');const remove=card.querySelector('.launchDeleteProduct');if(remove)remove.textContent='✖';card.querySelector('.launchResize')?.remove();const price=card.querySelector('b');if(price){price.innerHTML=launchCanvasPriceHtml(item);price.classList.toggle('launchPriceEdit',!launchDrawPair(item));}const size=card.querySelector('.launchSize'),colors=launchProductColors(item);if(size)size.innerHTML=colors.length?`<span class="launchColorSwatches" aria-label="${esc(colors.join('、'))}">${colors.map(color=>`<i class="launchColorSwatch" style="background-color:${color}"></i>`).join('')}</span>`:esc(launchDisplayedCardSize(item));const format=card.querySelector('.launchFormat');if(format)format.textContent=/單抽|单抽|抱盒|BOX/i.test(launchVariantFormat(item))?'':launchProductSpec(item).format;});
  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
 
 }
@@ -3793,7 +3786,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
  const products=launchExpandMultiProducts(expanded,start);
  Object.defineProperty(products,'importWarnings',{value:[...warnings]});return products;
 }
-function launchNormalizeProductSpec(size,format,item={}){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:launchFormatProductSize(spec.size,item)};}
+function launchNormalizeProductSpec(size,format,item={}){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:productInfoIsBibisamaSockURL(item.url)?productInfoNormalizeEnteredSize(spec.size,item.url):launchFormatProductSize(spec.size,item)};}
 // Compact physical measurements only; preserve unsupported specifications for the existing formatter.
 function jiwuCompactProductSize(value,item={}){
  const original=String(value??'').trim();if(!original)return '';
@@ -4023,6 +4016,20 @@ function productInfoIsNaganoAnnouncementURL(value){
 }
 function productInfoReadUnsupported(error){return error?.message==='此網站尚未支援自動抓取，請手動填寫';}
 function productInfoIsBibisamaURL(value){try{const url=new URL(String(value||''));return url.protocol==='https:'&&['bibisama.com','www.bibisama.com'].includes(url.hostname)&&!url.username&&!url.password&&!url.port&&/^(?:\/collections\/[^/]+)?\/products\/[^/]+\/?$/.test(url.pathname);}catch{return false;}}
+function productInfoIsBibisamaSockURL(value){
+ if(!productInfoIsBibisamaURL(value))return false;
+ const handle=new URL(value).pathname.split('/').filter(Boolean).at(-1);
+ return /(?:^|-)socks?(?:-|$)/i.test(handle);
+}
+function productInfoNormalizeEnteredSize(value,url){
+ if(!productInfoIsBibisamaSockURL(url))return jiwuSizeToMillimeters(value);
+ const original=String(value??'').trim(),text=original.normalize('NFKC').replace(/(?:公分|厘米)/g,'cm');
+ const number='\\d+(?:\\.\\d+)?',length=number+'(?:\\s*cm)?';
+ const range=text.match(new RegExp('^('+number+')(?:\\s*cm)?\\s*[-–—~]\\s*('+number+')(?:\\s*cm)?$','i'));
+ if(range)return range[1]+'–'+range[2]+'公分';
+ if(new RegExp('^'+length+'(?:\\s*[x×*]\\s*'+length+'){0,2}$','i').test(text))return text.replace(/cm|\s/gi,'').replace(/[×*]/g,'x').toLowerCase();
+ return /cm/i.test(text)?original:jiwuSizeToMillimeters(original);
+}
 function productInfoAutomaticFields(item,keys){return productInfoIsTmallURL(item?.url)?keys.filter(key=>!['japaneseName','format'].includes(key)):keys;}
 function productInfoSyncJapanesePlaceholder(form,url){const input=form?.querySelector('[name=japaneseName],#inventoryEditJapaneseName,#inventoryAddJapaneseName');if(!input)return;if(input.dataset.productInfoPlaceholder===undefined)input.dataset.productInfoPlaceholder=input.getAttribute('placeholder')||'';input.placeholder=productInfoIsTmallURL(url)?'選填，可手動填寫':input.dataset.productInfoPlaceholder;}
 function productInfoSanrioNeedsImage(item){
@@ -4038,7 +4045,6 @@ function launchProductImageEdited(box){
 }
 function launchAutoProductInfo(form){
  const input=form?.elements?.namedItem('url');if(!input)return;
- const syncUsdReference=launchBindUsdReference(form.elements.namedItem('original'));
  const imagesBox=form.querySelector('.launchProductImages'),imagesControl=form.elements.namedItem('images');
  let sanrioImage;
  function syncSanrioImageURL(){
@@ -4071,7 +4077,7 @@ function launchAutoProductInfo(form){
   syncSanrioImageURL();
   const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),abema=/^https:\/\/contents-abema\.com\/chiikawa-christmas-market\/goods\/md\d+\/?(?:[?#]|$)/i.test(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
   productInfoSyncJapanesePlaceholder(form,url);
-  if(size)size.value=jiwuSizeToMillimeters(launchNormalizeDotstSize(url,size.value));
+  if(size)size.value=productInfoNormalizeEnteredSize(launchNormalizeDotstSize(url,size.value),url);
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
   const needsSanrioImage=imagesBox&&form.jiwuManualImageURL!==url&&productInfoSanrioNeedsImage({url,images:imagesControl?.value});
   if(!needsSanrioImage&&!productInfoMetalboxNeedsImages({url,images:form.elements.namedItem('images')?.value||''})&&String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
@@ -4093,7 +4099,6 @@ function launchAutoProductInfo(form){
     if(image){launchProductImageRender(imagesBox,[image]);sanrioImage={url,image};}
    }
    if(!tmall&&data.item?.needsFormat&&data.item?.detail){message.textContent=data.item.detail;return;}
-   syncUsdReference();
    if(!tmall&&data.item?.needsFormat){message.textContent=data.item?.formatChoices?.length?'此商品有多種尺寸，請在格式填「'+data.item.formatChoices.join('」或「')+'」再抓取對應貨號、尺寸與庫存':'此商品有多種格式，請先填「單抽」或「抱盒」以帶入對應貨號與原價';return;}
    message.textContent=[!tmall&&!String(japaneseName?.value||'').trim()?'日文名':'',!String(code?.value||'').trim()?'貨號':'',!String(size?.value||'').trim()?'尺寸':''].filter(Boolean).join('、');
    message.textContent=message.textContent?'官網未提供'+message.textContent+'，可手動填寫':tmall?'已帶入貨號與尺寸':'已帶入日文名、貨號與尺寸';
@@ -5225,13 +5230,13 @@ function launchRenderURLImport(){
  const session=launchURLImportSession;if(!session||!launchURLImportActive(session))return;
  if(session.newGroup){launchRenderNewAnnouncementForm(session);return;}
  const reference=session.sources.map(({source,group})=>source?`<div><strong>${esc(source.title||'公告')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small>${group?.name?`<small>團名參考：${esc(group.name)}</small>`:''}</div>`:'').join('');
- session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc([launchURLImportOriginal(item),launchURLImportMetadataText(item)].filter(Boolean).join('｜'))}${launchUsdReferenceMarkup(item.original)}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
+ session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)}${launchURLImportMetadataText(item)?'｜'+esc(launchURLImportMetadataText(item)):''}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
  launchUpdateURLImportSelection();
 }
 function launchRenderNewAnnouncementForm(session){
  const source=session.sources[0]?.source;
  const reference=source?`<div class="launchURLSource"><strong>${esc(source.title||'')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small></div>`:'';
- const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc([launchURLImportOriginal(item),item.currency==='USD'?item.format:''].filter(Boolean).join('｜'))}${launchUsdReferenceMarkup(item.original)} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
+ const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
  session.dialog.innerHTML=`<form class="launchURLImportForm launchNewAnnouncementForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>建立新團</h2><label>商品／公告網址（選填）<textarea name="urls" aria-label="匯入商品網址" rows="2" placeholder="貼上任一公開商品或公告網址，自動帶入商品與圖片">${esc(session.urls||'')}</textarea></label><div class="launchTools" style="margin:10px 0"><button class="btn light" type="button" data-url-read onclick="launchReadImportURLs({preventDefault(){},currentTarget:this.form})">讀取網址商品</button></div><p data-url-import-message role="status"></p>${reference}${launchURLImportGroupFields(session)}${session.items.length?`<h3>辨識到的商品</h3><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${products}</div>`:''}${session.warnings.length?`<p class="launchHelp">${esc(session.warnings.join('；'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit" data-url-import-confirm>建立開團頁</button></div></form>`;
  const urlsField=session.dialog.querySelector('textarea[name="urls"]');
  urlsField?.addEventListener('paste',()=>setTimeout(()=>{const value=urlsField.value.trim();if(value&&value!==session.urls&&launchURLImportActive(session)&&!session.loading&&urlsField.isConnected)void launchReadImportURLs({preventDefault(){},currentTarget:urlsField.form});},0));
@@ -5782,7 +5787,7 @@ async function launchBuildPNG(){
 
  const title=paper.querySelector('.launchTitle button')||paper.querySelector('.launchTitle');if(title)launchDrawExportTitle(title,group,panelIndex,drawText);
  // 僅繪製畫布上的資料欄位。價格只畫 <b>，避免外層 <p> 再畫一次而出現黑色重影。
- paper.querySelectorAll('.launchProduct h3,.launchProduct b,.launchProduct .launchDraftPrice span,.launchProduct .launchFormat,.launchProduct .launchSize,.launchFooter').forEach(drawText);
+ paper.querySelectorAll('.launchProduct h3,.launchProduct b,.launchProduct .launchDraftPrice>span,.launchProduct .launchFormat,.launchProduct .launchSize,.launchFooter').forEach(drawText);
  const more=paper.querySelector('.launchMore');if(more){const r=drawBox(more);ctx.fillStyle=getComputedStyle(more).color;ctx.textAlign='center';ctx.textBaseline='middle';let fontSize=parseFloat(getComputedStyle(more).fontSize)*scale;ctx.font=`700 ${fontSize}px sans-serif`;const lines=['到最新開團','看看更多','酷東西！'];const maxWidth=Math.max(...lines.map(t=>ctx.measureText(t).width));fontSize*=Math.min(1,(r.w*.85)/maxWidth);ctx.font=`700 ${fontSize}px sans-serif`;lines.forEach((text,i)=>ctx.fillText(text,r.x+r.w/2,r.y+r.h/2+(i-1)*fontSize*1.55));ctx.textAlign='left';} 
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('輸出失敗');return launchPNGDpi(await blob.arrayBuffer());
 }
@@ -7408,7 +7413,7 @@ async function inventoryGrabVisibleNames(button){
 }
 function inventoryHalfWidth(value){return String(value??'').replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/　/g,' ');}
 function inventoryNormalizeField(input,convertSize=false){
- if(!input)return '';const before=input.value,half=inventoryHalfWidth(before),value=convertSize&&(input.matches?.('#inventoryEditSize,#inventoryAddSize,[data-launch-product-form] [name=size]'))?jiwuSizeToMillimeters(half):half,start=input.selectionStart,end=input.selectionEnd;
+ if(!input)return '';const before=input.value,half=inventoryHalfWidth(before),value=convertSize&&(input.matches?.('#inventoryEditSize,#inventoryAddSize,[data-launch-product-form] [name=size]'))?productInfoNormalizeEnteredSize(half,input.form?.elements.namedItem('url')?.value||input.form?.querySelector('#inventoryEditUrl,#inventoryAddUrl')?.value):half,start=input.selectionStart,end=input.selectionEnd;
  if(value!==before){input.value=value;if(start!=null&&input.setSelectionRange)input.setSelectionRange(start,end??start);}
  return value;
 }
@@ -7420,7 +7425,6 @@ document.addEventListener('submit',event=>{event.target.querySelectorAll('input'
 function inventoryBindProductInfo(form,prefix){
  const urlInput=form.querySelector('#'+prefix+'Url');if(!urlInput)return;
  const fields=[['japaneseName','JapaneseName','日文原名'],['code','Code','貨號'],['original','Original','原價'],['format','Format','格式'],['size','Size','尺寸'],['image','Image','圖片']].map(([key,suffix,label])=>({key,label,input:form.querySelector('#'+prefix+suffix)})).filter(field=>field.input);
- const syncUsdReference=launchBindUsdReference(form.querySelector('#'+prefix+'Original'));
  const nameInput=prefix==='inventoryAdd'?form.querySelector('#inventoryAddName'):null;
  const formatInput=fields.find(field=>field.key==='format')?.input;
  const buttons=[...form.querySelectorAll('[data-inventory-grab]')];
@@ -7451,7 +7455,6 @@ function inventoryBindProductInfo(form,prefix){
      if(!field.input.value.trim()&&value!==undefined&&value!==null&&String(value).trim()){field.input.value=field.key==='original'?launchOriginalInputValue(value):inventoryIsHalfWidthField(field.input)?inventoryHalfWidth(value):String(value);count++;}
     }
     form.jiwuInventoryDetected={...data.item,url};
-    syncUsdReference();
     const absent=automaticFields.filter(field=>field.key!=='format'&&!field.input.value.trim()).map(field=>field.label);
     message.textContent=!productInfoIsTmallURL(url)&&data.item?.needsFormat?(bibisama&&data.item.formatChoices?.length?'請在格式填寫 '+data.item.formatChoices.join('、')+'，帶入該尺寸的商品資料':(data.item?.detail||'此商品有多種規格，未辨識的資料請手動填寫')):(count?'已補上 '+count+' 個欄位':'未取得新的商品資料')+(absent.length?'；官網未提供'+absent.join('、')+'，可手動填寫':'');
    }catch(error){if(ticket===epoch&&form.isConnected)message.textContent='抓取未完成：'+error.message;}
@@ -11462,9 +11465,8 @@ function launchCatalogPriceRow(item,index,label='',active=false,variantLabel=lab
  return `<div class="inventoryPrices">${variant}<span class="inventoryOriginal">${esc(launchOriginalPriceLabel(item))}</span><span class="inventoryPriceDivider" aria-hidden="true">｜</span><span class="inventorySale"><span class="launchCatalogPricePrefix">$</span><input class="launchDirectPrice" type="text" inputmode="decimal" data-launch-direct-price="${index}" aria-label="修改 ${esc(name)}${label?' '+label:''} 售價" placeholder="售價" value="${esc(String(item.price??'').replace(/^\$/,''))}" onfocus="this.select()" onclick="event.stopPropagation()" oninput="this.setCustomValidity('')" onchange="launchCommitDirectPrice(${index},this)" onkeydown="launchDirectPriceKey(event,${index},this)"></span></div>`;
 }
 function launchCatalogClothingSizes(item){
- const spec=jiwuSplitProductSpec(item?.size,item?.format);
- const sizes=[...new Set((spec.format||spec.size).normalize('NFKC').toUpperCase().split(/[\s/、,;]+/).filter(Boolean))];
- return sizes.length>1&&sizes.every(size=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE)$/.test(size))?sizes:[];
+ const sizes=launchClothingFormatOptions(item);
+ return sizes.length>1?sizes:[];
 }
 const launchCatalogSizeWrites=new Set();
 function launchCatalogSizeOut(item,size){
