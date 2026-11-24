@@ -4952,7 +4952,7 @@ function launchURLImportMetadataText(item){const size=launchProductSpec(item).si
 function launchURLImportUsesDetailImages(item){try{const u=new URL(launchURLImportDetailURL(item?.url));return u.origin==='https://www.metal-box.jp'&&/^\/product_detail\/(?:[a-z0-9_-]+\/){1,5}\d+\/?$/.test(u.pathname);}catch{return false;}}
 function launchURLImportThumbnail(url){try{return new URL(url).pathname.includes('/upload/thumb_image/');}catch{return false;}}
 function launchURLImportNeedsLargeImages(item){const images=launchURLImportImageURLs(item);return launchURLImportUsesDetailImages(item)&&(!images.length||images.some(launchURLImportThumbnail));}
-function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!(item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
 function launchReuseURLImportCachedItems(data,session){
  const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
  for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
