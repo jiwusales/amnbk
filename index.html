@@ -1569,6 +1569,16 @@ body[data-page="purchase"] #purchaseHeaderActions{display:flex}
 #launchDialog.launchGroupInfoDialog .launchGuaranteeToggle{flex:none;border:0;background:transparent;padding:6px;font-size:20px;line-height:1;color:#777;cursor:pointer}
 #launchDialog.launchGroupInfoDialog .launchGuaranteeToggle[aria-pressed="true"]{color:#d9544d}
 </style>
+<style>
+.launchProductDeleteForm .launchProductDeleteGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:8px;max-height:min(55vh,440px);overflow:auto;overscroll-behavior:contain;padding:2px}
+.launchProductDeleteForm .launchProductDeleteItem,.launchProductDeleteForm .launchProductDeleteSelectAll{display:flex;align-items:center;gap:8px}
+.launchProductDeleteForm .launchProductDeleteItem{box-sizing:border-box;min-width:0;margin:0;padding:8px;border:1px solid #ddd;border-radius:8px;cursor:pointer;overflow-wrap:anywhere}
+.launchProductDeleteForm .launchProductDeleteItem:has(input:checked){border-color:#d9544d;background:#fff3f2}
+.launchDialog .launchProductDeleteForm input[type="checkbox"]{flex:none;width:18px;height:18px;min-width:0;margin:0;padding:0;accent-color:#b8423c}
+.launchProductDeleteForm .launchProductDeleteItem img{flex:none;width:42px;height:42px;object-fit:contain}
+.launchProductDeleteForm .launchProductDeleteActions{gap:8px;margin-top:16px}
+.launchProductDeleteForm .launchProductDeleteActions button:disabled,.launchAllActions .launchDeleteButton:disabled{opacity:.5;cursor:default}
+</style>
 <style id="availability-update-time-layout">
 .launchAvailabilityTime{margin-top:18px;padding:10px 0;color:#737d8a;font-size:12px;text-align:center}
 .inventoryAvailabilityTime{display:none}
@@ -4984,7 +4994,66 @@ function launchNameRemovalApply(event){
  launchMark();document.getElementById('launchDialog')?.close();launchNameRemovalSession=null;launchRenderEditor();launchNotice(`已移除 ${changes.length} 項商品的名稱前綴，按 SAVE 儲存`);
 }
 
-function launchAllProducts(){if(launchListMode()){launchRenderProductList();return;}launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2 class="launchAllProductsTitle">全部商品（${launchCurrent.items.length}）${launchCurrent.status==='尚未上架'&&launchCurrent.panels.length>1?` · 畫布 ${launchPanelLabel(launchPanelIndex)}`:''}</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?'<button class="btn launchDeleteButton" type="button" onclick="launchDelete()">刪除</button>':''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportProducts()">匯入</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchNameRemovalOpen()">移除名稱文字</button><button class="btn" type="button" onclick="launchAllSave()">SAVE</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div>${launchCurrent.status==='尚未上架'?'':`<div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>開團日期</span><input aria-label="開團日期" data-launch-date-field="openDate" type="text" inputmode="numeric" placeholder="例如 1023" maxlength="4" value="${esc(launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate')))}" onchange="launchSetShipping('openDate',this.value);this.value=launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate'))"></label><label><span>收單日期</span><input aria-label="收單日期" data-launch-date-field="closeDate" placeholder="選填" value="${esc(launchDateFieldValue(launchCurrent,'closeDate'))}" onchange="launchSetShipping('closeDate',this.value.trim());this.value=launchDateFieldValue(launchCurrent,'closeDate')"></label></div><div class="launchPair"><label><span>開賣時間</span><input aria-label="開賣時間" type="text" inputmode="numeric" placeholder="例如 10、1030" maxlength="5" value="${esc(launchOpenTimeDisplay(launchCurrent.openTime))}" onchange="launchSetShipping('openTime',this.value.trim());this.value=launchOpenTimeDisplay(launchCurrent.openTime)"></label><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label></div><div class="launchPair"><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label><label><span>二補運費</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="二補運費" placeholder="選填" value="${esc(launchCurrent.secondShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('secondShipping',this.value.trim())"><button type="button" aria-label="需二補" title="紅色代表需二補，金額填在二補運費欄位" aria-pressed="${!!launchCurrent.needsSecondPayment}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.needsSecondPayment?'#d9544d':'#777'}" onclick="launchToggleSecondPayment(this)">○</button></div></label></div>${launchShippingTools()}<label><span>網站</span><input aria-label="網站網址" type="url" value="${esc(launchCurrent.websiteUrl||'')}" placeholder="商品或公告網址" onchange="launchSetShippingWebsite(this)"></label><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>備註</span><textarea name="storefrontNote" aria-label="前端備註" rows="2" placeholder="有填寫時，前端網頁優先顯示此內容；留空使用原本說明" onchange="launchSetGroupText('storefrontNote',this.value)">${esc(launchCurrent.storefrontNote||'')}</textarea></label><label><span>短網址</span><div style="display:flex;gap:8px;align-items:center"><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" style="flex:1;min-width:0" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"><button type="button" class="btn light" style="flex:none;white-space:nowrap" onclick="launchGenerateShortURL(this)" ${launchCurrent.status!=='最新開團'?'disabled title="上架到最新開團後才能產生"':''}>${launchCurrent.status==='最新開團'?'產生':'上架後產生'}</button></div></label></div>`}${launchAvailabilityToolbar()}${launchDraftRows()}`);launchUpdateSelectAll();void launchLoadProductKinds(document.getElementById('launchDialog'));}
+function launchOpenProductDeletion(){
+ const group=launchCurrent;
+ if(launchBusy||group?.status!=='尚未上架'||!group.items.length)return;
+ const items=group.items.slice(),itemIds=new Set(items.map(item=>item.id));
+ const scrollTop=document.getElementById('launchDialog')?.scrollTop||0;
+ const rows=items.map((item,index)=>{
+  const image=launchSafeURL(item.images?.[0]);
+  const thumbnail=image?`<img src="${esc(launchImage(image))}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">`:'';
+  return `<label class="launchProductDeleteItem"><input type="checkbox" name="product" value="${index}">${thumbnail}<span>${esc(launchDisplayName(item))}</span></label>`;
+ }).join('');
+ launchDialog(`<form class="launchProductDeleteForm" data-explicit-confirm><h2 id="launchProductDeleteTitle">刪除商品</h2><p class="launchHelp">可勾選商品，或刪除本團所有畫布的全部商品。</p><label class="launchProductDeleteSelectAll"><input type="checkbox" name="selectAll">全選商品</label><div class="launchProductDeleteGrid">${rows}</div><p class="launchHelp" data-delete-count role="status">已選 0 / ${items.length} 項</p><div class="launchTools launchProductDeleteActions"><button class="btn light" type="button" data-delete-cancel autofocus>取消</button><button class="btn launchDeleteButton" type="submit" disabled>刪除所選</button><button class="btn launchDeleteButton" type="button" data-delete-all>全部刪除</button></div></form>`);
+ const dialog=document.getElementById('launchDialog'),form=dialog.querySelector('form');
+ dialog.setAttribute('aria-labelledby','launchProductDeleteTitle');
+ const controls=[...form.querySelectorAll('[name="product"]')],selectAll=form.elements.selectAll;
+ const count=form.querySelector('[data-delete-count]'),deleteSelected=form.querySelector('[type="submit"]');
+ const sameDraft=()=>launchCurrent?.id===group.id&&launchCurrent.status==='尚未上架';
+ const returnToProducts=(message='')=>{
+  if(!sameDraft()){dialog.close();return;}
+  launchAllProducts(message);
+  const manager=document.getElementById('launchDialog');
+  if(!message)manager.scrollTop=scrollTop;
+ };
+ const remove=all=>{
+  if(launchBusy||!sameDraft())return;
+  const current=launchCurrent;
+  if(current.items.length!==items.length||current.items.some(item=>!itemIds.has(item.id))){
+   returnToProducts('商品清單已更新，請重新選取要刪除的商品。');
+   return;
+  }
+  const targets=controls.filter(input=>all||input.checked);
+  if(!targets.length)return;
+  const quantity=targets.length;
+  const scope=quantity===items.length?`本團全部 ${quantity} 項商品`:`所選的 ${quantity} 項商品`;
+  if(!confirm(`確定刪除${scope}？`))return;
+  launchPushUndo();
+  const removed=new Set(targets.map(input=>items[Number(input.value)].id));
+  current.items=current.items.filter(item=>!removed.has(item.id));
+  const remaining=new Set(current.items.map(item=>item.id));
+  for(const panel of current.panels||[]){
+   if(Array.isArray(panel?.productIds))panel.productIds=panel.productIds.filter(id=>remaining.has(id));
+  }
+  launchMark();
+  launchRenderEditor();
+  returnToProducts(`已移除 ${quantity} 項商品，請按 SAVE 儲存。`);
+ };
+ form.addEventListener('change',event=>{
+  if(event.target===selectAll)for(const input of controls)input.checked=selectAll.checked;
+  const selected=controls.filter(input=>input.checked).length;
+  selectAll.checked=selected===controls.length;
+  selectAll.indeterminate=selected>0&&selected<controls.length;
+  deleteSelected.disabled=selected===0;
+  count.textContent=`已選 ${selected} / ${items.length} 項`;
+ });
+ form.addEventListener('submit',event=>{event.preventDefault();remove(false);});
+ form.querySelector('[data-delete-all]').addEventListener('click',()=>remove(true));
+ form.querySelector('[data-delete-cancel]').addEventListener('click',()=>returnToProducts());
+ dialog.addEventListener('cancel',event=>{event.preventDefault();returnToProducts();});
+}
+
+function launchAllProducts(message=''){if(launchListMode()){launchRenderProductList();return;}launchNormalizeGroupURLs(launchCurrent);launchDialog(`<div class="launchAllHeading"><label class="launchSelectAll" title="全選／取消全選"><input id="launchSelectAll" type="checkbox" aria-label="全選／取消全選" onchange="launchToggleAllProducts(this.checked)"></label><h2 class="launchAllProductsTitle">全部商品（${launchCurrent.items.length}）${launchCurrent.status==='尚未上架'&&launchCurrent.panels.length>1?` · 畫布 ${launchPanelLabel(launchPanelIndex)}`:''}</h2><div class="launchAllActions">${launchCurrent.status==='尚未上架'?`<button class="btn launchDeleteButton" type="button" onclick="launchOpenProductDeletion()" ${launchCurrent.items.length?'':'disabled'}>刪除</button>`:''}<button class="btn light" type="button" onclick="launchProductDialog()">新增</button><button class="btn light" type="button" onclick="launchImportProducts()">匯入</button><button class="btn light" type="button" onclick="launchGrab()">抓抓</button><button class="btn light" type="button" onclick="launchNameRemovalOpen()">移除名稱文字</button><button class="btn" type="button" data-launch-save onclick="launchAllSave()">SAVE${launchDirty?' *':''}</button><button class="btn light" type="button" aria-label="關閉" onclick="document.getElementById('launchDialog').close()">✖</button></div></div>${launchCurrent.status==='尚未上架'?'':`<div class="launchAllInfo">${launchCurrent.status==='尚未上架'?`<label><span>團名</span><input aria-label="團名" value="${esc(launchCurrent.name||'')}" onchange="launchSetGroupText('name',this.value)"></label>`:''}<div class="launchPair"><label><span>開團日期</span><input aria-label="開團日期" data-launch-date-field="openDate" type="text" inputmode="numeric" placeholder="例如 1023" maxlength="4" value="${esc(launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate')))}" onchange="launchSetShipping('openDate',this.value);this.value=launchOpenDateDisplay(launchDateFieldValue(launchCurrent,'openDate'))"></label><label><span>收單日期</span><input aria-label="收單日期" data-launch-date-field="closeDate" placeholder="選填" value="${esc(launchDateFieldValue(launchCurrent,'closeDate'))}" onchange="launchSetShipping('closeDate',this.value.trim());this.value=launchDateFieldValue(launchCurrent,'closeDate')"></label></div><div class="launchPair"><label><span>開賣時間</span><input aria-label="開賣時間" type="text" inputmode="numeric" placeholder="例如 10、1030" maxlength="5" value="${esc(launchOpenTimeDisplay(launchCurrent.openTime))}" onchange="launchSetShipping('openTime',this.value.trim());this.value=launchOpenTimeDisplay(launchCurrent.openTime)"></label><label><span>出荷日期</span><input aria-label="出荷日期" value="${esc(launchCurrent.shipDate||'')}" onchange="launchSetShipping('shipDate',this.value.trim())"></label></div><div class="launchPair"><label><span>境內運</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="境內運" value="${esc(launchCurrent.domesticShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('domesticShipping',this.value.trim())"><button type="button" aria-label="沒有免運門檻" title="紅色代表沒有免運門檻" aria-pressed="${!!launchCurrent.noFreeShipping}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.noFreeShipping?'#d9544d':'#777'}" onclick="launchToggleFreeShipping(this)">✖︎</button></div></label><label><span>二補運費</span><div style="display:flex;align-items:center;gap:6px"><input aria-label="二補運費" placeholder="選填" value="${esc(launchCurrent.secondShipping||'')}" style="min-width:0;flex:1" onchange="launchSetShipping('secondShipping',this.value.trim())"><button type="button" aria-label="需二補" title="紅色代表需二補，金額填在二補運費欄位" aria-pressed="${!!launchCurrent.needsSecondPayment}" style="border:0;background:transparent;padding:6px;font-size:20px;cursor:pointer;color:${launchCurrent.needsSecondPayment?'#d9544d':'#777'}" onclick="launchToggleSecondPayment(this)">○</button></div></label></div>${launchShippingTools()}<label><span>網站</span><input aria-label="網站網址" type="url" value="${esc(launchCurrent.websiteUrl||'')}" placeholder="商品或公告網址" onchange="launchSetShippingWebsite(this)"></label><label><span>標籤</span><input name="tags" autocomplete="off" aria-label="標籤" value="${esc(launchCurrent.tags||'')}" onchange="launchSetGroupText('tags',this.value)"></label><label><span>備註</span><textarea name="storefrontNote" aria-label="前端備註" rows="2" placeholder="有填寫時，前端網頁優先顯示此內容；留空使用原本說明" onchange="launchSetGroupText('storefrontNote',this.value)">${esc(launchCurrent.storefrontNote||'')}</textarea></label><label><span>短網址</span><div style="display:flex;gap:8px;align-items:center"><input name="shortUrl" autocomplete="off" aria-label="短網址" type="url" style="flex:1;min-width:0" value="${esc(launchCurrent.shortUrl||'')}" onchange="launchSetGroupText('shortUrl',this.value)"><button type="button" class="btn light" style="flex:none;white-space:nowrap" onclick="launchGenerateShortURL(this)" ${launchCurrent.status!=='最新開團'?'disabled title="上架到最新開團後才能產生"':''}>${launchCurrent.status==='最新開團'?'產生':'上架後產生'}</button></div></label></div>`}${message?`<p class="launchHelp" role="status">${esc(message)}</p>`:''}${launchAvailabilityToolbar()}${launchDraftRows()}`);launchUpdateSelectAll();void launchLoadProductKinds(document.getElementById('launchDialog'));}
 
 let launchImportDestination=null,launchInventoryImportItems=[],launchInventoryImportSelected=new Set(),launchInventoryImportSearch='',launchInventoryImportCategory='全部',launchInventoryImportPage=0,launchInventoryImportTimer=null;
 function launchImportProducts(){
