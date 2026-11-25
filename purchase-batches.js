@@ -75,11 +75,6 @@ purchaseOrderCards=function(orders=purchaseVisibleOrders()){
  const ids=[...new Set(orders.map(o=>o.packId).filter(Boolean))],normal=orders.filter(o=>!o.packId);
  return ids.map(purchaseBatchCard).join('')+(normal.length?purchaseOriginalOrderCards(normal):ids.length?'':purchaseOriginalOrderCards([]));
 };
-const purchaseOriginalFilteredOrders=purchaseFilteredOrders;
-purchaseFilteredOrders=function(){
- const base=purchaseOriginalFilteredOrders();if(purchaseRegion!=='cn'||purchaseView!=='arrived')return base;
- const q=purchaseSearch.trim().normalize('NFKC').toLowerCase();return purchaseOrders.filter(o=>base.includes(o)||(o.packId&&purchaseOrderRegion(o)==='cn'&&['已到貨','已完成'].includes(o.status)&&(!q||[o.number,o.tracking,o.channel,...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q))));
-};
 const purchaseOriginalVisibleOrders=purchaseVisibleOrders;
 purchaseVisibleOrders=function(){
  const visible=purchaseOriginalVisibleOrders();if(purchaseRegion!=='cn'||purchaseView!=='arrived')return visible;

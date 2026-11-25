@@ -37,7 +37,7 @@ window.jiwuErrorText=function(error,kind){
 
 <script src="ship-market-export.js?v=20261022-ship100" defer></script>
 <script src="launch-transfer-products.js?v=20261031-friendly-errors" defer></script>
-<script src="purchase-batches.js?v=20261102-edit-layout" defer></script>
+<script src="purchase-batches.js?v=20261125-purchase-search" defer></script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -6368,7 +6368,28 @@ let purchaseDraft=null,purchaseOrders=[],purchaseText='',purchaseOrderURL='',pur
 let purchaseSearch='',purchaseRegion='';
 function purchaseOrderRegion(order){if(['jp','cn','kr','other'].includes(order.region))return order.region==='jp'?'':order.region;const channel=String(order.channel||'').trim().normalize('NFKC');return /^韓/.test(channel)?'kr':/^[淘拼微紅京]/.test(channel)?'cn':'';}
 function purchaseToggleRegion(region){purchaseRegion=purchaseRegion===region?'':region;purchaseSelectedMonth='';purchaseSelectedDate='';purchaseDateCollapsed=false;renderPurchase();purchaseLoadImages();}
-function purchaseFilteredOrders(){const q=purchaseSearch.trim().normalize('NFKC').toLowerCase(),year=Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date()));return purchaseOrders.filter(o=>{const area=purchaseView==='packed'?['集運中','已打包'].includes(o.status):purchaseView==='arrived'?purchaseRegion===''?['已到貨','已完成'].includes(o.status):o.status==='已到貨'&&!purchaseOrderComplete(o):(purchaseRecordStatus?purchaseDisplayStatus(o)===purchaseRecordStatus:true);return (purchaseView==='packed'||purchaseView==='arrived'||purchaseDateParts(o.date)?.year===year)&&area&&purchaseOrderRegion(o)===purchaseRegion&&(!q||[o.number,o.tracking,o.channel||purchaseChannelFromURL(o.orderURL),...o.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(q));});}
+function purchaseFilteredOrders(search=purchaseSearch){
+ const query=search.trim().normalize('NFKC').toLowerCase();
+ const numericQuery=purchaseRegion==='cn'&&/^\d+\s*-\s*\d+$/.test(query)?purchaseNumericOrderNumber(query):'';
+ const year=Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Taipei'}).format(new Date()));
+ return purchaseOrders.filter(order=>{
+  if(purchaseOrderRegion(order)!==purchaseRegion)return false;
+  if(purchaseView==='packed'){
+   if(!['集運中','已打包'].includes(order.status))return false;
+  }else if(purchaseView==='arrived'){
+   if(purchaseRegion===''||(purchaseRegion==='cn'&&order.packId)){
+    if(!['已到貨','已完成'].includes(order.status))return false;
+   }else if(order.status!=='已到貨'||purchaseOrderComplete(order))return false;
+  }else{
+   if(purchaseDateParts(order.date)?.year!==year)return false;
+   if(purchaseRecordStatus&&purchaseDisplayStatus(order)!==purchaseRecordStatus)return false;
+  }
+  if(!query)return true;
+  const numbers=[order.number,...(order.originalNumbers||[])];
+  if(numericQuery&&numbers.some(number=>purchaseNumericOrderNumber(number)===numericQuery))return true;
+  return [...numbers,order.tracking,order.channel||purchaseChannelFromURL(order.orderURL),...order.items.map(purchaseProductName)].join(' ').normalize('NFKC').toLowerCase().includes(query);
+ });
+}
 let purchaseSearchComposing=false,purchaseSearchTimer=null;
 function purchaseRunSearch(value){purchaseSearch=value;purchaseSelectedDate='';purchaseDateCollapsed=false;const results=document.getElementById('purchaseManagement');if(results)results.innerHTML=purchaseDailyView();else renderPurchase();purchaseLoadImages();}
 function purchaseBindSearch(){
@@ -6428,7 +6449,9 @@ function purchaseRoleSuffix(name,role){
  const norm=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').trim();
  const n=norm(name),r=norm(role);return r&&n.endsWith(r)?'':String(role||'').trim();
 }
-function purchaseProductName(item){const name=String(item.sharedDisplayName||item.name||item.originalName||'未找到').trim(),role=item.sharedDisplayName?item.sharedDisplayRole||'':item.role||'';return [name,purchaseRoleSuffix(name,role)].filter(Boolean).join(' ');}
+function purchaseNameWithRole(name,role){const text=String(name||'').trim();return [text,purchaseRoleSuffix(text,role)].filter(Boolean).join(' ');}
+function purchaseProductName(item){return purchaseNameWithRole(item.sharedDisplayName||item.name||item.originalName||'未找到',item.sharedDisplayName?item.sharedDisplayRole:item.role);}
+function purchaseEditProductName(item){return purchaseNameWithRole(item.name||item.originalName,item.role);}
 function purchaseChangeView(view){if(view==='record')view='manage';if(view!==purchaseView){purchaseSelectedDate='';purchaseDateCollapsed=false;}purchaseView=view;renderPurchase();purchaseLoadImages();document.getElementById('app').scrollTop=0;}
 function parsePurchaseText(text){
  text=String(text||'').normalize('NFKC');
@@ -6661,22 +6684,32 @@ async function purchaseLoadNameSuggestions(dialog){
   const list=document.createElement('datalist');list.id='purchaseNameSuggestions-'+index;input.setAttribute('list',list.id);input.autocomplete='off';row.append(list);
   const normalize=value=>String(value||'').normalize('NFKC').replace(/\s+/g,'').trim();
   const original=normalize(input.value),jpMatches=unique.filter(item=>normalize(item.japaneseName)===original);
-  if(original&&jpMatches.length===1&&!row.purchaseCandidate){input.value=jpMatches[0].name;row.purchaseCandidate=jpMatches[0];}
+  if(original&&jpMatches.length===1&&!row.purchaseCandidate){input.value=purchaseEditProductName(jpMatches[0]);row.purchaseCandidate=jpMatches[0];}
   const matched=row.purchaseNameCandidates||[];
   const pool=[...new Map([...matched,...unique].map(item=>[JSON.stringify([item.name,item.role,item.group]),item])).values()];
   function suggest(){
    const matches=purchaseNameSearch(pool,input.value).slice(0,150);
    list.innerHTML=matches.map(item=>`<option value="${esc(purchaseProductName(item))}">${esc(item.group||item.source||'')}</option>`).join('');
    select.disabled=false;select.innerHTML='<option value="">'+(matches.length?'選擇對應名稱':'沒有符合的名稱，可繼續輸入')+'</option>'+matches.map((item,index)=>`<option value="${index}">${esc([purchaseProductName(item),item.group,item.source].filter(Boolean).join(' · '))}</option>`).join('');
-   select.onchange=()=>{if(select.value==='')return;const item=matches[Number(select.value)];input.value=item.name;row.purchaseCandidate=item;const role=row.querySelector('.purchaseEditRole');if(role)role.textContent='角色：'+(item.role||'—');};
+   select.onchange=()=>{if(select.value==='')return;const item=matches[Number(select.value)];input.value=purchaseEditProductName(item);row.purchaseCandidate=item;};
   }
   input.addEventListener('input',event=>{if(event.isComposing)return;const exact=pool.filter(item=>purchaseProductName(item)===input.value);row.purchaseCandidate=exact.length===1?exact[0]:null;suggest();});
   input.addEventListener('compositionend',suggest);
  });
 }
+function purchaseEditItemMarkup(item,i){
+ const saved=Array.isArray(item.indexes),name=purchaseEditProductName(item),remove=saved?'刪除商品':'移除新增商品';
+ return `<div class="purchaseEditItem${saved?'':' purchaseEditAdded'}" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><button type="button" aria-label="${remove}" title="${remove}" onclick="${saved?`purchaseDeleteOrder(${i},this)`:"this.closest('.purchaseEditItem').remove()"}" style="border:0;background:transparent;color:#888;font-size:20px;font-weight:bold;cursor:pointer;padding:6px;flex-shrink:0">×</button><input class="purchaseEditName" aria-label="商品名稱" ${saved?'':'placeholder="商品名稱"'} value="${esc(name)}" style="flex:1;min-width:0;width:0" required><label style="display:flex;gap:6px;align-items:center;flex-shrink:0">× <input class="purchaseEditQuantity" type="text" inputmode="numeric" data-purchase-number ${saved?`data-indexes="${esc(JSON.stringify(item.indexes))}"`:''} aria-label="${esc(name)}數量" value="${Number(item.quantity)||1}" style="width:65px" required></label></div>`;
+}
+function purchaseEditAdd(button){
+ const items=button.form.querySelector('.purchaseEditItems');
+ items.insertAdjacentHTML('beforeend',purchaseEditItemMarkup({quantity:1}));
+ items.lastElementChild.querySelector('.purchaseEditName').focus();
+}
 async function purchaseEditDialog(i){
  if(purchaseOrders[i]&&purchaseSplitPending.has(purchaseOrders[i].number)){purchaseEditToast('訂單正在拆分，請稍後');return;}
  const o=purchaseOrders[i],channels=[...new Set([o.channel,...purchaseOrders.map(x=>x.channel),...['ちいかわマーケット','ナガノマーケット','リララモード','ちいかわもぐもぐ本舗','ちいかわぽけっと']].filter(Boolean))];
+ if(purchaseEditQueue.get(o.number)?.fields.newItems){purchaseEditToast('新增商品正在儲存，請稍候');return;}
  const japan=purchaseOrderRegion(o)==='';
  const orderNumber=purchaseOrderRegion(o)==='cn'?purchaseOriginalNumbers(o):/^MANUAL-/.test(o.number)?'':purchaseNumericOrderNumber(o.number);
  const packingParts=purchaseDateParts(purchasePackingDate(o));
@@ -6686,39 +6719,37 @@ async function purchaseEditDialog(i){
  const sourceField=`<label><span>${japan?'來　　源：':'來源：'}</span><input name="channel" aria-label="通路" placeholder="輸入通路" list="purchaseChannelSuggestions" value="${esc(o.channel||purchaseChannelFromURL(o.orderURL))}"></label>`;
  const orderFields=japan?`<div class="purchaseEditJapanRow">${sourceField}<label><span>訂單編號：</span><input value="${esc(orderNumber)}" readonly></label></div>
   <div class="purchaseEditJapanRow"><label><span>下單日期：</span>${orderDate}</label><label><span>打包日期：</span><input name="packingDate" type="text" inputmode="numeric" maxlength="4" placeholder="例如 1106" data-year="${packingYear}" data-original-packed-at="${esc(o.packedAt||'')}" value="${packingDigits}"></label></div>`
-  :`<div class="purchaseEditSourceRow">${sourceField}<label class="purchaseEditDate"><span class="purchaseEditDateTitle">日期：</span>${orderDate}</label></div><span style="overflow-wrap:anywhere">${esc(orderNumber)}</span>`;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields">${orderFields}${purchaseChannelList(channels)}<div class="purchaseEditTrackingRow"><label><span>出貨單號：</span><input name="tracking" aria-label="出貨單號" value="${esc(o.tracking||'')}"></label><input class="purchaseEditWeight" name="weight" aria-label="重量 kg" placeholder="重量 kg" type="text" inputmode="decimal" data-purchase-number value="${esc(o.weight??'')}"></div><label${japan?' class="purchaseEditJapanGroup"':''}><span>${japan?'團　　名：':'團名：'}</span><input name="groupName" aria-label="團名" list="purchaseGroupSuggestions" autocomplete="off" placeholder="輸入日期或團名，例如 1016" value="${esc(o.groupName||'')}"></label>${purchaseGroupOptions(launchGroups)}${purchaseOrderRegion(o)==='cn'?'':`<label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label>`}${`<div class="purchaseEditAmountRow"><label><span>總金額：</span><input name="orderAmount" aria-label="訂單總金額" inputmode="decimal" data-purchase-number required value="${esc(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}"></label>${purchaseOrderCurrencyForm(purchaseOrderCurrency(o),purchaseOrderRegion(o)||'jp')}</div>`}</div>${purchaseNoteMarkup(o.note||'')}${purchaseOrderRegion(o)==='cn'?'':purchaseContentsMarkup(o.contents||'')}<div class="purchaseRegisteredItems"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h4>已登記商品</h4>${purchaseOrderRegion(o)==='cn'&&['未出貨','已出貨','集運中'].includes(o.status||'未出貨')?`<button type="button" class="btn light" onclick="purchaseSplitDialog(${i})">拆分包裹</button>`:''}</div>${purchaseDisplayItems(o).map(item=>`<div class="purchaseEditItem" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><button type="button" aria-label="刪除商品" title="刪除商品" onclick="purchaseDeleteOrder(${i},this)" style="border:0;background:transparent;color:#888;font-size:20px;font-weight:bold;cursor:pointer;padding:6px;flex-shrink:0">×</button><input class="purchaseEditName" aria-label="商品名稱" value="${esc(item.name||item.originalName||'')}" style="flex:1;min-width:0;width:0" required>${purchaseRoleSuffix(item.name||item.originalName,item.role)?`<span>${esc(item.role)}</span>`:''}<label style="display:flex;gap:6px;align-items:center;flex-shrink:0">× <input class="purchaseEditQuantity" type="text" inputmode="numeric" data-purchase-number data-indexes="${esc(JSON.stringify(item.indexes))}" aria-label="${esc(purchaseProductName(item))}數量" value="${Number(item.quantity)||1}" style="width:65px" required></label></div>`).join('')}</div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn" style="background:#ee7d91;color:#fff" onclick="purchaseDeleteOrder(${i})">整筆刪除</button><button type="button" class="btn" style="margin-right:auto;background:#8B2635;color:#fff" onclick="purchaseCancelOrder(${i})" aria-pressed="${o.status==='砍單'}" title="${o.status==='砍單'?'再次點擊恢復未出貨':'砍單'}">砍單</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+  :`<div class="purchaseEditSourceRow">${sourceField}<label class="purchaseEditDate"><span class="purchaseEditDateTitle">日期：</span>${orderDate}</label></div><span style="overflow-wrap:anywhere">訂單編號：${esc(orderNumber||'未填寫')}</span>`;
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSubmitEdit(event,${i})"><div class="purchaseEditFields">${orderFields}${purchaseChannelList(channels)}<div class="purchaseEditTrackingRow"><label><span>出貨單號：</span><input name="tracking" aria-label="出貨單號" value="${esc(o.tracking||'')}"></label><input class="purchaseEditWeight" name="weight" aria-label="重量 kg" placeholder="重量 kg" type="text" inputmode="decimal" data-purchase-number value="${esc(o.weight??'')}"></div><label${japan?' class="purchaseEditJapanGroup"':''}><span>${japan?'團　　名：':'團名：'}</span><input name="groupName" aria-label="團名" list="purchaseGroupSuggestions" autocomplete="off" placeholder="輸入日期或團名，例如 1016" value="${esc(o.groupName||'')}"></label>${purchaseGroupOptions(launchGroups)}${purchaseOrderRegion(o)==='cn'?'':`<label><span>訂單網址：</span><input name="orderURL" type="url" oninput="purchaseAutoChannel(this)" aria-label="訂單網址" value="${esc(o.orderURL||'')}"></label>`}${`<div class="purchaseEditAmountRow"><label><span>總金額：</span><input name="orderAmount" aria-label="訂單總金額" inputmode="decimal" data-purchase-number required value="${esc(o.items.reduce((sum,item)=>sum+(Number(item.total)||0),0))}"></label>${purchaseOrderCurrencyForm(purchaseOrderCurrency(o),purchaseOrderRegion(o)||'jp')}</div>`}</div>${purchaseNoteMarkup(o.note||'')}${purchaseOrderRegion(o)==='cn'?'':purchaseContentsMarkup(o.contents||'')}<div class="purchaseRegisteredItems"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h4>已登記商品</h4><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${purchaseOrderRegion(o)==='cn'&&['未出貨','已出貨','集運中'].includes(o.status||'未出貨')?`<button type="button" class="btn light" onclick="purchaseSplitDialog(${i})">拆分包裹</button>`:''}<button type="button" class="btn light" onclick="purchaseEditAdd(this)">＋新增商品</button></div></div><div class="purchaseEditItems">${purchaseDisplayItems(o).map(item=>purchaseEditItemMarkup(item,i)).join('')}</div></div><p id="purchaseEditError" role="alert"></p><div class="dialogActions"><button type="button" class="btn" style="background:#ee7d91;color:#fff" onclick="purchaseDeleteOrder(${i})">整筆刪除</button><button type="button" class="btn" style="margin-right:auto;background:#8B2635;color:#fff" onclick="purchaseCancelOrder(${i})" aria-pressed="${o.status==='砍單'}" title="${o.status==='砍單'?'再次點擊恢復未出貨':'砍單'}">砍單</button><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  const dialog=document.getElementById('appDialog');dialog.querySelector('form').dataset.orderNumber=o.number;dialog.querySelector('form').dataset.originalItems=JSON.stringify(o.items.map(item=>[item.name||'',Number(item.quantity)||0]));dialog.querySelector('form').purchaseGroups=launchGroups.slice();void purchaseLoadChannels(dialog);void purchaseLoadGroupOptions(dialog);
  if(purchaseOrderRegion(o)==='cn')return;
  dialog.querySelectorAll('.purchaseEditItem').forEach(row=>{
-  const indexes=JSON.parse(row.querySelector('.purchaseEditQuantity').dataset.indexes),item=o.items[indexes[0]];
   const select=document.createElement('select');select.className='purchaseEditChoice';select.setAttribute('aria-label','選擇對應名稱');select.disabled=true;select.innerHTML='<option>名稱載入中…</option>';
   const input=row.querySelector('.purchaseEditName'),quantity=row.querySelector('.purchaseEditQuantity'),quantityLabel=quantity.closest('label'),remove=row.querySelector('button');
-  const role=document.createElement('div');role.className='purchaseEditRole';role.textContent='角色：'+(item.role||'—');Object.assign(role.style,{gridColumn:'2 / -1',fontSize:'14px',color:'#777'});
   Object.assign(row.style,{display:'grid',gridTemplateColumns:'28px repeat(3,minmax(0,1fr))',gap:'8px',alignItems:'center'});
-  Object.assign(remove.style,{gridColumn:'1',gridRow:'2'});
-  Object.assign(input.style,{width:'100%',minWidth:'0',boxSizing:'border-box',gridColumn:'2',gridRow:'2'});
-  Object.assign(select.style,{width:'100%',minWidth:'0',boxSizing:'border-box',margin:'0',gridColumn:'3',gridRow:'2'});
-  Object.assign(quantityLabel.style,{display:'block',minWidth:'0',gridColumn:'4',gridRow:'2'});
+  Object.assign(remove.style,{gridColumn:'1'});
+  Object.assign(input.style,{width:'100%',minWidth:'0',boxSizing:'border-box',gridColumn:'2'});
+  Object.assign(select.style,{width:'100%',minWidth:'0',boxSizing:'border-box',margin:'0',gridColumn:'3'});
+  Object.assign(quantityLabel.style,{display:'block',minWidth:'0',gridColumn:'4'});
   Object.assign(quantity.style,{width:'100%',minWidth:'0',boxSizing:'border-box'});quantity.setAttribute('aria-label','數量');
-  quantityLabel.replaceChildren(quantity);row.replaceChildren(role,remove,input,select,quantityLabel);
+  quantityLabel.replaceChildren(quantity);row.replaceChildren(remove,input,select,quantityLabel);
  });
  try{
   const codeKeys=item=>{const code=launchSummarySku(item.code);return [...new Set([code,...(purchaseOrderSite(o.orderURL)?.host==='nagano-market.jp'?[code.replace(/\D/g,'')]:[])].filter(Boolean))];};
   const matched=await api('purchaseMatch',{codes:JSON.stringify([...new Set(o.items.flatMap(codeKeys))]),items:JSON.stringify(o.items.map(({code,originalName,name,url})=>({code:launchSummarySku(code),originalName,name,url})))});
   if(document.getElementById('appDialog')!==dialog)return;
-  dialog.querySelectorAll('.purchaseEditItem').forEach(row=>{
+  dialog.querySelectorAll('.purchaseEditItem:not(.purchaseEditAdded)').forEach(row=>{
    const indexes=JSON.parse(row.querySelector('.purchaseEditQuantity').dataset.indexes),item=o.items[indexes[0]],byCode=codeKeys(item).flatMap(code=>matched.matches?.[code]||[]);
    const candidates=[...new Map((byCode.length?byCode:matched.itemMatches?.[indexes[0]]||[]).map(c=>[JSON.stringify(c),c])).values()];
-   const select=row.querySelector('.purchaseEditChoice');
+   const select=row.querySelector('.purchaseEditChoice'),input=row.querySelector('.purchaseEditName');
    const recorded=!item.name?purchaseRecordedName(item,purchaseOrders.flatMap(order=>order.items)):null;
-   if(recorded){row.querySelector('.purchaseEditName').value=recorded.name;row.purchaseCandidate=recorded;}
+   if(recorded&&input.value===input.defaultValue){input.value=purchaseEditProductName(recorded);row.purchaseCandidate=recorded;}
    if(recorded&&!candidates.some(c=>c.name===recorded.name&&String(c.role||'')===String(recorded.role||'')))candidates.unshift({...recorded,source:'訂購記錄'});
    row.purchaseNameCandidates=candidates;
    if(!candidates.length){select.disabled=false;select.innerHTML='<option value="">輸入名稱搜尋相關商品</option>';return;}
    select.disabled=false;
    select.innerHTML='<option value="">選擇對應名稱</option>'+candidates.map((c,j)=>`<option value="${j}">${esc([purchaseProductName(c),c.group,c.source].filter(Boolean).join(' · '))}</option>`).join('');
-   select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];row.querySelector('.purchaseEditName').value=c.name;row.purchaseCandidate=c;const role=row.querySelector('.purchaseEditRole');if(role)role.textContent='角色：'+(c.role||'—');};
+   select.onchange=()=>{if(select.value==='')return;const c=candidates[Number(select.value)];input.value=purchaseEditProductName(c);row.purchaseCandidate=c;};
   });
   void purchaseLoadNameSuggestions(dialog).catch(error=>{if(dialog.isConnected)document.getElementById('purchaseEditError').textContent=jiwuErrorText(error,'data');});
  }catch(e){if(dialog.isConnected){dialog.querySelectorAll('.purchaseEditChoice').forEach(select=>{select.innerHTML='<option>資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)</option>';});document.getElementById('purchaseEditError').textContent=jiwuErrorText(e,'data');}}
@@ -6754,19 +6785,22 @@ function purchaseOverlayPending(){purchaseOrders.forEach(o=>{const pending=purch
 function purchaseQueueEdit(order,changed,defer=false){
  if(purchaseSplitPending.has(order.number)){purchaseEditToast('訂單正在拆分，請稍後');return;}
  const prior=purchaseEditQueue.get(order.number),previous=prior?.fields||{};
- const delta=Object.fromEntries(Object.entries(changed).filter(([key,value])=>key!=='expectedPackedAt'&&(['quantities','autoShipTracking','autoTransitWeight'].includes(key)||String(value??'')!==String(order[key]??''))));
+ if(previous.newItems){purchaseEditToast('新增商品正在儲存，請稍候');return;}
+ const delta=Object.fromEntries(Object.entries(changed).filter(([key,value])=>key!=='expectedPackedAt'&&(['quantities','newItems','autoShipTracking','autoTransitWeight'].includes(key)||String(value??'')!==String(order[key]??''))));
  // The original packing date can be empty. Send it whenever the date changes.
  if(delta.packedAt!==undefined)delta.expectedPackedAt=changed.expectedPackedAt;
  if(!Object.keys(delta).length)return;
  const fields={...previous,...delta};if(previous.quantities!==undefined&&previous.expectedItems!==undefined&&delta.quantities!==undefined)fields.expectedItems=previous.expectedItems;
- purchaseApplyEditedAmount(order,fields);Object.assign(order,fields);if(!['','cn'].includes(purchaseOrderRegion(order))&&!purchaseKindsComplete(order))order.items.forEach(item=>item.checkedAt=0);const progressId=prior?.progressId&&launchMoveProgressJobs.get(prior.progressId)?.state==='排隊中'?prior.progressId:'purchase-edit-'+launchId();purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion,progressId});launchMoveProgress(progressId,'訂購','排隊中','','儲存訂單');if(defer)return;purchaseKeepPending();
+ purchaseApplyEditedAmount(order,fields);Object.assign(order,fields);if(!['','cn'].includes(purchaseOrderRegion(order))&&!purchaseKindsComplete(order))order.items.forEach(item=>item.checkedAt=0);
+ const progressId=prior?.progressId&&launchMoveProgressJobs.get(prior.progressId)?.state==='排隊中'?prior.progressId:'purchase-edit-'+launchId();
+ purchaseEditQueue.set(order.number,{fields,version:++purchaseQueueVersion,progressId,...(fields.newItems?{requestId:crypto.randomUUID()}:{})});launchMoveProgress(progressId,'訂購','排隊中','','儲存訂單');if(defer)return;purchaseKeepPending();
  if(document.body.dataset.page==='purchase'){const app=document.getElementById('app'),scroll=app.scrollTop;renderPurchase();app.scrollTop=scroll;}purchaseDrainEdits();
 }
 async function purchaseDrainEdits(){
  if(purchaseQueueRunning)return;purchaseQueueRunning=true;
  try{while(purchaseEditQueue.size){const [number,pending]=purchaseEditQueue.entries().next().value;if(purchaseRegistrationQueue.has(number))break;
   pending.progressId||='purchase-edit-'+launchId();launchMoveProgress(pending.progressId,'訂購','傳送中','','儲存訂單');
-  try{const result=await api('purchaseEdit',{number,...pending.fields},pending.progressId);launchMoveProgress(pending.progressId,'訂購','完成','','儲存訂單');if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');purchaseSyncSharedNames();if(document.body.dataset.page==='purchase'&&!document.getElementById('appDialog'))renderPurchase();if(result.merged)await purchaseLoad();}
+  try{const result=await api('purchaseEdit',{number,...pending.fields,requestId:pending.requestId},pending.progressId);launchMoveProgress(pending.progressId,'訂購','完成','','儲存訂單');if(purchaseEditQueue.get(number)?.version===pending.version)purchaseEditQueue.delete(number);purchaseKeepPending();purchaseEditToast('訂單已儲存至資料庫');purchaseSyncSharedNames();if(document.body.dataset.page==='purchase'&&!document.getElementById('appDialog'))renderPurchase();if(result.merged||pending.fields.newItems)await purchaseLoad();}
   catch(e){launchMoveProgress(pending.progressId,'訂購','失敗',e.message,'儲存訂單');purchaseEditToast('訂單 '+number+' 未送出修改已保留：'+e.message,true);
    const toast=document.getElementById('purchaseEditToast');if(toast){const discard=document.createElement('button');discard.type='button';discard.textContent='放棄這筆修改';discard.style.marginLeft='10px';discard.onclick=async()=>{
     if(purchaseQueueRunning){purchaseEditToast('正在儲存，請稍後再試',true);return;}
@@ -6787,7 +6821,7 @@ function purchaseSplitDialog(index){
  const form=document.querySelector('#appDialog form'),order=purchaseOrders.find(order=>order.number===form?.dataset.orderNumber)||purchaseOrders[index];
  if(!order||purchaseOrderRegion(order)!=='cn')return;
  if(purchaseSplitBlocked(order)){purchaseEditToast('訂單正在同步，請稍後再拆分');return;}
- if(form&&[...form.querySelectorAll('input,textarea')].some(input=>input.value!==input.defaultValue)){document.getElementById('purchaseEditError').textContent='請先儲存目前修改，再拆分包裹';return;}
+ if(form&&(form.querySelector('.purchaseEditAdded')||[...form.querySelectorAll('input,textarea')].some(input=>input.value!==input.defaultValue))){document.getElementById('purchaseEditError').textContent='請先儲存目前修改，再拆分包裹';return;}
  const amount=order.items.reduce((sum,item)=>sum+(Number(item.total)||0),0);
  closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><form onsubmit="purchaseSplitSubmit(event)"><h3>拆分包裹</h3>${purchaseOriginalNumbers(order)?`<p style="overflow-wrap:anywhere">訂單編號：${esc(purchaseOriginalNumbers(order))}</p>`:''}<p>勾選此包裹的商品；剩餘商品留在原訂單。</p><div class="purchaseSplitItems">${order.items.map((item,i)=>Number(item.quantity)>0?`<label class="purchaseSplitItem"><input type="checkbox" aria-label="選擇 ${esc(purchaseProductName(item))}" data-split-select="${i}" onchange="purchaseSplitToggle(this)"><span>${esc(purchaseProductName(item))}</span><span>×</span><input type="number" inputmode="numeric" aria-label="${esc(purchaseProductName(item))} 本包數量" data-split-index="${i}" min="1" max="${Number(item.quantity)}" value="${Number(item.quantity)}" disabled></label>`:'').join('')}</div><button type="button" class="btn light" onclick="purchaseSplitSelectAll(this.form)">全選此包商品</button><div class="purchaseManualTop" style="margin-top:14px"><label><span>出貨單號：</span><input name="tracking" aria-label="包裹出貨單號" required></label><label><span>重量 kg：</span><input name="weight" aria-label="包裹重量 kg" inputmode="decimal" data-purchase-number placeholder="選填"></label></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><span style="white-space:nowrap">包裹總金額 R：</span><input name="amount" aria-label="包裹總金額" inputmode="decimal" data-purchase-number required oninput="purchaseSplitAmount(this.form)"></label><p id="purchaseSplitRemaining" style="color:#888">原訂單剩餘總額 R${money(amount)}</p><p id="purchaseSplitError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="purchaseSplitCancel(this.form)">取消</button><button type="submit" class="btn">儲存包裹</button></div></form></div></div>`);
  const current=document.querySelector('#appDialog form');current.dataset.number=order.number;current.dataset.expected=purchaseSplitSnapshot(order);current.dataset.parcelNumber='MANUAL-PARCEL-'+crypto.randomUUID();current.dataset.total=String(amount);current.dataset.itemCount=String(order.items.length);
@@ -6840,13 +6874,37 @@ function purchaseSubmitEdit(event,i){
   if(groups.length!==1){document.getElementById('purchaseEditError').textContent='請從建議選單選擇完整團名，或選「客訂」';return;}
   fields.groupName=groups[0].name;fields.groupId=groups[0].id;
  }
+ const quantities=[],newItems=[];
+ for(const input of event.target.querySelectorAll('.purchaseEditQuantity')){
+  const row=input.closest('.purchaseEditItem'),nameInput=row.querySelector('.purchaseEditName');
+  const label=nameInput.value.trim(),quantity=Number(input.value),candidate=row.purchaseCandidate;
+  if(!Number.isSafeInteger(quantity)||quantity<1){document.getElementById('purchaseEditError').textContent='商品數量請輸入大於零的整數';return;}
+  if(!label){document.getElementById('purchaseEditError').textContent='請輸入商品名稱';return;}
+  if(input.dataset.indexes===undefined){newItems.push({name:label,quantity});continue;}
+  const group={indexes:JSON.parse(input.dataset.indexes),quantity};
+  if(candidate&&label===purchaseEditProductName(candidate)){group.name=candidate.name;group.candidate=candidate;}
+  else if(label!==nameInput.defaultValue.trim()){group.name=label;group.clearRole=true;}
+  quantities.push(group);
+ }
+ if(newItems.length){
+  if(purchaseEditQueue.has(order.number)||purchaseRegistrationQueue.has(order.number)){document.getElementById('purchaseEditError').textContent='訂單正在同步，請稍候再儲存新增商品';return;}
+  fields.newItems=JSON.stringify(newItems);fields.expectedItems=event.target.dataset.originalItems;
+ }
  if(fields.date!==order.date){purchaseSelectedMonth=purchaseMonthKey(fields.date);purchaseSelectedDate='';}
- const quantities=[...event.target.querySelectorAll('.purchaseEditQuantity')].map(input=>({indexes:JSON.parse(input.dataset.indexes),quantity:Number(input.value),candidate:input.closest('.purchaseEditItem').purchaseCandidate,name:input.closest('.purchaseEditItem').querySelector('.purchaseEditName').value.trim()}));
- if(quantities.some(x=>!Number.isInteger(x.quantity)||x.quantity<1)){document.getElementById('purchaseEditError').textContent='商品數量請輸入大於零的整數';return;}
- if(quantities.some(x=>!x.name)){document.getElementById('purchaseEditError').textContent='請輸入商品名稱';return;}
- const quantitiesChanged=quantities.some(group=>group.candidate||group.indexes.some(index=>String(order.items[index].name||'')!==group.name)||group.indexes.reduce((sum,index)=>sum+Number(order.items[index].quantity||0),0)!==group.quantity);
+ const quantityChanged=group=>group.indexes.reduce((sum,index)=>sum+Number(order.items[index].quantity||0),0)!==group.quantity;
+ const quantitiesChanged=quantities.some(group=>group.name!==undefined||quantityChanged(group));
  if(quantitiesChanged){fields.quantities=JSON.stringify(quantities);fields.expectedItems=event.target.dataset.originalItems;}
- if(quantitiesChanged)quantities.forEach(group=>group.indexes.forEach((index,i)=>{const item=order.items[index];if(item.name!==group.name||Number(item.quantity)!==(i===0?group.quantity:0))item.checkedAt=0;if(group.candidate)Object.assign(item,group.candidate);item.name=group.name;item.quantity=i===0?group.quantity:0;}));
+ if(quantitiesChanged)quantities.forEach(group=>{
+  const updateQuantity=quantityChanged(group);
+  group.indexes.forEach((index,i)=>{
+   const item=order.items[index],before=purchaseItemSignature(item);
+   if(group.candidate)Object.assign(item,group.candidate);
+   else if(group.clearRole)item.role='';
+   if(group.name!==undefined){item.name=group.name;delete item.sharedDisplayName;delete item.sharedDisplayRole;}
+   if(updateQuantity)item.quantity=i===0?group.quantity:0;
+   if(purchaseItemSignature(item)!==before)item.checkedAt=0;
+  });
+ });
  fields.tracking=String(fields.tracking||'').trim();
  fields.weight=String(fields.weight||'').trim();
  if(order.status!=='砍單'&&fields.weight!==''&&fields.weight!==String(order.weight??'')){fields.status='集運中';fields.autoTransitWeight=true;}
@@ -6935,9 +6993,19 @@ function purchaseOrderCurrencyForm(currency,region=purchaseRegion||'jp'){
 function purchaseManualItemMarkup(){return `<div class="purchaseManualItem isChina"><label><input class="purchaseManualName" aria-label="名稱" placeholder="名稱" autocomplete="off" oninput="purchaseManualSuggest(this,event)" onfocus="purchaseManualSuggest(this,event)" oncompositionend="purchaseManualSuggest(this,event)" onblur="purchaseManualSuggestBlur(this)" required></label><label><input class="purchaseManualQuantity" placeholder="數量" aria-label="數量" type="text" inputmode="numeric" data-purchase-number value="1" oninput="purchaseManualTotal()" required></label><button type="button" class="btn light" aria-label="移除商品" onclick="this.parentElement.remove();purchaseManualTotal()">－</button></div>`;}
 function purchaseManualAdd(){document.getElementById('purchaseManualItems').insertAdjacentHTML('beforeend',purchaseManualItemMarkup());}
 function purchaseManualTotal(){const orderAmount=document.querySelector('#appDialog [name=orderAmount]');if(orderAmount){document.getElementById('purchaseManualTotal').textContent='總額 '+purchaseCurrencyMark(document.querySelector('#appDialog [name=payCurrency]')?.value)+money(Number(orderAmount.value)||0);return;}const sum=[...document.querySelectorAll('.purchaseManualAmount')].reduce((total,input)=>total+(Number(input.value)||0)*(Number(input.closest('.purchaseManualItem').querySelector('.purchaseManualQuantity').value)||0),0);document.getElementById('purchaseManualTotal').textContent='總額 $'+money(sum+(Number(document.querySelector('#appDialog [name=shipping]')?.value)||0));}
+function purchaseSearchOrderNumber(){
+ if(purchaseRegion!=='cn'||purchaseView!=='manage'||purchaseSearchComposing)return '';
+ const search=document.getElementById('purchaseSearch')?.value??purchaseSearch;
+ const query=search.trim().normalize('NFKC');
+ if(!/^\d+(?:\s*-\s*\d+)?$/.test(query))return '';
+ const number=purchaseNumericOrderNumber(query);
+ if(purchaseRegistrationQueue.has(number)||purchaseOrders.some(order=>[order.number,...(order.originalNumbers||[])].some(value=>purchaseNumericOrderNumber(value)===number)))return '';
+ return purchaseFilteredOrders(query).length?'':number;
+}
 async function purchaseManualDialog(){
+ const orderNumber=purchaseSearchOrderNumber();
  closeDialog();const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)" data-china="${purchaseRegion==='cn'}" data-region="${purchaseRegion||'jp'}"><div class="purchaseManualTop"><label><span>日　　期：</span><input name="date" inputmode="numeric" placeholder="月/日" onfocus="this.value=''" value="${purchaseDateLabel(today)}" data-year="${today.slice(0,4)}" required></label><label><span>訂單編號：</span><input name="number" type="text" inputmode="numeric" aria-label="訂單編號" autocomplete="off"></label></div>${purchaseChannelList([...purchaseOrders.map(o=>o.channel),...Object.values(purchaseSiteChannels)])}<div class="purchaseManualTop"><label><span>通　　路：</span><input name="channel" placeholder="輸入通路" list="purchaseChannelSuggestions" required></label><label><span>出貨單號：</span><input name="tracking"></label></div><div class="purchaseManualChinaLayout">${`<div class="purchaseManualTop purchaseManualAmountRow" style="grid-template-columns:minmax(0,1fr)"><label><span>總 金 額：</span><input name="orderAmount" type="text" inputmode="decimal" data-purchase-number oninput="purchaseManualTotal()" required></label></div>`}${`<div class="purchaseManualTop purchaseManualCurrencyWeightRow">${purchaseOrderCurrencyForm()}<label><span>重量 kg：</span><input name="weight" aria-label="重量" type="text" inputmode="decimal" data-purchase-number></label></div>`}<div id="purchaseManualItems">${purchaseManualItemMarkup(purchaseRegion==='cn')}</div><button type="button" class="btn light purchaseManualAddButton" onclick="purchaseManualAdd()">＋新增商品</button></div>${purchaseNoteMarkup()}${purchaseRegion==='cn'?'':purchaseContentsMarkup()}<strong id="purchaseManualTotal" style="display:block;margin-top:12px">總額 $0</strong><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
+ document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動登記訂單</h3><form onsubmit="purchaseManualSubmit(event)" data-china="${purchaseRegion==='cn'}" data-region="${purchaseRegion||'jp'}"><div class="purchaseManualTop"><label><span>日　　期：</span><input name="date" inputmode="numeric" placeholder="月/日" onfocus="this.value=''" value="${purchaseDateLabel(today)}" data-year="${today.slice(0,4)}" required></label><label><span>訂單編號：</span><input name="number" type="text" inputmode="numeric" aria-label="訂單編號" autocomplete="off" value="${esc(orderNumber)}"></label></div>${purchaseChannelList([...purchaseOrders.map(o=>o.channel),...Object.values(purchaseSiteChannels)])}<div class="purchaseManualTop"><label><span>通　　路：</span><input name="channel" placeholder="輸入通路" list="purchaseChannelSuggestions" required></label><label><span>出貨單號：</span><input name="tracking"></label></div><div class="purchaseManualChinaLayout">${`<div class="purchaseManualTop purchaseManualAmountRow" style="grid-template-columns:minmax(0,1fr)"><label><span>總 金 額：</span><input name="orderAmount" type="text" inputmode="decimal" data-purchase-number oninput="purchaseManualTotal()" required></label></div>`}${`<div class="purchaseManualTop purchaseManualCurrencyWeightRow">${purchaseOrderCurrencyForm()}<label><span>重量 kg：</span><input name="weight" aria-label="重量" type="text" inputmode="decimal" data-purchase-number></label></div>`}<div id="purchaseManualItems">${purchaseManualItemMarkup(purchaseRegion==='cn')}</div><button type="button" class="btn light purchaseManualAddButton" onclick="purchaseManualAdd()">＋新增商品</button></div>${purchaseNoteMarkup()}${purchaseRegion==='cn'?'':purchaseContentsMarkup()}<strong id="purchaseManualTotal" style="display:block;margin-top:12px">總額 $0</strong><p id="purchaseManualError" role="alert"></p><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">SAVE</button></div></form></div></div>`);
  await purchaseLoadChannels(document.getElementById('appDialog'));
 }
 function purchaseManualSubmit(event){
