@@ -2103,14 +2103,14 @@ function jiwuSplitProductSpec(sizeValue, formatValue, inferFormat = true) {
   return {format:explicitFormat,size:physicalGroups.length?physicalGroups.join(' '):originalSize};
 }
 
-function launchKeepBibisamaSockCentimeters(value,item){
+function launchKeepSockCentimeters(value,item){
  const text=String(value??'').normalize('NFKC');
- return /\d\s*(?:公分|厘米|cm)(?![a-z])/i.test(text)&&productInfoIsBibisamaSockURL(item?.url);
+ return /\d\s*(?:公分|厘米|cm)(?![a-z])/i.test(text)&&(productInfoIsBibisamaSockURL(item?.url)||productInfoIsNintendoSock(item));
 }
-function launchProductSpec(item){const spec=jiwuSplitProductSpec(item?.size,item?.format);if(launchKeepBibisamaSockCentimeters(spec.size,item))return spec;const compact=jiwuCompactProductSize(spec.size,item||{}),groups=jiwuPhysicalSizeGroups(spec.size);return {format:spec.format,size:compact!==null?compact:groups.length>1?groups.map(jiwuClothingSize).join(' '):jiwuClothingSize(spec.size)};}
+function launchProductSpec(item){const spec=jiwuSplitProductSpec(item?.size,item?.format);if(launchKeepSockCentimeters(spec.size,item))return spec;const compact=jiwuCompactProductSize(spec.size,item||{}),groups=jiwuPhysicalSizeGroups(spec.size);return {format:spec.format,size:compact!==null?compact:groups.length>1?groups.map(jiwuClothingSize).join(' '):jiwuClothingSize(spec.size)};}
 function launchVariantFormat(item){return launchProductSpec(item).format||String(item?.size||'');}
 function launchCardSize(value,item={}){
- const text=jiwuClothingSize(launchKeepBibisamaSockCentimeters(value,item)?String(value).replace(/厘米/g,'公分'):launchFormatProductSize(value)),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
+ const text=jiwuClothingSize(launchKeepSockCentimeters(value,item)?String(value).replace(/厘米/g,'公分'):launchFormatProductSize(value)),parts=text.split(/[／/、,，;；\n]/).map(part=>part.trim()).filter(part=>part&&!/(?:單抽|单抽|抱盒|包盒|整盒|盒裝|盒装|單盒|单盒|單入|单入|單個|单个|隨機|随机|盲抽|盲盒|\d+\s*入|^(?:BOX|BOX\s*\d+|\d+\s*(?:個|个|款|枚|pcs))$)/i.test(part));
  // Only physical measurements belong to the size line.
  return parts.filter(part=>/\d/.test(part)&&(/(?:[HWDΦφø直徑長寬高厚深縦横丈幅巾肩袖]|\d\s*[×xX*]\s*\d|\d\s*(?:cm|mm|公分|毫米|公厘))/i.test(part)||/^(?:[AB](?:10|[0-9])|\d+(?:\.\d+)?)$/i.test(part))).join('/');
 }
@@ -3786,7 +3786,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
  const products=launchExpandMultiProducts(expanded,start);
  Object.defineProperty(products,'importWarnings',{value:[...warnings]});return products;
 }
-function launchNormalizeProductSpec(size,format,item={}){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:productInfoIsBibisamaSockURL(item.url)?productInfoNormalizeEnteredSize(spec.size,item.url):launchFormatProductSize(spec.size,item)};}
+function launchNormalizeProductSpec(size,format,item={}){const spec=jiwuSplitProductSpec(size,format);return {format:spec.format,size:(productInfoIsBibisamaSockURL(item.url)||productInfoIsNintendoSock(item))?productInfoNormalizeEnteredSize(spec.size,item.url,item):launchFormatProductSize(spec.size,item)};}
 // Compact physical measurements only; preserve unsupported specifications for the existing formatter.
 function jiwuCompactProductSize(value,item={}){
  const original=String(value??'').trim();if(!original)return '';
@@ -3808,7 +3808,7 @@ function jiwuCompactProductSize(value,item={}){
  const plush=/^(?:娃|吊娃|玩偶|毛絨玩偶|絨毛玩偶)$/.test(kind)||(!/^(?:包袋|文具|3C|貼紙|立牌|服飾|餐廚|毛巾)$/.test(kind)&&/ぬいぐるみ|マスコット|玩偶|吊娃|吊偶|娃娃|絨毛娃|毛絨娃/.test(wording));
  return (axis||(plush?'H':''))+numbers[0]+(inside?'內':'');
 }
-function launchFormatProductSize(input,item={}){const compact=jiwuCompactProductSize(input,item);if(compact!==null)return compact;input=jiwuSizeToMillimeters(input);const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
+function launchFormatProductSize(input,item={}){if(launchKeepSockCentimeters(input,item))return String(input);const compact=jiwuCompactProductSize(input,item);if(compact!==null)return compact;input=jiwuSizeToMillimeters(input);const mainBody=jiwuMainBodySize(input);if(mainBody)return mainBody;const groups=jiwuPhysicalSizeGroups(input);if(!groups.length&&/\s/.test(String(input||'').trim()))return String(input||'').trim().replace(/\s+/g,' ');return groups.length>1?groups.map(launchFormatOneProductSize).join(' '):launchFormatOneProductSize(input);}
 function launchFormatOneProductSize(input) {
   const longEdge=String(input||'').normalize('NFKC').replace(/\s+/g,'').match(/^(?:約)?長[辺邊边](\d+(?:\.\d+)?)(mm|cm)?(?:以[内內]|[内內])$/i);if(longEdge)return '長邊'+String(Number(longEdge[1])*(longEdge[2]?.toLowerCase()==='cm'?10:1))+'內';
   if (!input) return "";
@@ -4016,13 +4016,21 @@ function productInfoIsNaganoAnnouncementURL(value){
 }
 function productInfoReadUnsupported(error){return error?.message==='此網站尚未支援自動抓取，請手動填寫';}
 function productInfoIsBibisamaURL(value){try{const url=new URL(String(value||''));return url.protocol==='https:'&&['bibisama.com','www.bibisama.com'].includes(url.hostname)&&!url.username&&!url.password&&!url.port&&/^(?:\/collections\/[^/]+)?\/products\/[^/]+\/?$/.test(url.pathname);}catch{return false;}}
+function productInfoIsNintendoURL(value){
+ try{const url=new URL(String(value||''));return url.origin==='https://store-jp.nintendo.com'&&!url.username&&!url.password&&!url.port&&/^\/item\/(?:goods|hardware-accessory|software|point-item)\/[A-Za-z0-9_-]+\/?$/.test(url.pathname);}catch{return false;}
+}
 function productInfoIsBibisamaSockURL(value){
  if(!productInfoIsBibisamaURL(value))return false;
  const handle=new URL(value).pathname.split('/').filter(Boolean).at(-1);
  return /(?:^|-)socks?(?:-|$)/i.test(handle);
 }
-function productInfoNormalizeEnteredSize(value,url){
- if(!productInfoIsBibisamaSockURL(url))return jiwuSizeToMillimeters(value);
+function productInfoIsNintendoSock(item){return productInfoIsNintendoURL(item?.url)&&/ソックス|靴下|襪|socks?/i.test([item?.name,item?.japaneseName].filter(Boolean).join(' '));}
+function productInfoFormItem(form){
+ const value=(field,selector)=>form?.elements.namedItem(field)?.value||form?.querySelector(selector)?.value||'';
+ return {url:value('url','#inventoryEditUrl,#inventoryAddUrl'),name:value('name','#inventoryEditName,#inventoryAddName'),japaneseName:value('japaneseName','#inventoryEditJapaneseName,#inventoryAddJapaneseName')};
+}
+function productInfoNormalizeEnteredSize(value,url,item={}){
+ if(!productInfoIsBibisamaSockURL(url)&&!productInfoIsNintendoSock({...item,url}))return jiwuSizeToMillimeters(value);
  const original=String(value??'').trim(),text=original.normalize('NFKC').replace(/(?:公分|厘米)/g,'cm');
  const number='\\d+(?:\\.\\d+)?',length=number+'(?:\\s*cm)?';
  const range=text.match(new RegExp('^('+number+')(?:\\s*cm)?\\s*[-–—~]\\s*('+number+')(?:\\s*cm)?$','i'));
@@ -4077,7 +4085,7 @@ function launchAutoProductInfo(form){
   syncSanrioImageURL();
   const url=String(input.value||'').trim(),tmall=productInfoIsTmallURL(url),abema=/^https:\/\/contents-abema\.com\/chiikawa-christmas-market\/goods\/md\d+\/?(?:[?#]|$)/i.test(url),code=form.elements.namedItem('code'),size=form.elements.namedItem('size'),format=form.elements.namedItem('format'),original=form.elements.namedItem('original'),japaneseName=form.elements.namedItem('japaneseName'),current=++ticket;
   productInfoSyncJapanesePlaceholder(form,url);
-  if(size)size.value=productInfoNormalizeEnteredSize(launchNormalizeDotstSize(url,size.value),url);
+  if(size)size.value=productInfoNormalizeEnteredSize(launchNormalizeDotstSize(url,size.value),url,productInfoFormItem(form));
   if(!/^https?:\/\//i.test(url)||(!String(code?.value||'').trim()&&!size))return;
   const needsSanrioImage=imagesBox&&form.jiwuManualImageURL!==url&&productInfoSanrioNeedsImage({url,images:imagesControl?.value});
   if(!needsSanrioImage&&!productInfoMetalboxNeedsImages({url,images:form.elements.namedItem('images')?.value||''})&&String(code?.value||'').trim()&&String(size?.value||'').trim()&&(tmall||String(japaneseName?.value||'').trim())&&String(original?.value||'').trim()&&!(/^https:\/\/www\.pokemoncenter-online\.com\//i.test(url)&&launchPokemonSizeFormat(format?.value)))return;
@@ -4090,7 +4098,8 @@ function launchAutoProductInfo(form){
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(field==='japaneseName'&&abema&&/^[（(]\s*税込\s*[）)]$/.test(String(control.value||'').trim()))||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=field==='original'?launchOriginalInputValue(data.item[field]):data.item[field];
    if(imagesBox&&imagesControl?.value===requestedValues.images&&productInfoMetalboxNeedsImages({url,images:imagesControl.value})){const images=productInfoMetalboxImages(data.item);if(images.length)launchProductImageRender(imagesBox,images);}
-   if((abema||productInfoIsBibisamaURL(url))&&imagesBox&&!form.jiwuManualImageURL&&!launchProductImageValues(imagesBox).some(image=>launchSafeURL(image))){
+   const name=form.elements.namedItem('name');if(productInfoIsNintendoURL(url)&&name&&!name.value.trim()&&data.item?.name)name.value=String(data.item.name);
+   if((abema||productInfoIsBibisamaURL(url)||productInfoIsNintendoURL(url))&&imagesBox&&!form.jiwuManualImageURL&&!launchProductImageValues(imagesBox).some(image=>launchSafeURL(image))){
     const images=(!abema&&Array.isArray(data.item?.images)?data.item.images:[data.item?.image]).map(launchSafeURL).filter(Boolean);
     if(images.length)launchProductImageRender(imagesBox,images);
    }
@@ -5032,7 +5041,7 @@ function launchURLImportMetadataText(item){const size=launchProductSpec(item).si
 function launchURLImportUsesDetailImages(item){try{const u=new URL(launchURLImportDetailURL(item?.url));return u.origin==='https://www.metal-box.jp'&&/^\/product_detail\/(?:[a-z0-9_-]+\/){1,5}\d+\/?$/.test(u.pathname);}catch{return false;}}
 function launchURLImportThumbnail(url){try{return new URL(url).pathname.includes('/upload/thumb_image/');}catch{return false;}}
 function launchURLImportNeedsLargeImages(item){const images=launchURLImportImageURLs(item);return launchURLImportUsesDetailImages(item)&&(!images.length||images.some(launchURLImportThumbnail));}
-function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!(item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!((item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))||(item.confidence==='nintendo'&&productInfoIsNintendoURL(item.url)))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
 function launchReuseURLImportCachedItems(data,session){
  const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
  for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
@@ -7413,7 +7422,7 @@ async function inventoryGrabVisibleNames(button){
 }
 function inventoryHalfWidth(value){return String(value??'').replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/　/g,' ');}
 function inventoryNormalizeField(input,convertSize=false){
- if(!input)return '';const before=input.value,half=inventoryHalfWidth(before),value=convertSize&&(input.matches?.('#inventoryEditSize,#inventoryAddSize,[data-launch-product-form] [name=size]'))?productInfoNormalizeEnteredSize(half,input.form?.elements.namedItem('url')?.value||input.form?.querySelector('#inventoryEditUrl,#inventoryAddUrl')?.value):half,start=input.selectionStart,end=input.selectionEnd;
+ if(!input)return '';const before=input.value,half=inventoryHalfWidth(before),value=convertSize&&(input.matches?.('#inventoryEditSize,#inventoryAddSize,[data-launch-product-form] [name=size]'))?productInfoNormalizeEnteredSize(half,productInfoFormItem(input.form).url,productInfoFormItem(input.form)):half,start=input.selectionStart,end=input.selectionEnd;
  if(value!==before){input.value=value;if(start!=null&&input.setSelectionRange)input.setSelectionRange(start,end??start);}
  return value;
 }
@@ -7436,7 +7445,7 @@ function inventoryBindProductInfo(form,prefix){
  async function fill(manual=false){
   clearTimeout(timer);const url=currentURL();productInfoSyncJapanesePlaceholder(form,url);
   if(!valid(url)){if(manual)message.textContent='請先填寫有效的商品網址';return;}
-  const bibisama=productInfoIsBibisamaURL(url),key=JSON.stringify([url,bibisama?formatInput?.value.trim():'']);
+  const bibisama=productInfoIsBibisamaURL(url)||productInfoIsNintendoURL(url),key=JSON.stringify([url,bibisama?formatInput?.value.trim():'']);
   if(pending&&pendingKey===key)return pending;
   const automaticFields=fields.filter(field=>!productInfoIsTmallURL(url)||!['japaneseName','format'].includes(field.key));
   if(bibisama&&nameInput)automaticFields.push({key:'name',label:'名稱',input:nameInput});
@@ -7464,7 +7473,7 @@ function inventoryBindProductInfo(form,prefix){
  }
  const schedule=()=>{++epoch;clearTimeout(timer);if(valid(currentURL()))timer=setTimeout(()=>void fill(),350);else message.textContent='';};
  urlInput.addEventListener('input',schedule);urlInput.addEventListener('change',()=>void fill());
- formatInput?.addEventListener('change',()=>{if(productInfoIsBibisamaURL(currentURL()))void fill();});
+ formatInput?.addEventListener('change',()=>{if(productInfoIsBibisamaURL(currentURL())||productInfoIsNintendoURL(currentURL()))void fill();});
  form.querySelector('#'+prefix+'Role')?.addEventListener('change',async()=>{++epoch;clearTimeout(timer);if(pending)await pending.catch(()=>{});void fill();});
  form.jiwuFillInventoryInfo=fill;
 }
