@@ -6610,7 +6610,7 @@ function purchaseOrderComplete(order){return order.status==='已完成'||(order.
 function purchaseDisplayStatus(order){return purchaseOrderComplete(order)?'已完成':order.status||'未出貨';}
 async function purchaseCopyCardValue(index,type){
  const order=purchaseOrders[index];if(!order)return;
- const value=type==='tracking'?String(order.tracking||'').trim():String(order.items.reduce((sum,item)=>sum+(Number(item.total)||0),0));
+ const value=type==='tracking'?String(order.tracking||'').trim():order.items.reduce((sum,item)=>sum+(Number(item.total)||0),0).toLocaleString('en-US',{useGrouping:false,maximumFractionDigits:2});
  if(!value){purchaseEditToast('尚未填寫出貨單號');return;}
  try{await navigator.clipboard.writeText(value);purchaseEditToast(type==='tracking'?'已複製出貨單號':'已複製總金額');}catch(e){purchaseEditToast(jiwuErrorText(e,'system'));}
 }
