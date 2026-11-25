@@ -5041,7 +5041,14 @@ function launchURLImportMetadataText(item){const size=launchProductSpec(item).si
 function launchURLImportUsesDetailImages(item){try{const u=new URL(launchURLImportDetailURL(item?.url));return u.origin==='https://www.metal-box.jp'&&/^\/product_detail\/(?:[a-z0-9_-]+\/){1,5}\d+\/?$/.test(u.pathname);}catch{return false;}}
 function launchURLImportThumbnail(url){try{return new URL(url).pathname.includes('/upload/thumb_image/');}catch{return false;}}
 function launchURLImportNeedsLargeImages(item){const images=launchURLImportImageURLs(item);return launchURLImportUsesDetailImages(item)&&(!images.length||images.some(launchURLImportThumbnail));}
-function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!((item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))||(item.confidence==='nintendo'&&productInfoIsNintendoURL(item.url)))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
+function launchURLImportHasLineFriendsCard(item){
+ if(item?.confidence!=='card'||!String(item.name||'').trim()||!(Number(item.original)>0)||!Array.isArray(item.images)||!item.images.some(url=>launchSafeURL(url)))return false;
+ try{
+  const collection=new URL(item.announcementUrl),product=new URL(item.url);
+  return collection.origin==='https://linefriendssquare.jp'&&/^\/collections\/[^/]+\/?$/.test(collection.pathname)&&product.origin===collection.origin&&/^\/products\/[^/]+\/?$/.test(product.pathname);
+ }catch{return false;}
+}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!launchURLImportHasLineFriendsCard(item)&&!((item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))||(item.confidence==='nintendo'&&productInfoIsNintendoURL(item.url)))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
 function launchReuseURLImportCachedItems(data,session){
  const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
  for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
