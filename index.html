@@ -3745,6 +3745,24 @@ function launchLineFriendsProductImportURL(value){
   return url.origin+url.pathname.replace(/\/$/,'');
  }catch{return '';}
 }
+async function launchFillLineFriendsSizes(items,isActive,onProgress){
+ const targets=items.filter(item=>launchURLImportHasLineFriendsCard(item)&&!String(item.size||'').trim()&&launchLineFriendsProductImportURL(item.url));
+ const urls=[...new Set(targets.map(item=>launchLineFriendsProductImportURL(item.url)))];
+ if(!urls.length||!isActive())return '';
+ onProgress?.(0,urls.length,'商品尺寸');
+ let reply;
+ try{reply=await api('launchLineFriendsProductSizes',{urls});}catch{}
+ if(!isActive())return '';
+ const sizes=new Map((Array.isArray(reply?.sizes)?reply.sizes:[]).map(({url,size})=>[url,size]));
+ for(const item of targets){
+  const value=sizes.get(launchLineFriendsProductImportURL(item.url));
+  if(typeof value==='string'&&value.trim()&&!String(item.size||'').trim())item.size=value;
+ }
+ const missing=urls.filter(url=>!sizes.get(url)).length;
+ onProgress?.(urls.length-missing,urls.length,'商品尺寸');
+ if(!missing)return '';
+ return reply?.limited?`LINE FRIENDS 官網暫時限制讀取尺寸，${missing} 項尺寸待補。`:`LINE FRIENDS 有 ${missing} 項商品的官網尺寸無法取得。`;
+}
 async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=new Map(),isActive=()=>true){
  const rows=launchParseMultiProducts(value);
  // Validate the whole batch before reading URLs or changing the canvas.
@@ -3757,6 +3775,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
  }
  const urls=new Set(rows.map(row=>row.url).filter(Boolean)),totalRows=rows.filter(row=>row.url).length;
  for(const key of resume.keys())if(!urls.has(key))resume.delete(key);
+ const wantedLineFriendsSizes=new Set(rows.filter(row=>row.url&&!row.size&&!resume.has(row.url)).map(row=>launchLineFriendsProductImportURL(row.url)).filter(Boolean));
  const checkActive=()=>{if(!isActive())throw Error('已取消讀取');};
  for(const row of rows){
   checkActive();
@@ -3771,10 +3790,14 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
      const lineFriendsURL=launchLineFriendsProductImportURL(row.url);
      if(lineFriendsURL){
       // Read the official event catalog once per batch and match exact product URLs.
-      lineFriendsCatalog??=launchReadAllAnnouncement(launchLineFriendsEventURL,()=>{},isActive,false).then(result=>new Map((result.items||[]).filter(launchURLImportHasLineFriendsCard).map(item=>[launchLineFriendsProductImportURL(item.url),item]))).catch(()=>new Map());
-      const item=(await lineFriendsCatalog).get(lineFriendsURL);
+      lineFriendsCatalog??=launchReadAllAnnouncement(launchLineFriendsEventURL,()=>{},isActive,false).then(async result=>{
+       const items=new Map((result.items||[]).filter(launchURLImportHasLineFriendsCard).map(item=>[launchLineFriendsProductImportURL(item.url),item]));
+       const warning=await launchFillLineFriendsSizes([...wantedLineFriendsSizes].map(url=>items.get(url)).filter(Boolean),isActive,onProgress);
+       return {items,warning};
+      }).catch(()=>null);
+      const catalog=await lineFriendsCatalog,item=catalog?.items.get(lineFriendsURL);
       checkActive();
-      if(item)data={items:[structuredClone(item)],warnings:[]};
+      if(item)data={items:[structuredClone(item)],warnings:catalog.warning?[catalog.warning]:[],lineFriendsSizesChecked:true};
      }
      data??=await launchReadAllAnnouncement(row.url,(pages,count)=>onProgress(pages,count,'列表分頁'),isActive,false);
      checkActive();
@@ -5149,6 +5172,13 @@ async function launchEnrichURLImportDetails(data,session,onProgress=()=>{},check
  const items=(Array.isArray(data.items)?data.items:[]).filter(item=>item&&typeof item==='object'),groups=new Map(),metadataWarning=/：(?:商品詳細資料暫時無法讀取(?:，尺寸待補)?|官網未提供尺寸)$/,warnings=new Set((data.warnings||[]).filter(value=>!metadataWarning.test(String(value))));let next=0,done=0;
  const active=()=> (!session||launchURLImportActive(session))&&(!checkpoint||checkpoint.isActive());
  const remember=warning=>{warnings.add(warning);checkpoint?.warnings.add(warning);};
+ if(!data.lineFriendsSizesChecked){
+  const warning=await launchFillLineFriendsSizes(items,active,onProgress);
+  if(!active())return data;
+  if(warning)remember(warning);
+  data.lineFriendsSizesChecked=true;
+ }
+
  for(const warning of checkpoint?.warnings||[])warnings.add(warning);
  const label=item=>String(item.name||item.japaneseName||'商品');
  const missing=value=>value==null||String(value).trim()==='';
@@ -6058,7 +6088,7 @@ let isFaceToFaceView=false;isStarredView=false;
 /* =========================================================
    API
 ========================================================= */
-const apiReadActions=new Set(['launchUsdReferenceRate','launchAnnouncementPreview','launchImportProductDetails','helperLoadPlan','customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
+const apiReadActions=new Set(['launchUsdReferenceRate','launchAnnouncementPreview','launchImportProductDetails','launchLineFriendsProductSizes','helperLoadPlan','customerBindingList','launchPriceHistory','manualOrderSuggestions','storeCart','launchImageProxy','backendSync','purchaseChannels','purchaseOrders','purchaseMatch','helperSnapshot','authWarmup','authCheck','storeProduct','inventory','storeActiveSalesperson','storeSales','launchList','launchGet','launchAuxSheet','online','onlineCustomer','group','ship','customerLineChatData']);
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
