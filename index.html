@@ -3740,9 +3740,11 @@ const launchLineFriendsEventURL='https://linefriendssquare.jp/blogs/topics/emoji
 function launchLineFriendsProductImportURL(value){
  try{
   const url=new URL(value);
-  if(url.origin!=='https://linefriendssquare.jp'||url.username||url.password||!/^\/products\/\d+\/?$/.test(url.pathname))return '';
-  if([...url.searchParams.keys()].some(key=>!/^utm_|^(?:fbclid|gclid)$/i.test(key)))return '';
-  return url.origin+url.pathname.replace(/\/$/,'');
+  if(!['http:','https:'].includes(url.protocol)||!['linefriendssquare.jp','www.linefriendssquare.jp'].includes(url.hostname)||url.port||url.username||url.password)return '';
+  const product=url.pathname.match(/^(?:\/collections\/[A-Za-z0-9_-]+)?\/products\/([A-Za-z0-9][A-Za-z0-9_-]*)\/?$/);
+  const variants=url.searchParams.getAll('variant');
+  if(!product||variants.length>1||variants.length&&!/^\d+$/.test(variants[0]))return '';
+  return 'https://linefriendssquare.jp/products/'+product[1]+(variants.length?'?variant='+variants[0]:'');
  }catch{return '';}
 }
 async function launchFillLineFriendsSizes(items,isActive,onProgress){
@@ -3750,10 +3752,19 @@ async function launchFillLineFriendsSizes(items,isActive,onProgress){
  const urls=[...new Set(targets.map(item=>launchLineFriendsProductImportURL(item.url)))];
  if(!urls.length||!isActive())return '';
  onProgress?.(0,urls.length,'商品尺寸');
- let reply;
- try{reply=await api('launchLineFriendsProductSizes',{urls});}catch{}
- if(!isActive())return '';
- const sizes=new Map((Array.isArray(reply?.sizes)?reply.sizes:[]).map(({url,size})=>[url,size]));
+ const sizes=new Map();
+ let pending=urls,limited=false;
+ while(pending.length&&isActive()){
+  let reply;try{reply=await api('launchLineFriendsProductSizes',{urls:pending});}catch{break;}
+  if(!isActive())return '';
+  for(const {url,size} of Array.isArray(reply?.sizes)?reply.sizes:[])if(pending.includes(url)&&typeof size==='string'&&size.trim())sizes.set(url,size);
+  onProgress?.(sizes.size,urls.length,'商品尺寸');
+  if(reply?.limited){limited=true;break;}
+  const remaining=new Set(Array.isArray(reply?.remaining)?reply.remaining:[]);
+  const next=pending.filter(url=>remaining.has(url)&&!sizes.has(url));
+  if(next.length===pending.length)break;
+  pending=next;
+ }
  for(const item of targets){
   const value=sizes.get(launchLineFriendsProductImportURL(item.url));
   if(typeof value==='string'&&value.trim()&&!String(item.size||'').trim())item.size=value;
@@ -3761,7 +3772,7 @@ async function launchFillLineFriendsSizes(items,isActive,onProgress){
  const missing=urls.filter(url=>!sizes.get(url)).length;
  onProgress?.(urls.length-missing,urls.length,'商品尺寸');
  if(!missing)return '';
- return reply?.limited?`LINE FRIENDS 官網暫時限制讀取尺寸，${missing} 項尺寸待補。`:`LINE FRIENDS 有 ${missing} 項商品的官網尺寸無法取得。`;
+ return limited?`LINE FRIENDS 官網暫時限制讀取尺寸，${missing} 項尺寸待補。`:`LINE FRIENDS 有 ${missing} 項商品的官網尺寸無法取得。`;
 }
 async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=new Map(),isActive=()=>true){
  const rows=launchParseMultiProducts(value);
@@ -4150,8 +4161,8 @@ function launchAutoProductInfo(form){
    if(current!==ticket||!form.isConnected||String(input.value||'').trim()!==url)return;
    for(const [field,control] of [['code',code],['original',original],['format',format],['size',size],['japaneseName',japaneseName]])if(control&&!(tmall&&['japaneseName','format'].includes(field))&&!(field==='format'&&formatTouched)&&(!String(control.value||'').trim()||(field==='japaneseName'&&abema&&/^[（(]\s*税込\s*[）)]$/.test(String(control.value||'').trim()))||(data.item?.selectedFormat&&['code','size'].includes(field)&&String(control.value||'')===requestedValues[field]))&&data.item?.[field])control.value=field==='original'?launchOriginalInputValue(data.item[field]):data.item[field];
    if(imagesBox&&imagesControl?.value===requestedValues.images&&productInfoMetalboxNeedsImages({url,images:imagesControl.value})){const images=productInfoMetalboxImages(data.item);if(images.length)launchProductImageRender(imagesBox,images);}
-   const name=form.elements.namedItem('name');if(productInfoIsNintendoURL(url)&&name&&!name.value.trim()&&data.item?.name)name.value=String(data.item.name);
-   if((abema||productInfoIsBibisamaURL(url)||productInfoIsNintendoURL(url))&&imagesBox&&!form.jiwuManualImageURL&&!launchProductImageValues(imagesBox).some(image=>launchSafeURL(image))){
+   const name=form.elements.namedItem('name');if((productInfoIsNintendoURL(url)||launchLineFriendsProductImportURL(url))&&name&&!name.value.trim()&&(data.item?.name||data.item?.japaneseName))name.value=String(data.item.name||data.item.japaneseName);
+   if((abema||productInfoIsBibisamaURL(url)||productInfoIsNintendoURL(url)||launchLineFriendsProductImportURL(url))&&imagesBox&&!form.jiwuManualImageURL&&!launchProductImageValues(imagesBox).some(image=>launchSafeURL(image))){
     const images=(!abema&&Array.isArray(data.item?.images)?data.item.images:[data.item?.image]).map(launchSafeURL).filter(Boolean);
     if(images.length)launchProductImageRender(imagesBox,images);
    }
@@ -5156,11 +5167,11 @@ function launchURLImportHasLineFriendsCard(item){
  if(item?.confidence!=='card'||!String(item.name||'').trim()||!(Number(item.original)>0)||!Array.isArray(item.images)||!item.images.some(url=>launchSafeURL(url)))return false;
  try{
   const collection=new URL(item.announcementUrl),product=new URL(item.url);
-  const listed=/^\/collections\/[^/]+\/?$/.test(collection.pathname)||collection.pathname.replace(/\/$/,'')===new URL(launchLineFriendsEventURL).pathname;
-  return collection.origin==='https://linefriendssquare.jp'&&listed&&product.origin===collection.origin&&/^\/products\/[^/]+\/?$/.test(product.pathname);
+  const listed=/^\/(?:collections|blogs\/[^/]+|pages)\/[^/]+\/?$/.test(collection.pathname);
+  return collection.origin==='https://linefriendssquare.jp'&&listed&&!!launchLineFriendsProductImportURL(product.href);
  }catch{return false;}
 }
-function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!launchURLImportHasLineFriendsCard(item)&&!((item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))||(item.confidence==='nintendo'&&productInfoIsNintendoURL(item.url)))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
+function launchURLImportNeedsDetails(item){return !!item&&typeof item==='object'&&!launchURLImportHasLineFriendsCard(item)&&!(item.confidence==='line-friends-product'&&launchLineFriendsProductImportURL(item.url))&&!((item.confidence==='shopify'&&productInfoIsBibisamaURL(item.url))||(item.confidence==='nintendo'&&productInfoIsNintendoURL(item.url)))&&(['size','code','format','original'].some(key=>item[key]==null||String(item[key]).trim()==='')||launchURLImportNeedsLargeImages(item));}
 function launchReuseURLImportCachedItems(data,session){
  const current=(session.items||[]).filter(item=>launchURLImportDetailURL(item.url)),byKey=new Map(current.map(item=>[launchURLImportItemKey(item),item])),byURL=new Map(),counts=new Map();
  for(const item of current){const url=launchURLImportDetailURL(item.url);if(!byURL.has(url))byURL.set(url,[]);byURL.get(url).push(item);}
