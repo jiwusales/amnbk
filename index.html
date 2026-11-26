@@ -2990,10 +2990,26 @@ function launchGroupTitle(name,canvas=true){
 
 function launchPanelLabel(index){let label='',n=Math.max(0,Math.floor(Number(index)||0))+1;while(n>0){n--;label=String.fromCharCode(65+n%26)+label;n=Math.floor(n/26);}return label;}
 function launchCanvasTitle(g,index=launchPanelIndex){const panel=g?.panels?.[index];if(panel&&Object.hasOwn(panel,'adTitle'))return String(panel.adTitle||'').trim()||String(g?.name||'').trim();return String(g?.ads?.[index]?.name||'').trim()||String(g?.canvasTitle||'').trim()||String(g?.adName||'').trim()||String(g?.name||'').trim();}
-function launchCanvasDisplayTitle(group,index=launchPanelIndex){
+function launchCanvasTitleWithDate(group,index=launchPanelIndex){
  const raw=launchCanvasTitle(group,index),closed=String(group?.name||'').trim().match(/^(\d{4})\s*(?:收單\s*)?⛔[\uFE0E\uFE0F]?\s*/)||raw.match(/^(\d{4})\s*(?:收單\s*)?⛔[\uFE0E\uFE0F]?\s*/);
  const title=launchGroupTitle(raw);
  return closed?closed[1]+'收單 '+title.replace(new RegExp('^'+closed[1]+'\\s*(?:收單\\s*)?'),'').trim():title;
+}
+function launchStripCanvasDate(title){
+ const normalized=title.replace(/[０-９／．－]/g,char=>char.normalize('NFKC'));
+ const date=normalized.match(/^(?:(\d{4})[-/.])?(\d{1,2})[-/.](\d{1,2})(?!\d)/)
+  ||normalized.match(/^(?:(\d{4})年\s*)?(\d{1,2})月\s*(\d{1,2})日/);
+ let length=launchTitleDateDefaults(normalized,2000).openDate.length;
+ if(date){
+  const [prefix,year='2000',month,day]=date;
+  if(launchNormalizeOpenDate(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`))length=prefix.length;
+ }
+ return length?title.slice(length).replace(/^\s*(?:[-－–—|｜:：]\s*)?/,''):title;
+}
+function launchCanvasDisplayTitle(group,index=launchPanelIndex){
+ const title=launchStripCanvasDate(launchCanvasTitleWithDate(group,index));
+ if(title.startsWith('收單 '))return ('收單 '+launchStripCanvasDate(title.slice('收單 '.length))).trimEnd();
+ return title||'開團';
 }
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchAddPanel(){
@@ -5942,7 +5958,7 @@ function launchPNGDpi(buffer){
 }
 function launchImageFilename(group,index=launchPanelIndex,now=new Date()){
  const raw=launchCanvasTitle(group,index);
- let title=launchCanvasDisplayTitle(group,index)||'開團';
+ let title=launchCanvasTitleWithDate(group,index)||'開團';
  if((String(group?.name||'')+raw).includes('⛔'))title=title.replace(/^(\d{4})收單\s*/,'$1收單⛔️');
  if(!/^(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)|^\d{4}(?!\d)/.test(title.normalize('NFKC'))){
   const openDate=launchOpenDateDisplay(launchDateFieldValue(group,'openDate'));
