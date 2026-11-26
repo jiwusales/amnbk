@@ -930,12 +930,12 @@ background-size:75%!important
 .inventoryNote{width:100%;font-size:8px;line-height:10px;color:#8b8077;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .inventoryLinks{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;margin-top:7px;min-height:13px;white-space:nowrap}
 .inventoryChannelButton{border:1px solid #aaa;border-radius:999px;padding:1px 6px;background:transparent;color:#777;font-size:8px;line-height:11px;text-decoration:none}
-.inventoryCardActions{justify-content:flex-start;gap:2px}
-.inventoryCardActions .inventoryChannelButton{padding-inline:4px;min-height:16px;display:inline-flex;align-items:center;justify-content:center}
-.inventoryCardActions .inventoryShortageButton{margin-left:auto;cursor:pointer}
+.inventoryLinks.inventoryCardActions{justify-content:center;gap:3px}
+.inventoryCardActions .inventoryChannelButton{box-sizing:border-box;flex:0 1 30px;min-width:0;padding:1px 0;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;appearance:none}
+.inventoryCardActions .inventoryShortageButton{cursor:pointer}
 .inventoryShortageButton[aria-pressed="true"]{border-color:#b9262d;background:#b9262d;color:#fff}
 .inventoryShortageButton:disabled{cursor:default;opacity:.65}
-@media(max-width:850px){.inventoryCardActions .inventoryChannelButton{padding-inline:1px}}
+@media(max-width:850px){.inventoryCardActions .inventoryChannelButton{flex-basis:23px;padding:0}}
 .inventoryAddButton{grid-column:4;grid-row:1;border-radius:50%;width:42px;min-width:42px;height:42px;padding:0;font-size:24px;line-height:1;background:var(--main)}
 @media(max-width:850px){.inventoryAddButton{width:38px;min-width:38px;height:38px}}
 .cargoChoiceRow{display:flex;align-items:center;gap:8px;padding:2px 0 7px 32px;flex-wrap:wrap}.cargoChoiceRow .cargoTag{min-width:22px;min-height:22px;font-size:11px!important}.cargoChoiceRow .cargoChoiceRestock{background:#7E88A0!important}.cargoChoiceRow .cargoChoiceStock{background:#DABBD8!important}.cargoChoiceRow .cargoChoiceOrdered{background:#FBB550!important}.cargoChoiceRow .cargoChoicePending{background:#E78790!important}.cargoChoiceRow .cargoChoiceOpened{background:#555!important;color:#fff!important}
