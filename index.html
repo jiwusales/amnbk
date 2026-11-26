@@ -2271,7 +2271,8 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
     launchPanelIndex=i;blobs.push(await launchGetPNG());
    }
    if(!dialog.open||document.body.dataset.page!=='launch')throw Error('圖片輸出已取消');
-   blobs.forEach((blob,i)=>launchDownloadPNG(blob,launchImageFilename(g,i)));
+   const downloadDate=new Date();
+   blobs.forEach((blob,i)=>launchDownloadPNG(blob,launchImageFilename(exporting,allPanels?i:panelIndex,downloadDate)));
    launchCompletionToast('已下載：'+g.name+(count>1?'（共 '+count+' 張畫布）':''));
   }
  }catch(error){launchCompletionToast(copying&&error.name==='NotAllowedError'?'無法複製圖片，請允許剪貼簿權限後重試，或使用下載圖片。':error.message||'圖片輸出失敗',true);}
@@ -5829,21 +5830,14 @@ function launchLoadImage(url){
 }
 const launchPNGBlobCache=new Map();
 let launchPNGPrepared=null;
-function launchExportTitle(group,index=launchPanelIndex,now=new Date()){
- const title=launchCanvasDisplayTitle(group,index),dates=launchTitleDateDefaults(title);
- const datedPrefix=/^(?:⛔[\uFE0E\uFE0F]?\s*)?(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)/.test(title.normalize('NFKC').trim());
- if(dates.openDate||dates.closeDate||datedPrefix||launchDateFieldValue(group,'openDate')||launchDateFieldValue(group,'closeDate'))return launchGroupTitle(title);
- const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
- return parts.month+parts.day+launchGroupTitle(title);
-}
 function launchDrawExportTitle(title,group,index,drawText){
  const nodes=Array.from(title.childNodes),style=title.getAttribute('style');
- try{title.textContent=launchExportTitle(group,index);launchFitSingleLine(title);drawText(title);}
+ try{title.textContent=launchCanvasDisplayTitle(group,index);launchFitSingleLine(title);drawText(title);}
  finally{title.replaceChildren(...nodes);if(style===null)title.removeAttribute('style');else title.setAttribute('style',style);}
 }
 function launchPNGKey(paper){
  const r=paper.getBoundingClientRect();
- return JSON.stringify(['emoji-free-v2',launchCurrent,launchPanelIndex,r.width,r.height,launchZoom,launchExportTitle(launchCurrent)]);
+ return JSON.stringify(['emoji-free-v2',launchCurrent,launchPanelIndex,r.width,r.height,launchZoom]);
 }
 function launchEnsureExportCanvas(){
  if(!launchListMode()||document.getElementById('launchPaper'))return;
@@ -5951,8 +5945,12 @@ function launchImageFilename(group,index=launchPanelIndex,now=new Date()){
  let title=launchCanvasDisplayTitle(group,index)||'開團';
  if((String(group?.name||'')+raw).includes('⛔'))title=title.replace(/^(\d{4})收單\s*/,'$1收單⛔️');
  if(!/^(?:20\d{2}[-/.])?\d{1,2}[-/.]\d{1,2}(?!\d)|^\d{4}(?!\d)/.test(title.normalize('NFKC'))){
-  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
-  title=parts.month+parts.day+title;
+  const openDate=launchOpenDateDisplay(launchDateFieldValue(group,'openDate'));
+  if(/^\d{4}$/.test(openDate))title=openDate+title;
+  else{
+   const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
+   title=parts.month+parts.day+title;
+  }
  }
  title=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'_');
  return title+((group.panels?.length||1)>1?'_'+launchPanelLabel(index):'')+'.png';
