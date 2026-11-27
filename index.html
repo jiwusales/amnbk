@@ -9069,7 +9069,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision,epoch=backendSyncPageEpochs.get('online')||0;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||onlineOrderEditPending||createShipPending||backendDeferRead('online',onlineRows.length>0))return;
+  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||onlineOrderEditPending||createShipPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(d.orderTimes||[])[i],orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -9340,7 +9340,7 @@ async function saveOnlineCargoTag(row,choice,headers=onlineHeaders,onSaving){
   alert('商品資料尚未更新，請重新整理後再修改標籤');
   return false;
  }
- if(pendingGroupRestocks.has(String(getOnlineData(row,['團名','團組','團','開團名稱'],headers)||'').trim())){alert('此團正在處理補貨登記，請完成後再修改標籤');return false;}
+ if(pendingGroupRestocks.has(String(getOnlineData(row,['團名','團組','團','開團名稱'],headers)||'').trim())){alert('此團正在批次修改貨況，請稍後再修改標籤');return false;}
  let type,value;
  if(choice==='pending'||choice==='ordered'){type='ordered';value=choice==='ordered'?'已訂購':'未訂購';}
  else if(choice==='stock'||choice==='restock'){type='cargo';value=choice==='stock'?'現貨':'補登';}
@@ -9382,24 +9382,46 @@ async function saveOnlineCargoTag(row,choice,headers=onlineHeaders,onSaving){
 }
 const pendingGroupRestocks=new Set();
 async function onlineRestockPendingGroup(group){
- const target=String(group||'').trim();if(!target||pendingGroupRestocks.has(target))return;
+ const target=String(group||'').trim();
+ if(!target||pendingGroupRestocks.has(target))return;
  if(pendingBadgeItems.size||onlineOrderEditPending){alert('商品標籤或訂單正在儲存，請完成後再試');return;}
+ const submittedAuth=authToken,revision=onlineMutationRevision;
+ const setDisabled=disabled=>document.querySelectorAll('[data-online-restock-group]').forEach(button=>{
+  if(button.dataset.onlineRestockGroup===target)button.disabled=disabled;
+ });
  pendingGroupRestocks.add(target);
- const revision=onlineMutationRevision;
- const controls=()=>document.querySelectorAll('[data-online-restock-group]');
- controls().forEach(b=>{if(b.dataset.onlineRestockGroup===target)b.disabled=true;});
+ setDisabled(true);
  try{
-  const preview=await api('setOnlineItemBadge',{groupRestock:'preview',group:target});
-  if(!preview.count){alert('「'+target+'」沒有未訂購的品項');return;}
-  if(!confirm('確定將「'+target+'」全部 '+preview.count+' 件未訂購品項轉成「補貨登記」？\n已訂購及其他貨況的品項會保留。'))return;
+  const preview=await api('setOnlineItemBadge',{groupRestock:'preview',group:target,direction:'auto'});
+  if(authToken!==submittedAuth)return;
+  const {direction,count}=preview;
+  if(count===0){alert('「'+target+'」沒有可轉換的未訂購或補貨登記品項');return;}
+  if((direction!=='restock'&&direction!=='pending')||!Number.isSafeInteger(count)||count<1)throw Error('伺服器未確認可轉換的品項，請稍後再試');
+  const [from,to]=direction==='restock'?['未訂購','補貨登記']:['補貨登記','未訂購'];
+  if(!confirm('確定將「'+target+'」的 '+count+' 件「'+from+'」品項轉成「'+to+'」？'))return;
   if(pendingBadgeItems.size||onlineOrderEditPending||revision!==onlineMutationRevision){alert('訂單正在更新，請完成後重新點擊團名');return;}
   onlineMutationRevision++;
-  const result=await api('setOnlineItemBadge',{groupRestock:'apply',group:target});
-  if(result.online){if(onlineOrderEditPending){onlineEditBase=applyOnlineDelta(onlineEditBase,result.online).rows;renderPendingOnlineEdits();}else{const updated=applyOnlineDelta(onlineRows,result.online);onlineRows=updated.rows;onlineHeaders=updated.headers;}onlineLoadedAt=Date.now();saveOnlineSessionCache();}
-  activeCargoPickerItemId="";refreshCargoViewKeepingScroll();
-  alert('「'+target+'」已將 '+result.updated+' 件未訂購品項轉成補貨登記');
- }catch(error){alert(jiwuErrorText(error,'system'));}
- finally{onlineMutationRevision++;pendingGroupRestocks.delete(target);controls().forEach(b=>{if(b.dataset.onlineRestockGroup===target)b.disabled=false;});}
+  const result=await api('setOnlineItemBadge',{groupRestock:'apply',group:target,direction,expectedCount:count});
+  if(authToken!==submittedAuth)return;
+  if(result.direction!==direction||result.updated!==count||!result.online)throw Error('伺服器未確認貨況已儲存，請重新整理後確認');
+  const editing=onlineOrderEditPending&&Array.isArray(onlineEditBase);
+  const updated=applyOnlineDelta(editing?onlineEditBase:onlineRows,result.online);
+  onlineHeaders=updated.headers;
+  if(editing)onlineEditBase=updated.rows;
+  else onlineRows=updated.rows;
+  onlineLoadedAt=Date.now();
+  saveOnlineSessionCache(onlineLoadedAt,editing?onlineEditBase:onlineRows);
+  activeCargoPickerItemId='';
+  if(editing)renderPendingOnlineEdits();
+  else refreshCargoViewKeepingScroll();
+  alert('「'+target+'」已將 '+result.updated+' 件「'+from+'」品項轉成「'+to+'」');
+ }catch(error){
+  if(authToken===submittedAuth)alert(jiwuErrorText(error,'system'));
+ }finally{
+  onlineMutationRevision++;
+  pendingGroupRestocks.delete(target);
+  setDisabled(false);
+ }
 }
 function onlineCargoBadgeMarkup(row,expanded,headers=onlineHeaders,options={}){
  const {buyer,showDate}=options;
@@ -10042,7 +10064,7 @@ const summaryStats=isGroupView
 let html=isFaceToFaceView?'':`
 <div class="card">
 <div class="cardHead groupSummary ${singleCustomerView?'customerSummary':''}">
-${singleCustomerView?`${customerMessageButton(summary,false,rows)}<span class="orderSummaryLabel">${customerIdentity(summary||'未填姓名',rows)}</span>`:`${isGroupView?`<button type="button" class="orderSummaryLabel onlineGroupRestockButton" data-online-restock-group="${esc(summary)}" onclick="onlineRestockPendingGroup(this.dataset.onlineRestockGroup)" title="將此團未訂購品項轉成補貨登記" ${pendingGroupRestocks.has(String(summary).trim())?'disabled':''}>${esc(summary)}</button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}`}<span class="orderSummaryStats">${summaryStats}</span>
+${singleCustomerView?`${customerMessageButton(summary,false,rows)}<span class="orderSummaryLabel">${customerIdentity(summary||'未填姓名',rows)}</span>`:`${isGroupView?`<button type="button" class="orderSummaryLabel onlineGroupRestockButton" data-online-restock-group="${esc(summary)}" onclick="onlineRestockPendingGroup(this.dataset.onlineRestockGroup)" title="點擊切換此團的未訂購與補貨登記" ${pendingGroupRestocks.has(String(summary).trim())?'disabled':''}>${esc(summary)}</button>`:`<span class="orderSummaryLabel">${esc(summary||'待出貨')}</span>`}`}<span class="orderSummaryStats">${summaryStats}</span>
 </div>
 <div class="groupCards orderCards">
 `;
@@ -10973,7 +10995,7 @@ function backendSyncCanApply(page){
  if(active?.id==='inventorySearch'&&active.value!==inventorySearch)return false;
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
- if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||createShipPending||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
+ if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||createShipPending||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
  if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderSaving||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
