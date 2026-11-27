@@ -2408,6 +2408,34 @@ function launchNormalizeSummaryProductName(value){
   .replace(/【[^】]*】|〖[^〗]*予約[^〗]*〗/g,'').replace(/予約/g,'')
   .replace(/。/g,'.').replace(/\s+/g,'');
 }
+const launchSummaryClothingSizeToken='(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|FREE|F)';
+function launchSummaryClothingSize(value){
+ const text=String(value||'').normalize('NFKC').trim().toUpperCase().replace(/\s*サイズ$/,'');
+ return new RegExp('^'+launchSummaryClothingSizeToken+'$','i').test(text)?text==='F'?'FREE':text:'';
+}
+function launchSummarySplitClothingName(value){
+ const title=String(value||'').normalize('NFKC').replace(/【[^】]*】|〖[^〗]*〗/g,'').trim();
+ const suffix=new RegExp('(?:\\(\\s*('+launchSummaryClothingSizeToken+')\\s*(?:サイズ)?\\s*\\)|(?:\\s*[-/–—:]\\s*|\\s+)('+launchSummaryClothingSizeToken+')(?:\\s*サイズ)?)$','i').exec(title);
+ return {name:launchNormalizeSummaryProductName(suffix?title.slice(0,suffix.index):title),size:launchSummaryClothingSize(suffix?.[1]||suffix?.[2])};
+}
+function launchSummaryIndexClothing(index,product,entry){
+ const sizes=[...new Set([product.format,product.size].flatMap(value=>String(value||'').normalize('NFKC').split(/[\s/、,，;；]+/)).map(launchSummaryClothingSize).filter(Boolean))];
+ for(const value of [product.japaneseName,product.originalName]){
+  const {name,size}=launchSummarySplitClothingName(value);
+  if(!name||(!size&&!sizes.length))continue;
+  if(size&&sizes.length&&!sizes.includes(size))continue;
+  if(!index.has(name))index.set(name,[]);
+  index.get(name).push({entry,sizes:size?[size]:sizes});
+ }
+}
+function launchSummaryPurchaseClothing(item,index){
+ const parsed=[item.originalName,item.japaneseName,item.name].map(launchSummarySplitClothingName);
+ const sizes=[...new Set([...parsed.map(name=>name.size),launchSummaryClothingSize(item.format),launchSummaryClothingSize(item.size)].filter(Boolean))];
+ if(sizes.length!==1)return null;
+ const [size]=sizes;
+ const entries=parsed.flatMap(({name})=>(index.get(name)||[]).filter(candidate=>candidate.sizes.includes(size)).map(candidate=>candidate.entry));
+ return {size,entries};
+}
 function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
 function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  const value=(row,names)=>getOnlineData(row,names,headers),customers=new Set(),items=new Map();
@@ -2614,8 +2642,9 @@ function launchPurchaseIdentity(product){
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
  const norm=launchNormalizeSummaryProductName,code=launchPurchaseSku,identity=launchPurchaseIdentity;
  const groupKey=launchOrderSummaryGroupKey(group.name),linked=[];
- const japaneseProducts=new Map(),unassignedQuantities=new Map();
+ const japaneseProducts=new Map(),japaneseClothing=new Map(),unassignedQuantities=new Map();
  for(const product of products){
+  launchSummaryIndexClothing(japaneseClothing,product,product);
   for(const name of [product.japaneseName,product.originalName].map(norm).filter(Boolean)){
    if(!japaneseProducts.has(name))japaneseProducts.set(name,new Set());
    japaneseProducts.get(name).add(identity(product));
@@ -2639,7 +2668,8 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
    // Older Chiikawa Market imports can have no saved group or product match.
    if(!purchaseChiikawaMarketOrder(order))continue;
    const names=[item.originalName,item.japaneseName,item.name].map(norm).filter(Boolean);
-   const matches=new Set(names.flatMap(name=>[...(japaneseProducts.get(name)||[])]));
+   const clothing=launchSummaryPurchaseClothing(item,japaneseClothing);
+   const matches=new Set(clothing?.entries.length?clothing.entries.map(identity):names.flatMap(name=>[...(japaneseProducts.get(name)||[])]));
    if(matches.size!==1)continue;
    const [key]=matches;
    unassignedQuantities.set(key,(unassignedQuantities.get(key)||0)+quantity);
@@ -2653,6 +2683,7 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
   let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
   const codes=[...(item.codes||[]).map(launchSummarySku),code(item)].filter(Boolean);
   if(!found.length)found=products.filter(p=>code(p)&&codes.includes(code(p)));
+  if(!found.length)found=launchSummaryPurchaseClothing(item,japaneseClothing)?.entries||[];
   if(!found.length){const japanese=[item.japaneseName,item.originalName].filter(Boolean).map(norm);found=products.filter(p=>japanese.some(n=>aliases.get(identity(p)).has(n)));}
   if(!found.length)found=products.filter(p=>launchSummaryProductNames(p).some(n=>norm(n)===norm(item.name))||norm(launchDisplayName(p))===norm(purchaseProductName(item)));
   const variant=value=>{const text=String(value||'');return /抱盒|BOX|ボックス|整盒/i.test(text)?'box':/單抽|単品|單入/i.test(text)?'single':'';};
@@ -6729,9 +6760,12 @@ function purchaseSummaryCatalogRead(action,params){
 }
 async function purchaseReadSummaryCatalogMatches(orders){
  const official=orders.filter(order=>purchaseChiikawaMarketOrder(order)&&!launchSummaryCancelled(order.status));
- const tagged=official.filter(order=>order.items.some(item=>purchaseOrderHasPreorderTag(item)||/【[^】]*】/.test(item.originalName||item.name||'')));
- if(!tagged.length)return null;
- const dates=new Set(tagged.map(order=>purchaseDateSortKey(order.date)).filter(Boolean));
+ const needsCatalog=official.filter(order=>order.items.some(item=>{
+  const name=item.originalName||item.name||'';
+  return purchaseOrderHasPreorderTag(item)||/【[^】]*】/.test(name)||!!launchSummarySplitClothingName(name).size;
+ }));
+ if(!needsCatalog.length)return null;
+ const dates=new Set(needsCatalog.map(order=>purchaseDateSortKey(order.date)).filter(Boolean));
  const groups=new Set(purchaseOrders.filter(order=>purchaseChiikawaMarketOrder(order)&&dates.has(purchaseDateSortKey(order.date)))
   .flatMap(order=>[order.groupName,...order.items.map(item=>item.group)]).map(launchOrderSummaryGroupKey).filter(Boolean));
  const statuses=['最新開團','已收單'];
@@ -6740,7 +6774,7 @@ async function purchaseReadSummaryCatalogMatches(orders){
   .filter(group=>groups.has(launchOrderSummaryGroupKey(group.name))||
    (/吉伊|ちいかわ/.test(group.ip+' '+group.name)&&dates.has(purchaseDateSortKey(launchNormalizeOpenDate(launchDateFieldValue(group,'openDate'))))));
  const catalogs=await Promise.allSettled(candidates.map(group=>purchaseSummaryCatalogRead('launchGet',{id:group.id,status:group.status})));
- const byName=new Map(),bySku=new Map();
+ const byName=new Map(),bySku=new Map(),byClothing=new Map();
  function index(map,key,entry){
   if(!key)return;
   if(!map.has(key))map.set(key,[]);
@@ -6757,6 +6791,7 @@ async function purchaseReadSummaryCatalogMatches(orders){
     groupId:String(group.id),code,name:launchDisplayName(product),image:launchSummaryImageURLs(product.images?.length?product.images:product.image)[0]||''};
    for(const name of new Set(names))index(byName,name,entry);
    index(bySku,code,entry);
+   launchSummaryIndexClothing(byClothing,product,entry);
   }
  }
  const matches=new WeakMap();
@@ -6767,9 +6802,18 @@ async function purchaseReadSummaryCatalogMatches(orders){
   const names=[item.originalName,item.japaneseName,item.name].map(launchNormalizeSummaryProductName).filter(Boolean);
   const named=names.flatMap(name=>byName.get(name)||[]).filter(compatible);
   const coded=(bySku.get(launchPurchaseSku(item))||[]).filter(compatible);
-  const entries=named.length?named:coded;
+  const clothing=launchSummaryPurchaseClothing(item,byClothing);
+  const sized=(clothing?.entries||[]).filter(compatible);
+  const sameSku=sized.filter(entry=>coded.some(candidate=>candidate.key===entry.key));
+  const entries=sameSku.length?sameSku:sized.length?sized:named.length?named:coded;
   const distinct=new Map(entries.map(entry=>[entry.key,entry]));
-  if(distinct.size===1)matches.set(item,distinct.values().next().value);
+  if(distinct.size!==1)continue;
+  const entry=distinct.values().next().value;
+  if(sized.length){
+   const size=clothing.size;
+   const base=launchSummarySplitClothingName(entry.name);
+   matches.set(item,{...entry,key:JSON.stringify([entry.key,size]),name:base.size?entry.name:entry.name+' '+size});
+  }else matches.set(item,entry);
  }
  return matches;
 }
@@ -6779,8 +6823,9 @@ function purchaseOrderHasPreorderTag(item){
 }
 function purchaseOrderContentName(order,item){
  const displayName=purchaseProductName(item);
- if(!purchaseOrderHasPreorderTag(item)||!purchaseChiikawaMarketOrder(order))return displayName;
+ if(!purchaseChiikawaMarketOrder(order))return displayName;
  const name=purchaseSummaryCatalogMatches.get(item)?.name||displayName;
+ if(!purchaseOrderHasPreorderTag(item))return name;
  return '【予約】'+name.replace(/^\s*(?:【[^】]*予約[^】]*】\s*|〖[^〗]*予約[^〗]*〗\s*)+/,'');
 }
 function purchasePaintOrderContentNames(orders){
@@ -6790,7 +6835,7 @@ function purchasePaintOrderContentNames(orders){
   if(!order||!purchaseChiikawaMarketOrder(order))return;
   card.querySelectorAll('[data-purchase-item-index]').forEach(label=>{
    const item=order.items[Number(label.dataset.purchaseItemIndex)];
-   if(!item||!purchaseOrderHasPreorderTag(item))return;
+   if(!item||(!purchaseOrderHasPreorderTag(item)&&!purchaseSummaryCatalogMatches.has(item)))return;
    const name=purchaseOrderContentName(order,item);
    label.textContent=name;
    label.title=name;
