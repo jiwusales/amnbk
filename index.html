@@ -2625,7 +2625,6 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
   let found=products.filter(p=>(item.itemIds||[]).includes(String(p.id||'')));
   const codes=[...(item.codes||[]).map(launchSummarySku),code(item)].filter(Boolean);
   if(!found.length)found=products.filter(p=>code(p)&&codes.includes(code(p)));
-  if(codes.length&&!found.length)return null;
   if(!found.length){const japanese=[item.japaneseName,item.originalName].filter(Boolean).map(norm);found=products.filter(p=>japanese.some(n=>aliases.get(identity(p)).has(n)));}
   if(!found.length)found=products.filter(p=>launchSummaryProductNames(p).some(n=>norm(n)===norm(item.name))||norm(launchDisplayName(p))===norm(purchaseProductName(item)));
   const variant=value=>{const text=String(value||'');return /抱盒|BOX|ボックス|整盒/i.test(text)?'box':/單抽|単品|單入/i.test(text)?'single':'';};
