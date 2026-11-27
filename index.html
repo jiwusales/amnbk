@@ -2403,7 +2403,11 @@ function launchOrderSummaryGroupKey(value){
  return (marker<0?text:text.slice(marker+1)).replace(/\uFE0F/g,'').replace(/\s+/g,'');
 }
 function launchSummarySku(value){return String(value??'').normalize('NFKC').trim().toLowerCase();}
-function launchNormalizeSummaryProductName(value){return String(value||'').normalize('NFKC').toLowerCase().replace(/【[^】]*】/g,'').replace(/予約/g,'').replace(/\s+/g,'');}
+function launchNormalizeSummaryProductName(value){
+ return String(value||'').normalize('NFKC').toLowerCase()
+  .replace(/【[^】]*】|〖[^〗]*予約[^〗]*〗/g,'').replace(/予約/g,'')
+  .replace(/。/g,'.').replace(/\s+/g,'');
+}
 function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
 function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  const value=(row,names)=>getOnlineData(row,names,headers),customers=new Set(),items=new Map();
@@ -2610,15 +2614,41 @@ function launchPurchaseIdentity(product){
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
  const norm=launchNormalizeSummaryProductName,code=launchPurchaseSku,identity=launchPurchaseIdentity;
  const groupKey=launchOrderSummaryGroupKey(group.name),linked=[];
+ const japaneseProducts=new Map(),unassignedQuantities=new Map();
+ for(const product of products){
+  for(const name of [product.japaneseName,product.originalName].map(norm).filter(Boolean)){
+   if(!japaneseProducts.has(name))japaneseProducts.set(name,new Set());
+   japaneseProducts.get(name).add(identity(product));
+  }
+ }
+ let orderCount=0;
  for(const order of orders){
   if(launchSummaryCancelled(order.status))continue;
-  const linkedName=launchOrderSummaryGroupKey(order.groupName),items=(order.items||[]).filter(item=>{
-   if(launchSummaryCancelled(item.status)||!Number.isSafeInteger(Number(item.quantity))||Number(item.quantity)<=0)return false;
-   if(order.groupId)return String(order.groupId)===String(group.id);
-   if(linkedName)return linkedName===groupKey;
-   return !!groupKey&&launchOrderSummaryGroupKey(item.group)===groupKey;
-  });
+  const linkedName=launchOrderSummaryGroupKey(order.groupName);
+  const items=[];
+  let countedUnassigned=false;
+  for(const item of order.items||[]){
+   const quantity=Number(item.quantity);
+   if(launchSummaryCancelled(item.status)||!Number.isSafeInteger(quantity)||quantity<=0)continue;
+   const itemGroup=launchOrderSummaryGroupKey(item.group);
+   if(order.groupId?String(order.groupId)===String(group.id):groupKey&&(linkedName||itemGroup)===groupKey){
+    items.push(item);
+    continue;
+   }
+   if(!groupKey||order.groupId||linkedName||itemGroup||!japaneseProducts.size)continue;
+   // Older Chiikawa Market imports can have no saved group or product match.
+   const official=order.orderURL?purchaseChannelFromURL(order.orderURL)==='ちいかわ官網'
+    :/^(?:ちいかわマーケット|ちいかわ官網)$/.test(String(order.channel||'').normalize('NFKC').trim());
+   if(!official)continue;
+   const names=[item.originalName,item.japaneseName,item.name].map(norm).filter(Boolean);
+   const matches=new Set(names.flatMap(name=>[...(japaneseProducts.get(name)||[])]));
+   if(matches.size!==1)continue;
+   const [key]=matches;
+   unassignedQuantities.set(key,(unassignedQuantities.get(key)||0)+quantity);
+   countedUnassigned=true;
+  }
   if(items.length)linked.push(items);
+  if(items.length||countedUnassigned)orderCount++;
  }
  const aliases=new Map();for(const p of products){const names=[p.japaneseName,p.originalName];for(const items of linked)for(const item of items)if(code(p)&&code(item)===code(p))names.push(item.originalName,item.japaneseName);aliases.set(identity(p),new Set(names.filter(Boolean).map(norm)));}
  const resolve=item=>{
@@ -2636,9 +2666,11 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
  if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),itemKeys:[],needed:0,ordered:0});}
  for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item)||'online-summary:'+launchSummaryItemKey(item);if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0,onlineOrdered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);row.onlineOrdered=(row.onlineOrdered||0)+Math.min(Number(item.quantity),Math.max(0,Number(item.ordered)||0));}
  for(const items of linked)for(const item of items){const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=Number(item.quantity);}
- for(const row of rows.values())row.ordered=Math.max(row.ordered,row.onlineOrdered||0);
+ for(const row of rows.values()){
+  row.ordered=Math.max(row.ordered+(unassignedQuantities.get(row.key)||0),row.onlineOrdered||0);
+ }
  const entries=[...rows.values()],needed=entries.reduce((s,x)=>s+x.needed,0),ordered=entries.reduce((s,x)=>s+x.ordered,0),extra=entries.filter(x=>x.ordered>x.needed),short=entries.filter(x=>x.needed>x.ordered);
- return {entries,needed,ordered,extra,short,orderCount:linked.length};
+ return {entries,needed,ordered,extra,short,orderCount};
 }
 function launchPurchaseReconciliationText(result){
  const lines=[`已登記 ${result.orderCount} 筆訂單｜跟團需求 ${result.needed} 件｜已訂購 ${result.ordered} 件`,'',...result.entries.map(x=>`${x.name}：需求 ${x.needed}、已訂 ${x.ordered}${x.ordered>x.needed?'、多 '+(x.ordered-x.needed):x.ordered<x.needed?'、少 '+(x.needed-x.ordered):'、相符'}`),'','多訂品項：',...(result.extra.length?result.extra.map(x=>`${x.name} × ${x.ordered-x.needed}`):['無']),...(result.short.length?['','尚缺品項：',...result.short.map(x=>`${x.name} × ${x.needed-x.ordered}`)]:[])];return lines.join('\n');
