@@ -3861,23 +3861,20 @@ async function launchFillLineFriendsSizes(items,isActive,onProgress){
 }
 async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=new Map(),isActive=()=>true){
  const rows=launchParseMultiProducts(value);
+ const urlRows=new Set(rows.filter(row=>row.url&&!row.name&&!row.role&&!row.amount&&!row.size));
  // Validate the whole batch before reading URLs or changing the canvas.
- launchExpandMultiProducts(rows.map(row=>({...row,name:row.name||(row.url?'讀取商品名稱':'')})),start);
+ launchExpandMultiProducts(rows.map(row=>urlRows.has(row)?{...row,name:'讀取商品名稱'}:row),start);
  const expanded=[],warnings=new Set();let completed=0;
  let lineFriendsCatalog;
- for(const row of rows){
-  row.url=launchNormalizeURL(row.url);
-  if(row.url)row.url=launchURLImportSourceURL(row.url);
- }
- const urls=new Set(rows.map(row=>row.url).filter(Boolean)),totalRows=rows.filter(row=>row.url).length;
+ for(const row of urlRows)row.url=launchURLImportSourceURL(launchNormalizeURL(row.url));
+ const urls=new Set([...urlRows].map(row=>row.url));
  for(const key of resume.keys())if(!urls.has(key))resume.delete(key);
- const wantedLineFriendsSizes=new Set(rows.filter(row=>row.url&&!row.size&&!resume.has(row.url)).map(row=>launchLineFriendsProductImportURL(row.url)).filter(Boolean));
+ const wantedLineFriendsSizes=new Set([...urlRows].filter(row=>!resume.has(row.url)).map(row=>launchLineFriendsProductImportURL(row.url)).filter(Boolean));
  const checkActive=()=>{if(!isActive())throw Error('已取消讀取');};
  for(const row of rows){
   checkActive();
-  if(!row.url){expanded.push(row);continue;}
-  onProgress(++completed,totalRows);
-  const spec=launchNormalizeProductSpec(String(row.size||'').trim(),'',row);
+  if(!urlRows.has(row)){expanded.push(row);continue;}
+  onProgress(++completed,urlRows.size);
   try{
    { // Preserve the list and each verified detail read while this form is open.
     let entry=resume.get(row.url);
@@ -3925,7 +3922,7 @@ async function launchReadMultiProducts(value,start=0,onProgress=()=>{},resume=ne
      const name=String(info.name||(!tmall&&info.japaneseName)||'').trim();
      if(!name||launchSafeURL(name))throw Error('未讀取到商品名稱，請填寫名稱後重試');
      if(!tmall&&info.needsFormat)throw Error('此商品有多種格式，請先填寫單抽或抱盒');
-     expanded.push({...row,name:row.name||name,role:row.role||String(info.role||''),roleIsAtomic:!row.role,amount:row.amount||String(info.original||''),size:row.size||String(info.size||''),format:row.size?spec.format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url)).slice(0,1)});
+     expanded.push({...row,name,role:String(info.role||''),roleIsAtomic:true,amount:String(info.original||''),size:String(info.size||''),format:tmall?'':String(info.format||''),url:info.url||row.url,japaneseName:tmall?'':String(info.japaneseName||''),code:String(info.code||''),kind:String(info.kind||''),images:(Array.isArray(info.images)?info.images:String(info.image||'').split(/[、\s]+/)).filter(url=>launchSafeURL(url)).slice(0,1)});
     }
     continue;
    }
