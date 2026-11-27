@@ -2515,7 +2515,7 @@ function launchSplitProductImages(value){
 function launchSummaryImageURLs(value){return [...new Set(launchSplitProductImages(value).map(launchSafeURL).filter(Boolean))];}
 function launchSummaryProductNames(product){
  const name=String(product.name||'').trim(),japaneseName=String(product.japaneseName||'').trim(),originalName=String(product.originalName||'').trim(),role=String(product.role||'').trim(),format=String(product.format||'').trim();
- const sizes=[format,product.size].filter(Boolean).flatMap(value=>String(value).split(/[／/、,，;\\s]+/)).filter(value=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE|單抽|抱盒)$/i.test(value));
+ const sizes=[format,product.size].filter(Boolean).flatMap(value=>String(value).split(/[／/、,，;\s]+/)).filter(value=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE|單抽|抱盒)$/i.test(value));
  const variants=['',format,...sizes];
  return [...new Set(variants.flatMap(size=>[[name,role,size],[name,size,role],[japaneseName,role,size],[japaneseName,size,role],[originalName,role,size],[originalName,size,role]]).map(parts=>parts.filter(Boolean).join(' ')).concat(launchDisplayName(product),name,japaneseName,originalName).filter(Boolean))];
 }
