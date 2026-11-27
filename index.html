@@ -2403,7 +2403,7 @@ function launchOrderSummaryGroupKey(value){
  return (marker<0?text:text.slice(marker+1)).replace(/\uFE0F/g,'').replace(/\s+/g,'');
 }
 function launchSummarySku(value){return String(value??'').normalize('NFKC').trim().toLowerCase();}
-function launchNormalizeSummaryProductName(value){return String(value||'').normalize('NFKC').toLowerCase().replace(/^(?:【[^】]*】)+/,'').replace(/予約/g,'').replace(/\s+/g,'');}
+function launchNormalizeSummaryProductName(value){return String(value||'').normalize('NFKC').toLowerCase().replace(/【[^】]*】/g,'').replace(/予約/g,'').replace(/\s+/g,'');}
 function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
 function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  const value=(row,names)=>getOnlineData(row,names,headers),customers=new Set(),items=new Map();
