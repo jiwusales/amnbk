@@ -5101,32 +5101,71 @@ function jiwuProductNameWithoutIP(name,hints=[]){
  return original;
 }
 
+function jiwuRemoveSpecifiedNameText(name,text){
+ const original=String(name??''),normalize=value=>value.normalize('NFKC').replace(/\s/g,'').toLowerCase();
+ const target=normalize(String(text??''));
+ if(!target)return original;
+ let normalized='',offset=0;
+ const starts=[],ends=[];
+ for(const character of original){
+  const part=normalize(character);
+  if(part){
+   starts[normalized.length]=offset;
+   normalized+=part;
+   ends[normalized.length]=offset+character.length;
+  }
+  offset+=character.length;
+ }
+ let remaining='',cursor=0,searchIndex=0,leadingMatch=false;
+ for(let match;(match=normalized.indexOf(target,searchIndex))!==-1;){
+  const start=starts[match],end=ends[match+target.length];
+  if(start===undefined||end===undefined){searchIndex=match+1;continue;}
+  const between=original.slice(cursor,start);
+  if(!cursor)leadingMatch=!between.trim();
+  remaining+=/\s$/u.test(remaining)?between.trimStart():between;
+  cursor=end;
+  searchIndex=match+target.length;
+ }
+ if(!cursor)return original;
+ const tail=original.slice(cursor);
+ remaining+=/\s$/u.test(remaining)?tail.trimStart():tail;
+ if(leadingMatch)remaining=remaining.replace(/^[\s』」》】\]！!：:|｜・·／\/－—–-]+/u,'');
+ return remaining.trim()||original;
+}
+
 let launchNameRemovalSession=null;
-function launchNameRemovalChanges(prefix){
+function launchNameRemovalChanges(text){
  const session=launchNameRemovalSession;
  if(!session||launchCurrent!==session.group||launchPanelIndex!==session.panel)return [];
- return launchCurrent.items.filter(item=>launchCanvasContains(item,session.panel)).map(item=>({item,before:String(item.name||''),after:jiwuRemoveNamePrefix(item.name,prefix)})).filter(change=>change.before!==change.after);
+ return launchCurrent.items.filter(item=>launchCanvasContains(item,session.panel)).map(item=>({item,before:String(item.name??''),after:jiwuRemoveSpecifiedNameText(item.name,text)})).filter(change=>change.before!==change.after);
 }
 function launchNameRemovalOpen(){
  if(!launchCurrent||launchBusy)return;
  launchNameRemovalSession={group:launchCurrent,panel:launchPanelIndex};
- const items=launchCurrent.items.filter(item=>launchCanvasContains(item)),example=items.find(item=>jiwuProductNameWithoutIP(item.name,[launchCurrent.ip])!==item.name);
- const clean=example?jiwuProductNameWithoutIP(example.name,[launchCurrent.ip]):'',prefix=example?example.name.slice(0,example.name.length-clean.length).trim():'';
- launchDialog(`<form data-explicit-confirm onsubmit="launchNameRemovalApply(event)"><h2>移除名稱文字</h2><p class="launchHelp">移除目前畫布商品名稱開頭的指定文字，保留角色、款式與尺寸。共用同一商品的畫布也會更新名稱。</p><label>要移除的名稱前綴<input name="prefix" aria-label="要移除的名稱前綴" value="${esc(prefix)}" placeholder="例如：加油！中村同學！！" oninput="launchNameRemovalPreview()" autocomplete="off"></label><p data-launch-name-count role="status"></p><div data-launch-name-preview style="max-height:45dvh;overflow:auto;overflow-wrap:anywhere"></div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchNameRemovalSession=null;launchAllProducts()">取消</button><button class="btn" data-launch-name-apply type="submit" disabled>套用</button></div><p class="launchHelp">套用後可用 ⬅︎ 復原，按 SAVE 儲存。</p></form>`);
+ let suggestedText='';
+ for(const item of launchCurrent.items){
+  if(!launchCanvasContains(item))continue;
+  const name=String(item.name??''),clean=jiwuProductNameWithoutIP(name,[launchCurrent.ip]);
+  if(clean!==name&&name.endsWith(clean)){
+   suggestedText=name.slice(0,name.length-clean.length).trim();
+   break;
+  }
+ }
+ launchDialog(`<form data-explicit-confirm onsubmit="launchNameRemovalApply(event)"><h2>移除名稱文字</h2><p class="launchHelp">移除目前畫布商品名稱中所有符合的指定文字，位置不限。共用同一商品的畫布也會更新名稱。</p><label>要移除的文字<input name="removeText" aria-label="要移除的文字" value="${esc(suggestedText)}" placeholder="例如：超級瑪利歐" oninput="launchNameRemovalPreview()" autocomplete="off"></label><p data-launch-name-count role="status"></p><div data-launch-name-preview style="max-height:45dvh;overflow:auto;overflow-wrap:anywhere"></div><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchNameRemovalSession=null;launchAllProducts()">取消</button><button class="btn" data-launch-name-apply type="submit" disabled>套用</button></div><p class="launchHelp">套用後可用 ⬅︎ 復原，按 SAVE 儲存。</p></form>`);
  launchNameRemovalPreview();
 }
 function launchNameRemovalPreview(){
- const dialog=document.getElementById('launchDialog'),input=dialog?.querySelector('[name="prefix"]');if(!input)return;
+ const dialog=document.getElementById('launchDialog'),input=dialog?.querySelector('[name="removeText"]');if(!input)return;
  const changes=launchNameRemovalChanges(input.value),count=dialog.querySelector('[data-launch-name-count]'),preview=dialog.querySelector('[data-launch-name-preview]'),button=dialog.querySelector('[data-launch-name-apply]');
- count.textContent=input.value.trim()?changes.length?`將修改 ${changes.length} 項商品`:'沒有可移除此前綴的商品；移除後名稱會變成空白的商品會保留。':'請輸入要移除的文字';
+ count.textContent=input.value.trim()?changes.length?`將修改 ${changes.length} 項商品`:'沒有可移除這段文字的商品。移除後名稱會變成空白的商品會保留。':'請輸入要移除的文字';
  preview.innerHTML=changes.length?`<table style="width:100%;table-layout:fixed;text-align:left"><thead><tr><th>目前名稱</th><th>移除後</th></tr></thead><tbody>${changes.map(change=>`<tr><td style="padding:6px">${esc(change.before)}</td><td style="padding:6px">${esc(change.after)}</td></tr>`).join('')}</tbody></table>`:'';
  button.disabled=!changes.length;
 }
 function launchNameRemovalApply(event){
  event.preventDefault();if(launchBusy)return;
- const input=event.target.querySelector('[name="prefix"]'),changes=launchNameRemovalChanges(input?.value||'');if(!changes.length)return;
+ const input=event.target.querySelector('[name="removeText"]'),changes=launchNameRemovalChanges(input?.value||'');if(!changes.length)return;
  launchPushUndo();for(const change of changes)change.item.name=change.after;
- launchMark();document.getElementById('launchDialog')?.close();launchNameRemovalSession=null;launchRenderEditor();launchNotice(`已移除 ${changes.length} 項商品的名稱前綴，按 SAVE 儲存`);
+ launchMark();document.getElementById('launchDialog')?.close();launchNameRemovalSession=null;launchRenderEditor();launchNotice(`已從 ${changes.length} 項商品名稱移除指定文字，按 SAVE 儲存`);
 }
 
 function launchOpenProductDeletion(){
