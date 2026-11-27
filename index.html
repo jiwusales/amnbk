@@ -2403,6 +2403,7 @@ function launchOrderSummaryGroupKey(value){
  return (marker<0?text:text.slice(marker+1)).replace(/\uFE0F/g,'').replace(/\s+/g,'');
 }
 function launchSummarySku(value){return String(value??'').normalize('NFKC').trim().toLowerCase();}
+function launchNormalizeSummaryProductName(value){return String(value||'').normalize('NFKC').toLowerCase().replace(/^(?:【[^】]*】)+/,'').replace(/予約/g,'').replace(/\s+/g,'');}
 function launchSummaryCancelled(status){return /砍單|取消|退款|退貨|cancelled|canceled/i.test(String(status??''));}
 function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  const value=(row,names)=>getOnlineData(row,names,headers),customers=new Set(),items=new Map();
@@ -2513,10 +2514,10 @@ function launchSplitProductImages(value){
 }
 function launchSummaryImageURLs(value){return [...new Set(launchSplitProductImages(value).map(launchSafeURL).filter(Boolean))];}
 function launchSummaryProductNames(product){
- const name=String(product.name||'').trim(),role=String(product.role||'').trim(),format=String(product.format||'').trim();
- const sizes=[format,product.size].filter(Boolean).flatMap(value=>String(value).split(/[／/、,，;\s]+/)).filter(value=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE|單抽|抱盒)$/i.test(value));
+ const name=String(product.name||'').trim(),japaneseName=String(product.japaneseName||'').trim(),originalName=String(product.originalName||'').trim(),role=String(product.role||'').trim(),format=String(product.format||'').trim();
+ const sizes=[format,product.size].filter(Boolean).flatMap(value=>String(value).split(/[／/、,，;\\s]+/)).filter(value=>/^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|F|FREE|單抽|抱盒)$/i.test(value));
  const variants=['',format,...sizes];
- return [...new Set(variants.flatMap(size=>[[name,role,size],[name,size,role]]).map(parts=>parts.filter(Boolean).join(' ')).concat(launchDisplayName(product),name))];
+ return [...new Set(variants.flatMap(size=>[[name,role,size],[name,size,role],[japaneseName,role,size],[japaneseName,size,role],[originalName,role,size],[originalName,size,role]]).map(parts=>parts.filter(Boolean).join(' ')).concat(launchDisplayName(product),name,japaneseName,originalName).filter(Boolean))];
 }
 function launchResolveOrderSummaryImages(item,products){
  const matches=launchSummaryMatchingProducts(item,products);
@@ -2576,7 +2577,7 @@ function launchSummaryCardDragKey(event){
 }
 
 function launchSummaryMatchingProducts(item,products){
- const normalize=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+ const normalize=launchNormalizeSummaryProductName;
  const ids=item.itemIds||[],codes=(item.codes||[]).map(launchSummarySku).filter(Boolean);
  let matches=products.filter(product=>ids.includes(String(product.id||'')));
  if(!matches.length&&codes.length)matches=products.filter(product=>codes.includes(launchSummarySku(product.code)));
@@ -2607,7 +2608,7 @@ function launchPurchaseIdentity(product){
  return code?'code:'+code:product.id?'id:'+product.id:'name:'+String(launchDisplayName(product)||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
 }
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
- const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/^(?:【[^】]*】)+/,'').replace(/予約/g,'').replace(/\s+/g,''),code=launchPurchaseSku,identity=launchPurchaseIdentity;
+ const norm=launchNormalizeSummaryProductName,code=launchPurchaseSku,identity=launchPurchaseIdentity;
  const groupKey=launchOrderSummaryGroupKey(group.name),linked=[];
  for(const order of orders){
   if(launchSummaryCancelled(order.status))continue;
