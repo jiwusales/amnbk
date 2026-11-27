@@ -2607,7 +2607,7 @@ function launchPurchaseIdentity(product){
  return code?'code:'+code:product.id?'id:'+product.id:'name:'+String(launchDisplayName(product)||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
 }
 function launchPurchaseReconciliation(group,summary,products,orders,includeUnrequested=false){
- const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/\s+/g,''),code=launchPurchaseSku,identity=launchPurchaseIdentity;
+ const norm=x=>String(x||'').normalize('NFKC').toLowerCase().replace(/^(?:【[^】]*】)+/,'').replace(/予約/g,'').replace(/\s+/g,''),code=launchPurchaseSku,identity=launchPurchaseIdentity;
  const groupKey=launchOrderSummaryGroupKey(group.name),linked=[];
  for(const order of orders){
   if(launchSummaryCancelled(order.status))continue;
