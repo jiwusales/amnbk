@@ -1827,7 +1827,7 @@ body[data-page="launch"] .launchAdd{display:none!important}.launchPreviewGrid{gr
 .launchProductListPage .launchAllProductContent{display:grid;grid-template-columns:40px minmax(0,1fr) 76px 64px 32px 64px;align-items:center;gap:8px}.launchProductListPage .launchListPrice{text-align:left;margin:0}.launchProductListPage .launchStockToggle{margin:0;justify-self:end}.launchProductListPage .launchAvailability{justify-self:center;padding:0;width:30px;min-width:0}.launchListStockInput{width:100%;min-width:0;box-sizing:border-box;border:1px solid #d8dde6;border-radius:6px;padding:6px;text-align:left;font:inherit}.launchListStockInput:disabled{opacity:.6}@media(max-width:600px){.launchProductListPage .launchAllProductContent{grid-template-columns:28px minmax(0,1fr) 48px 38px 24px 48px;gap:4px}.launchProductListPage .launchAllProductThumb{width:28px;height:32px}.launchProductListPage .launchAllItem{padding:8px 5px;gap:5px!important}.launchProductListPage .launchAllSortHandle{font-size:16px;padding:6px 2px}.launchProductListPage .launchListPrice,.launchListStockInput{font-size:12px}.launchProductListPage .launchStockToggle{padding:4px;font-size:11px}.launchListStockInput{padding:5px 3px}.launchProductListPage .launchAllProductName{font-size:12px}}
 .launchDialog .launchProductActions{margin-top:18px}.launchProductActions .launchProductCancel{margin-left:auto}.launchProductPlacement{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0 20px}.launchProductPlacement:empty{display:none}.launchProductPlacement .launchCanvasChoice{min-width:0;margin:0;padding:10px 12px}.launchProductPlacement .launchCanvasChoice label{white-space:nowrap;margin-right:8px!important;font-size:13px}@media(max-width:420px){.launchProductPlacement{gap:8px}.launchProductPlacement .launchCanvasChoice{padding:8px 6px}.launchProductPlacement .launchCanvasChoice label{gap:3px!important;margin-right:4px!important;font-size:12px}}.launchDialog .launchMultiProducts{display:block;width:100%;min-height:220px;resize:vertical;line-height:1.7;margin:0}.launchMultiHelp{margin:8px 0 0;color:#888;font-size:13px;line-height:1.6}
 @media(max-width:850px){.launchLatestInlineSave{display:none}}
-.launchAvailability{flex:none;border:0;background:transparent;padding:5px;min-width:30px;font-size:16px;cursor:pointer}.launchAvailability:disabled{opacity:.6;cursor:wait}
+.launchAvailability{flex:none;border:0;background:transparent;padding:5px;min-width:30px;font-size:16px;cursor:pointer}.launchAvailability:disabled{opacity:.6;cursor:wait}.launchAvailability.isPending{opacity:.65}
 @media(max-width:850px){
   /* iOS 的瀏覽器列會縮小可視高度，讓商品視窗固定留在可視範圍內。 */
   .launchDialog{position:fixed;inset:0;width:calc(100% - 24px);max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);height:auto;min-height:0;margin:auto;padding:16px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -2841,7 +2841,8 @@ function launchAvailabilityChangeClass(item,size=''){
  const url=String(item.url||'').trim();
  if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!url)return '';
  if(size){
-  const {available}=launchAvailabilityState(launchCurrent,item);
+  const {available,failed}=launchAvailabilityState(launchCurrent,item);
+  if(failed)return '';
   const out=launchCatalogSizeOut(item,size);
   if(available===false&&!out)return ' launchAvailabilityOut';
   if(available===true&&out)return ' launchAvailabilityRestocked';
@@ -5684,21 +5685,39 @@ function launchCopyClosedProducts(event){
 }
 
 const launchAvailabilityChecks=new Map();
-function launchAvailabilityKey(group,item){return JSON.stringify([group.id,item.id,item.url||'']);}
+function launchAvailabilitySourceURLs(item){
+ const urls=[launchSafeURL(item.url),...launchOtherChannelURLs(item.note)];
+ return [...new Set(urls.filter(url=>url&&!tmallStockBadgeHidden(url)))];
+}
+function launchAvailabilityKey(group,item){return JSON.stringify([group.id,item.id,String(item.url||'').trim(),launchAvailabilitySourceURLs(item)]);}
+function launchAvailabilityMonitorMatches(item,monitor){
+ if(!monitor||monitor.url!==String(item.url||'').trim())return false;
+ if(!monitor.channelURLs)return true;
+ try{
+  const urls=[...new Set(JSON.parse(monitor.channelURLs).map(launchSafeURL))];
+  return JSON.stringify(urls)===JSON.stringify(launchAvailabilitySourceURLs(item));
+ }catch{return false;}
+}
 function launchAvailabilityState(group,item){
- const cached=launchAvailabilityChecks.get(launchAvailabilityKey(group,item)),saved=String(item.availabilityStatus||'');
+ const cached=launchAvailabilityChecks.get(launchAvailabilityKey(group,item));
  if(cached?.busy)return cached;
- const monitor=item.availabilityMonitor,stored=monitor?.url===String(item.url||'').trim()?monitor:null;
+ const monitor=item.availabilityMonitor,stored=launchAvailabilityMonitorMatches(item,monitor)?monitor:null;
  if(cached&&(!stored||cached.checkedAt>=Number(stored.checkedAt||0)))return cached;
- return {available:stored?.failed?null:/⭕/.test(saved)?true:/❌/.test(saved)?false:null,detail:stored?.detail||'',failed:!!stored?.failed};
+ const saved=String(item.availabilityStatus||'');
+ const available=stored?.failed
+  ?(typeof stored.lastAvailable==='boolean'?stored.lastAvailable:null)
+  :monitor&&!stored?null:/⭕/.test(saved)?true:/❌/.test(saved)?false:null;
+ return {available,detail:stored?.detail||'',failed:!!stored?.failed};
 }
 function launchAvailabilityButton(item,index){
- if(tmallStockBadgeHidden(item.url,item.note))return '';
+ if(tmallStockBadgeHidden(item.url,item.note)||!launchAvailabilitySourceURLs(item).length)return '';
  const state=launchAvailabilityState(launchCurrent,item);
  const mark=state.available===true?'⭕️':state.available===false?'❌':'⚠️';
  const hasStock=Number(item.stockQuantity)>0;
- const title=hasStock?'已有現貨，不需檢查':state?.busy?'正在偵測官網貨況（保留上次結果）':state?`${state.available===true?'官網有貨':state.available===false?'官網缺貨':'待確認'}${state.detail?'：'+state.detail:''}；點擊重新偵測`:'尚未偵測官網貨況，點擊偵測';
- return `<button class="launchAvailability" data-launch-availability="${index}" type="button" title="${esc(title)}" aria-label="${esc(title)}" ${state?.busy||hasStock?'disabled':''} onclick="launchCheckProductAvailability(${index},this)">${mark}</button>`;
+ const stockLabel=state.available===true?'官網有貨':state.available===false?'官網缺貨':'貨況待確認';
+ const statusLabel=state.failed&&state.available!==null?'本次待確認（上次確認：'+stockLabel+'）':stockLabel;
+ const title=hasStock?'已有現貨，不需檢查':state.busy?'正在偵測官網貨況（保留上次結果）':statusLabel+(state.detail?'：'+state.detail:'')+'；點擊重新偵測';
+ return `<button class="launchAvailability${state.failed&&state.available!==null?' isPending':''}" data-launch-availability="${index}" type="button" title="${esc(title)}" aria-label="${esc(title)}" ${state?.busy||hasStock?'disabled':''} onclick="launchCheckProductAvailability(${index},this)">${mark}</button>`;
 }
 const launchAvailabilityPending=new Map(),launchAvailabilityBatches=new Map();
 function launchRefreshAvailabilityControls(key){
@@ -5714,7 +5733,7 @@ function launchRefreshAvailabilityControls(key){
   if(control)control.outerHTML=launchAvailabilityButton(item,index);
  });
 }
-function launchAvailabilityRetryItems(group){return (group?.items||[]).filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0)&&launchAvailabilityState(group,item).failed);}
+function launchAvailabilityRetryItems(group){return (group?.items||[]).filter(item=>launchAvailabilitySourceURLs(item).length&&!(Number(item.stockQuantity)>0)&&launchAvailabilityState(group,item).failed);}
 function launchAvailabilityProgress(job){return job?`${job.busy?'更新中':job.rateLimited?'官網暫時限制查詢，已暫停':'更新完成'} ${job.completed}/${job.total}${job.failed?'，'+job.failed+' 件待確認':''}`:'';}
 function launchAvailabilityToolbar(includeGrab=false){
  const job=launchAvailabilityBatches.get(launchCurrent?.id);
@@ -5736,12 +5755,21 @@ function launchFetchProductAvailability(group,item){
    const result=await launchPost('launchCheckAvailability',{id:group.id,itemId:item.id},{silent:true});
    if(result.ok===false)throw Error(result.error||'偵測失敗');
    if(result.skipped){launchAvailabilityChecks.set(key,{...previous,busy:false});return true;}
-   if(result.availabilityMonitor){item.availabilityMonitor=result.availabilityMonitor;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityMonitor=result.availabilityMonitor;}
-   if(result.status){item.availabilityStatus=result.status;const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>entry.id===item.id):null;if(current)current.availabilityStatus=result.status;}
-   const known=typeof result.available==='boolean'&&!result.availabilityMonitor?.failed;
-   launchAvailabilityChecks.set(key,{available:known?result.available:null,failed:!known,detail:result.detail||result.availabilityMonitor?.detail||'',busy:false,checkedAt:Date.now()});
+   const monitor=result.availabilityMonitor;
+   const sourceChanged=launchAvailabilityKey(group,item)!==key||monitor&&!launchAvailabilityMonitorMatches(item,monitor);
+   if(sourceChanged){launchAvailabilityChecks.delete(key);return true;}
+   const current=launchCurrent?.id===group.id?launchCurrent.items.find(entry=>launchAvailabilityKey(launchCurrent,entry)===key):null;
+   for(const target of new Set([item,current])){
+    if(!target)continue;
+    if(monitor)target.availabilityMonitor=monitor;
+    if(result.status)target.availabilityStatus=result.status;
+   }
+   const known=typeof result.available==='boolean'&&!monitor?.failed;
+   const lastAvailable=monitor?monitor.lastAvailable:result.lastAvailable;
+   const available=known?result.available:typeof lastAvailable==='boolean'?lastAvailable:lastAvailable===null?null:previous.available;
+   launchAvailabilityChecks.set(key,{available,failed:!known,detail:result.detail||monitor?.detail||'',busy:false,checkedAt:Number(monitor?.checkedAt)||Date.now()});
    return known;
-  }catch(error){launchAvailabilityChecks.set(key,{available:null,failed:true,detail:error.message||'偵測失敗',busy:false,checkedAt:Date.now()});return false;}
+  }catch(error){launchAvailabilityChecks.set(key,{available:previous.available,failed:true,detail:error.message||'偵測失敗',busy:false,checkedAt:Date.now()});return false;}
   finally{launchAvailabilityPending.delete(key);launchRefreshAvailabilityControls(key);launchRefreshAvailabilityProgress(group.id);}
  })();launchAvailabilityPending.set(key,pending);return pending;
 }
@@ -5750,13 +5778,13 @@ async function launchCheckProductAvailability(index,button){
  const ok=await launchFetchProductAvailability(group,item);
  if(!ok){
   const detail=launchAvailabilityChecks.get(launchAvailabilityKey(group,item))?.detail||'';
-  const message=/\b429\b/.test(detail)?'官網暫時限制查詢，請稍後重試':detail.includes('請開啟 Chrome')?'請開啟 Chrome「更新」設定檔與貨況外掛':'貨況待確認，請查看商品卡上的 ⚠️';
+  const message=/\b429\b/.test(detail)?'官網暫時限制查詢，請稍後重試':detail.includes('請開啟 Chrome')?'請開啟 Chrome「更新」設定檔與貨況外掛':'本次貨況待確認，可點商品卡或使用「重試待確認」';
   launchCompletionToast(message);
  }
 }
 async function launchUpdateAllAvailability(retryOnly=false){
  const group=launchCurrent;if(!group?.id||launchAvailabilityBatches.get(group.id)?.busy)return;
- const items=retryOnly?launchAvailabilityRetryItems(group):group.items.filter(item=>String(item.url||'').trim()&&!(Number(item.stockQuantity)>0));
+ const items=retryOnly?launchAvailabilityRetryItems(group):group.items.filter(item=>launchAvailabilitySourceURLs(item).length&&!(Number(item.stockQuantity)>0));
  const job={busy:true,total:items.length,completed:0,failed:0};launchAvailabilityBatches.set(group.id,job);launchRefreshAvailabilityProgress(group.id);
  let next=0;
  const worker=async()=>{while(next<items.length){
