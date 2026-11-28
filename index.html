@@ -1943,6 +1943,9 @@ function launchSetShipping(field,value){
  if(field==='openDate'){const parsed=launchNormalizeOpenDate(value,launchCurrent.openDate);if(parsed===null){alert('請輸入有效開團日期，例如 1023');return false;}value=parsed;}
  if(field==='openTime'){const parsed=launchNormalizeOpenTime(value);if(parsed===null){alert('請輸入有效時間，例如 10 或 1030（24小時制）');return false;}value=parsed;}
  launchPushUndo();launchCurrent[field]=value;launchMark();
+ if(field==='openDate'){
+  const title=document.querySelector('#launchTitleWrap button.launchTitle');if(title)title.textContent=launchCanvasDisplayTitle(launchCurrent);
+ }
  const footer=document.querySelector('.launchFooter');if(footer)footer.textContent=launchFooterText(launchCurrent);
  launchFitCards();
 }
@@ -3094,8 +3097,10 @@ function launchStripCanvasDate(title){
 }
 function launchCanvasDisplayTitle(group,index=launchPanelIndex){
  const title=launchStripCanvasDate(launchCanvasTitleWithDate(group,index));
- if(title.startsWith('收單 '))return ('收單 '+launchStripCanvasDate(title.slice('收單 '.length))).trimEnd();
- return title||'開團';
+ const openDate=launchOpenDateDisplay(String(group?.openDate||'').trim());
+ const datePrefix=/^\d{4}$/.test(openDate)?`${openDate} `:'';
+ if(title.startsWith('收單 '))return (`收單 ${datePrefix}`+launchStripCanvasDate(title.slice('收單 '.length))).trimEnd();
+ return datePrefix+(title||'開團');
 }
 function launchActiveCardColumns(){const panel=launchCurrent?.panels?.[launchPanelIndex]||{};return Math.max(4,Math.min(8,Number(panel.cardColumns)||Number(launchCurrent?.cardColumns)||8));}
 function launchAddPanel(){
