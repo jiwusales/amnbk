@@ -2651,12 +2651,12 @@ function launchSortSummaryItems(items,products){
   return a.item.name.localeCompare(b.item.name,'zh-Hant',{numeric:true})||a.item.price-b.item.price;
  }).map(entry=>entry.item);
 }
-function launchOrderSummaryCards(items,products=[],groupName='',fromOnline=false){
+function launchOrderSummaryCards(items,products=[],groupName=''){
  items=launchSortSummaryItems(items,products);
  return '<p class="launchSummarySortHint">依開團商品順序排列；未對應品項列於最後。</p><div class="purchaseProductGrid launchOrderSummaryGrid" data-group="'+esc(groupName)+'">'+items.map(item=>{
   const sources=launchResolveOrderSummaryImages(item,products),image=sources[0]||'';
   const sourceURL=url=>window.jiwuImageURL?window.jiwuImageURL(url):url;
-  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}">${fromOnline?`<button type="button" class="onlineSummaryBuyerTrigger" aria-haspopup="dialog" data-buyer-key="${esc(item.buyerKey)}" aria-label="查看 ${esc(item.name)} 的購買名單" onclick="openOnlineSummaryBuyers(this)">`:''}${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong>${fromOnline?'</button>':''}<button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
+  return `<article class="purchaseProductCard" data-sort-key="${esc(launchSummaryItemKey(item))}" aria-label="${esc(item.name)}，總數量 ${item.quantity}"><button type="button" class="onlineSummaryBuyerTrigger" aria-haspopup="dialog" data-buyer-key="${esc(item.buyerKey)}" aria-label="查看 ${esc(item.name)} 的購買名單" onclick="openOnlineSummaryBuyers(this)">${image?`<img src="${launchImage(image)}" data-fallback-images="${esc(JSON.stringify(sources.slice(1).map(sourceURL)))}" alt="${esc(item.name)}" loading="lazy" decoding="async" onerror="launchOrderSummaryImageError(this)">`:''}<div class="purchaseNoImage" ${image?'hidden':''}>暫無圖片</div><strong class="purchaseQuantity">${item.quantity}</strong></button><button type="button" class="purchaseProductName launchCountLabel" data-group="${esc(groupName)}" data-name="${esc(item.name)}" title="${esc(item.name)}：點擊設定縮寫" onclick="launchEditCountLabel(this)">${esc(launchCountLabel(groupName,item.name))}</button></article>`;
  }).join('')+'</div>';
 }
 function launchPurchaseSku(product){return launchSummarySku(product.code)||(String(product.url||'').match(/\/(\d{13})(?:[-.]|\/|$)/)||[])[1]||'';}
@@ -2733,27 +2733,43 @@ function launchPurchaseReconciliationNotOpen(group,now=Date.now()){
  const date=typeof launchNormalizeOpenDate==='function'?launchNormalizeOpenDate(group.openDate):String(group.openDate||'');
  if(!date)return false;const time=String(group.openTime||'00:00'),start=Date.parse(date+'T'+time+':00+08:00');return Number.isFinite(start)&&start>now;
 }
-async function launchLoadPurchaseReconciliation(dialog,group,summary){
+async function launchLoadPurchaseReconciliation(dialog,group,state){
+ const {summary}=state;
  const status=dialog.querySelector('.launchOrderSummaryPurchaseStatus'),products=group.items||[];
- if(!status||!summary.items.length||launchPurchaseReconciliationNotOpen(group))return;
+ if(!status)return;
+ status.title='';
+ if(!summary.items.length||launchPurchaseReconciliationNotOpen(group)){status.textContent='';return;}
  if(!products.length){status.textContent='找不到開團品項，無法核對已購數';return;}
  const grid=dialog.querySelector('.launchOrderSummaryGrid');
- status.textContent='正在核對已購數…';
+ if(!state.purchaseOrders){
+  status.textContent='正在核對已購數…';
+  state.purchaseOrders=api('purchaseOrders').then(data=>data.orders||[]).catch(error=>{
+   state.purchaseOrders=null;
+   throw error;
+  });
+ }
  try{
-  const data=await api('purchaseOrders');if(!grid?.isConnected)return;
-  const result=launchPurchaseReconciliation(group,summary,products,data.orders||[]);
+  const orders=await state.purchaseOrders;
+  if(!grid?.isConnected||summary!==state.summary)return;
+  const result=launchPurchaseReconciliation(group,summary,products,orders);
   const byKey=new Map(result.entries.flatMap(row=>row.itemKeys.map(key=>[key,row])));
   status.textContent=`已購 ${result.ordered} 件${byKey.size<summary.items.length?'（有品項未配對）':''}`;
-  dialog.querySelectorAll('.launchOrderSummaryGrid [data-sort-key]').forEach(card=>{
-   const row=byKey.get(card.dataset.sortKey),label=document.createElement('div');label.className='launchPurchaseCount';
-   if(!row){label.textContent='已購數未配對';card.appendChild(label);return;}
+  grid.querySelectorAll('[data-sort-key]').forEach(card=>{
+   const row=byKey.get(card.dataset.sortKey);
+   let label=card.querySelector('.launchPurchaseCount');
+   if(!label){
+    label=document.createElement('div');
+    label.className='launchPurchaseCount';
+    card.appendChild(label);
+   }
+   if(!row){label.textContent='已購數未配對';return;}
    const shared=row.itemKeys.length>1,difference=row.ordered-row.needed,amount=document.createElement('strong'),balance=document.createElement('span');
    amount.textContent=`${shared?'同貨號合計 ':''}已購 ${row.ordered}`;
    balance.textContent=`(${difference>=0?'+':''}${difference})`;
    balance.className=difference>0?'isExtra':difference<0?'isShort':'';
-   label.append(amount,balance);card.appendChild(label);
+   label.replaceChildren(amount,balance);
   });
- }catch(error){if(grid?.isConnected){status.textContent='已購數讀取失敗，請重新開啟統計';status.title=error.message;}}
+ }catch(error){if(grid?.isConnected&&summary===state.summary){status.textContent='已購數讀取失敗，請重新開啟統計';status.title=error.message;}}
 }
 
 function openOnlineSummaryBuyers(button){
@@ -2811,6 +2827,7 @@ async function chooseOnlineSummaryBuyerTag(button,choice){
   const previousTotal=state.summary.total;
   state.summary=launchBuildOrderSummary(state.group,state.rows,state.headers,true);
   if(previousTotal!==state.summary.total)state.paint();
+  else state.paintPurchased();
  }
  if(panel.open)renderOnlineSummaryBuyers(panel,panel.dataset.itemKey===item.buyerKey&&!panel.dataset.activeItemId?id:'');
 }
@@ -2835,23 +2852,24 @@ async function launchSummaryCatalogGroup(group,fromOnline=false){
 }
 async function launchShowOrderSummary(group,{fromOnline=false}={}){
  if(!group)return;
- closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p><p class="launchOrderSummaryMeta launchOrderSummaryPurchaseStatus" role="status"></p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div>${fromOnline?'<dialog class="dialogCard onlineSummaryBuyers" aria-labelledby="onlineSummaryBuyerTitle"><h3 id="onlineSummaryBuyerTitle"></h3><ul class="onlineSummaryBuyerList"></ul><form method="dialog" class="dialogActions"><button type="submit" class="btn" autofocus>返回件數統計</button></form></dialog>':''}</div>`);
+ closeDialog();document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard onlineDetailsDialog launchOrderSummary" role="dialog" aria-modal="true" aria-label="${fromOnline?'線上團名':'開團'}訂購統計"><div class="groupCard"><div class="groupCardCustomer"><h2 class="launchOrderSummaryTitle">${esc(group.name)}</h2><p class="launchOrderSummaryMeta" role="status">正在讀取訂購統計…</p><p class="launchOrderSummaryMeta launchOrderSummaryPurchaseStatus" role="status"></p></div><div class="groupCardItems"></div></div><div class="dialogActions"><button type="button" class="btn" onclick="closeDialog()">關閉</button></div></div><dialog class="dialogCard onlineSummaryBuyers" aria-labelledby="onlineSummaryBuyerTitle"><h3 id="onlineSummaryBuyerTitle"></h3><ul class="onlineSummaryBuyerList"></ul><form method="dialog" class="dialogActions"><button type="submit" class="btn" autofocus>返回件數統計</button></form></dialog></div>`);
  const dialog=document.getElementById('appDialog'),meta=dialog.querySelector('.launchOrderSummaryMeta');
  try{
   const [data,catalog]=await Promise.all([api('online',{compact:'0',fresh:'1'}),launchSummaryCatalogGroup(group,fromOnline)]);if(!dialog.isConnected)return;
   const headers=data.headers||[],rows=data.format==='online-matrix-v1'?(data.rows||[]).map((r,index)=>({row:r[0],itemId:data.rowIds?.[index],orderTime:data.orderTimes?.[index],data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]]))})):(data.rows||[]);
-  const state={group,rows,headers,summary:launchBuildOrderSummary(group,rows,headers,fromOnline)};
+  const state={group,rows,headers,summary:launchBuildOrderSummary(group,rows,headers,true)};
   const content=dialog.querySelector('.groupCardItems');
+  state.paintPurchased=()=>void launchLoadPurchaseReconciliation(dialog,catalog,state);
   state.paint=()=>{
    const {summary}=state;
    meta.textContent=`跟團 ${summary.people} 人．商品共 ${summary.total} 件`;
    const scroll=content.scrollTop;
-   content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name,fromOnline):'<p class="empty">尚無購買紀錄</p>';
+   content.innerHTML=summary.items.length?launchOrderSummaryCards(summary.items,catalog.items||[],group.name):'<p class="empty">尚無購買紀錄</p>';
    if(summary.items.length&&!(catalog.items||[]).length)content.querySelector('.launchSummarySortHint').textContent='找不到原開團商品資料，暫依品名排列。';
    content.scrollTop=scroll;
-   void launchLoadPurchaseReconciliation(dialog,catalog,summary);
+   state.paintPurchased();
   };
-  if(fromOnline)dialog.onlineBuyerSummary=state;
+  dialog.onlineBuyerSummary=state;
   state.paint();
   const summary=state.summary;
   try{
