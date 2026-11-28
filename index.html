@@ -13,7 +13,6 @@
 window.jiwuErrorText=function(error,kind){
  const system="網站暫時罷工ㄌ，小法師維修中請稍等இдஇ",data="資料暫時逃跑ㄌ，小法師捕捉中請稍等(๑⁼̴̀д⁼̴́๑)",raw=String(error?.message??error??'');
  if(raw===system||raw===data)return raw;
- if(raw==='主機離線，目前僅能使用店面結帳與 Discord 備援')return raw;
  // Keep recovery instructions visible; callers still retain the original error.
  const itemConflict="「items」已被其他作業修改，請重新載入確認；本次修改仍保留",itemConflictDisplay="「商品資料」已被其他作業修改，請重新載入確認；本次修改仍保留";
  if(raw===itemConflict||raw===itemConflictDisplay)return itemConflictDisplay;
@@ -162,7 +161,6 @@ background:transparent;
 box-shadow:inset 0 3px 0 var(--main)
 }
 .nav button.isRefreshing{opacity:.55}
-#btn-buy[hidden]{display:none}
 .page{
 width:100%;
 max-width:1700px;
@@ -825,6 +823,9 @@ background-size:75%!important
 .storeSalesToolbar>strong{margin-right:auto}
 .storeSalesMonthSummary{flex-shrink:0;min-height:20px;color:#777;font-size:13px;font-weight:700;padding:0 3px}
 .storeSalesMonthSummary[hidden]{display:none}
+.storeSalesRefresh{display:flex;flex-shrink:0;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:8px 12px;border-radius:10px;background:#fff4df;color:#714b1d;font-size:13px}
+.storeSalesRefresh[hidden]{display:none}
+.storeSalesRefresh .btn{flex-shrink:0}
 .storeSalesWarning{flex-shrink:0;text-align:center}
 .storeSalesWarning .salesHint{margin:6px 0 0;text-align:center}
 #storeSalesResult{flex:1;min-height:0;overflow:auto}
@@ -1350,6 +1351,8 @@ body[data-page="online"] .topStarButton{display:inline-flex}
 .purchaseContentsKinds{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;width:100%}
 .purchaseContentsFields .purchaseContentsKinds label{min-width:0;flex-direction:column;align-items:stretch;gap:4px}
 .purchaseContentsKinds label>span{text-align:center;font-size:12px}
+.purchaseContentsFields .purchaseContentsKinds label:has(>input[data-content-kind="其他"]){grid-column:1 / -1;flex-direction:row;align-items:center;gap:8px}
+.purchaseContentsFields .purchaseContentsKinds input[data-content-kind="其他"]{flex:1 1 0;width:0}
 .purchaseContentsFields .purchaseContentsKinds input{flex:none;width:100%;min-width:0;box-sizing:border-box;padding:6px 4px;text-align:center}
 .purchaseCardSummary .purchaseContentsSummary{flex-shrink:1}
 </style>
@@ -1686,7 +1689,6 @@ body[data-page="ship"] .page{height:calc(100dvh - 114px)}
 <div class="nav">
 <button id="btn-profit" onclick="openProfitPage()" aria-label="私人獲利報表"><img class="profitNavLogo" src="https://cdn.jsdelivr.net/gh/jiwusales/imgh@main/images_1350/icon_9a717cff.png" alt=""></button>
 <button id="btn-purchase" onclick="tab('purchase',this)">訂購</button>
-<button id="btn-buy" onclick="tab('buy',this)" hidden>敗家</button>
 <button id="btn-launch" onclick="tab('launch',this)">開團</button>
 <button id="btn-inventory" onclick="tab('inventory',this)">庫存</button>
 <button id="btn-store" class="active" onclick="tab('store',this)">店面</button>
@@ -2250,7 +2252,6 @@ async function launchCopyGroupPost(index,type,button){
 async function launchDownloadGroupImage(index,button,mode='download',panelIndex=0){
  const g=launchURLGroups[index];if(!g||launchExportBusy||launchBusy)return;
  const copying=mode==='copy',allPanels=!copying&&panelIndex===null;
- if(copying&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){launchCompletionToast('此瀏覽器不支援複製圖片，請改用下載圖片。',true);return;}
  const dialog=document.getElementById('launchDialog'),label=button.textContent;
  const previous={group:launchCurrent,panel:launchPanelIndex,canvas:launchCanvasEditing,dirty:launchDirty};
  let exporting=null,imagePromise,copied=false;launchExportBusy=true;launchBusy=true;button.disabled=true;button.textContent='☺︎';
@@ -2268,8 +2269,13 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
   imagePromise.catch(()=>{});
   if(copying){
    // 點擊時立即交出圖片 Promise，保留 Safari 的剪貼簿手勢授權。
-   await navigator.clipboard.write([new ClipboardItem({'image/png':imagePromise})]);
-   copied=true;launchCompletionToast('✅ '+g.name);
+   copied=await window.JiwuImageCopy.write(imagePromise);
+   if(copied)launchCompletionToast('✅ '+g.name);
+   else{
+    const blob=await imagePromise;
+    if(!dialog?.open||document.body.dataset.page!=='launch')return;
+    window.JiwuImageCopy.preview([{blob,title:launchCanvasDisplayTitle(exporting,panelIndex)||'開團'}],{title:'開團圖片'});
+   }
   }else{
    const blobs=[await imagePromise],count=allPanels?Math.max(1,exporting.panels?.length||0):1;
    for(let i=1;i<count;i++){
@@ -2282,7 +2288,7 @@ async function launchDownloadGroupImage(index,button,mode='download',panelIndex=
    blobs.forEach((blob,i)=>launchDownloadPNG(blob,launchImageFilename(exporting,allPanels?i:panelIndex,downloadDate)));
    launchCompletionToast('已下載：'+g.name+(count>1?'（共 '+count+' 張畫布）':''));
   }
- }catch(error){launchCompletionToast(copying&&error.name==='NotAllowedError'?'無法複製圖片，請允許剪貼簿權限後重試，或使用下載圖片。':error.message||'圖片輸出失敗',true);}
+ }catch(error){launchCompletionToast(error.message||'圖片輸出失敗',true);}
  finally{
   // 剪貼簿可能提前拒絕；等製圖結束再恢復畫面，避免背景工作覆蓋狀態。
   if(imagePromise)await imagePromise.catch(()=>{});
@@ -2445,9 +2451,9 @@ function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
   if(launchSummaryCancelled(value(row,['狀態','訂購狀態']))||cargoCategory(value(row,['貨況','狀態']))==='補貨登記')continue;
   const name=String(value(row,['名稱','商品名稱'])||'').trim();if(!name)continue;
   const customer=String(value(row,['顧客名稱','客戶名稱','客人名稱','姓名'])||'').trim();if(customer)customers.add(customer);
-  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,'')]);
-  if(!items.has(key))items.set(key,{name,price,quantity:0,ordered:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
-  const item=items.get(key);item.quantity++;if(cargoDisplay(row,headers).text==='訂')item.ordered++;
+  const price=numberValue(value(row,['售價','價格'])),key=JSON.stringify([name.normalize('NFKC').replace(/\s+/g,''),price]);
+   if(!items.has(key))items.set(key,{name,price,quantity:0,ordered:0,image:'',codes:[],itemIds:[],buyers:new Set(),...(includeBuyers?{buyerKey:key,buyerRows:new Map()}:{})});
+   const item=items.get(key);item.quantity++;if(cargoDisplay(row,headers).text==='訂')item.ordered++;
   if(customer)item.buyers.add(customer);
   if(includeBuyers){
    const buyerKey=customer||row;
@@ -2473,70 +2479,86 @@ function launchBuildOrderSummary(group,rows,headers,includeBuyers=false){
  }
  return result;
 }
-function launchMergeSummaryByCountLabel(summary,groupName,headers){
- const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,'');
- const grouped=new Map();
- for(const item of summary.items){
-  const key=normalize(launchCountLabel(groupName,item.name))||normalize(item.name);
-  let target=grouped.get(key);
-  if(!target){
-   const buyerRows=new Map([...(item.buyerRows||[])].map(([buyer,rows])=>[buyer,[...rows]]));
-   target={...item,buyerKey:key,buyerRows,codes:[...(item.codes||[])],itemIds:[...(item.itemIds||[])]};
-   grouped.set(key,target);continue;
+function countLabelSHA256Fallback(data){
+ // Web Crypto's digest is unavailable on the LAN admin's HTTP origin.
+ const constants=[
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+ ];
+ const padded=new Uint8Array(Math.ceil((data.length+9)/64)*64),view=new DataView(padded.buffer),bits=data.length*8;
+ padded.set(data);padded[data.length]=0x80;
+ view.setUint32(padded.length-8,Math.floor(bits/0x100000000));view.setUint32(padded.length-4,bits);
+ const hash=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+ const words=new Uint32Array(64),rotate=(x,n)=>(x>>>n)|(x<<(32-n));
+ for(let offset=0;offset<padded.length;offset+=64){
+  for(let i=0;i<16;i++)words[i]=view.getUint32(offset+i*4);
+  for(let i=16;i<64;i++){
+   const x=words[i-15],y=words[i-2];
+   words[i]=words[i-16]+(rotate(x,7)^rotate(x,18)^(x>>>3))+words[i-7]+(rotate(y,17)^rotate(y,19)^(y>>>10));
   }
-  target.quantity+=(Number(item.quantity)||0);target.ordered+=(Number(item.ordered)||0);
-  if(!target.image)target.image=item.image||'';
-  for(const code of item.codes||[])if(!target.codes.includes(code))target.codes.push(code);
-  for(const id of item.itemIds||[])if(!target.itemIds.includes(id))target.itemIds.push(id);
-  for(const [buyer,rows] of item.buyerRows||[]){
-   if(!target.buyerRows.has(buyer))target.buyerRows.set(buyer,[]);
-   target.buyerRows.get(buyer).push(...rows);
+  let [a,b,c,d,e,f,g,h]=hash;
+  for(let i=0;i<64;i++){
+   const first=h+(rotate(e,6)^rotate(e,11)^rotate(e,25))+((e&f)^(~e&g))+constants[i]+words[i];
+   const second=(rotate(a,2)^rotate(a,13)^rotate(a,22))+((a&b)^(a&c)^(b&c));
+   h=g;g=f;f=e;e=(d+first)>>>0;d=c;c=b;b=a;a=(first+second)>>>0;
   }
+  hash[0]+=a;hash[1]+=b;hash[2]+=c;hash[3]+=d;hash[4]+=e;hash[5]+=f;hash[6]+=g;hash[7]+=h;
  }
- const items=[...grouped.values()].map(item=>({...item,people:item.buyerRows.size}));
- const purchasedCounts=new Map();
- for(const item of items)for(const [buyer,rows] of item.buyerRows){
-  if(rows.some(row=>{
-   const status=getOrderStatus(row,headers),cargo=cargoCategory(getOnlineData(row,['貨況'],headers));
-   return isOpenedRow(row,headers)||status!=='未訂購'&&(isOrderPurchased(row,headers)||cargo==='已訂購'||cargo==='現貨');
-  }))purchasedCounts.set(buyer,(purchasedCounts.get(buyer)||0)+1);
- }
- return {...summary,items,purchasedCounts};
+ return Array.from(hash,v=>v.toString(16).padStart(8,'0')).join('');
 }
 async function countLabelKey(group,name){
  const data=new TextEncoder().encode(JSON.stringify([group.trim(),name.trim()]));
- const digest=await crypto.subtle.digest('SHA-256',data);
- return 'latest|count-label-v1:'+Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+ const digest=globalThis.crypto?.subtle?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),v=>v.toString(16).padStart(2,'0')).join(''):countLabelSHA256Fallback(data);
+ return 'latest|count-label-v1:'+digest;
 }
+const countLabelName=name=>name.normalize('NFKC').trim();
 async function countLabelRead(group,names,request){
- const unique=[...new Set(names)],keys=await Promise.all(unique.map(name=>countLabelKey(group,name))),labels={};
+ const unique=[...new Set(names)],plans=Object.create(null),labels={};
+ const candidates=name=>[...new Set([countLabelName(name),name.trim()])];
+ const nameKeys=new Map(await Promise.all([...new Set(unique.flatMap(candidates))].map(async name=>[name,await countLabelKey(group,name)])));
+ const keys=[...nameKeys.values()];
  for(let i=0;i<keys.length;i+=500){
   const data=await request('helperLoadPlan',{keys:keys.slice(i,i+500)});
-  for(let j=i;j<Math.min(i+500,keys.length);j++){
-   const plan=data.plans?.[keys[j]],entry=plan?.cars?.[0];
-   if(plan?.found&&plan.group===group&&entry?.[0]===unique[j]&&typeof entry[1]==='string')Object.defineProperty(labels,unique[j],{value:entry[1],enumerable:true,writable:true,configurable:true});
+  Object.assign(plans,data.plans);
+ }
+ for(const name of unique){
+  for(const candidate of candidates(name)){
+   const plan=plans[nameKeys.get(candidate)],entry=plan?.cars?.[0];
+   if(plan?.found&&plan.group===group&&entry?.[0]===candidate&&typeof entry[1]==='string'){
+    Object.defineProperty(labels,name,{value:entry[1],enumerable:true,writable:true,configurable:true});break;
+   }
   }
  }
  return {ok:true,labels};
 }
 async function countLabelWrite(group,name,label,request){
+ name=countLabelName(name);
  if(!group||!name||label.length>100)throw Error('縮寫最多 100 字');
  return request('helperSavePlan',{key:await countLabelKey(group,name),group,limit:'',cars:[[name,label]]});
 }
 const launchCountLabels=new Map();
-function launchCountLabel(group,name){return launchCountLabels.get(group)?.[name]||name;}
+function launchCountLabel(group,name){const labels=launchCountLabels.get(group);return labels&&Object.hasOwn(labels,name)?labels[name]||name:name;}
 async function launchEditCountLabel(button){
  if(button.closest('.launchOrderSummary')?.dataset.labelsReady!=='true')return;
  const {group,name}=button.dataset;
- const current=launchCountLabels.get(group)?.[name]||'';
- const value=prompt('設定縮寫名（只在這裡與敗家小幫手數量統計顯示，留空恢復原名）',current||name);
+ const value=prompt('設定縮寫名（只在這裡與敗家小幫手數量統計顯示，留空恢復原名）',launchCountLabel(group,name));
  if(value===null)return;
  const label=value.trim();if(label.length>100){alert('縮寫最多 100 字');return;}
  button.disabled=true;
  try{
   await countLabelWrite(group,name,label,api);
-  launchCountLabels.set(group,{...launchCountLabels.get(group),[name]:label});
-  document.querySelectorAll('.launchCountLabel').forEach(el=>{if(el.dataset.group===group&&el.dataset.name===name)el.textContent=label||name;});
+  const normalized=countLabelName(name),labels=Object.assign(Object.create(null),launchCountLabels.get(group),{[name]:label});
+  document.querySelectorAll('.launchCountLabel').forEach(el=>{
+   if(el.dataset.group!==group||countLabelName(el.dataset.name)!==normalized)return;
+   labels[el.dataset.name]=label;el.textContent=label||el.dataset.name;
+  });
+  launchCountLabels.set(group,labels);
  }catch(error){alert(jiwuErrorText(error,'system'));}
  finally{button.disabled=false;}
 }
@@ -2693,7 +2715,7 @@ function launchPurchaseReconciliation(group,summary,products,orders,includeUnreq
  };
  const rows=new Map();
  if(includeUnrequested)for(const p of products){const key=identity(p);if(!rows.has(key))rows.set(key,{key,name:launchDisplayName(p),itemKeys:[],needed:0,ordered:0});}
- for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item)||'online-summary:'+launchSummaryItemKey(item);if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0,onlineOrdered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);row.onlineOrdered=(row.onlineOrdered||0)+Math.min(Number(item.quantity),Math.max(0,Number(item.ordered)||0));}
+  for(const item of summary.items){if(!(Number(item.quantity)>0))continue;const key=resolve(item)||'online-summary:'+launchSummaryItemKey(item);if(!rows.has(key))rows.set(key,{key,name:item.name,itemKeys:[],needed:0,ordered:0,onlineOrdered:0});const row=rows.get(key);row.itemKeys.push(launchSummaryItemKey(item));row.needed+=Number(item.quantity);row.onlineOrdered=(row.onlineOrdered||0)+Math.min(Number(item.quantity),Math.max(0,Number(item.ordered)||0));}
  for(const items of linked)for(const item of items){const key=resolve(item);if(rows.has(key))rows.get(key).ordered+=Number(item.quantity);}
  for(const row of rows.values()){
   row.ordered=Math.max(row.ordered+(unassignedQuantities.get(row.key)||0),row.onlineOrdered||0);
@@ -2784,7 +2806,7 @@ async function chooseOnlineSummaryBuyerTag(button,choice){
  if(!dialog.isConnected)return;
  if(saved){
   const previousTotal=state.summary.total;
-  state.summary=launchMergeSummaryByCountLabel(launchBuildOrderSummary(state.group,state.rows,state.headers,true),state.group.name,state.headers);
+  state.summary=launchBuildOrderSummary(state.group,state.rows,state.headers,true);
   if(previousTotal!==state.summary.total)state.paint();
  }
  if(panel.open)renderOnlineSummaryBuyers(panel,panel.dataset.itemKey===item.buyerKey&&!panel.dataset.activeItemId?id:'');
@@ -2826,34 +2848,29 @@ async function launchShowOrderSummary(group,{fromOnline=false}={}){
    content.scrollTop=scroll;
    void launchLoadPurchaseReconciliation(dialog,catalog,summary);
   };
-  if(fromOnline)dialog.onlineBuyerSummary=state;else state.paint();
+  if(fromOnline)dialog.onlineBuyerSummary=state;
+  state.paint();
   const summary=state.summary;
   try{
    const result=await countLabelRead(group.name,summary.items.map(item=>item.name),api);if(!dialog.isConnected)return;
    dialog.querySelector('.launchOrderSummary').dataset.labelsReady='true';launchCountLabels.set(group.name,result.labels||{});
-   if(fromOnline){state.summary=launchMergeSummaryByCountLabel(state.summary,group.name,headers);state.paint();}
-   else content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
-  }catch(error){if(dialog.isConnected){if(fromOnline)state.paint();content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}}
+   content.querySelectorAll('.launchCountLabel').forEach(button=>button.textContent=launchCountLabel(group.name,button.dataset.name));
+  }catch(error){if(dialog.isConnected)content.querySelectorAll('.launchCountLabel').forEach(button=>{button.disabled=true;button.title='名稱縮寫暫時無法載入';});}
  }catch(error){if(dialog.isConnected)meta.textContent=jiwuErrorText(error,'data');}
 }
 
-function launchAvailabilityChangeClass(item,size=''){
+function launchAvailabilityChangeClass(item){
  const url=String(item.url||'').trim();
- if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0||!url)return '';
- if(size){
-  const {available,failed}=launchAvailabilityState(launchCurrent,item);
-  if(failed)return '';
-  const out=launchCatalogSizeOut(item,size);
-  if(available===false&&!out)return ' launchAvailabilityOut';
-  if(available===true&&out)return ' launchAvailabilityRestocked';
-  return '';
- }
+ if(launchCurrent?.status!=='最新開團'||Number(item.stockQuantity)>0)return '';
  const state=item.availabilityMonitor;
  if(state?.url!==url||state.failed||state.acknowledged)return '';
- return state.change==='out'?' launchAvailabilityOut':state.change==='restocked'?' launchAvailabilityRestocked':'';
+ if(state.change!=='out'&&state.change!=='restocked')return '';
+ const expectedOut=state.change==='out',sizes=launchCatalogClothingSizes(item);
+ if(sizes.length?sizes.every(size=>launchCatalogSizeOut(item,size)===expectedOut):Boolean(item.stockOut)===expectedOut)return '';
+ return expectedOut?' launchAvailabilityOut':' launchAvailabilityRestocked';
 }
-function launchPaintAvailabilityBorder(row,item,size=''){
- const name=launchAvailabilityChangeClass(item,size).trim();
+function launchPaintAvailabilityBorder(row,item){
+ const name=launchAvailabilityChangeClass(item).trim();
  row.classList.toggle('launchAvailabilityOut',name==='launchAvailabilityOut');
  row.classList.toggle('launchAvailabilityRestocked',name==='launchAvailabilityRestocked');
 }
@@ -4370,6 +4387,14 @@ function launchDrawEditorPair(group,item){
  if(!peers.length&&matching.some(other=>launchDrawType(other)!==type))return null;
  return {type,peer:peers[0]||null};
 }
+function launchDrawSharedURL(value){
+ try{
+  const url=new URL(launchNormalizeURL(value));
+  if(url.protocol!=='https:'||!['chiikawamarket.jp','www.chiikawamarket.jp'].includes(url.hostname)||url.port||url.username||url.password)return '';
+  const product=url.pathname.match(/^\/(?:collections\/[^/]+\/)?products\/([a-z0-9_-]+)\/?$/i);
+  return product?'https://chiikawamarket.jp/products/'+product[1]:'';
+ }catch(_){return '';}
+}
 function launchDrawEditorFields(item,draw){
  const fields=(type,product,primary)=>{
   const label=type==='single'?'單抽':'抱盒';
@@ -4390,9 +4415,11 @@ function launchProductDialog(index=-1,mode='single'){
   const all=!!(previousDialog?.open&&previousDialog.querySelector('.launchAllHeading'));
   launchProductReturnState={groupId:launchCurrent.id,mode:all?'all':'page',appTop:document.getElementById('app')?.scrollTop||0,appLeft:document.getElementById('app')?.scrollLeft||0,pageTop:document.scrollingElement.scrollTop,pageLeft:document.scrollingElement.scrollLeft,scrollTop:all?previousDialog.scrollTop:0,scrollLeft:all?previousDialog.scrollLeft:0};
  }
- const p=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
- const draw=mode==='single'&&index>=0?launchDrawEditorPair(launchCurrent,p):null;
+ const current=launchCurrent.items[index]||{name:'',role:'',url:'',images:[],code:'',original:'',price:'',size:'',scale:1};
+ const draw=mode==='single'&&index>=0?launchDrawEditorPair(launchCurrent,current):null;
  const drawPeer=draw?.peer;
+ const sharedURL=String(current.url||'').trim()?'':launchDrawSharedURL(drawPeer?.url);
+ const p=sharedURL?{...current,url:sharedURL}:current;
  const hidden=index>=0&&!launchCanvasContains(p)&&!(drawPeer&&launchCanvasContains(drawPeer));
  launchDialog(`<form data-launch-product-form onsubmit="launchProductSubmit(event,${index},'${mode}')"><div class="launchTabs"><button type="button" class="btn ${mode==='single'?'':'light'}" onclick="launchProductDialog(${index},'single')">單筆</button>${index<0?`<button type="button" class="btn ${mode==='multi'?'':'light'}" onclick="launchProductDialog(-1,'multi')">多筆</button>`:''}</div><div class="launchProductPlacement">${index<0&&launchCurrent.status==='最新開團'?`<fieldset class="launchCanvasChoice"><legend>新增位置</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="canvasTarget" value="original" checked>原畫布</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="canvasTarget" value="new">新畫布</label></fieldset>`:''}${index<0?`<fieldset class="launchCanvasChoice"><legend>新增順序</legend><label style="display:inline-flex;align-items:center;gap:6px;margin-right:20px"><input style="width:auto" type="radio" name="insertPosition" value="front">加在前面</label><label style="display:inline-flex;align-items:center;gap:6px"><input style="width:auto" type="radio" name="insertPosition" value="back" checked>加在後面</label></fieldset>`:''}</div>${mode==='multi'?`<textarea class="launchMultiProducts" name="multiProducts" aria-label="多筆商品" rows="10" placeholder="格式：名稱、角色、原價、尺寸、網址" required></textarea><p class="launchMultiHelp" data-launch-multi-status role="status" aria-live="polite" style="margin:12px 0;white-space:pre-wrap" hidden></p>`:`<div class="launchProductFields"><label class="launchProductCompactField"><span>種　　類</span><select name="kind" aria-label="種類" data-kind-value="${esc(p.kind||'')}" onchange="launchChooseKind(this)">${launchKindOptions(p.kind||'')}</select><small data-kind-status></small></label><label class="launchProductCompactField"><span>角　　色</span><input name="role" placeholder="角色" oninput="launchSuggestFormKind(this.form)" aria-label="角色" value="${esc(p.role||'')}"></label><label class="launchProductCompactField launchProductNameField"><span>名　　稱</span><input name="name" placeholder="名稱" oninput="launchSuggestFormKind(this.form)" aria-label="名稱" value="${esc(p.name||'')}" required><button class="launchProductNameClear" type="button" aria-label="清空名稱" title="清空名稱" onpointerdown="event.preventDefault()" onclick="const input=this.previousElementSibling;input.value='';input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));">×</button></label>${draw?`<input type="hidden" name="format" value="${esc(launchProductSpec(p).format||(draw.type==='single'?'單抽':'抱盒'))}">${launchDrawEditorFields(p,draw)}`:`<label class="launchProductCompactField launchProductMoney"><span>原　　價</span><input name="original" placeholder="原價" aria-label="原價" value="${esc(launchOriginalInputValue(p.original))}"></label><label class="launchProductCompactField launchProductMoney"><span>售　　價</span><input name="price" placeholder="售價" aria-label="售價" value="${esc(p.price??'')}"></label><label class="launchProductCompactField launchProductCode"><span>貨　　號</span><input name="code" placeholder="貨號" type="text" oninput="launchSuggestFormKind(this.form)" aria-label="貨號" value="${esc(p.code??'')}"></label><label class="launchProductCompactField launchProductFormat"><span>格　　式</span><input name="format" placeholder="格式" oninput="launchSuggestFormKind(this.form)" aria-label="格式" value="${esc(launchProductSpec(p).format)}"></label>`}<label class="launchProductCompactField launchProductSize"><span>尺　　寸</span><input name="size" placeholder="尺寸" oninput="launchSuggestFormKind(this.form)" aria-label="尺寸" value="${esc(launchProductSpec(p).size)}"></label>${launchProductImagesMarkup(p.images||[])}<label class="launchProductUrl"><span>商品網址</span><input name="url" oninput="launchSuggestFormKind(this.form)" aria-label="商品網址" type="url" value="${esc(p.url||'')}"></label><label class="launchProductJapanese"><span>日 文 名</span><input name="japaneseName" aria-label="日文名" value="${esc(p.japaneseName||'')}" placeholder="由官網抓取，可手動填寫"></label><label class="launchProductNote"><span>備　　註</span><textarea name="note" aria-label="備註" rows="3">${esc(p.note||'')}</textarea></label></div>`}<div class="launchTools launchProductActions">${index>=0?`<button type="button" class="btn light" onclick="launchRemoveProduct(${index})">移除商品</button>${launchCurrent.status==='尚未上架'?`<button type="button" class="btn light launchHideProduct" title="只影響目前畫布，前端仍保留商品與尺寸選項" style="${hidden?'background:#d9544d;color:#fff':''}" aria-pressed="${hidden}" onclick="launchToggleProductHidden(${index},this)">畫布隱藏</button>`:''}`:''}<button type="button" class="btn light launchProductCancel" onclick="launchFinishProductEditor()">取消</button><button class="btn" type="submit">確定</button></div></form>`);
  if(mode==='single'){const root=document.getElementById('launchDialog');const form=root.querySelector('form');if(draw)form.jiwuDrawEdit={group:launchCurrent,itemId:p.id,peerId:draw.peer?.id||'',type:draw.type};launchSuggestFormKind(form);void launchLoadProductKinds(root);launchAutoProductInfo(root.querySelector('form'));launchLoadPriceHistory();root.querySelector('form').addEventListener('input',event=>{if(event.target.name==='price')launchPaintPriceHistory();else if(['kind','original'].includes(event.target.name))launchLoadPriceHistory();});}
@@ -4596,12 +4623,13 @@ async function launchProductSubmit(e,index,mode){
   const item=items[0];
   if(drawPeer){
    drawPeer.name=item.name;drawPeer.role=item.role;
+   if(!String(drawPeer.url||'').trim())drawPeer.url=launchDrawSharedURL(item.url);
    Object.assign(drawPeer,drawPeerValues);
   }else if(hasDrawPeerValues){
    const peer={
     id:launchId(),name:item.name,role:item.role,kind:'抽抽',format:drawEdit.type==='single'?'抱盒':'單抽',
     images:[...item.images],panel:item.panel,visible:item.visible,showCost:item.showCost,scale:item.scale,
-    size:'',url:'',japaneseName:'',note:'',...drawPeerValues
+    size:'',url:launchDrawSharedURL(item.url),japaneseName:'',note:'',...drawPeerValues
    };
    group.items.splice(index+1,0,peer);
    for(const panel of group.panels||[]){
@@ -5417,6 +5445,12 @@ async function launchReadAllAnnouncement(url,onProgress=()=>{},isActive=()=>true
  if(!isActive())throw Error('已取消讀取');
  let data;for(let attempt=0;attempt<3;attempt++){try{data=await api('launchAnnouncementPreview',{url,expandRoles:true});break;}catch(error){if(/HTTP 429/.test(error.message))throw Error('官網暫時限制讀取這頁商品清單（HTTP 429）。');if(attempt===2||!isActive()||!retryConnection&&launchBulkReadCanRetry(error))throw error;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));}}
  if(!isActive())throw Error('已取消讀取');
+ const requested=new URL(url);
+ if(requested.hostname==='munyugurumi.jp'&&requested.pathname==='/itemdetail'){
+  const itemID=requested.searchParams.get('ItemID'),sci=requested.searchParams.get('sci');
+  data.items=(data.items||[]).filter(item=>{try{const actual=new URL(item.url||data.source?.url||url,url);return actual.hostname==='munyugurumi.jp'&&actual.pathname==='/itemdetail'&&actual.searchParams.get('ItemID')===itemID&&actual.searchParams.get('sci')===sci}catch{return false}});
+  if(data.items.length!==1)throw Error(data.items.length?'這個商品詳細頁讀到多項商品，未匯入以免帶入其他款式':'這個網址沒有讀到相同 ItemID 與 sci 的商品，未加入其他商品');
+ }
  onProgress(1,(data.items||[]).length);return data;
 }
 
@@ -5461,9 +5495,9 @@ async function launchReadImportURLs(event){
   const data=session.readResults.get(url);if(!data)continue;
   for(const source of data.items){
    if(!source||!String(source.name||source.japaneseName||'').trim())continue;
-   const item={...source,name:String(source.name||source.japaneseName).trim(),url:source.url||url,images:(Array.isArray(source.images)?source.images:[source.image]).filter(value=>launchSafeURL(value)),price:source.price??''};
+   const item={...source,name:source.nameBlank?'':String(source.name||source.japaneseName).trim(),url:source.url||url,images:(Array.isArray(source.images)?source.images:[source.image]).filter(value=>launchSafeURL(value)),price:source.price??''};
    Object.assign(item,launchNormalizeProductSpec(item.size,item.format,item));
-   item.name=jiwuProductNameWithoutIP(item.name,[item.ipName,item.franchiseName,item.workName,item.ip]);
+   if(!item.nameBlank)item.name=jiwuProductNameWithoutIP(item.name,[item.ipName,item.franchiseName,item.workName,item.ip]);
    const identity=launchURLImportItemKey(item);if(seen.has(identity))continue;seen.add(identity);session.items.push(item);
   }
   session.sources.push({source:data.source,group:data.group});session.warnings.push(...(data.warnings||[]));
@@ -5498,19 +5532,18 @@ function launchRenderURLImport(){
  const session=launchURLImportSession;if(!session||!launchURLImportActive(session))return;
  if(session.newGroup){launchRenderNewAnnouncementForm(session);return;}
  const reference=session.sources.map(({source,group})=>source?`<div><strong>${esc(source.title||'公告')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small>${group?.name?`<small>團名參考：${esc(group.name)}</small>`:''}</div>`:'').join('');
- session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)}${launchURLImportMetadataText(item)?'｜'+esc(launchURLImportMetadataText(item)):''}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
+ session.dialog.innerHTML=`<form class="launchURLImportForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>${session.newGroup?'確認商品與開團資訊':'確認匯入商品'}</h2>${reference?`<div class="launchURLSource">${reference}</div>`:''}<p class="launchHelp">預設全選，可取消不需要的商品。${session.newGroup?'確認後建立尚未上架的新團，並一起儲存商品與開團資訊。':'確認後商品與開團資訊一起套用；按 SAVE 儲存。'}</p><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText">${item.nameBlank?`<input data-url-import-name="${index}" class="launchURLImportName" type="text" autocomplete="off" aria-label="商品名稱" placeholder="請輸入商品名稱" value="${esc(item.name||'')}" onclick="event.stopPropagation()" oninput="launchSetURLImportName(${index},this.value)">`:`<strong>${esc(item.name)}</strong>`}<small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)}${launchURLImportMetadataText(item)?'｜'+esc(launchURLImportMetadataText(item)):''}</small>${item.needsFormat?'<small>規格待選，匯入後請補填</small>':''}${!item.price?'<small>售價待填</small>':''}</span></label>`).join('')}</div>${session.items.length?launchURLImportGroupFields(session):''}${session.warnings.length?`<p class="launchHelp" style="white-space:pre-wrap">${esc(session.warnings.join('\n'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc('以下網址讀取失敗，未加入：\n'+session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn light" type="button" onclick="launchImportURLs()">重新輸入</button><button class="btn" type="submit" data-url-import-confirm>${session.newGroup?'確認建立開團頁':'確認匯入'}</button></div></form>`;
  launchUpdateURLImportSelection();
 }
 function launchRenderNewAnnouncementForm(session){
  const source=session.sources[0]?.source;
  const reference=source?`<div class="launchURLSource"><strong>${esc(source.title||'')}</strong><small>${esc([source.onlineDate?'線上開賣 '+source.onlineDate+' '+(source.onlineTime||''):'',source.releaseDate?'門市發售 '+source.releaseDate:''].filter(Boolean).join('｜'))}</small></div>`:'';
- const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText"><strong>${esc(item.name)}</strong><small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
+ const products=session.items.map((item,index)=>`<label class="launchAllItem launchURLProduct"><input type="checkbox" data-url-import-item="${index}" ${session.selected.has(index)?'checked':''} onchange="launchToggleURLImport(${index},this.checked)">${item.images[0]?`<span class="launchURLThumb"><img src="${launchImage(item.images[0])}" alt="" loading="lazy" decoding="async" data-url-import-image="${esc(item.images[0])}" data-url-import-item-key="${esc(launchURLImportItemKey(item))}" onerror="launchURLImportImageFailed(${index},this,${esc(JSON.stringify(item.images[0]))})"></span>`:'<span class="launchURLThumb">待補圖</span>'}<span class="launchURLProductText">${item.nameBlank?`<input data-url-import-name="${index}" class="launchURLImportName" type="text" autocomplete="off" aria-label="商品名稱" placeholder="請輸入商品名稱" value="${esc(item.name||'')}" onclick="event.stopPropagation()" oninput="launchSetURLImportName(${index},this.value)">`:`<strong>${esc(item.name)}</strong>`}<small>${esc(item.role||'角色待確認')}${item.imageIsShared?' · 系列合照':''}</small><small>${esc(item.japaneseName||'')}</small><small>${esc(launchURLImportOriginal(item))}${launchUsdReferenceMarkup(item.original)} · 售價${item.price?' $'+esc(item.price):'待填'}</small>${launchURLImportMetadataText(item)?`<small>${esc(launchURLImportMetadataText(item))}</small>`:''}</span></label>`).join('');
  session.dialog.innerHTML=`<form class="launchURLImportForm launchNewAnnouncementForm" data-explicit-confirm onsubmit="launchConfirmURLImport(event)"><h2>建立新團</h2><label>商品／公告網址（選填）<textarea name="urls" aria-label="匯入商品網址" rows="2" placeholder="貼上任一公開商品或公告網址，自動帶入商品與圖片">${esc(session.urls||'')}</textarea></label><div class="launchTools" style="margin:10px 0"><button class="btn light" type="button" data-url-read onclick="launchReadImportURLs({preventDefault(){},currentTarget:this.form})">讀取網址商品</button></div><p data-url-import-message role="status"></p>${reference}${launchURLImportGroupFields(session)}${session.items.length?`<h3>辨識到的商品</h3><label class="launchSelectAll"><input type="checkbox" data-url-import-all aria-label="全選網址商品" onchange="launchSelectURLImports(this.checked)">全選／取消全選</label><p data-url-import-count role="status"></p><div class="launchAllGrid launchURLProducts">${products}</div>`:''}${session.warnings.length?`<p class="launchHelp">${esc(session.warnings.join('；'))}</p>`:''}${session.failures.length?`<p role="alert" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(session.failures.join('\n'))}</p>`:''}<p data-url-import-validation role="alert"></p><div class="launchTools" style="margin-top:16px"><button class="btn light" type="button" onclick="launchCancelURLImport()">取消</button><button class="btn" type="submit" data-url-import-confirm>建立開團頁</button></div></form>`;
- const urlsField=session.dialog.querySelector('textarea[name="urls"]');
- urlsField?.addEventListener('paste',()=>setTimeout(()=>{const value=urlsField.value.trim();if(value&&value!==session.urls&&launchURLImportActive(session)&&!session.loading&&urlsField.isConnected)void launchReadImportURLs({preventDefault(){},currentTarget:urlsField.form});},0));
  if(session.items.length)launchUpdateURLImportSelection();else void launchAutoImportShipping(session);
 }
 function launchToggleURLImport(index,checked){const session=launchURLImportSession;if(!session)return;if(checked)session.selected.add(index);else session.selected.delete(index);launchUpdateURLImportSelection();}
+function launchSetURLImportName(index,value){const item=launchURLImportSession?.items?.[index];if(!item)return;item.name=String(value??'');}
 function launchSelectURLImports(checked){const session=launchURLImportSession;if(!session)return;session.selected=new Set(checked?session.items.map((_,index)=>index):[]);session.dialog.querySelectorAll('[data-url-import-item]').forEach(input=>input.checked=checked);launchUpdateURLImportSelection();}
 function launchUpdateURLImportSelection(){
  const session=launchURLImportSession;if(!session)return;const count=session.selected.size,all=session.dialog.querySelector('[data-url-import-all]');all.checked=!!session.items.length&&count===session.items.length;all.indeterminate=count>0&&count<session.items.length;all.disabled=!session.items.length;
@@ -5543,10 +5576,11 @@ async function launchConfirmURLImport(event){
  if(groupInfo.websiteUrl&&!launchSafeURL(groupInfo.websiteUrl)){error.textContent='請輸入有效的 http/https 網站網址';return;}
  if(groupInfo.shortUrl&&!launchSafeURL(groupInfo.shortUrl)){error.textContent='請輸入有效的 http/https 短網址';return;}
  groupInfo.noFreeShipping=values.has('noFreeShipping');groupInfo.needsSecondPayment=values.has('needsSecondPayment');
+ const missingIndex=session.items.findIndex((item,index)=>session.selected.has(index)&&!String(item.name||'').trim());if(missingIndex>=0){error.textContent='請在預覽中填寫已選商品的名稱';session.dialog.querySelector(`[data-url-import-name="${missingIndex}"]`)?.focus();return;}
  // Keep the preview gallery for failed-image fallback; import only its first usable photo.
  const selected=session.items.filter((_,index)=>session.selected.has(index)).map(item=>{
-  const images=item.images.slice(0,1);
-  return {...item,images,...(Object.hasOwn(item,'image')?{image:images[0]||''}:{})};
+  const images=item.images.slice(0,1),copy={...item,name:String(item.name||'').trim()};delete copy.nameBlank;
+  return {...copy,images,...(Object.hasOwn(item,'image')?{image:images[0]||''}:{})};
  });
  if(session.newGroup){
   if(selected.length>200){error.textContent='每團最多 200 項商品，請減少選取數量';return;}
@@ -5727,8 +5761,7 @@ function launchRefreshAvailabilityControls(key){
  if(index<0)return;
  const item=group.items[index];
  document.querySelectorAll(`.launchAllItem[data-launch-sort-index="${index}"]`).forEach(row=>{
-  const size=row.querySelector('[data-launch-clothing-size][aria-pressed="true"]')?.dataset.launchClothingSize;
-  launchPaintAvailabilityBorder(row,item,size);
+  launchPaintAvailabilityBorder(row,item);
   const control=row.querySelector(`[data-launch-availability="${index}"]`);
   if(control)control.outerHTML=launchAvailabilityButton(item,index);
  });
@@ -6209,7 +6242,6 @@ async function launchExport(mode){
  if(mode==='download'&&paper&&launchPNGPrepared?.paper===paper&&launchPNGPrepared.key===launchPNGKey(paper)&&launchPNGPrepared.blob){
   launchDownloadPNG(launchPNGPrepared.blob,launchImageFilename(launchCurrent));return;
  }
- if(mode==='copy'&&(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')){alert('此瀏覽器不支援複製圖片，請改用下載 PNG');return;}
  if(mode!=='download')document.getElementById('launchDialog')?.close();
  const button=document.querySelector('.launchExportHead .btn'),label=button?.textContent;
  launchExportBusy=true;
@@ -6217,20 +6249,24 @@ async function launchExport(mode){
  try{
   if(mode==='copy'){
    // 在點擊當下交出 Promise，保留 Safari 的使用者手勢授權。
+   const group=launchCurrent,panelIndex=launchPanelIndex;
    const promise=launchGetPNG();promise.catch(()=>{});
-   try{await navigator.clipboard.write([new ClipboardItem({'image/png':promise})]);}catch(e){throw new Error('複製圖片失敗：'+e.message+'；可改用下載 PNG');}
-   launchNotice('已複製圖片（1080 × 1350 PNG）');
+   if(await window.JiwuImageCopy.write(promise))launchNotice('已複製圖片（1080 × 1350 PNG）');
+   else{
+    const blob=await promise;
+    if(launchCurrent!==group||launchPanelIndex!==panelIndex||document.body.dataset.page!=='launch')return;
+    window.JiwuImageCopy.preview([{blob,title:launchCanvasDisplayTitle(group,panelIndex)||'開團'}],{title:'開團圖片'});
+   }
   }else{const blob=await launchGetPNG(),name=launchImageFilename(launchCurrent);launchDownloadPNG(blob,name);}
  }catch(error){launchCompletionToast(error.message||'圖片輸出失敗',true);}
  finally{launchExportBusy=false;if(button?.isConnected){button.disabled=false;button.textContent=label;}}
 }
 </script>
 
-<script src="customer-order-binding.js?v=20261031-friendly-errors"></script>
+<script src="customer-order-binding.js?v=20261110-manual-name"></script>
 <script>
 const API_URL='https://jiwu-mac-relay.jiwusales.workers.dev/functions/v1/jiwu-admin-test';
 const lanBackend=new URL(API_URL,location.href).origin===location.origin;
-document.getElementById('btn-buy').hidden=!lanBackend;
 const AUTH_TOKEN_KEY='jiwu_supabase_test_admin_auth_token';
 const AUTH_PERSISTENT_TOKEN_KEY='jiwu_supabase_test_admin_auth_token_trusted';
 let authToken=localStorage.getItem(AUTH_PERSISTENT_TOKEN_KEY)||sessionStorage.getItem(AUTH_TOKEN_KEY)||'';
@@ -6342,7 +6378,7 @@ const apiReadActions=new Set(['launchUsdReferenceRate','launchAnnouncementPrevie
 const apiPendingReads=new Map();
 function api(action,params={},progressId){
 if(!apiReadActions.has(action)){const snapshot=backendPrepareWrite(action,params);return backendTrackWrite(action,()=>apiRequest(action,snapshot),snapshot,progressId);}
-const key=JSON.stringify([action,authToken,backendSyncEpoch,Object.entries(params).filter(([name,value])=>name!=='ifRevision'||value!=='').sort(([a],[b])=>a.localeCompare(b))]);
+const key=JSON.stringify([action,authToken,backendSyncEpoch,Object.entries(params).sort(([a],[b])=>a.localeCompare(b))]);
 if(apiPendingReads.has(key))return apiPendingReads.get(key);
 const request=apiRequest(action,params).finally(()=>{if(apiPendingReads.get(key)===request)apiPendingReads.delete(key);});
 apiPendingReads.set(key,request);
@@ -6354,6 +6390,19 @@ function munyuBrowserRead(url,announcement=false){
   function receive(event){if(event.source!==window||event.data?.type!=='jiwuMunyuResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.ok)resolve(event.data.data);else reject(Error(event.data.error||'官網讀取失敗'));}
   window.addEventListener('message',receive);window.postMessage({type:'jiwuMunyuRead',id,url,announcement},location.origin);
  });
+}
+async function munyuRemoteBrowserRead(url){
+ const {jobId}=await apiRequest('munyuBrowserRequest',{url});
+ if(!jobId)throw Error('M4 沒有收到むにゅぐるみ商品讀取工作');
+ for(let i=0;i<60;i++){
+  await new Promise(resolve=>setTimeout(resolve,2000));
+  const result=await apiRequest('munyuBrowserPoll',{jobId});
+  if(result.state!=='done')continue;
+  if(result.error)throw Error(result.error);
+  if(!result.data)throw Error('M4 未回傳むにゅぐるみ商品資料');
+  return result.data;
+ }
+ throw Error('M4 商品讀取逾時，請確認 M4 的 Chrome 與吉物外掛仍在執行');
 }
 async function tmallRemoteBrowserRead(url){
  const queued=await api('tmallBrowserRequest',{url});
@@ -6369,7 +6418,15 @@ async function apiRequest(action,params={}){
 let browserURL='';
 if(action==='launchProductInfo')browserURL=params.item?.url||'';
 else if(action==='launchScrape')browserURL=launchCurrent?.items?.find(item=>item.id===params.itemId)?.url||'';
-if(browserURL){let munyu=false;try{munyu=new URL(browserURL).hostname==='detail.tmall.com'||new URL(browserURL).hostname==='munyugurumi.jp'||new URL(browserURL).hostname==='re-writeinc.com';}catch(_){}if(munyu&&!(action==='launchCheckAvailability'&&new URL(browserURL).hostname==='munyugurumi.jp'&&(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))))params={...params,browserProduct:new URL(browserURL).hostname==='detail.tmall.com'&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)?await tmallRemoteBrowserRead(browserURL):await munyuBrowserRead(browserURL)};}
+let browserHost='';
+try{browserHost=new URL(browserURL).hostname;}catch{}
+if(browserHost==='munyugurumi.jp'&&['launchProductInfo','launchScrape'].includes(action)){
+ params={...params,browserProduct:await munyuRemoteBrowserRead(browserURL)};
+}else if(['detail.tmall.com','munyugurumi.jp','re-writeinc.com'].includes(browserHost)){
+ const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+ const mobileMunyuCheck=action==='launchCheckAvailability'&&browserHost==='munyugurumi.jp'&&(mobile||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1));
+ if(!mobileMunyuCheck)params={...params,browserProduct:browserHost==='detail.tmall.com'&&mobile?await tmallRemoteBrowserRead(browserURL):await munyuBrowserRead(browserURL)};
+}
 
 const requestAuth=authToken,requestId=params.requestId||crypto.randomUUID(),controller=new AbortController();
 const timer=setTimeout(()=>controller.abort(),['authCheck','launchGet'].includes(action)?20000:action==='launchAnnouncementPreview'?120000:90000);
@@ -6739,6 +6796,10 @@ function purchaseOrderSite(url){
  if(standard[u.hostname]&&/^\/account\/orders\/[a-zA-Z0-9]+\/?$/.test(u.pathname))return {channel:standard[u.hostname],host:u.hostname,id:u.pathname.split('/').filter(Boolean).pop()};
  if(u.hostname==='account.lilalamode-store.jp'&&/^\/orders\/\d+\/?$/.test(u.pathname))return {channel:'リララモード',host:u.hostname,id:u.pathname.split('/').filter(Boolean).pop()};
  if(u.hostname==='chiikawa-pocket-goods-store.com'&&/^\/account\/orders\/detail\/?$/.test(u.pathname)&&/^\d+$/.test(u.searchParams.get('orderId')||''))return {channel:'ちいかわぽけっと',host:u.hostname,id:u.searchParams.get('orderId')};
+ if(u.hostname==='munyugurumi.jp'&&/^\/buyinghistory\/detail\/?$/.test(u.pathname)&&!u.hash){
+  const ids=u.searchParams.getAll('OrderNo');
+  if(ids.length===1&&/^[A-Za-z0-9_-]+$/.test(ids[0]))return {channel:'むにゅぐるみ',host:u.hostname,id:ids[0]};
+ }
  }catch(_){}return null;
 }
 let purchaseOrdersLoaded=false;
@@ -7110,8 +7171,16 @@ function purchaseDisplayStatus(order){return purchaseOrderComplete(order)?'已�
 async function purchaseCopyCardValue(index,type){
  const order=purchaseOrders[index];if(!order)return;
  const value=type==='tracking'?String(order.tracking||'').trim():order.items.reduce((sum,item)=>sum+(Number(item.total)||0),0).toLocaleString('en-US',{useGrouping:false,maximumFractionDigits:2});
- if(!value){purchaseEditToast('尚未填寫出貨單號');return;}
- try{await navigator.clipboard.writeText(value);purchaseEditToast(type==='tracking'?'已複製出貨單號':'已複製總金額');}catch(e){purchaseEditToast(jiwuErrorText(e,'system'));}
+ if(!value){purchaseEditToast(type==='tracking'?'尚未填寫出貨單號':'沒有可複製的總金額');return;}
+ try{
+  let copied=false;
+  if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(value);copied=true;}catch(_){/* 區網 HTTP 不提供 Clipboard API，改走傳統複製 */}}
+  if(!copied){
+   const input=document.createElement('textarea');input.value=value;input.setAttribute('readonly','');input.style.cssText='position:fixed;top:0;left:-9999px;opacity:0';document.body.appendChild(input);
+   try{input.focus();input.select();input.setSelectionRange(0,input.value.length);if(!document.execCommand('copy'))throw new Error('瀏覽器未允許複製');}finally{input.remove();}
+  }
+  purchaseEditToast(type==='tracking'?'已複製出貨單號':'已複製總金額');
+ }catch(e){purchaseEditToast('複製失敗：'+e.message);}
 }
 function purchaseDisplayItems(order){
  const groups=new Map();order.items.forEach((item,index)=>{const key=purchaseOrderRegion(order)==='cn'&&order.tracking?purchaseProductName(item):String(index);if(!groups.has(key))groups.set(key,{...item,quantity:0,indexes:[]});const group=groups.get(key);group.quantity+=Number(item.quantity)||0;group.indexes.push(index);});return [...groups.values()];
@@ -7443,26 +7512,40 @@ function purchaseParseContents(value){
   const name=(match?match[1]:text).replace(/\s+/g,'');
   const kind=purchaseContentsKinds.includes(name)?name:purchaseContentsAliases.find(([,pattern])=>pattern.test(name))?.[0];
   const total=(counts[kind]||0)+(match?Number(match[2]):1);
-  if(!kind||!Number.isSafeInteger(total)||!match&&/\d$/.test(text)){unmatched.push(part);continue;}
+  if(!kind||kind==='其他'||!Number.isSafeInteger(total)||!match&&/\d$/.test(text)){unmatched.push(part);continue;}
   counts[kind]=total;
  }
  return {counts,unmatched:unmatched.join('、')};
 }
 function purchaseContentsSync(box,draft=false){
  if(!box)return;
- const parts=[...box.querySelectorAll('[data-content-kind]')].flatMap(input=>{
-  const count=Number(input.value);
-  return Number.isSafeInteger(count)&&count>0?[`${input.dataset.contentKind}x${count}`]:[];
- });
- if(box.dataset.unmatchedContents)parts.push(box.dataset.unmatchedContents);
- const contents=parts.join('、');
+ const inputs=[...box.querySelectorAll('[data-content-kind]')];
+ const other=inputs.find(input=>input.dataset.contentKind==='其他');
+ const otherText=other.value.trim();
+ const normalized=otherText.normalize('NFKC');
+ const numberOnly=/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized);
+ const otherCount=numberOnly?Number(normalized):0;
+ const validOther=!numberOnly||Number.isSafeInteger(otherCount)&&otherCount>=0;
+ other.setCustomValidity(validOther?'':'請輸入非負整數或分類與數量');
+ if(!validOther)return;
+ let contents=box.dataset.originalContents;
+ if(inputs.some(input=>input.value!==input.defaultValue)){
+  const parts=inputs.filter(input=>input!==other).flatMap(input=>{
+   const count=Number(input.value);
+   return Number.isSafeInteger(count)&&count>0?[`${input.dataset.contentKind}x${count}`]:[];
+  });
+  if(numberOnly?otherCount>0:otherText)parts.push(numberOnly?`其他x${otherCount}`:otherText);
+  contents=parts.join('、');
+ }
  box.querySelector('[name=contents]').value=contents;
  if(draft&&purchaseDraft)purchaseDraft.contents=contents;
 }
 function purchaseNoteMarkup(value='',draft=false){return `<label class="purchaseOrderNote" style="display:grid;gap:8px;margin:14px 0"><span>備註：</span><textarea name="note" aria-label="訂單備註" rows="2" style="width:100%;box-sizing:border-box;resize:vertical" ${draft?'oninput="purchaseDraft.note=this.value"':''}>${esc(value)}</textarea></label>`;}
 function purchaseContentsMarkup(value='',draft=false){
  const {counts,unmatched}=purchaseParseContents(value);
- return `<div class="purchaseContentsFields" data-unmatched-contents="${esc(unmatched)}" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds">${purchaseContentsKinds.map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number data-content-kind="${kind}" aria-label="${kind}數量" value="${counts[kind]||''}"></label>`).join('')}</div></div>`;
+ const fields=purchaseContentsKinds.filter(kind=>kind!=='其他').map(kind=>`<label><span>${kind}</span><input type="text" inputmode="numeric" data-purchase-number data-content-kind="${kind}" aria-label="${kind}數量" value="${counts[kind]||''}"></label>`);
+ fields.push(`<label><span>其他</span><input type="text" data-content-kind="其他" aria-label="其他內容物" value="${esc(unmatched)}"></label>`);
+ return `<div class="purchaseContentsFields" data-original-contents="${esc(value)}" oninput="purchaseContentsSync(this,${draft})"><div>內容物：</div><input type="hidden" name="contents" value="${esc(value)}"><div class="purchaseContentsKinds">${fields.join('')}</div></div>`;
 }
 
 function purchaseManualSuggest(input,event){
@@ -7559,20 +7642,35 @@ let purchaseURLTimer=null,purchaseLastAutoURL='';
 function purchaseURLInput(value){
  purchaseOrderURL=value;clearTimeout(purchaseURLTimer);const indicator=document.getElementById('purchaseURLSearching');if(indicator)indicator.hidden=true;
  const url=value.trim();if(!url){purchaseLastAutoURL='';return;}
- if(!purchaseOrderSite(url))return;
- if(indicator)indicator.hidden=false;
+ if(!purchaseOrderSite(url)){
+  if(indicator&&/^https?:\/\/munyugurumi\.jp(?:[/:?#]|$)/i.test(url)){
+   indicator.textContent='請貼上むにゅぐるみ的訂單明細網址';
+   indicator.hidden=false;
+  }
+  return;
+ }
+ if(indicator){indicator.textContent='搜尋中⋯';indicator.hidden=false;}
  purchaseURLTimer=setTimeout(async()=>{
   if(purchaseOrderURL.trim()!==url||purchaseLastAutoURL===url){if(indicator&&!purchaseBusy)indicator.hidden=true;return;}
   if(purchaseBusy){purchaseURLInput(purchaseOrderURL);return;}
   purchaseLastAutoURL=url;await purchaseImport();const current=document.getElementById('purchaseURLSearching');if(current)current.hidden=true;if(!purchaseDraft)purchaseLastAutoURL='';
  },500);
 }
-function purchaseFetchURL(url){
- return new Promise((resolve,reject)=>{const id=crypto.randomUUID();const timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('讀取逾時，請在 Chrome 安裝／重新載入訂購狀態同步外掛，並登入官網；本機頁面需允許外掛存取檔案網址'));},45000);
- function receive(event){if(event.source!==window||event.data?.type!=='jiwuPurchaseImportResult'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);if(event.data.error)reject(new Error(/sendMessage|Extension context invalidated/.test(event.data.error)?'外掛連線已失效，請重新載入「吉物訂購狀態同步」外掛，再重新整理後台頁面':event.data.error));else resolve(event.data.data);}
- window.addEventListener('message',receive);window.postMessage({type:'jiwuPurchaseImport',id,url},'*');});
+async function purchaseFetchURL(url){
+ const {data}=await apiRequest('purchaseReadOrder',{url});
+ if(!data?.order?.items?.length)throw Error('M4 未回傳訂單明細');
+ return data;
 }
-async function purchaseImport(sharedPage=null){if(purchaseBusy)return;try{purchaseBusy=true;const region=purchaseRegion||'jp',url=purchaseOrderURL.trim();if(!purchaseOrderSite(url))throw new Error('請貼上正確的官網訂單網址');purchaseMessage='正在讀取官網訂單…';renderPurchase();const page=sharedPage||await purchaseFetchURL(url);if(page.invalidAmounts)throw new Error('有商品金額無法辨識，請確認官網訂單內容');const draft=page.order?{...page.order,items:page.order.items.map(x=>({...x,name:'',candidates:[],choice:''}))}:parsePurchaseText(page.text);if(page.missingCodes)throw new Error('有商品未顯示貨號，無法完整比對，請改用手動登記');if(new URL(url).hostname==='nagano-market.jp')draft.items.forEach(x=>{x.code=String(x.code||'').normalize('NFKC').replace(/\D/g,'');});draft.items.forEach(x=>{x.originalName=String(x.originalName||'').split(/\r?\n/).map(v=>v.trim()).find(Boolean)||'';});draft.tracking=page.tracking||((String(page.text||'').normalize('NFKC').match(/(?:ヤマト運輸|Yamato(?:\s*\(JA\))?|佐川急便|日本郵便|追跡番号|送り状番号|お問い合わせ番号)\s*[:：#]?\s*([0-9][0-9 -]{8,24})/i)||[])[1]||'').replace(/\D/g,'');draft.region=region;draft.channel=purchaseChannelFromURL(url)||purchaseOrderSite(url).channel;draft.orderURL=url;draft.status=page.state==='発送済'?'已出貨':page.state==='未発送'?'未出貨':'';draft.number=purchaseNumericOrderNumber(draft.number);if(page.number&&draft.number!==purchaseNumericOrderNumber(page.number))throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseSyncSharedNames();purchaseOrdersLoaded=true;if(draft.number&&(purchaseRegistrationQueue.has(draft.number.trim())||purchaseOrders.some(o=>o.number===draft.number.trim()))){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對商品…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))]),items:JSON.stringify(draft.items.map(({code,originalName,name,url})=>({code,originalName,name,url})))});draft.items.forEach((x,index)=>{x.candidates=r.itemMatches?.[index]||r.matches[x.code]||[];const recorded=purchaseRecordedName(x,purchaseOrders.flatMap(o=>o.items));if(recorded){x.candidates.unshift({...recorded,source:'訂購記錄'});Object.assign(x,recorded);x.choice='0';}else if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;}catch(e){purchaseMessage=jiwuErrorText(e,'data');}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
+async function purchaseImport(sharedPage=null){if(purchaseBusy)return;try{purchaseBusy=true;const region=purchaseRegion||'jp',url=purchaseOrderURL.trim(),site=purchaseOrderSite(url);if(!site)throw new Error('請貼上正確的官網訂單網址');const munyu=site.host==='munyugurumi.jp';
+ if(munyu)purchaseDraft=null;
+ purchaseMessage=sharedPage?'正在讀取官網訂單…':'M4 正在讀取官網訂單…';renderPurchase();const page=sharedPage||await purchaseFetchURL(url);
+ if(munyu&&!page.order?.items?.length)throw Error('未能讀取むにゅぐるみ訂單明細');
+ if(page.invalidAmounts)throw new Error('有商品金額無法辨識，請確認官網訂單內容');const draft=page.order?{...page.order,items:page.order.items.map(x=>({...x,name:'',candidates:[],choice:''}))}:parsePurchaseText(page.text);if(page.missingCodes)throw new Error('有商品未顯示貨號，無法完整比對，請改用手動登記');if(new URL(url).hostname==='nagano-market.jp')draft.items.forEach(x=>{x.code=String(x.code||'').normalize('NFKC').replace(/\D/g,'');});draft.items.forEach(x=>{x.originalName=String(x.originalName||'').split(/\r?\n/).map(v=>v.trim()).find(Boolean)||'';});draft.tracking=page.tracking||((String(page.text||'').normalize('NFKC').match(/(?:ヤマト運輸|Yamato(?:\s*\(JA\))?|佐川急便|日本郵便|追跡番号|送り状番号|お問い合わせ番号)\s*[:：#]?\s*([0-9][0-9 -]{8,24})/i)||[])[1]||'').replace(/\D/g,'');draft.region=region;draft.channel=purchaseChannelFromURL(url)||site.channel;draft.orderURL=url;draft.status=page.state==='発送済'?'已出貨':page.state==='未発送'?'未出貨':'';draft.number=purchaseNumericOrderNumber(draft.number);if(page.number&&draft.number!==purchaseNumericOrderNumber(page.number))throw new Error('訂單編號辨識不一致，請確認官網頁面');purchaseMessage='正在檢查訂單…';renderPurchase();const existing=await api('purchaseOrders');purchaseOrders=existing.orders||[];purchaseSyncSharedNames();purchaseOrdersLoaded=true;if(draft.number&&(purchaseRegistrationQueue.has(draft.number.trim())||purchaseOrders.some(o=>o.number===draft.number.trim()))){purchaseDraft=null;purchaseMessage='已經登記過';return;}purchaseMessage='正在比對商品…';const r=await api('purchaseMatch',{codes:JSON.stringify([...new Set(draft.items.map(x=>x.code))]),items:JSON.stringify(draft.items.map(({code,originalName,name,url})=>({code,originalName,name,url})))});draft.items.forEach((x,index)=>{x.candidates=r.itemMatches?.[index]||r.matches[x.code]||[];const recorded=purchaseRecordedName(x,purchaseOrders.flatMap(o=>o.items));if(recorded){x.candidates.unshift({...recorded,source:'訂購記錄'});Object.assign(x,recorded);x.choice='0';}else if(x.candidates.length===1){x.choice='0';Object.assign(x,x.candidates[0]);}});if(munyu&&purchaseOrderURL.trim()!==url)return;
+ purchaseDraft=draft;purchaseMessage=`已辨識 ${draft.items.length} 項；多個對應請選擇資料。`;
+ if(munyu&&draft.status&&draft.number&&draft.date&&draft.items.length&&draft.items.every(item=>!item.candidates.length||item.choice!=='')){
+  purchaseBusy=false;
+  purchaseSave();
+ }}catch(e){purchaseMessage=jiwuErrorText(e,'data');}finally{purchaseBusy=false;if(document.body.dataset.page==='purchase')renderPurchase();}}
 const purchaseRegistrationQueue=new Map(),purchaseRegistrationProgress=new Map();let purchaseRegistrationRunning=false;
 function purchaseRegistrationProgressId(number){if(!purchaseRegistrationProgress.has(number)){const id='purchase-register-'+launchId();purchaseRegistrationProgress.set(number,id);launchMoveProgress(id,'訂購','排隊中','','新增訂單');}return purchaseRegistrationProgress.get(number);}
 try{JSON.parse(sessionStorage.getItem('jiwu_supabase_test_purchase_pending_registrations')||'[]').forEach(([number,payload])=>purchaseRegistrationQueue.set(number,payload));}catch(_){}
@@ -7661,10 +7759,6 @@ sessionStorage.setItem(
 'jiwu_supabase_test_current_tab',
 name
 );
-if(name==='buy'){
-const helperURL=lanBackend?'/wkbuyit/':'https://jiwusales.github.io/wkbuyit/index.html?v=20261127-apparel-size';
-document.getElementById('app').innerHTML=`<iframe title="敗家" src="${helperURL}" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>`;
-}
 if(name==='store'){
 if(!isDesktopStore()&&storeView==='sales')renderStoreSales();else renderStore();
 }
@@ -8659,7 +8753,6 @@ if(button)button.setAttribute('aria-pressed',String(rainy));
 function readBackendSnapshot(key){try{return JSON.parse(sessionStorage.getItem('jiwu_supabase_test_snapshot_'+key)||localStorage.getItem('jiwu_supabase_test_snapshot_'+key)||'null');}catch(_){return null;}}
 function saveBackendSnapshot(key,data){try{const payload=JSON.stringify(data);sessionStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);localStorage.setItem('jiwu_supabase_test_snapshot_'+key,payload);}catch(_){}}
 async function renderStoreSales(force=false){
-const requestAuth=authToken;
 if(!storeSalesData){const cached=readBackendSnapshot('storeSales');if(cached)storeSalesData=cached;}
 syncStoreSalesDefaultDate();
 if(!isDesktopStore())document.getElementById('storeViewToggle').textContent='銷售';
@@ -8667,29 +8760,42 @@ const app=isDesktopStore()?document.getElementById('storeSalesPane'):document.ge
 if(!app)return;
 app.innerHTML=`<div class="storeSalesPage">
 <div class="storeSalesToolbar"><input id="storeSalesDate" type="search" onclick="clearStoreSalesSearch(this)" placeholder="搜尋商品名稱／後五碼／日期（0911、09）" aria-label="搜尋商品名稱、後五碼或日期" oninput="scheduleStoreSalesSearch(this,event)" oncompositionstart="storeSalesSearchComposing=true;storeSalesSearchGeneration++;clearTimeout(storeSalesSearchTimer)" oncompositionend="finishStoreSalesComposition(this)" onkeydown="storeSalesSearchKeydown(event,this)" onsearch="scheduleStoreSalesSearch(this)"><button class="btn light" onclick="showStoreSalesMonth()">月</button><button class="btn light" onclick="storeSalesDate='';drawStoreSales()">年</button><button class="btn" onclick="openStoreSaleDialog()" aria-label="手動新增銷售">＋</button></div>
+<div id="storeSalesRefresh" class="storeSalesRefresh" hidden>
+<span id="storeSalesRefreshMessage" role="status"></span>
+<button id="storeSalesRetry" type="button" class="btn light" onclick="refreshStoreSalesData()">重試</button>
+</div>
 <div id="storeSalesWarning" class="storeSalesWarning"></div>
 <div id="storeSalesSummary" class="storeSalesMonthSummary" hidden></div>
 <div id="storeSalesResult"><div class="card loading">載入銷售資料…</div></div>
 </div>`;
 if(storeSalesData)drawStoreSales();
 if(!force&&storeSalesData&&Date.now()-storeSalesLoadedAt<30000)return;
+await refreshStoreSalesData();
+}
+async function refreshStoreSalesData(){
+const result=document.getElementById('storeSalesResult');
+const notice=document.getElementById('storeSalesRefresh');
+const message=document.getElementById('storeSalesRefreshMessage');
+const retry=document.getElementById('storeSalesRetry');
+if(!result||!notice||!message||!retry)return;
+retry.disabled=true;
+if(!notice.hidden)message.textContent='正在更新銷售資料…';
 try{
 if(!storeSalesPromise)storeSalesPromise=api('storeSales');
 const request=storeSalesPromise;
 let data;
 try{data=await request;}finally{if(storeSalesPromise===request)storeSalesPromise=null;}
-if(backendDeferRead('store',!!storeSalesData))return;storeSalesData=data;storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
+notice.hidden=true;
+storeSalesData=data;storeSalesLoadedAt=Date.now();saveBackendSnapshot('storeSales',data);
 syncStoreSalesDefaultDate();
-if(document.body.dataset.page==='store'&&(isDesktopStore()||storeView==='sales')){if(backendInputFocused()){backendDeferPaint('store');const input=document.getElementById('storeSalesDate');if(input===document.activeElement&&input.value.trim())scheduleStoreSalesSearch(input);}else drawStoreSales();}
-}catch(e){
-if(authToken!==requestAuth||document.body.dataset.page!=='store')return;
-console.warn('銷售資料更新未完成',e);
-const result=document.getElementById('storeSalesResult');
-const retry='<button class="btn light" type="button" onclick="renderStoreSales(true)">重試</button>';
-if(result&&!storeSalesData)result.innerHTML='<div class="empty">銷售資料尚未載入，請稍後重試。<br>'+retry+'</div>';
-else if(result&&force)alert(jiwuErrorText(e,'system'));
-else if(result){const warning=document.getElementById('storeSalesWarning');if(warning)warning.innerHTML='<p class="salesHint" role="status">銷售資料暫時未更新，先顯示上次內容。 '+retry+'</p>';}
-}
+if(result.isConnected&&!storeSalesSearchComposing)drawStoreSales(result);
+}catch(error){
+if(!result.isConnected)return;
+console.warn('店面銷售資料更新失敗',error);
+if(!storeSalesData)result.replaceChildren();
+message.textContent=storeSalesData?'暫時無法更新銷售資料，目前顯示上次載入的紀錄。':'暫時無法載入銷售資料。';
+notice.hidden=false;
+}finally{retry.disabled=false;}
 }
 function showStoreSalesMonth(){const today=storeSalesToday();storeSalesDate=today.slice(5,7);drawStoreSales();}
 function openStoreSaleDialog(){document.body.insertAdjacentHTML('beforeend',`<div id="appDialog" class="dialogOverlay"><div class="dialogCard"><h3>手動新增銷售</h3><form onsubmit="submitStoreSale(event)"><div class="dialogGrid"><input id="manualSaleName" placeholder="名稱" required><input id="manualSaleAmount" inputmode="decimal" placeholder="金額" oninput="normalizeMoneyInput(this)" required><input id="manualSaleNote" class="full" placeholder="備註"></div><div class="dialogActions"><button type="button" class="btn light" onclick="closeDialog()">取消</button><button class="btn" type="submit">新增</button></div></form></div></div>`);document.getElementById('manualSaleName').focus();}
@@ -8813,7 +8919,7 @@ let days=[...(storeSalesData.days||[])].sort((a,b)=>a.date.localeCompare(b.date)
 const workDayAnchor='2026-09-25';
 const workDates=[...new Set((storeSalesData.days||[]).filter(day=>day.items?.length).map(day=>day.date).concat(workDayAnchor))].sort();
 const anchorIndex=workDates.indexOf(workDayAnchor);
-const workDayNumbers=new Map(workDates.map((date,index)=>[date,131+index-anchorIndex]));
+const workDayNumbers=new Map(workDates.map((date,index)=>[date,130+index-anchorIndex]));
 if(query){
 if(!/^(\d{2}|\d{4})$/.test(query)){if(summary)summary.hidden=true;result.innerHTML='<div class="empty">輸入兩碼月份或四碼日期，例如 09、0911</div>';return;}
 const month=Number(query.slice(0,2));
@@ -9104,7 +9210,6 @@ function saveOnlineSessionCache(savedAt=Date.now(),rows=onlineRows){try{const pa
 function renderOnline(){
 resetOnlineCardLayout();
 warmCustomerLineChats();
-const restoredCache=!onlineLoadedAt;
 restoreOnlineSessionCache();
 const app=document.getElementById('app');
 app.innerHTML=`
@@ -9135,7 +9240,7 @@ f.value=onlineCargo;
 bindOnlineSearchInput(input);
 if(onlineLoadedAt){
 showOnlineCurrentView();
-loadOnline(restoredCache,true);
+loadOnline(false,true);
 }else{
 loadOnline();
 }
@@ -9412,7 +9517,7 @@ if(!force&&onlineLoadedAt&&Date.now()-onlineLoadedAt<ONLINE_CACHE_MS){
 const request=(async()=>{
   const revision=onlineMutationRevision,epoch=backendSyncPageEpochs.get('online')||0;
   const d=await api('online',{compact:'1',fresh:force?'1':'0'});
-  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||onlineOrderEditPending||createShipPending||backendDeferRead('online',onlineRows.length>0))return;
+  if(revision!==onlineMutationRevision||epoch!==(backendSyncPageEpochs.get('online')||0)||backendSyncPageBusy('online')||pendingRestockRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||onlineOrderEditPending||backendDeferRead('online',onlineRows.length>0))return;
   const headers=d.headers||[];
   const rows=d.format==='online-matrix-v1'
     ?(d.rows||[]).map((r,i)=>({row:r[0],itemId:(d.rowIds||[])[i]||null,data:Object.fromEntries(headers.map((h,i)=>[h,r[i+1]])),orderTime:(d.orderTimes||[])[i],orderMergeKey:(d.mergeKeys||[])[i]||'',depositMergeKey:(d.mergeKeys||[])[i]||''}))
@@ -10713,48 +10818,33 @@ alert('請先勾選要出貨的商品');
 return
 }
 const selected=new Set(rows.map(Number));
-const selectedRows=onlineRows.filter(row=>selected.has(Number(row.row)));
-if(selectedRows.length!==selected.size||selectedRows.some(row=>!row.itemId))return alert('勾選資料已變動，請重新整理後再選擇');
-if(selectedRows.some(row=>isOpenedRow(row)))return alert('勾選商品已產生出貨單，請取消勾選已開單商品');
-const expected=selectedRows.map(row=>({row:Number(row.row),data:row.data}));
-const _rowRefs=selectedRows.map(row=>({row:Number(row.row),id:row.itemId}));
-const selectedIds=new Set(_rowRefs.map(ref=>String(ref.id)));
+const expected=onlineRows.filter(row=>selected.has(Number(row.row))).map(row=>({row:Number(row.row),data:row.data}));
+if(expected.length!==selected.size)return alert('勾選資料已變動，請重新整理後再選擇');
+if(onlineRows.some(row=>selected.has(Number(row.row))&&isOpenedRow(row)))return alert('勾選商品已產生出貨單，請取消勾選已開單商品');
 createShipPending=true;
 const buttons=[...document.querySelectorAll('button[onclick="createSelectedShip()"]')];
 buttons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true');});
 try{
-const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected),_rowRefs});
-const savedRows=new Set(Array.isArray(d.rows)?d.rows.map(Number):[]);
-const statusRows=new Set(Array.isArray(d.statusRows)?d.statusRows.map(Number):[]);
-const confirmed=savedRows.size===selectedIds.size&&statusRows.size===savedRows.size&&[...savedRows].every(row=>statusRows.has(row));
-onlineMutationRevision++;
-backendSyncPageEpochs.set('online',(backendSyncPageEpochs.get('online')||0)+1);
-backendSyncDirty.add('online');
-backendSyncDirty.add('ship');
-if(confirmed){
-// 回應的列號可能已重排，畫面依原本勾選的商品 ID 更新。
+const d=await launchPost('createShip',{rows:JSON.stringify(rows),expected:JSON.stringify(expected)});
+alert(
+'已產生出貨單，共 '+
+(d.count||rows.length)+
+' 筆'
+);
+const completedRows=new Set((d.rows||rows).map(Number));
 let openedHeader=findHeader(onlineHeaders,['已開單','開單']);
 if(!openedHeader){openedHeader='已開單';onlineHeaders.push(openedHeader);}
 const statusHeader=findHeader(onlineHeaders,['狀態','訂購狀態']);
-const completedRows=new Set();
+onlineMutationRevision++;
 onlineRows.forEach(row=>{
-if(!selectedIds.has(String(row.itemId)))return;
-completedRows.add(Number(row.row));
-row.data[openedHeader]=true;
+if(!completedRows.has(Number(row.row)))return;
+if(openedHeader)row.data[openedHeader]=true;
 if(statusHeader)row.data[statusHeader]='已開單';
 });
 onlineQueryAll('.shipCheck').forEach(input=>{if(completedRows.has(Number(input.value))){input.checked=false;input.disabled=true;}});
-}
-onlineLoadedAt=1;saveOnlineSessionCache(1);
-sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');localStorage.removeItem('jiwu_supabase_test_snapshot_ship');
-shipDataCache=null;shipLoadedAt=0;shipRevision++;
-if(!confirmed){
-alert('已收到出貨回應，訂單狀態尚未全部確認，將重新讀取訂單。');
-setTimeout(()=>void loadOnline(true,true),0);
-}else{
+saveOnlineSessionCache();onlineLoadedAt=0;
+sessionStorage.removeItem('jiwu_supabase_test_snapshot_ship');shipDataCache=null;shipLoadedAt=0;shipRevision++;
 if(document.getElementById('onlineResult'))refreshCargoViewKeepingScroll();
-alert('已產生出貨單，共 '+selectedIds.size+' 筆');
-}
 }catch(e){
 alert(e.message)
 }finally{
@@ -11338,7 +11428,7 @@ function backendSyncCanApply(page){
  if(active?.id==='inventorySearch'&&active.value!==inventorySearch)return false;
  if(active?.id==='customerSearch'&&active.value.trim()!==onlineSearchText)return false;
  if(page==='purchase'&&(purchaseBusy||purchaseLoadPromise||purchaseQueueRunning||purchaseEditQueue.size||purchaseCheckRunning||purchaseCheckJobs.length||purchaseRegistrationQueue.size))return false;
- if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||createShipPending||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
+ if(page==='online'&&(onlineLoadPromise||onlineOrderEditPending||onlineEditWorkerRunning||pendingRestockRows.size||pendingFaceRows.size||pendingBadgeItems.size||pendingGroupRestocks.size||pendingReconcileRows.size||activeCargoPickerItemId||onlineQueryAll('.shipCheck:checked,.restockPurchaseCheck:checked').length))return false;
  if(page==='inventory'&&(inventoryLoadPromise||inventoryProductSaves.size||inventoryOrderSaving||inventoryStatusCheckingRows.size||inventoryComposing))return false;
  if(page==='ship'&&(shipPendingWrites||shipLoadPromise))return false;
  if(page==='store'&&(storeSalesPromise||cartPendingWrites||cartUnsaved||cartOperationBusy))return false;
@@ -11365,6 +11455,7 @@ async function backendSyncRefreshCurrent(page){
  else if(page==='launch')data=await api(launchAuxPage?'launchAuxSheet':launchCurrent?'launchGet':'launchList',{...(launchAuxPage?{kind:launchAuxPage}:launchCurrent?{id:launchCurrent.id,status:launchCurrent.status}:{status:launchStatus}),ifRevision});
  if(!valid())return false;
  if(data._readRevision){if(backendSyncReadVersions.size>100)backendSyncReadVersions.clear();backendSyncReadVersions.set(readKey,data._readRevision);}
+ if(page==='store')document.getElementById('storeSalesRefresh')?.setAttribute('hidden','');
  if(data.notModified)return true;
  const scroll=backendSyncScrollSnapshot();
  if(page==='purchase'){
@@ -11646,10 +11737,10 @@ if(appStarted)return;
 appStarted=true;
 document.body.classList.add('isAuthenticated');
 detectSalesperson();
-const savedTab=initialTab||(sessionStorage.getItem(PURCHASE_SAFARI_KEY)?'purchase':initialTabRequest||sessionStorage.getItem('jiwu_supabase_test_current_tab')||'launch');
+const savedTab=initialTab||(sessionStorage.getItem(PURCHASE_SAFARI_KEY)?'purchase':initialTabRequest||sessionStorage.getItem('jiwu_supabase_test_current_tab'));
 initialTabRequest='';
-const targetBtn=document.getElementById('btn-'+savedTab)||document.getElementById('btn-store');
-tab(savedTab,targetBtn);
+const tabName=document.getElementById('btn-'+savedTab)?savedTab:'launch';
+tab(tabName,document.getElementById('btn-'+tabName));
 backendSyncStart();void purchaseResumeSafariImport();
 }
 function showLogin(){
@@ -11862,7 +11953,7 @@ body[data-page="purchase"] #app.page{height:calc(100dvh - 122px - env(safe-area-
 </style>
 
 <style>.launchProduct .launchFormat{display:block;color:#777;font-size:.88em;line-height:1.15;margin:1pt 0 0}.launchProduct .launchFormat:empty,.launchThumbFormat:empty{display:none}</style>
-<script src="online-receipt.js?v=20261101-clipboard"></script>
+<script src="online-receipt.js?v=20261112-lan-image-copy"></script>
 
 <style id="launch-mobile-stock-alignment">
 @media(max-width:600px){
@@ -12101,18 +12192,19 @@ body[data-page="store"] .top{padding-left:48px}
    if(ticket===epoch&&recovering){delay=Math.min(delay*2,60000);schedule();}
   }
  }
- window.jiwuHostConnectionResult=function(response,data){
-  if(response.ok){
-   if(data?.ok===true){if(navigator.onLine)connected();else disconnected();}
-   else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data?.error||''))disconnected();
-  }
- };
  window.fetch=async function(input,options){
   const url=typeof input==='string'?input:input?.url||String(input);
   if(new URL(url,location.href).href!==new URL(API_URL,location.href).href)return nativeFetch(input,options);
   try{
    const response=await nativeFetch(input,options);
    if([502,503,504].includes(response.status))disconnected();
+   else if(response.ok){
+    try{
+     const data=await response.clone().json();
+     if(data.ok===true){if(navigator.onLine)connected();else disconnected();}
+     else if(/主機離線|host offline|connector.*offline|relay.*timeout|Mac API unavailable/i.test(data.error||''))disconnected();
+    }catch{}
+   }
    return response;
   }catch(error){if(error?.name!=='AbortError')disconnected();throw error;}
  };
@@ -12175,7 +12267,7 @@ function launchCatalogPaintSizeStock(card,group,item){
  button.classList.toggle('isShortage',out);
  button.setAttribute('aria-label',size+' 缺貨');
  button.setAttribute('aria-pressed',String(out));
- launchPaintAvailabilityBorder(card,item,size);
+ launchPaintAvailabilityBorder(card,item);
 }
 function launchCatalogSwitchSize(index,button){
  const group=launchCurrent,item=group?.items[index],card=button.closest('.launchCatalogCard');
@@ -12233,7 +12325,8 @@ function launchCatalogRows(){
   const name=esc(launchDisplayName(p));
   const link=url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="launchCatalogImage" data-launch-product-link="${linkIndex}" aria-label="開啟 ${name} 商品頁面">`:'<span class="launchCatalogImage">';
   const picture=image?`<img class="inventoryProductImage" src="${launchImage(image)}" alt="${name}" draggable="false" decoding="async" onerror="this.hidden=true">`:'<span class="inventoryNoImage">無圖片</span>';
-  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':hasSizes?' launchCatalogSizeCard':''}${launchAvailabilityChangeClass(p,sizes[0])}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
+  const availabilityClass=launchAvailabilityChangeClass(p);
+  return `<article class="launchAllItem inventoryCard launchCatalogCard${peer?' launchCatalogDrawCard':hasSizes?' launchCatalogSizeCard':''}${availabilityClass}" data-launch-sort-index="${index}" data-launch-product-id="${esc(p.id)}" data-launch-catalog-position="${position}" ondragstart="return false" onpointerdown="launchCatalogPointer(event,${position})" ontouchstart="launchCatalogTouch(event,${position})">
    <input hidden data-launch-product-select="${index}" type="checkbox" ${selected?'checked':''}>
    <button class="launchCatalogSelect" type="button" aria-label="選取 ${name}" aria-pressed="${selected}" onclick="launchCatalogSelect(${index},${peerIndex})" onkeydown="launchCatalogSortKey(event,${position})"></button>
    ${launchAvailabilityButton(p,index)}${launchProductOrderInput(p,index,position)}

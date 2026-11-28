@@ -1,3 +1,46 @@
+// The image stays in the browser. On plain HTTP, the browser's image menu can
+// still copy a PNG even though the page cannot write to the clipboard.
+window.JiwuImageCopy=(()=>{
+ async function write(image){
+  if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')return false;
+  try{
+   await navigator.clipboard.write([new ClipboardItem({'image/png':image})]);
+   return true;
+  }catch{return false;}
+ }
+ function preview(images,{title='複製圖片'}={}){
+  const previous=document.getElementById('jiwuImageCopyPreview');if(previous?.open)previous.close();
+  const dialog=document.createElement('dialog'),header=document.createElement('header'),heading=document.createElement('h2'),hint=document.createElement('p'),close=document.createElement('button');
+  dialog.id='jiwuImageCopyPreview';heading.id='jiwuImageCopyTitle';heading.textContent=title;
+  dialog.setAttribute('aria-labelledby',heading.id);dialog.setAttribute('aria-describedby','jiwuImageCopyHint');
+  hint.id='jiwuImageCopyHint';hint.textContent='在圖片上按右鍵，或在手機上長按，選「複製圖片」，就能貼到其他地方。';
+  close.type='button';close.className='btn light';close.textContent='關閉';close.onclick=()=>dialog.close();
+  header.append(heading,close);
+  const style=document.createElement('style');
+  style.textContent=`
+   #jiwuImageCopyPreview{box-sizing:border-box;width:min(540px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #e4dfdb;border-radius:14px;background:white;color:#292522;overflow:auto}
+   #jiwuImageCopyPreview::backdrop{background:#0007}
+   #jiwuImageCopyPreview header{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:white;border-bottom:1px solid #eee;z-index:1}
+   #jiwuImageCopyPreview h2{margin:0;font-size:18px;overflow-wrap:anywhere}
+   #jiwuImageCopyPreview header button{flex:none;white-space:nowrap}
+   #jiwuImageCopyPreview p{margin:14px 16px;line-height:1.55}
+   #jiwuImageCopyPreview figure{margin:0 16px 16px}
+   #jiwuImageCopyPreview figcaption{margin:0 0 8px;font-weight:600;overflow-wrap:anywhere}
+   #jiwuImageCopyPreview img{display:block;width:100%;height:auto;border:1px solid #eee;border-radius:6px;box-sizing:border-box;-webkit-touch-callout:default;pointer-events:auto}
+  `;
+  dialog.append(style,header,hint);
+  const urls=[];
+  dialog.addEventListener('close',()=>{urls.forEach(url=>URL.revokeObjectURL(url));dialog.remove();},{once:true});
+  for(const {blob,title:caption} of images){
+   const figure=document.createElement('figure'),img=document.createElement('img');
+   if(caption&&images.length>1){const label=document.createElement('figcaption');label.textContent=caption;figure.append(label);}
+   img.alt=caption||title;img.src=URL.createObjectURL(blob);urls.push(img.src);figure.append(img);dialog.append(figure);
+  }
+  document.body.append(dialog);dialog.showModal();
+ }
+ return {write,preview};
+})();
+
 const receiptRoundedFont=new FontFace('ReceiptRounded','url(receipt-rounded.woff2)');
 const receiptRoundedReady=receiptRoundedFont.load().then(font=>document.fonts.add(font));
 function receiptRoundedAmount(ctx,text,right,y){const step=Math.max(...'0123456789'.split('').map(c=>ctx.measureText(c).width));ctx.textAlign='left';let left=right-text.length*step;for(const c of text){ctx.fillText(c,left+(step-ctx.measureText(c).width)/2,y);left+=step;}ctx.textAlign='right';}
@@ -32,21 +75,20 @@ async function onlineReceiptPage(step=0){const state=onlineReceiptCurrent;if(!st
 async function onlineReceiptCopy(page){
  const state=onlineReceiptCurrent;if(!state||state.copying)return;
  const message=document.getElementById('onlineReceiptStatus'),label='明細'+onlineReceiptLetter(page);
- if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined'){
-  if(message?.isConnected)message.textContent='此瀏覽器不支援直接複製圖片，可長按／右鍵點明細圖片選「複製圖片」。';return;
- }
  const buttons=[...document.querySelectorAll('.onlineReceiptDialog button')],disabled=buttons.map(button=>button.disabled);
  state.copying=true;buttons.forEach(button=>button.disabled=true);
- if(message?.isConnected)message.textContent='正在複製'+label+'…';
+ if(message?.isConnected)message.textContent='正在準備'+label+'…';
  try{
   const image=onlineReceiptGetBlob(state,page);image.catch(()=>{});
-  // Invoke write before the first await so Safari retains the click activation.
-  const item=new ClipboardItem({'image/png':state.readyBlobs?.get(page)||image});
-  await navigator.clipboard.write([item]);
-  if(message?.isConnected)message.textContent='已複製'+label;
+  if(await window.JiwuImageCopy.write(state.readyBlobs?.get(page)||image)){
+   if(message?.isConnected)message.textContent='已複製'+label;
+  }else{
+   const blob=await image;
+   if(message?.isConnected){window.JiwuImageCopy.preview([{blob,title:label}],{title:'複製'+label});message.textContent='已開啟'+label+'圖片';}
+  }
  }catch(error){
-  console.warn('Receipt image copy failed',error);
-  if(message?.isConnected)message.textContent=error?.name==='NotAllowedError'?'瀏覽器未允許複製圖片，請允許剪貼簿權限後再按一次；也可長按／右鍵點圖片複製。':'圖片複製未完成，請再按一次；也可長按／右鍵點明細圖片複製。';
+  console.warn('Receipt image generation failed',error);
+  if(message?.isConnected)message.textContent='明細圖片未能產生，請再按一次。';
  }finally{state.copying=false;buttons.forEach((button,index)=>button.disabled=disabled[index]);}
 }
 function showSelectedOnlineDetails(){const ids=new Set([...onlineQueryAll('.shipCheck:checked')].map(input=>Number(input.value))),rows=onlineRows.filter(row=>ids.has(Number(row.row)));if(!rows.length){alert('請先勾選要查看的商品');return;}showOnlineReceipt(rows);}
